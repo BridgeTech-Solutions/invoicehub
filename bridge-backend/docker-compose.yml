@@ -1,0 +1,38 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../invoicehub_schema_v2.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      POSTGRES_DB: invoicehub
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-strongpassword}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d invoicehub"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD:-strongpassword}@db:5432/invoicehub
+    volumes:
+      - uploads:/app/uploads
+
+volumes:
+  postgres_data:
+  uploads:

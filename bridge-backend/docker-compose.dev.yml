@@ -1,0 +1,18 @@
+version: '3.9'
+
+# Override pour développement local : hot reload + DB exposée
+services:
+  db:
+    ports:
+      - "5432:5432"
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev
+    command: pnpm dev
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      NODE_ENV: development
