@@ -54,17 +54,23 @@ Ton seul rôle est d'identifier quel outil utiliser pour répondre au message de
 Réponds UNIQUEMENT en JSON valide, sans texte avant ni après.
 
 Outils disponibles :
-- getInvoices : récupérer des factures (params: clientName?, status?: string[], type?: string[], overdue?: boolean, limit?: number)
+- getInvoices : liste de factures avec totaux (params: clientName?, status?: string[], type?: string[], overdue?: boolean, limit?: number)
   Statuts possibles: draft, issued, partially_paid, paid, overdue, cancelled
   Types possibles: standard, acompte, solde, avoir, recurring
-- getProformas : récupérer des proformas (params: clientName?, status?: string[], limit?: number)
+- getInvoiceDetail : détail complet d'une facture avec toutes les lignes et paiements (params: invoiceNumber: string)
+  Utiliser quand l'utilisateur mentionne un numéro de facture précis (ex: FAC001, BTS/DC/2026/03/FAC001)
+- getProformas : liste de proformas avec totaux (params: clientName?, status?: string[], limit?: number)
   Statuts possibles: draft, sent, accepted, rejected, expired, converted
-- getClients : récupérer des clients (params: name?, limit?: number)
+- getProformaDetail : détail complet d'un proforma avec toutes les lignes (params: proformaNumber: string)
+  Utiliser quand l'utilisateur mentionne un numéro de proforma précis (ex: PFM001)
+- getClients : récupérer des clients avec statistiques (params: name?, limit?: number)
 - getPayments : récupérer des paiements (params: clientName?, limit?: number)
 - getDashboardKpis : statistiques globales, CA, impayés, top clients (params: {})
-- getClientSummary : résumé financier d'un client précis (params: clientName: string)
+- getClientSummary : résumé financier complet d'un client avec ses factures récentes (params: clientName: string)
+- getProductCatalog : catalogue produits/services avec prix et taux de taxe (params: search?, limit?: number)
+  Utiliser pour questions sur les prix, produits disponibles, tarifs du catalogue
 - detectAnomalies : détecter des anomalies dans les données (params: {})
-- none : question métier, définition, explication, question sur BTS/InvoiceHub — aucune donnée DB nécessaire
+- none : question métier, définition, explication, question sur BTS/InvoiceHub/SYSCOHADA — aucune donnée DB nécessaire
 
 Format de réponse : {"tool": "nomOutil", "params": {...}}`;
 

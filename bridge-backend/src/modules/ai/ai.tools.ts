@@ -1,22 +1,23 @@
 /**
  * @module modules/ai/ai.tools
  * Outils DB que BTS Assistant peut appeler pour récupérer les données pertinentes.
- *
- * Chaque outil correspond à une requête Prisma ciblée.
- * Le service AI détermine quel outil appeler via un premier appel Ollama (analyse d'intention),
- * exécute la requête, puis construit le contexte pour la réponse finale.
+ * Chaque outil retourne des données réelles et complètes pour que l'IA puisse
+ * répondre avec des valeurs précises (lignes, remises, TVA, montants détaillés).
  */
 import { prisma } from '../../config/database';
 
-// ─── Types des paramètres d'outils ────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────
 
 export type ToolName =
   | 'getInvoices'
+  | 'getInvoiceDetail'
   | 'getProformas'
+  | 'getProformaDetail'
   | 'getClients'
   | 'getPayments'
   | 'getDashboardKpis'
   | 'getClientSummary'
+  | 'getProductCatalog'
   | 'detectAnomalies'
   | 'none';
 
@@ -25,8 +26,13 @@ export interface ToolCall {
   params: Record<string, unknown>;
 }
 
-// ─── Implémentations ──────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────
 
+const fmt = (n: unknown) => Number(n ?? 0);
+
+// ─── Outils ───────────────────────────────────────────────────────────────
+
+/** Liste de factures avec totaux — vue d'ensemble */
 async function getInvoices(params: {
   clientName?: string;
   status?: string[];
@@ -35,56 +41,122 @@ async function getInvoices(params: {
   overdue?: boolean;
 }) {
   const where: Record<string, unknown> = { deletedAt: null };
-
-  if (params.clientName) {
-    where['client'] = { name: { contains: params.clientName, mode: 'insensitive' } };
-  }
-  if (params.status?.length) {
-    where['status'] = { in: params.status };
-  }
-  if (params.type?.length) {
-    where['type'] = { in: params.type };
-  }
-  if (params.overdue) {
-    where['status'] = 'overdue';
-  }
+  if (params.clientName) where['client'] = { name: { contains: params.clientName, mode: 'insensitive' } };
+  if (params.status?.length)  where['status'] = { in: params.status };
+  if (params.type?.length)    where['type']   = { in: params.type };
+  if (params.overdue)         where['status'] = 'overdue';
 
   const invoices = await prisma.invoice.findMany({
     where: where as Parameters<typeof prisma.invoice.findMany>[0]['where'],
-    include: {
-      client: { select: { name: true } },
-    },
+    include: { client: { select: { name: true } } },
     orderBy: { createdAt: 'desc' },
     take: params.limit ?? 10,
   });
 
   return invoices.map(i => ({
-    id: i.id,
-    number: i.number,
-    client: (i.client as { name: string }).name,
-    type: i.type,
-    status: i.status,
-    issueDate: i.issueDate,
-    dueDate: i.dueDate,
-    totalTtc: Number(i.totalTtc),
-    amountPaid: Number(i.amountPaid),
-    balanceDue: Number(i.balanceDue),
+    number:     i.number,
+    client:     (i.client as { name: string }).name,
+    type:       i.type,
+    status:     i.status,
+    issueDate:  i.issueDate,
+    dueDate:    i.dueDate,
+    totalHt:    fmt(i.totalHt),
+    totalTax:   fmt(i.totalTax),
+    totalTtc:   fmt(i.totalTtc),
+    remiseGlobale: fmt(i.globalDiscountAmount),
+    amountPaid: fmt(i.amountPaid),
+    balanceDue: fmt(i.balanceDue),
   }));
 }
 
+/** Détail complet d'une facture : lignes, remises, TVA par ligne */
+async function getInvoiceDetail(params: { invoiceNumber?: string; clientName?: string }) {
+  const where: Record<string, unknown> = { deletedAt: null };
+  if (params.invoiceNumber) where['number'] = { contains: params.invoiceNumber, mode: 'insensitive' };
+  if (params.clientName)    where['client'] = { name: { contains: params.clientName, mode: 'insensitive' } };
+
+  const invoice = await prisma.invoice.findFirst({
+    where: where as Parameters<typeof prisma.invoice.findFirst>[0]['where'],
+    include: {
+      client: { select: { name: true, email: true } },
+      lines:  {
+        select: {
+          position:       true,
+          description:    true,
+          quantity:       true,
+          unit:           true,
+          unitPriceHt:    true,
+          discountType:   true,
+          discountValue:  true,
+          discountAmount: true,
+          taxRate:        true,
+          taxAmount:      true,
+          subtotalHt:     true,
+          netHt:          true,
+          totalTtc:       true,
+        },
+        orderBy: { position: 'asc' },
+      },
+      payments: {
+        where: { deletedAt: null },
+        select: { amount: true, method: true, paymentDate: true },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  if (!invoice) return null;
+
+  return {
+    number:          invoice.number,
+    client:          (invoice.client as { name: string; email: string }).name,
+    clientEmail:     (invoice.client as { name: string; email: string }).email,
+    type:            invoice.type,
+    status:          invoice.status,
+    issueDate:       invoice.issueDate,
+    dueDate:         invoice.dueDate,
+    notes:           invoice.notes,
+    paymentTerms:    invoice.paymentTermsDays,
+    remiseGlobaleType:  invoice.globalDiscountType,
+    remiseGlobaleValeur: fmt(invoice.globalDiscountValue),
+    remiseGlobaleMontant: fmt(invoice.globalDiscountAmount),
+    totalHt:         fmt(invoice.totalHt),
+    totalTax:        fmt(invoice.totalTax),
+    totalTtc:        fmt(invoice.totalTtc),
+    amountPaid:      fmt(invoice.amountPaid),
+    balanceDue:      fmt(invoice.balanceDue),
+    lignes: (invoice.lines as Array<Record<string, unknown>>).map(l => ({
+      position:     l['position'],
+      description:  l['description'],
+      quantite:     fmt(l['quantity']),
+      unite:        l['unit'],
+      prixUnitaireHt: fmt(l['unitPriceHt']),
+      remiseType:   l['discountType'],
+      remiseValeur: fmt(l['discountValue']),
+      remiseMontant: fmt(l['discountAmount']),
+      tauxTva:      fmt(l['taxRate']),
+      montantTva:   fmt(l['taxAmount']),
+      totalHt:      fmt(l['subtotalHt']),
+      netHt:        fmt(l['netHt']),
+      totalTtc:     fmt(l['totalTtc']),
+    })),
+    paiements: (invoice.payments as Array<Record<string, unknown>>).map(p => ({
+      montant:      fmt(p['amount']),
+      methode:      p['method'],
+      date:         p['paymentDate'],
+    })),
+  };
+}
+
+/** Liste de proformas avec totaux */
 async function getProformas(params: {
   clientName?: string;
   status?: string[];
   limit?: number;
 }) {
   const where: Record<string, unknown> = { deletedAt: null };
-
-  if (params.clientName) {
-    where['client'] = { name: { contains: params.clientName, mode: 'insensitive' } };
-  }
-  if (params.status?.length) {
-    where['status'] = { in: params.status };
-  }
+  if (params.clientName)  where['client'] = { name: { contains: params.clientName, mode: 'insensitive' } };
+  if (params.status?.length) where['status'] = { in: params.status };
 
   const proformas = await prisma.proforma.findMany({
     where: where as Parameters<typeof prisma.proforma.findMany>[0]['where'],
@@ -94,20 +166,71 @@ async function getProformas(params: {
   });
 
   return proformas.map(p => ({
-    id: p.id,
-    number: p.number,
-    client: (p.client as { name: string }).name,
-    status: p.status,
-    issueDate: p.issueDate,
+    number:     p.number,
+    client:     (p.client as { name: string }).name,
+    status:     p.status,
+    issueDate:  p.issueDate,
     expiryDate: p.expiryDate,
-    totalTtc: Number(p.totalTtc),
+    totalHt:    fmt(p.totalHt),
+    totalTax:   fmt(p.totalTax),
+    totalTtc:   fmt(p.totalTtc),
   }));
 }
 
-async function getClients(params: {
-  name?: string;
-  limit?: number;
-}) {
+/** Détail complet d'une proforma avec lignes */
+async function getProformaDetail(params: { proformaNumber?: string; clientName?: string }) {
+  const where: Record<string, unknown> = { deletedAt: null };
+  if (params.proformaNumber) where['number'] = { contains: params.proformaNumber, mode: 'insensitive' };
+  if (params.clientName)     where['client'] = { name: { contains: params.clientName, mode: 'insensitive' } };
+
+  const proforma = await prisma.proforma.findFirst({
+    where: where as Parameters<typeof prisma.proforma.findFirst>[0]['where'],
+    include: {
+      client: { select: { name: true } },
+      lines: {
+        select: {
+          position: true, description: true, quantity: true, unit: true,
+          unitPriceHt: true, discountType: true, discountValue: true,
+          discountAmount: true, taxRate: true, taxAmount: true,
+          subtotalHt: true, netHt: true, totalTtc: true,
+        },
+        orderBy: { position: 'asc' },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  if (!proforma) return null;
+
+  return {
+    number:      proforma.number,
+    client:      (proforma.client as { name: string }).name,
+    status:      proforma.status,
+    issueDate:   proforma.issueDate,
+    expiryDate:  proforma.expiryDate,
+    validityDays: proforma.validityDays,
+    paymentTerms: proforma.paymentTermsDays,
+    remiseGlobaleMontant: fmt(proforma.globalDiscountAmount),
+    totalHt:     fmt(proforma.totalHt),
+    totalTax:    fmt(proforma.totalTax),
+    totalTtc:    fmt(proforma.totalTtc),
+    lignes: (proforma.lines as Array<Record<string, unknown>>).map(l => ({
+      position:     l['position'],
+      description:  l['description'],
+      quantite:     fmt(l['quantity']),
+      unite:        l['unit'],
+      prixUnitaireHt: fmt(l['unitPriceHt']),
+      remiseMontant:  fmt(l['discountAmount']),
+      tauxTva:      fmt(l['taxRate']),
+      montantTva:   fmt(l['taxAmount']),
+      netHt:        fmt(l['netHt']),
+      totalTtc:     fmt(l['totalTtc']),
+    })),
+  };
+}
+
+/** Liste des clients avec stats de facturation */
+async function getClients(params: { name?: string; limit?: number }) {
   const clients = await prisma.client.findMany({
     where: {
       deletedAt: null,
@@ -116,30 +239,24 @@ async function getClients(params: {
     orderBy: { name: 'asc' },
     take: params.limit ?? 10,
     select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      city: true,
+      name: true, email: true, phone: true, city: true, taxId: true,
       _count: { select: { invoices: true, proformas: true } },
     },
   });
 
   return clients.map(c => ({
-    id: c.id,
-    name: c.name,
-    email: c.email,
-    phone: c.phone,
-    city: c.city,
-    invoiceCount: c._count.invoices,
-    proformaCount: c._count.proformas,
+    name:          c.name,
+    email:         c.email,
+    phone:         c.phone,
+    ville:         c.city,
+    numeroTaxe:    c.taxId,
+    nombreFactures: c._count.invoices,
+    nombreProformas: c._count.proformas,
   }));
 }
 
-async function getPayments(params: {
-  clientName?: string;
-  limit?: number;
-}) {
+/** Paiements avec détails */
+async function getPayments(params: { clientName?: string; limit?: number }) {
   const payments = await prisma.payment.findMany({
     where: {
       deletedAt: null,
@@ -148,30 +265,33 @@ async function getPayments(params: {
         : {}),
     },
     include: {
-      invoice: { select: { number: true, client: { select: { name: true } } } },
+      invoice: { select: { number: true, totalTtc: true, client: { select: { name: true } } } },
     },
     orderBy: { paymentDate: 'desc' },
     take: params.limit ?? 10,
   });
 
-  return payments.map(p => ({
-    id: p.id,
-    invoice: (p.invoice as { number: string; client: { name: string } }).number,
-    client: (p.invoice as { number: string; client: { name: string } }).client.name,
-    amount: Number(p.amount),
-    method: p.method,
-    paymentDate: p.paymentDate,
-  }));
+  return payments.map(p => {
+    const inv = p.invoice as { number: string; totalTtc: unknown; client: { name: string } };
+    return {
+      facture:      inv.number,
+      client:       inv.client.name,
+      montantFacture: fmt(inv.totalTtc),
+      montantPaye:  fmt(p.amount),
+      methode:      p.method,
+      reference:    p.reference,
+      date:         p.paymentDate,
+    };
+  });
 }
 
+/** KPIs globaux du tableau de bord */
 async function getDashboardKpis() {
-  const [
-    totalInvoices,
-    unpaidInvoices,
-    overdueInvoices,
-    recentPayments,
-    topClients,
-  ] = await Promise.all([
+  const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const startOfLastMonth = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1);
+  const endOfLastMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 0);
+
+  const [total, unpaid, overdue, thisMonth, lastMonth, topClients] = await Promise.all([
     prisma.invoice.aggregate({
       where: { deletedAt: null, status: { not: 'cancelled' } },
       _sum: { totalTtc: true, amountPaid: true, balanceDue: true },
@@ -182,160 +302,185 @@ async function getDashboardKpis() {
       _sum: { balanceDue: true },
       _count: true,
     }),
-    prisma.invoice.count({
-      where: { deletedAt: null, status: 'overdue' },
-    }),
-    prisma.payment.aggregate({
-      where: {
-        deletedAt: null,
-        paymentDate: { gte: new Date(new Date().setDate(1)) }, // mois courant
-      },
-      _sum: { amount: true },
+    prisma.invoice.count({ where: { deletedAt: null, status: 'overdue' } }),
+    prisma.invoice.aggregate({
+      where: { deletedAt: null, status: { not: 'cancelled' }, issueDate: { gte: startOfMonth } },
+      _sum: { totalTtc: true },
       _count: true,
+    }),
+    prisma.invoice.aggregate({
+      where: { deletedAt: null, status: { not: 'cancelled' }, issueDate: { gte: startOfLastMonth, lte: endOfLastMonth } },
+      _sum: { totalTtc: true },
     }),
     prisma.client.findMany({
       where: { deletedAt: null },
-      take: 5,
       select: {
         name: true,
         invoices: {
           where: { deletedAt: null, status: { not: 'cancelled' } },
-          select: { totalTtc: true },
+          select: { totalTtc: true, amountPaid: true, balanceDue: true },
         },
       },
     }),
   ]);
 
+  const caMoisCourant  = fmt(thisMonth._sum.totalTtc);
+  const caMoisPrecedent = fmt(lastMonth._sum.totalTtc);
+  const evolutionCA    = caMoisPrecedent > 0
+    ? Math.round((caMoisCourant - caMoisPrecedent) / caMoisPrecedent * 100)
+    : null;
+
   const clientRanking = topClients
     .map(c => ({
-      name: c.name,
-      totalFacture: c.invoices.reduce((s, i) => s + Number(i.totalTtc), 0),
+      nom:           c.name,
+      totalFacture:  c.invoices.reduce((s, i) => s + fmt(i.totalTtc), 0),
+      totalPaye:     c.invoices.reduce((s, i) => s + fmt(i.amountPaid), 0),
+      totalDu:       c.invoices.reduce((s, i) => s + fmt(i.balanceDue), 0),
     }))
     .sort((a, b) => b.totalFacture - a.totalFacture)
     .slice(0, 5);
 
   return {
-    totalFacture: Number(totalInvoices._sum.totalTtc ?? 0),
-    totalEncaisse: Number(totalInvoices._sum.amountPaid ?? 0),
-    totalImpaye: Number(unpaidInvoices._sum.balanceDue ?? 0),
-    nombreFactures: totalInvoices._count,
-    nombreImpayees: unpaidInvoices._count,
-    nombreEnRetard: overdueInvoices,
-    encaisseMoisCourant: Number(recentPayments._sum.amount ?? 0),
-    topClients: clientRanking,
+    caMoisCourant,
+    caMoisPrecedent,
+    evolutionCAPct:   evolutionCA,
+    caTotal:          fmt(total._sum.totalTtc),
+    encaisseTotal:    fmt(total._sum.amountPaid),
+    impayes:          fmt(unpaid._sum.balanceDue),
+    nombreFactures:   total._count,
+    nombreImpayees:   unpaid._count,
+    nombreEnRetard:   overdue,
+    facturesMoisCourant: thisMonth._count,
+    top5Clients:      clientRanking,
   };
 }
 
+/** Résumé financier complet d'un client */
 async function getClientSummary(params: { clientName: string }) {
   const client = await prisma.client.findFirst({
-    where: {
-      deletedAt: null,
-      name: { contains: params.clientName, mode: 'insensitive' },
-    },
+    where: { deletedAt: null, name: { contains: params.clientName, mode: 'insensitive' } },
     include: {
       invoices: {
         where: { deletedAt: null, status: { not: 'cancelled' } },
-        select: { totalTtc: true, amountPaid: true, balanceDue: true, status: true },
+        select: {
+          number: true, status: true, type: true,
+          issueDate: true, dueDate: true,
+          totalTtc: true, amountPaid: true, balanceDue: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
       },
     },
   });
 
   if (!client) return null;
 
-  const stats = {
-    name: client.name,
-    email: client.email,
-    phone: client.phone,
-    totalFacture: client.invoices.reduce((s, i) => s + Number(i.totalTtc), 0),
-    totalPaye: client.invoices.reduce((s, i) => s + Number(i.amountPaid), 0),
-    totalDu: client.invoices.reduce((s, i) => s + Number(i.balanceDue), 0),
+  return {
+    nom:            client.name,
+    email:          client.email,
+    telephone:      client.phone,
+    ville:          client.city,
+    numeroTaxe:     client.taxId,
+    totalFacture:   client.invoices.reduce((s, i) => s + fmt(i.totalTtc), 0),
+    totalPaye:      client.invoices.reduce((s, i) => s + fmt(i.amountPaid), 0),
+    totalDu:        client.invoices.reduce((s, i) => s + fmt(i.balanceDue), 0),
     nombreFactures: client.invoices.length,
-    facturesEnRetard: client.invoices.filter(i => i.status === 'overdue').length,
+    enRetard:       client.invoices.filter(i => i.status === 'overdue').length,
+    dernieresFactures: client.invoices.map(i => ({
+      numero:    i.number,
+      statut:    i.status,
+      type:      i.type,
+      emission:  i.issueDate,
+      echeance:  i.dueDate,
+      totalTtc:  fmt(i.totalTtc),
+      paye:      fmt(i.amountPaid),
+      solde:     fmt(i.balanceDue),
+    })),
   };
-
-  return stats;
 }
 
+/** Catalogue des produits/services */
+async function getProductCatalog(params: { name?: string; limit?: number }) {
+  const products = await prisma.product.findMany({
+    where: {
+      deletedAt: null,
+      ...(params.name ? { name: { contains: params.name, mode: 'insensitive' } } : {}),
+    },
+    include: { category: { select: { name: true } } },
+    orderBy: { name: 'asc' },
+    take: params.limit ?? 20,
+  });
+
+  return products.map(p => ({
+    nom:        p.name,
+    categorie:  (p.category as { name: string } | null)?.name ?? 'Sans catégorie',
+    prix:       fmt(p.unitPrice),
+    unite:      p.unit,
+    tauxTva:    fmt(p.taxRate),
+    description: p.description,
+    actif:      !p.deletedAt,
+  }));
+}
+
+/** Détection d'anomalies dans les données */
 async function detectAnomalies() {
   const anomalies: string[] = [];
 
-  // Factures avec montant anormalement bas (< 10% de la moyenne)
   const avgResult = await prisma.invoice.aggregate({
     where: { deletedAt: null, status: { not: 'cancelled' } },
     _avg: { totalTtc: true },
   });
-  const avg = Number(avgResult._avg.totalTtc ?? 0);
+  const avg = fmt(avgResult._avg.totalTtc);
 
   if (avg > 0) {
     const lowInvoices = await prisma.invoice.findMany({
-      where: {
-        deletedAt: null,
-        status: { not: 'cancelled' },
-        totalTtc: { lt: avg * 0.1 },
-      },
+      where: { deletedAt: null, status: { not: 'cancelled' }, totalTtc: { lt: avg * 0.1 } },
       include: { client: { select: { name: true } } },
       take: 3,
     });
-
     for (const inv of lowInvoices) {
-      anomalies.push(
-        `Facture ${inv.number} (${(inv.client as { name: string }).name}) : ${Number(inv.totalTtc).toLocaleString('fr-FR')} XAF — soit moins de 10% de votre montant moyen. Vérification recommandée.`
-      );
+      anomalies.push(`Facture ${inv.number} (${(inv.client as { name: string }).name}) : ${fmt(inv.totalTtc).toLocaleString('fr-FR')} XAF — moins de 10% de la moyenne (${Math.round(avg).toLocaleString('fr-FR')} XAF). Vérification recommandée.`);
     }
   }
 
-  // Clients sans activité depuis 90 jours
   const ninetyDaysAgo = new Date();
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-
   const inactiveClients = await prisma.client.findMany({
-    where: {
-      deletedAt: null,
-      invoices: {
-        none: { createdAt: { gte: ninetyDaysAgo }, deletedAt: null },
-      },
-    },
+    where: { deletedAt: null, invoices: { none: { createdAt: { gte: ninetyDaysAgo }, deletedAt: null } } },
     select: { name: true },
     take: 3,
   });
-
   for (const c of inactiveClients) {
     anomalies.push(`Client ${c.name} : aucune facture depuis plus de 90 jours.`);
   }
 
-  // Factures avec TVA à 0% (potentiellement incorrectes)
   const zeroVatInvoices = await prisma.invoice.findMany({
-    where: {
-      deletedAt: null,
-      status: { not: 'cancelled' },
-      totalTax: { equals: 0 },
-      totalHt: { gt: 0 },
-    },
+    where: { deletedAt: null, status: { not: 'cancelled' }, totalTax: { equals: 0 }, totalHt: { gt: 0 } },
     include: { client: { select: { name: true } } },
     take: 3,
   });
-
   for (const inv of zeroVatInvoices) {
-    anomalies.push(
-      `Facture ${inv.number} (${(inv.client as { name: string }).name}) : TVA à 0 XAF sur un montant HT de ${Number(inv.totalHt).toLocaleString('fr-FR')} XAF — vérifier si intentionnel.`
-    );
+    anomalies.push(`Facture ${inv.number} (${(inv.client as { name: string }).name}) : TVA à 0 XAF sur ${fmt(inv.totalHt).toLocaleString('fr-FR')} XAF HT.`);
   }
 
-  return anomalies;
+  return anomalies.length > 0 ? anomalies : ['Aucune anomalie détectée.'];
 }
 
 // ─── Dispatcher ────────────────────────────────────────────────────────────
 
 export async function executeTool(call: ToolCall): Promise<unknown> {
   switch (call.tool) {
-    case 'getInvoices':      return getInvoices(call.params as Parameters<typeof getInvoices>[0]);
-    case 'getProformas':     return getProformas(call.params as Parameters<typeof getProformas>[0]);
-    case 'getClients':       return getClients(call.params as Parameters<typeof getClients>[0]);
-    case 'getPayments':      return getPayments(call.params as Parameters<typeof getPayments>[0]);
-    case 'getDashboardKpis': return getDashboardKpis();
-    case 'getClientSummary': return getClientSummary(call.params as Parameters<typeof getClientSummary>[0]);
-    case 'detectAnomalies':  return detectAnomalies();
-    case 'none':             return null;
-    default:                 return null;
+    case 'getInvoices':       return getInvoices(call.params as Parameters<typeof getInvoices>[0]);
+    case 'getInvoiceDetail':  return getInvoiceDetail(call.params as Parameters<typeof getInvoiceDetail>[0]);
+    case 'getProformas':      return getProformas(call.params as Parameters<typeof getProformas>[0]);
+    case 'getProformaDetail': return getProformaDetail(call.params as Parameters<typeof getProformaDetail>[0]);
+    case 'getClients':        return getClients(call.params as Parameters<typeof getClients>[0]);
+    case 'getPayments':       return getPayments(call.params as Parameters<typeof getPayments>[0]);
+    case 'getDashboardKpis':  return getDashboardKpis();
+    case 'getClientSummary':  return getClientSummary(call.params as Parameters<typeof getClientSummary>[0]);
+    case 'getProductCatalog': return getProductCatalog(call.params as Parameters<typeof getProductCatalog>[0]);
+    case 'detectAnomalies':   return detectAnomalies();
+    case 'none':              return null;
+    default:                  return null;
   }
 }
