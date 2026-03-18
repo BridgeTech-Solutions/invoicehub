@@ -1,0 +1,295 @@
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+/* ─── BTS Design Tokens ─────────────────────────────────────── */
+:root {
+  /* Sidebar */
+  --sidebar-w:          190px;
+  --sidebar-w-collapsed: 56px;
+  --sidebar-bg:         #0c2340;
+  --sidebar-bg-light:   #0f2d4a;
+  --sidebar-text:       rgba(126,170,200,0.85);
+  --sidebar-text-hover: #c4dff0;
+  --sidebar-active-bg:  rgba(45, 125, 210, 0.13);
+  --sidebar-active-text:#ffffff;
+  --sidebar-border:     rgba(255,255,255,0.07);
+  --sidebar-section:    rgba(58,102,133,0.9);
+
+  /* Brand */
+  --primary:            #2D7DD2;
+  --primary-hover:      #2169b8;
+  --primary-light:      rgba(45, 125, 210, 0.12);
+  --primary-glow:       rgba(45, 125, 210, 0.35);
+
+  /* Surface */
+  --bg:                 #f0f4f9;
+  --surface:            #ffffff;
+  --surface-2:          #f8fafc;
+  --border:             #e2e8f0;
+  --border-strong:      #cbd5e1;
+
+  /* Text */
+  --text-1:             #0f1923;
+  --text-2:             #3d5166;
+  --text-3:             #7a92a8;
+
+  /* Topbar */
+  --topbar-h:           56px;
+  --topbar-bg:          #ffffff;
+  --topbar-shadow:      0 1px 0 #e2e8f0, 0 2px 8px rgba(15,25,35,0.04);
+
+  /* Status colors */
+  --s-draft:            #94a3b8;
+  --s-draft-bg:         #f1f5f9;
+  --s-sent:             #3b82f6;
+  --s-sent-bg:          #eff6ff;
+  --s-accepted:         #10b981;
+  --s-accepted-bg:      #ecfdf5;
+  --s-rejected:         #f43f5e;
+  --s-rejected-bg:      #fff1f2;
+  --s-paid:             #16a34a;
+  --s-paid-bg:          #f0fdf4;
+  --s-partial:          #d97706;
+  --s-partial-bg:       #fffbeb;
+  --s-overdue:          #dc2626;
+  --s-overdue-bg:       #fef2f2;
+  --s-cancelled:        #64748b;
+  --s-cancelled-bg:     #f8fafc;
+  --s-expired:          #9333ea;
+  --s-expired-bg:       #faf5ff;
+
+  /* Shadows */
+  --shadow-sm:  0 1px 3px rgba(15,25,35,0.06), 0 1px 2px rgba(15,25,35,0.04);
+  --shadow-md:  0 4px 12px rgba(15,25,35,0.08), 0 2px 4px rgba(15,25,35,0.04);
+  --shadow-lg:  0 8px 32px rgba(15,25,35,0.12), 0 4px 8px rgba(15,25,35,0.06);
+
+  /* Radius */
+  --radius-sm:  6px;
+  --radius-md:  10px;
+  --radius-lg:  14px;
+  --radius-xl:  20px;
+
+  /* Fonts */
+  --font-display: 'Sora', sans-serif;
+  --font-body:    'DM Sans', sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+
+  /* Transitions */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Base ──────────────────────────────────────────────────── */
+/*
+  IMPORTANT : en Tailwind v4, les classes utilitaires sont dans @layer utilities.
+  Les styles hors layer priment sur les styles dans un layer, quel que soit
+  la spécificité. Il faut donc mettre les resets dans @layer base pour que
+  les utilitaires (py-*, px-*, etc.) puissent les surcharger correctement.
+  De même, les classes de composants doivent être dans @layer components
+  pour que @layer utilities puisse les surcharger.
+*/
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { font-size: 15px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--text-1);
+    line-height: 1.6;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar              { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track        { background: transparent; }
+  ::-webkit-scrollbar-thumb        { background: var(--border-strong); border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover  { background: var(--text-3); }
+
+  /* Focus rings */
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+}
+
+/* ─── Keyframes (global — not subject to cascade layers) ────── */
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes item-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse-ring {
+  0%   { transform: scale(1);   opacity: 0.8; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+
+/* ─── Components ────────────────────────────────────────────── */
+/*
+  Toutes les classes de composants sont dans @layer components.
+  Cela permet aux utilitaires Tailwind (@layer utilities) de les surcharger
+  quand on ajoute par ex. className="card p-0" ou className="badge px-4".
+*/
+@layer components {
+
+  /* ── Typography helpers ──────────────────────────────────── */
+  .font-display  { font-family: var(--font-display); }
+  .font-mono     { font-family: var(--font-mono); }
+  .font-body     { font-family: var(--font-body); }
+
+  /* ── Sidebar scrollbar ───────────────────────────────────── */
+  .sidebar-scroll::-webkit-scrollbar       { width: 4px; }
+  .sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); }
+
+  /* ── Sidebar Network Pattern (SVG background) ────────────── */
+  .sidebar-pattern {
+    position: absolute;
+    inset: 0;
+    opacity: 0.04;
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='0.8'%3E%3Ccircle cx='10' cy='10' r='2'/%3E%3Ccircle cx='50' cy='10' r='2'/%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3Ccircle cx='10' cy='50' r='2'/%3E%3Ccircle cx='50' cy='50' r='2'/%3E%3Cline x1='10' y1='10' x2='30' y2='30'/%3E%3Cline x1='50' y1='10' x2='30' y2='30'/%3E%3Cline x1='30' y1='30' x2='10' y2='50'/%3E%3Cline x1='30' y1='30' x2='50' y2='50'/%3E%3C/g%3E%3C/svg%3E");
+    background-size: 60px 60px;
+    pointer-events: none;
+  }
+
+  /* ── Status Badge ────────────────────────────────────────── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 99px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+  .badge-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+
+  .badge-draft     { background: var(--s-draft-bg);    color: var(--s-draft);    }
+  .badge-sent,
+  .badge-issued    { background: var(--s-sent-bg);     color: var(--s-sent);     }
+  .badge-accepted,
+  .badge-paid      { background: var(--s-paid-bg);     color: var(--s-paid);     }
+  .badge-rejected  { background: var(--s-rejected-bg); color: var(--s-rejected); }
+  .badge-partial   { background: var(--s-partial-bg);  color: var(--s-partial);  }
+  .badge-overdue   { background: var(--s-overdue-bg);  color: var(--s-overdue);  }
+  .badge-cancelled { background: var(--s-cancelled-bg);color: var(--s-cancelled);}
+  .badge-expired   { background: var(--s-expired-bg);  color: var(--s-expired);  }
+
+  /* ── Amount / Mono ───────────────────────────────────────── */
+  .amount {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
+  .doc-number {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-2);
+    letter-spacing: 0.03em;
+  }
+
+  /* ── Card ────────────────────────────────────────────────── */
+  .card {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    padding: 20px;
+  }
+  .card-hover {
+    transition: box-shadow 0.2s var(--ease-smooth), transform 0.2s var(--ease-smooth);
+  }
+  .card-hover:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+
+  /* ── Page fade-in ────────────────────────────────────────── */
+  .page-enter { animation: page-in 0.35s var(--ease-smooth) both; }
+
+  /* ── Staggered list (sidebar nav items) ─────────────────── */
+  .nav-item { animation: item-in 0.3s var(--ease-smooth) both; }
+  .nav-item:nth-child(1)  { animation-delay: 0.04s; }
+  .nav-item:nth-child(2)  { animation-delay: 0.07s; }
+  .nav-item:nth-child(3)  { animation-delay: 0.10s; }
+  .nav-item:nth-child(4)  { animation-delay: 0.13s; }
+  .nav-item:nth-child(5)  { animation-delay: 0.16s; }
+  .nav-item:nth-child(6)  { animation-delay: 0.19s; }
+  .nav-item:nth-child(7)  { animation-delay: 0.22s; }
+  .nav-item:nth-child(8)  { animation-delay: 0.25s; }
+  .nav-item:nth-child(9)  { animation-delay: 0.28s; }
+  .nav-item:nth-child(10) { animation-delay: 0.31s; }
+
+  /* ── Pulse badge ─────────────────────────────────────────── */
+  .badge-pulse::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    background: #ef4444;
+    animation: pulse-ring 1.4s ease-out infinite;
+  }
+
+  /* ── Sidebar collapsed labels ────────────────────────────── */
+  .sidebar-label {
+    transition: opacity 0.2s var(--ease-smooth), width 0.2s var(--ease-smooth);
+  }
+  .sidebar-collapsed .sidebar-label {
+    opacity: 0;
+    width: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .sidebar-collapsed .nav-section-title { display: none; }
+  .sidebar-collapsed .user-name          { display: none; }
+  .sidebar-collapsed .sidebar-logo-text  { display: none; }
+
+  /* ── Table ───────────────────────────────────────────────── */
+  .data-table { width: 100%; border-collapse: collapse; }
+  .data-table th {
+    font-family: var(--font-display);
+    font-size: 11.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-3);
+    padding: 10px 14px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    white-space: nowrap;
+  }
+  .data-table td {
+    padding: 13px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13.5px;
+    color: var(--text-1);
+  }
+  .data-table tbody tr {
+    transition: background 0.12s ease;
+  }
+  .data-table tbody tr:hover { background: var(--surface-2); }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+
+  /* ── Mini Rich Editor content styles ─────────────────────── */
+  .rich-editor-content ul  { list-style: disc;    padding-left: 20px; margin: 4px 0; }
+  .rich-editor-content ol  { list-style: decimal; padding-left: 20px; margin: 4px 0; }
+  .rich-editor-content li  { margin: 2px 0; }
+  .rich-editor-content b, .rich-editor-content strong { font-weight: 700; }
+  .rich-editor-content i, .rich-editor-content em     { font-style: italic; }
+  .rich-editor-content u   { text-decoration: underline; }
+  .rich-editor-content hr  { border: none; border-top: 1px solid var(--border); margin: 6px 0; }
+  .rich-editor-content p   { margin: 2px 0; }
+}
+
+/* ─── Responsive ─────────────────────────────────────────────── */
+/* Sidebar visibility is handled by Tailwind (hidden lg:flex) and
+   mobile overlay is controlled by Zustand mobileOpen state.
+   No global aside overrides needed. */
