@@ -1,0 +1,4048 @@
+{
+  "info": {
+    "_postman_id": "bts-invoicehub-v2-collection",
+    "name": "InvoiceHub v2.0 — BTS",
+    "description": "Collection complète InvoiceHub v2.0 — Bridge Technologies Solutions (Douala, Cameroun). SYSCOHADA conforme.\n\nImporter avec l'environnement InvoiceHub_Dev.postman_environment.json\n\nOrdre recommandé : Auth → Clients → Products → Proformas → Invoices → Payments",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const at = pm.environment.get('access_token');",
+          "const rt = pm.environment.get('refresh_token');",
+          "if (!at || !rt) return;",
+          "try {",
+          "  const p = JSON.parse(atob(at.split('.')[1]));",
+          "  if ((p.exp * 1000 - Date.now()) > 60000) return;",
+          "  pm.sendRequest({",
+          "    url: pm.environment.get('base_url') + '/auth/refresh',",
+          "    method: 'POST',",
+          "    header: [{ key: 'Content-Type', value: 'application/json' }],",
+          "    body: { mode: 'raw', raw: JSON.stringify({ refreshToken: rt }) }",
+          "  }, (err, res) => {",
+          "    if (!err && res.code === 200) {",
+          "      const d = res.json().data;",
+          "      pm.environment.set('access_token', d.accessToken);",
+          "      pm.environment.set('refresh_token', d.refreshToken);",
+          "    }",
+          "  });",
+          "} catch(e) {}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 — Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "if (d && d.accessToken) {",
+                  "  pm.environment.set('access_token', d.accessToken);",
+                  "  pm.environment.set('refresh_token', d.refreshToken);",
+                  "  pm.environment.set('user_id', d.user.id);",
+                  "  pm.test('accessToken recu', () => pm.expect(d.accessToken).to.be.a('string'));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@bts.cm\",\n  \"password\": \"Admin1234!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Login avec 2FA (TOTP)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "if (d && d.accessToken) {",
+                  "  pm.environment.set('access_token', d.accessToken);",
+                  "  pm.environment.set('refresh_token', d.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@bts.cm\",\n  \"password\": \"Admin1234!\",\n  \"totpToken\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "if (d && d.accessToken) {",
+                  "  pm.environment.set('access_token', d.accessToken);",
+                  "  pm.environment.set('refresh_token', d.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/refresh",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/logout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Activer 2FA — Générer QR Code",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('QR code recu', () => {",
+                  "  const d = pm.response.json().data;",
+                  "  pm.expect(d).to.have.property('secret');",
+                  "  pm.expect(d).to.have.property('qrCodeUrl');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/2fa/enable",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "2fa",
+                "enable"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Vérifier et Activer 2FA",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Backup codes recus', () => {",
+                  "  const d = pm.response.json().data;",
+                  "  pm.expect(d.backupCodes).to.be.an('array').with.lengthOf(8);",
+                  "  console.log('SAUVEGARDER CES CODES:', d.backupCodes.join(', '));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"totpToken\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/2fa/verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "2fa",
+                "verify"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Désactiver 2FA",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"totpToken\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/2fa/disable",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "2fa",
+                "disable"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Régénérer Codes de Secours",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Nouveaux codes recus', () => {",
+                  "  const d = pm.response.json().data;",
+                  "  pm.expect(d.backupCodes).to.be.an('array').with.lengthOf(8);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"totpToken\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/2fa/backup-codes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "2fa",
+                "backup-codes"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mot de Passe Oublié",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@bts.cm\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/forgot-password",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "forgot-password"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Réinitialiser Mot de Passe",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"TOKEN_EMAIL\",\n  \"password\": \"NouveauMdp1!\",\n  \"confirmPassword\": \"NouveauMdp1!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/reset-password",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Lister Sessions Actives",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const sessions = pm.response.json().data;",
+                  "if (sessions && sessions.length > 0) {",
+                  "  pm.environment.set('session_id', sessions[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/sessions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "sessions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Révoquer une Session",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/sessions/{{session_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "sessions",
+                "{{session_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Révoquer Toutes les Sessions",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/sessions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "sessions"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 — Utilisateurs",
+      "item": [
+        {
+          "name": "Mon Profil",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Profil valide', () => {",
+                  "  const d = pm.response.json().data;",
+                  "  pm.expect(d).to.have.property('email');",
+                  "  pm.expect(d).to.have.property('role');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mettre à Jour Mon Profil",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Jean\",\n  \"lastName\": \"Admin\",\n  \"phone\": \"+237 699 XX XX XX\",\n  \"language\": \"fr\",\n  \"theme\": \"light\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/users/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Changer Mon Mot de Passe",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Admin1234!\",\n  \"newPassword\": \"Admin5678!\",\n  \"confirmPassword\": \"Admin5678!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/users/me/password",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "me",
+                "password"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Lister les Utilisateurs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users?page=1&limit=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "role",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Créer un Utilisateur",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('commercial_id', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"commercial1@bts.cm\",\n  \"firstName\": \"Alice\",\n  \"lastName\": \"Martin\",\n  \"role\": \"commercial\",\n  \"password\": \"Temp1234!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Détail Utilisateur",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users/{{commercial_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{commercial_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Modifier Utilisateur",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Alice\",\n  \"lastName\": \"Dupont\",\n  \"role\": \"commercial\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/users/{{commercial_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{commercial_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Supprimer Utilisateur (soft-delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users/{{commercial_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{commercial_id}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 — Clients",
+      "item": [
+        {
+          "name": "Lister les Clients",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients?page=1&limit=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "clients"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Créer un Client",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('client_id', pm.response.json().data.id);",
+                  "pm.test('Client créé avec nom', () => {",
+                  "  pm.expect(pm.response.json().data.name).to.eql('Camtel SA');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Camtel SA\",\n  \"email\": \"contact@camtel.cm\",\n  \"phone\": \"+237 233 XX XX XX\",\n  \"type\": \"company\",\n  \"address\": \"BP 1571, Akwa\",\n  \"city\": \"Douala\",\n  \"country\": \"Cameroun\",\n  \"taxNumber\": \"M123456789A\",\n  \"rccm\": \"RC/DLA/2020/B/12345\",\n  \"paymentTermsDays\": 30\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/clients",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "clients"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Détail Client",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "clients",
+                "{{client_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Modifier Client",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentTermsDays\": 45,\n  \"phone\": \"+237 233 YY YY YY\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "clients",
+                "{{client_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Supprimer Client (soft-delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "clients",
+                "{{client_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Résumé Financier Client",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Résumé complet', () => {",
+                  "  const d = pm.response.json().data;",
+                  "  pm.expect(d).to.have.property('totalInvoiced');",
+                  "  pm.expect(d).to.have.property('totalPaid');",
+                  "  pm.expect(d).to.have.property('totalPending');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}/summary",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "clients",
+                "{{client_id}}",
+                "summary"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Quick-Fill Client",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Quick-fill valide', () => {",
+                  "  const d = pm.response.json().data;",
+                  "  pm.expect(d).to.have.property('topProducts');",
+                  "  pm.expect(d).to.have.property('paymentBehavior');",
+                  "  pm.expect(d).to.have.property('unpaidBalance');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}/quick-fill",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "clients",
+                "{{client_id}}",
+                "quick-fill"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 — Produits & Catégories",
+      "item": [
+        {
+          "name": "Lister les Catégories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/product-categories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "product-categories"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Créer une Catégorie",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('category_id', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Services IT\",\n  \"description\": \"Prestations informatiques et conseil\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/product-categories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "product-categories"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Lister les Produits",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/products?page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "categoryId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Lister Produits avec Annotation Client",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Annotation présente', () => {",
+                  "  const first = pm.response.json().data[0];",
+                  "  if (first) pm.expect(first).to.have.property('usageCount');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/products?clientId={{client_id}}&page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "clientId",
+                  "value": "{{client_id}}"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Créer un Produit",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('product_id', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Maintenance reseau\",\n  \"reference\": \"SRV-MNT-001\",\n  \"description\": \"Maintenance preventive et curative reseau LAN/WAN\",\n  \"type\": \"service\",\n  \"unit\": \"forfait\",\n  \"unitPriceHt\": 350000,\n  \"categoryId\": \"{{category_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/products",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "products"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Détail Produit",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/products/{{product_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "products",
+                "{{product_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Modifier Produit",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"unitPriceHt\": 380000,\n  \"description\": \"Maintenance preventive, curative et supervision reseau LAN/WAN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/products/{{product_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "products",
+                "{{product_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Supprimer Produit",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/products/{{product_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "products",
+                "{{product_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Line-Defaults Produit (sans client)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/products/{{product_id}}/line-defaults",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "products",
+                "{{product_id}}",
+                "line-defaults"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Exporter Catégories CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/categories?export=csv",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "categories"
+              ],
+              "query": [
+                {
+                  "key": "export",
+                  "value": "csv"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Exporter Produits CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/products?export=csv",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "export",
+                  "value": "csv"
+                },
+                {
+                  "key": "categoryId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Line-Defaults Produit (avec client)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Defaults valides', () => {",
+                  "  const d = pm.response.json().data;",
+                  "  pm.expect(d).to.have.property('unitPriceHt');",
+                  "  pm.expect(d).to.have.property('taxRate');",
+                  "  pm.expect(d).to.have.property('catalogPrice');",
+                  "  pm.expect(d).to.have.property('priceChangedSinceLastInvoice');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/products/{{product_id}}/line-defaults?clientId={{client_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "products",
+                "{{product_id}}",
+                "line-defaults"
+              ],
+              "query": [
+                {
+                  "key": "clientId",
+                  "value": "{{client_id}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 — Proformas",
+      "item": [
+        {
+          "name": "Lister les Proformas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/proformas?page=1&limit=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "proformas"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "clientId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "dateFrom",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "dateTo",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Créer un Proforma",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.environment.set('proforma_id', d.id);",
+                  "pm.test('Numéro SYSCOHADA', () => pm.expect(d.number).to.match(/^BTS\\//));",
+                  "pm.test('Statut draft', () => pm.expect(d.status).to.eql('draft'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{client_id}}\",\n  \"subject\": \"Mise en place infrastructure reseau\",\n  \"validityDays\": 30,\n  \"discount\": 5,\n  \"notes\": \"Conditions de paiement : 30 jours fin de mois\",\n  \"lines\": [\n    {\n      \"productId\": \"{{product_id}}\",\n      \"designation\": \"Maintenance reseau\",\n      \"description\": \"Maintenance preventive mensuelle\",\n      \"quantity\": 3,\n      \"unitPriceHt\": 350000,\n      \"unit\": \"forfait\",\n      \"taxRate\": 19.25\n    },\n    {\n      \"designation\": \"Deplacement technicien\",\n      \"quantity\": 6,\n      \"unitPriceHt\": 25000,\n      \"unit\": \"deplacement\",\n      \"taxRate\": 19.25\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/proformas",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "proformas"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Détail Proforma",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/proformas/{{proforma_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "proformas",
+                "{{proforma_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Modifier Proforma (draft uniquement)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subject\": \"Mise en place infrastructure reseau — Révision 2\",\n  \"discount\": 8,\n  \"validityDays\": 45\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/proformas/{{proforma_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "proformas",
+                "{{proforma_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Supprimer Proforma",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/proformas/{{proforma_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "proformas",
+                "{{proforma_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Envoyer au Client",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Statut sent', () => pm.expect(pm.response.json().data.status).to.eql('sent'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/proformas/{{proforma_id}}/send",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "proformas",
+                "{{proforma_id}}",
+                "send"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Accepter Proforma",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Statut accepted', () => pm.expect(pm.response.json().data.status).to.eql('accepted'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/proformas/{{proforma_id}}/accept",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "proformas",
+                "{{proforma_id}}",
+                "accept"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Rejeter Proforma",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Budget insuffisant pour cette periode\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/proformas/{{proforma_id}}/reject",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "proformas",
+                "{{proforma_id}}",
+                "reject"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Convertir en Facture Standard",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('invoice_id', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoiceType\": \"standard\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/proformas/{{proforma_id}}/convert",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "proformas",
+                "{{proforma_id}}",
+                "convert"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Convertir en Facture Acompte 30%",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('acompte_id', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoiceType\": \"acompte\",\n  \"depositPercent\": 30\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/proformas/{{proforma_id}}/convert",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "proformas",
+                "{{proforma_id}}",
+                "convert"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Dupliquer Proforma",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Statut draft', () => pm.expect(pm.response.json().data.status).to.eql('draft'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/proformas/{{proforma_id}}/duplicate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "proformas",
+                "{{proforma_id}}",
+                "duplicate"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Télécharger PDF Proforma",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/proformas/{{proforma_id}}/pdf",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "proformas",
+                "{{proforma_id}}",
+                "pdf"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 — Factures",
+      "item": [
+        {
+          "name": "Calcul à Sec (Dry-Run)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Totaux calculés', () => {",
+                  "  const d = pm.response.json().data;",
+                  "  pm.expect(d.totals).to.have.property('totalHt');",
+                  "  pm.expect(d.totals).to.have.property('totalTtc');",
+                  "  pm.expect(d.totals).to.have.property('netTtc');",
+                  "});",
+                  "pm.test('Warnings présents', () => {",
+                  "  pm.expect(pm.response.json().data.warnings).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{client_id}}\",\n  \"discount\": 5,\n  \"lines\": [\n    {\n      \"quantity\": 2,\n      \"unitPriceHt\": 350000,\n      \"taxRate\": 19.25,\n      \"discount\": 0\n    },\n    {\n      \"quantity\": 4,\n      \"unitPriceHt\": 25000,\n      \"taxRate\": 19.25,\n      \"discount\": 0\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/invoices/compute",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invoices",
+                "compute"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Lister les Factures",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/invoices?page=1&limit=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invoices"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "type",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "clientId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "dateFrom",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "dateTo",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Exporter Factures CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/invoices?export=csv",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invoices"
+              ],
+              "query": [
+                {
+                  "key": "export",
+                  "value": "csv"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Créer Facture Standard",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.environment.set('invoice_id', d.id);",
+                  "pm.test('Type standard', () => pm.expect(d.type).to.eql('standard'));",
+                  "pm.test('Statut draft', () => pm.expect(d.status).to.eql('draft'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{client_id}}\",\n  \"type\": \"standard\",\n  \"subject\": \"Prestation maintenance Q1 2026\",\n  \"issueDate\": \"2026-03-01\",\n  \"dueDate\": \"2026-03-31\",\n  \"discount\": 0,\n  \"lines\": [\n    {\n      \"productId\": \"{{product_id}}\",\n      \"designation\": \"Maintenance reseau\",\n      \"quantity\": 1,\n      \"unitPriceHt\": 350000,\n      \"unit\": \"forfait\",\n      \"taxRate\": 19.25\n    },\n    {\n      \"designation\": \"Deplacement technicien\",\n      \"quantity\": 4,\n      \"unitPriceHt\": 25000,\n      \"unit\": \"deplacement\",\n      \"taxRate\": 19.25\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invoices"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Créer Facture Acompte 30%",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('acompte_id', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{client_id}}\",\n  \"type\": \"acompte\",\n  \"subject\": \"Acompte 30% — Infrastructure reseau\",\n  \"issueDate\": \"2026-03-01\",\n  \"dueDate\": \"2026-03-15\",\n  \"depositPercent\": 30,\n  \"lines\": [\n    {\n      \"productId\": \"{{product_id}}\",\n      \"designation\": \"Maintenance reseau\",\n      \"quantity\": 3,\n      \"unitPriceHt\": 350000,\n      \"unit\": \"forfait\",\n      \"taxRate\": 19.25\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invoices"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Créer Facture Solde",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('invoice_id', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{client_id}}\",\n  \"type\": \"solde\",\n  \"subject\": \"Solde — Infrastructure reseau\",\n  \"issueDate\": \"2026-03-20\",\n  \"dueDate\": \"2026-04-20\",\n  \"linkedInvoiceId\": \"{{acompte_id}}\",\n  \"lines\": [\n    {\n      \"productId\": \"{{product_id}}\",\n      \"designation\": \"Maintenance reseau\",\n      \"quantity\": 3,\n      \"unitPriceHt\": 350000,\n      \"unit\": \"forfait\",\n      \"taxRate\": 19.25\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invoices"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Détail Facture",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/invoices/{{invoice_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invoices",
+                "{{invoice_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Modifier Facture (draft uniquement)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subject\": \"Prestation maintenance Q1 2026 — Révisé\",\n  \"dueDate\": \"2026-04-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/invoices/{{invoice_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invoices",
+                "{{invoice_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Émettre Facture",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Statut issued', () => pm.expect(pm.response.json().data.status).to.eql('issued'));",
+                  "pm.test('Numéro SYSCOHADA assigné', () => {",
+                  "  pm.expect(pm.response.json().data.number).to.match(/^BTS\\//);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/invoices/{{invoice_id}}/issue",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invoices",
+                "{{invoice_id}}",
+                "issue"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Annuler Facture (+ Avoir auto)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Avoir créé', () => {",
+                  "  const d = pm.response.json().data;",
+                  "  pm.expect(d).to.have.property('creditNote');",
+                  "  pm.expect(d.creditNote.type).to.eql('avoir');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Erreur de saisie — prix incorrect\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/invoices/{{invoice_id}}/cancel",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invoices",
+                "{{invoice_id}}",
+                "cancel"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Dupliquer Facture",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Copie en draft', () => pm.expect(pm.response.json().data.status).to.eql('draft'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/invoices/{{invoice_id}}/duplicate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invoices",
+                "{{invoice_id}}",
+                "duplicate"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Télécharger PDF Facture",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/invoices/{{invoice_id}}/pdf",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invoices",
+                "{{invoice_id}}",
+                "pdf"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Créer Avoir Manuel (remboursement partiel)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('Type avoir', () => pm.expect(d.type).to.eql('avoir'));",
+                  "pm.test('Statut émis', () => pm.expect(d.status).to.eql('issued'));",
+                  "pm.environment.set('avoir_id', d.id);",
+                  "pm.test('creditedInvoiceId renseigné', () => pm.expect(d.creditedInvoiceId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Remboursement partiel suite à erreur de facturation\",\n  \"notes\": \"Geste commercial accordé\",\n  \"lines\": [\n    {\n      \"designation\": \"Remboursement partiel\",\n      \"quantity\": 1,\n      \"unitPriceHt\": 50000,\n      \"unit\": \"forfait\",\n      \"taxRate\": 19.25\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/invoices/{{invoice_id}}/avoir",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invoices",
+                "{{invoice_id}}",
+                "avoir"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Créer Avoir Complet (copie lignes originales)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Annulation complète de la commande\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/invoices/{{invoice_id}}/avoir",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invoices",
+                "{{invoice_id}}",
+                "avoir"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 — Paiements",
+      "item": [
+        {
+          "name": "Enregistrer un Paiement (partiel)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.environment.set('payment_id', d.payment.id);",
+                  "pm.test('Statut partially_paid ou paid', () => {",
+                  "  pm.expect(['partially_paid', 'paid']).to.include(d.invoice.status);",
+                  "});",
+                  "pm.test('Solde recalculé', () => {",
+                  "  pm.expect(d.invoice.balanceDue).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 200000,\n  \"method\": \"bank_transfer\",\n  \"reference\": \"VIR-2026-0312\",\n  \"paidAt\": \"2026-03-12\",\n  \"notes\": \"Virement recu compte BTS Douala\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/invoices/{{invoice_id}}/payment",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invoices",
+                "{{invoice_id}}",
+                "payment"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Paiement Solde Total",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Récupérer le montant restant avant d'envoyer",
+                  "pm.sendRequest({",
+                  "  url: pm.environment.get('base_url') + '/invoices/' + pm.environment.get('invoice_id'),",
+                  "  method: 'GET',",
+                  "  header: [{ key: 'Authorization', value: 'Bearer ' + pm.environment.get('access_token') }]",
+                  "}, (err, res) => {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.environment.set('balance_due', res.json().data.balanceDue);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Facture soldée', () => {",
+                  "  pm.expect(pm.response.json().data.invoice.status).to.eql('paid');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": {{balance_due}},\n  \"method\": \"bank_transfer\",\n  \"reference\": \"VIR-2026-0315-SOLDE\",\n  \"paidAt\": \"2026-03-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/invoices/{{invoice_id}}/payment",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invoices",
+                "{{invoice_id}}",
+                "payment"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Lister les Paiements",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/payments?page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payments"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "invoiceId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "method",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "dateFrom",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "dateTo",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Télécharger Reçu PDF",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/payments/{{payment_id}}/receipt",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payments",
+                "{{payment_id}}",
+                "receipt"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Exporter Paiements CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/payments?export=csv",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payments"
+              ],
+              "query": [
+                {
+                  "key": "export",
+                  "value": "csv"
+                },
+                {
+                  "key": "dateFrom",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "dateTo",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "method",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Supprimer Paiement (admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/payments/{{payment_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payments",
+                "{{payment_id}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 — Notifications",
+      "item": [
+        {
+          "name": "Lister Notifications (non lues)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const notifs = pm.response.json().data;",
+                  "if (notifs && notifs.length > 0) {",
+                  "  pm.environment.set('notif_id', notifs[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/notifications?unreadOnly=true&page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "unreadOnly",
+                  "value": "true"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Toutes les Notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/notifications?page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Marquer Notification comme Lue",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/notifications/{{notif_id}}/read",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "{{notif_id}}",
+                "read"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Marquer Tout comme Lu",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/notifications/read-all",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "read-all"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Lire Préférences de Notification",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/notifications/settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "settings"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mettre à Jour Préférences",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"settings\": [\n    { \"type\": \"invoice_issued\",      \"channel\": \"both\",   \"enabled\": true  },\n    { \"type\": \"invoice_paid\",        \"channel\": \"email\",  \"enabled\": true  },\n    { \"type\": \"invoice_overdue\",     \"channel\": \"both\",   \"enabled\": true  },\n    { \"type\": \"proforma_sent\",       \"channel\": \"in_app\", \"enabled\": true  },\n    { \"type\": \"payment_registered\",  \"channel\": \"both\",   \"enabled\": true  },\n    { \"type\": \"system\",              \"channel\": \"in_app\", \"enabled\": false }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/notifications/settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "settings"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 — Dashboard",
+      "item": [
+        {
+          "name": "KPIs Principaux",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('KPIs présents', () => {",
+                  "  const d = pm.response.json().data;",
+                  "  pm.expect(d).to.have.property('revenue');",
+                  "  pm.expect(d).to.have.property('invoices');",
+                  "  pm.expect(d).to.have.property('topClients');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/dashboard/kpis",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dashboard",
+                "kpis"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 — Recherche Intelligente",
+      "item": [
+        {
+          "name": "Recherche par Nom Client",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/search?q=Camtel",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Camtel"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Navigation Directe par Numéro Document",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Navigation présente', () => {",
+                  "  const d = pm.response.json().data;",
+                  "  pm.expect(d.navigation).to.not.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/search?q=BTS/DC/2026/03/FAC001",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "BTS/DC/2026/03/FAC001"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filtre par Montant (> 500K)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/search?q=impayes > 500000",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "impayes > 500000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filtre par Période",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/search?q=Camtel mars 2026",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Camtel mars 2026"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Recherche Combinée (statut + montant + mois)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Parsed valide', () => {",
+                  "  const d = pm.response.json().data;",
+                  "  pm.expect(d.parsed).to.have.property('description');",
+                  "  pm.expect(d.parsed).to.have.property('amountGte');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/search?q=brouillon >= 1M janvier 2026",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "brouillon >= 1M janvier 2026"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Recherche Statut Impayé",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/search?q=envoye >= 500K",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "envoye >= 500K"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 — Paramètres",
+      "item": [
+        {
+          "name": "Lire les Paramètres",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "settings"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mettre à Jour les Paramètres (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"companyName\": \"Bridge Technologies Solutions\",\n  \"address\": \"Akwa, Douala, Cameroun\",\n  \"phone\": \"+237 233 XX XX XX\",\n  \"email\": \"contact@bts.cm\",\n  \"taxNumber\": \"M0123456789A\",\n  \"currency\": \"XAF\",\n  \"defaultTaxRate\": 19.25,\n  \"invoicePrefix\": \"FAC\",\n  \"proformaPrefix\": \"PFM\",\n  \"paymentTermsDays\": 30,\n  \"autoReminderDays\": 3,\n  \"reminderEscalation\": {\n    \"levels\": [\n      { \"daysOverdue\": 0,  \"label\": \"Douce\",    \"notifyCreator\": true,  \"notifyManagers\": false, \"sendEmail\": false },\n      { \"daysOverdue\": 7,  \"label\": \"Ferme\",    \"notifyCreator\": true,  \"notifyManagers\": false, \"sendEmail\": true  },\n      { \"daysOverdue\": 15, \"label\": \"Urgente\",  \"notifyCreator\": true,  \"notifyManagers\": true,  \"sendEmail\": true  },\n      { \"daysOverdue\": 30, \"label\": \"Critique\", \"notifyCreator\": true,  \"notifyManagers\": true,  \"sendEmail\": true  }\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "settings"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 — Récurrences",
+      "item": [
+        {
+          "name": "Lister les Templates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/recurring?page=1&limit=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "recurring"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Créer un Template Récurrent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('template_id', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{client_id}}\",\n  \"name\": \"Maintenance mensuelle Camtel\",\n  \"frequency\": \"monthly\",\n  \"dayOfMonth\": 1,\n  \"nextRunAt\": \"2026-04-01\",\n  \"autoIssue\": true,\n  \"lines\": [\n    {\n      \"productId\": \"{{product_id}}\",\n      \"designation\": \"Maintenance reseau\",\n      \"quantity\": 1,\n      \"unitPriceHt\": 350000,\n      \"unit\": \"forfait\",\n      \"taxRate\": 19.25\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/recurring",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "recurring"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Détail Template",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/recurring/{{template_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "recurring",
+                "{{template_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Modifier Template",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Maintenance mensuelle Camtel — Révisé\",\n  \"autoIssue\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/recurring/{{template_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "recurring",
+                "{{template_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Activer Template",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/recurring/{{template_id}}/activate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "recurring",
+                "{{template_id}}",
+                "activate"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Désactiver Template",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/recurring/{{template_id}}/deactivate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "recurring",
+                "{{template_id}}",
+                "deactivate"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Générer Facture Manuellement",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('invoice_id', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/recurring/{{template_id}}/generate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "recurring",
+                "{{template_id}}",
+                "generate"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Supprimer Template",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/recurring/{{template_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "recurring",
+                "{{template_id}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 — Audit",
+      "item": [
+        {
+          "name": "Lister les Logs d'Audit",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Données présentes', () => pm.expect(pm.response.json()).to.have.property('data'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/audit-logs?page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "audit-logs"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "entityType",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "action",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "userId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "dateFrom",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "dateTo",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Statistiques d'Audit",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('topUsers présent', () => pm.expect(d).to.have.property('topUsers'));",
+                  "pm.test('topTables présent', () => pm.expect(d).to.have.property('topTables'));",
+                  "pm.test('dailyActivity présent', () => pm.expect(d).to.have.property('dailyActivity'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/audit-logs/stats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "audit-logs",
+                "stats"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Exporter Logs Audit CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/audit-logs?export=csv",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "audit-logs"
+              ],
+              "query": [
+                {
+                  "key": "export",
+                  "value": "csv"
+                },
+                {
+                  "key": "entityType",
+                  "value": "invoices",
+                  "disabled": true
+                },
+                {
+                  "key": "dateFrom",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "dateTo",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 — Backups",
+      "item": [
+        {
+          "name": "Déclencher un backup manuel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/backups",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "backups"
+              ]
+            },
+            "description": "Déclenche un backup en arrière-plan (BullMQ). Réponse immédiate 202."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 202', () => pm.response.to.have.status(202));",
+                  "const d = pm.response.json().data;",
+                  "if (d && d.id) pm.environment.set('backup_id', d.id);",
+                  "pm.test('status pending', () => pm.expect(d.status).to.eql('pending'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Liste des backups",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/backups",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "backups"
+              ]
+            },
+            "description": "Liste paginée. Filtres: ?status=success|pending|running|failed&page=1&limit=20"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('data est tableau', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Liste backups réussis",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/backups?status=success&page=1&limit=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "backups?status=success&page=1&limit=10"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Détail d'un backup",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/backups/{{backup_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "backups",
+                "{{backup_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('backup trouvé', () => pm.expect(pm.response.json().data.id).to.exist);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Télécharger le fichier backup",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/backups/{{backup_id}}/download",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "backups",
+                "{{backup_id}}",
+                "download"
+              ]
+            },
+            "description": "Local: stream .sql.gz direct. S3/GCS/Azure: redirection 302 vers URL signée (expire 5min)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Redirection ou fichier', () => {",
+                  "  pm.expect([200, 302]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Supprimer un backup",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/backups/{{backup_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "backups",
+                "{{backup_id}}"
+              ]
+            },
+            "description": "Supprime le fichier du stockage ET l'enregistrement en base."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('supprimé', () => pm.expect(pm.response.json().success).to.be.true);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "SCENARIOS",
+      "description": "Dossiers de scénarios métier complets à exécuter en séquence via Collection Runner",
+      "item": [
+        {
+          "name": "A — Cycle Facture Standard Complet",
+          "description": "Exécuter dans l'ordre : Créer Client → Créer Produit → Compute → Créer Facture → Émettre → Paiement Partiel → Paiement Solde → PDF",
+          "item": [
+            {
+              "name": "[A1] Créer Client",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('201', () => pm.response.to.have.status(201));",
+                      "pm.environment.set('client_id', pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Orange Cameroun\",\n  \"email\": \"contact@orange.cm\",\n  \"phone\": \"+237 222 XX XX XX\",\n  \"type\": \"company\",\n  \"city\": \"Douala\",\n  \"country\": \"Cameroun\",\n  \"paymentTermsDays\": 30\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/clients",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "clients"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "[A2] Créer Produit",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('201', () => pm.response.to.have.status(201));",
+                      "pm.environment.set('product_id', pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Audit Securite\",\n  \"reference\": \"SRV-AUD-001\",\n  \"type\": \"service\",\n  \"unit\": \"mission\",\n  \"unitPriceHt\": 750000\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/products",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "products"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "[A3] Compute Dry-Run",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200', () => pm.response.to.have.status(200));",
+                      "pm.environment.set('computed_ttc', pm.response.json().data.totals.netTtc);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"clientId\": \"{{client_id}}\",\n  \"discount\": 0,\n  \"lines\": [{ \"quantity\": 1, \"unitPriceHt\": 750000, \"taxRate\": 19.25, \"discount\": 0 }]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/invoices/compute",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "invoices",
+                    "compute"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "[A4] Créer Facture",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('201', () => pm.response.to.have.status(201));",
+                      "pm.environment.set('invoice_id', pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"clientId\": \"{{client_id}}\",\n  \"type\": \"standard\",\n  \"subject\": \"Audit securite infrastructure\",\n  \"issueDate\": \"2026-03-01\",\n  \"dueDate\": \"2026-03-31\",\n  \"lines\": [{ \"productId\": \"{{product_id}}\", \"designation\": \"Audit Securite\", \"quantity\": 1, \"unitPriceHt\": 750000, \"unit\": \"mission\", \"taxRate\": 19.25 }]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/invoices",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "invoices"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "[A5] Émettre Facture",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('issued', () => pm.expect(pm.response.json().data.status).to.eql('issued'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/invoices/{{invoice_id}}/issue",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "invoices",
+                    "{{invoice_id}}",
+                    "issue"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "[A6] Paiement Partiel (400 000 XAF)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('partially_paid', () => pm.expect(pm.response.json().data.invoice.status).to.eql('partially_paid'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"amount\": 400000,\n  \"method\": \"mobile_money\",\n  \"reference\": \"MOMO-2026-0301\",\n  \"paidAt\": \"2026-03-10\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/invoices/{{invoice_id}}/payment",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "invoices",
+                    "{{invoice_id}}",
+                    "payment"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "[A7] Paiement Solde Restant",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('paid', () => pm.expect(pm.response.json().data.invoice.status).to.eql('paid'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"amount\": 494437,\n  \"method\": \"bank_transfer\",\n  \"reference\": \"VIR-2026-0315\",\n  \"paidAt\": \"2026-03-15\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/invoices/{{invoice_id}}/payment",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "invoices",
+                    "{{invoice_id}}",
+                    "payment"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "[A8] Télécharger PDF",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/invoices/{{invoice_id}}/pdf",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "invoices",
+                    "{{invoice_id}}",
+                    "pdf"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "B — Proforma vers Facture",
+          "description": "Créer Proforma → Envoyer → Accepter → Convertir → Émettre",
+          "item": [
+            {
+              "name": "[B1] Créer Proforma",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('201', () => pm.response.to.have.status(201));",
+                      "pm.environment.set('proforma_id', pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"clientId\": \"{{client_id}}\",\n  \"subject\": \"Projet déploiement serveurs\",\n  \"validityDays\": 30,\n  \"lines\": [{ \"productId\": \"{{product_id}}\", \"designation\": \"Déploiement serveur\", \"quantity\": 2, \"unitPriceHt\": 500000, \"unit\": \"unité\", \"taxRate\": 19.25 }]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/proformas",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "proformas"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "[B2] Envoyer Proforma",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('sent', () => pm.expect(pm.response.json().data.status).to.eql('sent'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/proformas/{{proforma_id}}/send",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "proformas",
+                    "{{proforma_id}}",
+                    "send"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "[B3] Accepter Proforma",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('accepted', () => pm.expect(pm.response.json().data.status).to.eql('accepted'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/proformas/{{proforma_id}}/accept",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "proformas",
+                    "{{proforma_id}}",
+                    "accept"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "[B4] Convertir en Facture",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('201', () => pm.response.to.have.status(201));",
+                      "pm.environment.set('invoice_id', pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{ \"invoiceType\": \"standard\" }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/proformas/{{proforma_id}}/convert",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "proformas",
+                    "{{proforma_id}}",
+                    "convert"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "[B5] Émettre la Facture",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('issued', () => pm.expect(pm.response.json().data.status).to.eql('issued'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/invoices/{{invoice_id}}/issue",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "invoices",
+                    "{{invoice_id}}",
+                    "issue"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "C — Annulation et Avoir Automatique",
+          "description": "Partir d'une facture issued → Annuler → Vérifier l'avoir créé",
+          "item": [
+            {
+              "name": "[C1] Annuler Facture",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200', () => pm.response.to.have.status(200));",
+                      "const d = pm.response.json().data;",
+                      "pm.test('Avoir créé', () => pm.expect(d.creditNote.type).to.eql('avoir'));",
+                      "pm.environment.set('avoir_id', d.creditNote.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Client a demande l'annulation de la commande\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/invoices/{{invoice_id}}/cancel",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "invoices",
+                    "{{invoice_id}}",
+                    "cancel"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "[C2] Vérifier l'Avoir",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('200', () => pm.response.to.have.status(200));",
+                      "pm.test('Type avoir', () => pm.expect(pm.response.json().data.type).to.eql('avoir'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/invoices/{{avoir_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "invoices",
+                    "{{avoir_id}}"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
