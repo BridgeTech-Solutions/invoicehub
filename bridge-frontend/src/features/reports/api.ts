@@ -4,7 +4,7 @@ import type {
   UnpaidRow, PaymentRow, TaxSummaryRow,
 } from './types'
 
-function buildParams(range: ReportRange, format: 'json' | 'csv' = 'json') {
+function buildParams(range: ReportRange, format: 'json' | 'csv' | 'pdf' = 'json') {
   const p: Record<string, string | number> = { format }
   if (range.year)     p.year     = range.year
   if (range.quarter)  p.quarter  = range.quarter
@@ -49,6 +49,17 @@ export async function downloadCsv(endpoint: string, filename: string, range: Rep
     responseType: 'blob',
   })
   const url = URL.createObjectURL(new Blob([res.data]))
+  const a   = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
+export async function downloadPdf(endpoint: string, filename: string, range: ReportRange) {
+  const res = await apiClient.get(`/reports/${endpoint}`, {
+    params: buildParams(range, 'pdf'),
+    responseType: 'blob',
+  })
+  const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
   const a   = document.createElement('a')
   a.href = url; a.download = filename; a.click()
   URL.revokeObjectURL(url)

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Download, TrendingUp, Users, Tag, AlertTriangle, CreditCard, Receipt } from 'lucide-react'
+import { Download, FileText, TrendingUp, Users, Tag, AlertTriangle, CreditCard, Receipt } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar,
@@ -11,7 +11,7 @@ import {
   useRevenue, useRevenueByClient, useRevenueByCategory,
   useUnpaid, usePayments, useTaxSummary,
 } from '@/features/reports/hooks'
-import { downloadCsv } from '@/features/reports/api'
+import { downloadCsv, downloadPdf } from '@/features/reports/api'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { formatDate, formatXAF, getInitials } from '@/lib/utils'
 import { ROUTES, STATUS_LABELS } from '@/lib/constants'
@@ -48,6 +48,15 @@ const CSV_ENDPOINTS: Record<TabId, { endpoint: string; filename: string }> = {
   'unpaid':      { endpoint: 'unpaid',       filename: 'rapport-impayes.csv'      },
   'payments':    { endpoint: 'payments',     filename: 'rapport-encaissements.csv'},
   'tax':         { endpoint: 'tax-summary',  filename: 'rapport-tva.csv'          },
+}
+
+const PDF_ENDPOINTS: Record<TabId, { endpoint: string; filename: string }> = {
+  'revenue':     { endpoint: 'revenue',      filename: 'rapport-ca-mensuel.pdf'   },
+  'by-client':   { endpoint: 'by-client',    filename: 'rapport-ca-clients.pdf'   },
+  'by-category': { endpoint: 'by-category',  filename: 'rapport-ca-categories.pdf'},
+  'unpaid':      { endpoint: 'unpaid',       filename: 'rapport-impayes.pdf'      },
+  'payments':    { endpoint: 'payments',     filename: 'rapport-encaissements.pdf'},
+  'tax':         { endpoint: 'tax-summary',  filename: 'rapport-tva.pdf'          },
 }
 
 // ─── Helpers ───────────────────────────────────────────────────
@@ -480,7 +489,8 @@ export default function ReportsPage() {
   const [tab,     setTab]     = useState<TabId>('revenue')
   const [year,    setYear]    = useState(currentYear)
   const [quarter, setQuarter] = useState<number | undefined>(undefined)
-  const [exporting, setExporting] = useState(false)
+  const [exporting,    setExporting]    = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
 
   const range: ReportRange = { year, ...(quarter ? { quarter } : {}) }
 
@@ -499,19 +509,41 @@ export default function ReportsPage() {
     }
   }
 
+  async function handleExportPdf() {
+    const { endpoint, filename } = PDF_ENDPOINTS[tab]
+    setExportingPdf(true)
+    try {
+      await downloadPdf(endpoint, filename, range)
+      toast.success('Rapport PDF téléchargé')
+    } catch {
+      toast.error('Erreur lors de la génération PDF')
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <PageHeader
         title="Rapports financiers"
         description="Analyses, suivi des impayés et export CSV"
         actions={
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: exporting ? 'not-allowed' : 'pointer', opacity: exporting ? 0.7 : 1 }}
-          >
-            <Download size={14} /> Exporter CSV
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={handleExportPdf}
+              disabled={exportingPdf}
+              style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--primary)', background: 'var(--primary)', color: '#fff', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: exportingPdf ? 'not-allowed' : 'pointer', opacity: exportingPdf ? 0.7 : 1, boxShadow: '0 3px 8px rgba(45,125,210,0.25)' }}
+            >
+              <FileText size={14} /> {exportingPdf ? 'Génération…' : 'Export PDF'}
+            </button>
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: exporting ? 'not-allowed' : 'pointer', opacity: exporting ? 0.7 : 1 }}
+            >
+              <Download size={14} /> {exporting ? 'Export…' : 'Export CSV'}
+            </button>
+          </div>
         }
       />
 
