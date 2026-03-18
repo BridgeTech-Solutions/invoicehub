@@ -10,15 +10,77 @@ interface Props {
   isStreaming?: boolean
 }
 
-// ─── Markdown simple ──────────────────────────────────────────────────────
+// ─── Rendu markdown avec support des tableaux ────────────────────────────
 
-function renderMarkdown(text: string): string {
+/** Convertit une ligne markdown tableau en cellules HTML */
+function parseTableRow(row: string, isHeader: boolean): string {
+  const cells = row.split('|').map(c => c.trim()).filter((_, i, a) => i > 0 && i < a.length - 1)
+  const tag = isHeader ? 'th' : 'td'
+  const style = isHeader
+    ? 'padding:6px 12px;text-align:left;font-size:11.5px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.04em;white-space:nowrap;border-bottom:2px solid var(--border)'
+    : 'padding:7px 12px;font-size:12.5px;color:var(--text-1);border-bottom:1px solid var(--border);white-space:nowrap'
+  return cells.map(c => `<${tag} style="${style}">${renderInline(c)}</${tag}>`).join('')
+}
+
+/** Applique les transformations inline (gras, code) sans \n */
+function renderInline(text: string): string {
   return text
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`([^`]+)`/g, '<code style="background:rgba(45,125,210,0.12);padding:1px 5px;border-radius:3px;font-size:12px;font-family:monospace">$1</code>')
-    .replace(/^[•\-] (.+)$/gm, '<li style="margin-left:12px;list-style-type:disc">$1</li>')
-    .replace(/(<li[^>]*>[\s\S]*?<\/li>(\s*<li[^>]*>[\s\S]*?<\/li>)*)/g, '<ul style="margin:4px 0;padding-left:4px">$1</ul>')
-    .replace(/\n/g, '<br/>')
+    .replace(/`([^`]+)`/g, '<code style="background:rgba(45,125,210,0.12);padding:1px 4px;border-radius:3px;font-size:11px;font-family:monospace">$1</code>')
+}
+
+function renderMarkdown(text: string): string {
+  const lines = text.split('\n')
+  const result: string[] = []
+  let i = 0
+
+  while (i < lines.length) {
+    const line = lines[i]!
+
+    // Détecter un tableau markdown : ligne avec | et ligne suivante avec |---|
+    if (/^\|.+\|/.test(line) && i + 1 < lines.length && /^\|[\s\-:|]+\|/.test(lines[i + 1]!)) {
+      const headerCells = parseTableRow(line, true)
+      i += 2 // sauter l'en-tête + la ligne de séparation
+
+      const bodyRows: string[] = []
+      while (i < lines.length && /^\|.+\|/.test(lines[i]!)) {
+        bodyRows.push(`<tr>${parseTableRow(lines[i]!, false)}</tr>`)
+        i++
+      }
+
+      result.push(
+        `<div style="overflow-x:auto;margin:8px 0">` +
+        `<table style="width:100%;border-collapse:collapse;font-family:var(--font-body)">` +
+        `<thead><tr style="background:var(--surface-2)">${headerCells}</tr></thead>` +
+        `<tbody>${bodyRows.join('')}</tbody>` +
+        `</table></div>`
+      )
+      continue
+    }
+
+    // Liste à puces
+    if (/^[•\-] (.+)$/.test(line)) {
+      const listItems: string[] = []
+      while (i < lines.length && /^[•\-] (.+)$/.test(lines[i]!)) {
+        const content = lines[i]!.replace(/^[•\-] /, '')
+        listItems.push(`<li style="margin-left:12px;list-style-type:disc">${renderInline(content)}</li>`)
+        i++
+      }
+      result.push(`<ul style="margin:4px 0;padding-left:4px">${listItems.join('')}</ul>`)
+      continue
+    }
+
+    // Ligne normale
+    result.push(renderInline(line))
+    i++
+  }
+
+  return result.join('<br/>')
+    // Éviter les <br/> avant/après les tableaux et listes
+    .replace(/<br\/>(<div style="overflow)/g, '$1')
+    .replace(/(<\/div>)<br\/>/g, '$1')
+    .replace(/<br\/>(<ul)/g, '$1')
+    .replace(/(<\/ul>)<br\/>/g, '$1')
 }
 
 // ─── Détection de références de documents ────────────────────────────────
