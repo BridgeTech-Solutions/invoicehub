@@ -21,6 +21,7 @@ export const ROUTES = {
   SETTINGS_SECURITY:      '/settings/security',
   SETTINGS_NOTIFICATIONS: '/settings/notifications',
   SETTINGS_BACKUPS:       '/settings/backups',
+  ASSISTANT:              '/assistant',
 } as const
 
 export const ROLES = {

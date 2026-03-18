@@ -36,6 +36,7 @@ import {
   ShieldCheck,
   BellRing,
   HardDrive,
+  Sparkles,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -97,7 +98,8 @@ const NAV: NavSection[] = [
   {
     title: 'Analyse',
     items: [
-      { label: 'Rapports', href: ROUTES.REPORTS, icon: BarChart3 },
+      { label: 'Rapports',      href: ROUTES.REPORTS,    icon: BarChart3 },
+      { label: 'BTS Assistant', href: ROUTES.ASSISTANT,  icon: Sparkles  },
     ],
   },
   {
