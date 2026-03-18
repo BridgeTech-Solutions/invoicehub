@@ -1,7 +1,27 @@
 import { prisma } from '../../config/database';
+import { redisConnection } from '../../config/redis';
+import { emitToAll } from '../../lib/socket';
+
+const KPIS_CACHE_KEY = 'dashboard:kpis';
+const KPIS_CACHE_TTL = 300; // 5 minutes
 
 export class DashboardService {
   async getKpis() {
+    const cached = await redisConnection.get(KPIS_CACHE_KEY);
+    if (cached) return JSON.parse(cached) as ReturnType<typeof this._computeKpis> extends Promise<infer T> ? T : never;
+
+    const result = await this._computeKpis();
+    await redisConnection.setex(KPIS_CACHE_KEY, KPIS_CACHE_TTL, JSON.stringify(result));
+    return result;
+  }
+
+  /** Invalide le cache et notifie tous les clients connectés de recharger le dashboard */
+  static async invalidateCache(): Promise<void> {
+    await redisConnection.del(KPIS_CACHE_KEY);
+    emitToAll('dashboard:refresh', { timestamp: new Date().toISOString() });
+  }
+
+  private async _computeKpis() {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfYear = new Date(now.getFullYear(), 0, 1);
@@ -12,13 +32,14 @@ export class DashboardService {
       overdueInvoices,
       paidThisMonth,
       pendingPayments,
+      draftInvoices,
       clientsCount,
       proformasThisMonth,
       recentInvoices,
       topClients,
       monthlyRevenue,
     ] = await Promise.all([
-      // Total facturé (toutes factures émises)
+      // Total facturé (toutes factures émises — hors draft et cancelled)
       prisma.invoice.aggregate({
         where: { deletedAt: null, status: { notIn: ['draft', 'cancelled'] } },
         _sum: { totalTtc: true },
@@ -66,6 +87,11 @@ export class DashboardService {
         _count: true,
       }),
 
+      // Factures en brouillon (pas encore émises)
+      prisma.invoice.count({
+        where: { deletedAt: null, status: 'draft' },
+      }),
+
       // Nombre de clients actifs
       prisma.client.count({
         where: { deletedAt: null, status: 'active' },
@@ -80,7 +106,6 @@ export class DashboardService {
       // 10 dernières factures
       prisma.invoice.findMany({
         where: { deletedAt: null },
-        include: { client: { select: { name: true } } },
         orderBy: { issueDate: 'desc' },
         take: 10,
         select: {
@@ -111,7 +136,7 @@ export class DashboardService {
         FROM invoices
         WHERE deleted_at IS NULL
           AND status NOT IN ('draft', 'cancelled')
-          AND issue_date >= ${startOfYear}
+          AND issue_date >= ${startOfYear}   
         GROUP BY month
         ORDER BY month ASC
       `,
@@ -143,6 +168,9 @@ export class DashboardService {
         amount: Number(pendingPayments._sum.balanceDue ?? 0),
         count: pendingPayments._count,
       },
+      drafts: {
+        count: draftInvoices,
+      },
       clients: {
         activeCount: clientsCount,
       },
@@ -160,6 +188,45 @@ export class DashboardService {
         total: Number(r.total),
       })),
     };
+  }
+
+  async getAging() {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        deletedAt: null,
+        status: { in: ['issued', 'partially_paid', 'overdue'] },
+      },
+      select: { dueDate: true, balanceDue: true },
+    });
+
+    const buckets = {
+      current: { amount: 0, count: 0 },
+      days_1_30:  { amount: 0, count: 0 },
+      days_31_60: { amount: 0, count: 0 },
+      days_61_90: { amount: 0, count: 0 },
+      over_90:    { amount: 0, count: 0 },
+    };
+
+    for (const inv of invoices) {
+      const daysLate = Math.floor((now.getTime() - new Date(inv.dueDate).getTime()) / 86_400_000);
+      const amount = Number(inv.balanceDue);
+
+      if (daysLate <= 0)       { buckets.current.amount    += amount; buckets.current.count++;    }
+      else if (daysLate <= 30) { buckets.days_1_30.amount  += amount; buckets.days_1_30.count++;  }
+      else if (daysLate <= 60) { buckets.days_31_60.amount += amount; buckets.days_31_60.count++; }
+      else if (daysLate <= 90) { buckets.days_61_90.amount += amount; buckets.days_61_90.count++; }
+      else                     { buckets.over_90.amount    += amount; buckets.over_90.count++;    }
+    }
+
+    const total = Object.values(buckets).reduce(
+      (acc, b) => ({ amount: acc.amount + b.amount, count: acc.count + b.count }),
+      { amount: 0, count: 0 },
+    );
+
+    return { ...buckets, total };
   }
 }
 

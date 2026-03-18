@@ -95,6 +95,9 @@ CREATE TABLE company_settings (
     logo_path               VARCHAR(500),
     stamp_path              VARCHAR(500),
     signature_path          VARCHAR(500),
+    header_image_path       VARCHAR(500),   -- Image pleine largeur en-tête des factures/proformas
+    footer_image_path       VARCHAR(500),   -- Image pleine largeur pied de page des factures/proformas
+    footer_safe_zone_px     SMALLINT NOT NULL DEFAULT 0, -- Hauteur px de la zone infos entreprise à protéger en bas du footer
 
     -- Paramètres financiers
     default_currency        CHAR(3)      NOT NULL DEFAULT 'XAF',
@@ -113,6 +116,8 @@ CREATE TABLE company_settings (
 
     -- Relances automatiques (jours après échéance)
     auto_reminder_days      SMALLINT[]           DEFAULT ARRAY[7, 14, 30],
+    -- Escalade des relances internes (JSON configurable par niveau)
+    reminder_escalation     JSONB                NOT NULL DEFAULT '{}',
 
     -- Champs flexibles pour extensions futures
     metadata                JSONB        NOT NULL DEFAULT '{}',
@@ -219,6 +224,7 @@ CREATE TABLE users (
     two_factor_enabled      BOOLEAN      NOT NULL DEFAULT FALSE,
     two_factor_secret       TEXT,                   -- secret TOTP chiffré (AES via pgcrypto)
     two_factor_enabled_at   TIMESTAMPTZ,
+    two_factor_backup_codes TEXT[]       NOT NULL DEFAULT '{}', -- hash SHA-256 des codes de secours (usage unique)
 
     -- Préférences UI
     language                CHAR(2)      NOT NULL DEFAULT 'fr',
@@ -263,7 +269,8 @@ CREATE TABLE refresh_tokens (
     ip_address      INET,
     expires_at      TIMESTAMPTZ  NOT NULL,
     revoked_at      TIMESTAMPTZ,
-    revoke_reason   VARCHAR(100),                   -- 'logout', 'admin_revoke', 'password_change'
+    revoke_reason   VARCHAR(100),                   -- 'logout', 'rotation', 'manual_revoke', 'password_change', 'session_timeout', 'revoke_all'
+    last_activity_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- mise à jour à chaque rotation — utilisé pour le timeout d'inactivité
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 CREATE INDEX idx_refresh_tokens_user_id    ON refresh_tokens(user_id);
@@ -556,9 +563,10 @@ CREATE TABLE proformas (
     status                  proforma_status NOT NULL DEFAULT 'draft',
 
     -- Notifications
-    last_sent_at            TIMESTAMPTZ,
-    last_reminder_at        TIMESTAMPTZ,
-    reminder_count          SMALLINT     NOT NULL DEFAULT 0,
+    last_sent_at                TIMESTAMPTZ,
+    last_reminder_at            TIMESTAMPTZ,
+    reminder_count              SMALLINT     NOT NULL DEFAULT 0,
+    reminder_escalation_level   SMALLINT     NOT NULL DEFAULT 0, -- 0=aucune, 1=douce, 2=ferme, 3=urgente, 4=critique
 
     -- Fichiers générés
     qr_code_path            VARCHAR(500),
@@ -1050,7 +1058,7 @@ CREATE RULE no_delete_audit AS ON DELETE TO audit_logs DO INSTEAD NOTHING;
 CREATE TABLE backups (
     id              UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
     filename        VARCHAR(255)  NOT NULL,
-    storage_disk    VARCHAR(50)   NOT NULL DEFAULT 'local',  -- 'local', 'google', 's3'
+    storage_disk    VARCHAR(50)   NOT NULL DEFAULT 'local',  -- 'local', 's3', 'google', 'azure'
     storage_path    VARCHAR(500),
     size_bytes      BIGINT        NOT NULL DEFAULT 0,
     status          backup_status NOT NULL DEFAULT 'pending',

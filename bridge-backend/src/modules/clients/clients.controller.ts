@@ -1,11 +1,30 @@
 import { Request, Response, NextFunction } from 'express';
 import { clientsService } from './clients.service';
+import { sendCsvResponse } from '../../lib/csv';
 import { createClientSchema, updateClientSchema, listClientsSchema } from './clients.schema';
 
 export class ClientsController {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const query = listClientsSchema.parse(req.query);
+
+      if (req.query['export'] === 'csv') {
+        const { data } = await clientsService.list({ ...query, page: 1, limit: 10_000 });
+        return sendCsvResponse(res, 'clients.csv',
+          ['Nom', 'Email', 'Téléphone', 'NIU', 'RCCM', 'Ville', 'Pays', 'Type'],
+          data.map(c => [
+            c.name,
+            c.email ?? '',
+            c.phone ?? '',
+            c.taxNumber ?? '',
+            c.rccm ?? '',
+            c.city ?? '',
+            c.country ?? '',
+            c.type,
+          ]),
+        );
+      }
+
       const result = await clientsService.list(query);
       res.json({ success: true, ...result });
     } catch (err) {
@@ -46,6 +65,15 @@ export class ClientsController {
     try {
       await clientsService.archive(req.params['id']!);
       res.json({ success: true, message: 'Client archivé' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async quickFill(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await clientsService.quickFill(req.params['id']!);
+      res.json({ success: true, data });
     } catch (err) {
       next(err);
     }

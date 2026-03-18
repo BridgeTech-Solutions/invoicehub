@@ -1,14 +1,24 @@
+import http from 'http';
 import { app } from './app';
 import { env } from './config/env';
 import { prisma } from './config/database';
 import { logger } from './core/middleware/requestLogger';
+import { startWorkers, closeWorkers } from './jobs/workers';
+import { scheduleJobs } from './jobs/scheduler';
+import { initSocket } from './lib/socket';
 
-const server = app.listen(env.PORT, () => {
+const httpServer = http.createServer(app);
+initSocket(httpServer);
+
+const server = httpServer.listen(env.PORT, async () => {
   logger.info(`InvoiceHub API démarrée`, {
     port: env.PORT,
     env: env.NODE_ENV,
     prefix: env.API_PREFIX,
   });
+
+  startWorkers();
+  await scheduleJobs();
 });
 
 // ----------------------------------------------------------------
@@ -19,6 +29,7 @@ async function shutdown(signal: string) {
 
   server.close(async () => {
     try {
+      await closeWorkers();
       await prisma.$disconnect();
       logger.info('Connexion PostgreSQL fermée');
       process.exit(0);

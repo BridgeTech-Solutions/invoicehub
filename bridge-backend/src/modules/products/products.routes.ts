@@ -18,6 +18,8 @@ categoriesRouter.delete('/:id', authorize('admin'), productsController.deleteCat
 
 // Products
 productsRouter.get('/', productsController.list.bind(productsController));
+// ⚠️ Routes statiques AVANT /:id pour éviter les conflits
+productsRouter.get('/:id/line-defaults', productsController.lineDefaults.bind(productsController));
 productsRouter.get('/:id', productsController.findById.bind(productsController));
 productsRouter.post('/', authorize('admin', 'commercial'), productsController.create.bind(productsController));
 productsRouter.put('/:id', authorize('admin', 'commercial'), productsController.update.bind(productsController));

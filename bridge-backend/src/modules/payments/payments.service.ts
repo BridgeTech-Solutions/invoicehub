@@ -15,6 +15,10 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { AppError } from '../../core/errors/AppError';
+import { notificationQueue } from '../../jobs/queues';
+import { broadcastNotification } from '../../lib/broadcast';
+import { DashboardService } from '../dashboard/dashboard.service';
+import { generatePdf, buildReceiptHtml, imgToBase64 } from '../../lib/pdf';
 import type { CreatePaymentInput, ListPaymentsInput } from './payments.schema';
 
 export class PaymentsService {
@@ -125,6 +129,8 @@ export class PaymentsService {
           amountPaid: newAmountPaid,
           balanceDue: Math.max(0, newBalanceDue),
           status: newStatus,
+          // Réinitialise l'escalade si la facture est entièrement payée
+          ...(newStatus === 'paid' && { reminderEscalationLevel: 0 }),
           ...(newStatus !== invoice.status && {
             statusHistory: {
               create: {
@@ -137,6 +143,23 @@ export class PaymentsService {
         },
       });
 
+      return payment;
+    }).then(async (payment) => {
+      // Recalcul pour la notification (invoice capturé depuis la portée externe)
+      const paidSoFar = Number(invoice.amountPaid) + input.amount;
+      const remaining = Number(invoice.amountDue) - paidSoFar;
+      const fullyPaid = remaining <= 0;
+
+      await broadcastNotification({
+        type: fullyPaid ? 'invoice_paid' : 'payment_registered',
+        title: fullyPaid ? `Facture payée : ${invoice.number}` : `Paiement reçu : ${invoice.number}`,
+        message: fullyPaid
+          ? `La facture ${invoice.number} est entièrement réglée.`
+          : `Un paiement de ${input.amount.toLocaleString('fr-FR')} XAF a été enregistré sur la facture ${invoice.number}.`,
+        data: { invoiceId: invoice.id, invoiceNumber: invoice.number, amount: input.amount },
+      }, { excludeUserId: createdById });
+
+      await DashboardService.invalidateCache();
       return payment;
     });
   }
@@ -188,6 +211,59 @@ export class PaymentsService {
         },
       });
     });
+
+    await DashboardService.invalidateCache();
+  }
+
+  /**
+   * Génère le PDF du reçu de paiement et retourne le buffer binaire avec le nom de fichier.
+   *
+   * @param id - UUID du paiement
+   * @returns Buffer PDF et nom de fichier suggéré pour le téléchargement
+   * @throws `404` - Paiement introuvable ou supprimé
+   */
+  async generateReceipt(id: string) {
+    const payment = await prisma.payment.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        invoice: {
+          include: { client: true },
+        },
+      },
+    });
+
+    if (!payment) throw AppError.notFound('Paiement introuvable');
+
+    const settings = await prisma.companySettings.findFirst({
+      select: { headerImagePath: true, footerImagePath: true, stampPath: true },
+    });
+
+    const receiptRef = payment.reference ?? `REC-${payment.id.slice(0, 8).toUpperCase()}`;
+
+    const receiptParams = {
+      receiptRef,
+      paymentDate: new Date(payment.paymentDate).toLocaleDateString('fr-FR'),
+      amount: Number(payment.amount),
+      method: payment.method,
+      reference: payment.reference ?? undefined,
+      invoiceNumber: payment.invoice.number,
+      invoiceTotalTtc: Number(payment.invoice.totalTtc),
+      amountPaid: Number(payment.invoice.amountPaid),
+      balanceDue: Number(payment.invoice.balanceDue),
+      clientName: payment.invoice.client.name,
+      clientPhone: payment.invoice.client.phone ?? undefined,
+      clientEmail: payment.invoice.client.email ?? undefined,
+      currency: payment.invoice.currency,
+      notes: payment.notes ?? undefined,
+      headerImageB64: settings?.headerImagePath ? imgToBase64(settings.headerImagePath) : undefined,
+      footerImageB64: settings?.footerImagePath ? imgToBase64(settings.footerImagePath) : undefined,
+      sealImageB64:   settings?.stampPath       ? imgToBase64(settings.stampPath)       : undefined,
+    };
+
+    const html = buildReceiptHtml(receiptParams);
+    const buffer = await generatePdf(html);
+
+    return { buffer, filename: `recu-${receiptRef}.pdf` };
   }
 }
 

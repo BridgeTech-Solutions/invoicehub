@@ -6,11 +6,11 @@ const lineSchema = z.object({
   designation: z.string().min(1).max(500),
   description: z.string().optional(),
   unit: z.enum(['heure', 'jour', 'forfait', 'piece', 'licence', 'mois', 'annee']).default('piece'),
-  quantity: z.number().positive(),
-  unitPriceHt: z.number().min(0),
+  quantity: z.coerce.number().positive(),
+  unitPriceHt: z.coerce.number().min(0),
   discountType: z.enum(['none', 'percentage', 'fixed']).default('none'),
-  discountValue: z.number().min(0).default(0),
-  taxRate: z.number().min(0).max(100).default(19.25),
+  discountValue: z.coerce.number().min(0).default(0),
+  taxRate: z.coerce.number().min(0).max(100).default(19.25),
 });
 
 export const createInvoiceSchema = z.object({
@@ -29,7 +29,7 @@ export const createInvoiceSchema = z.object({
   paymentConditions: z.string().optional(),
   currency: z.string().length(3).default('XAF'),
   globalDiscountType: z.enum(['none', 'percentage', 'fixed']).default('none'),
-  globalDiscountValue: z.number().min(0).default(0),
+  globalDiscountValue: z.coerce.number().min(0).default(0),
   acomptePercentage: z.number().min(0.01).max(100).optional(),
   lines: z.array(lineSchema).min(1, 'Au moins une ligne est requise'),
 });
@@ -57,7 +57,38 @@ export const cancelInvoiceSchema = z.object({
   reason: z.string().optional(),
 });
 
+/**
+ * Schéma pour le calcul à la volée (dry-run).
+ * Identique à la création mais sans les champs non-financiers.
+ * Aucune donnée n'est sauvegardée — retourne totaux + alertes.
+ */
+export const computeInvoiceSchema = z.object({
+  clientId:           z.string().uuid(),
+  lines:              z.array(z.object({
+    quantity:      z.coerce.number().positive(),
+    unitPriceHt:   z.coerce.number().min(0),
+    discountType:  z.enum(['none', 'percentage', 'fixed']).default('none'),
+    discountValue: z.coerce.number().min(0).default(0),
+    taxRate:       z.coerce.number().min(0).max(100).default(19.25),
+    designation:   z.string().default(''),
+  })).min(1),
+  globalDiscountType:  z.enum(['none', 'percentage', 'fixed']).default('none'),
+  globalDiscountValue: z.coerce.number().min(0).default(0),
+  /** Pour la détection de doublons, fournir le clientReference (BC client) si connu */
+  clientReference:     z.string().optional(),
+});
+
+export type ComputeInvoiceInput = z.infer<typeof computeInvoiceSchema>;
+
 export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
 export type UpdateInvoiceInput = z.infer<typeof updateInvoiceSchema>;
 export type ListInvoicesInput = z.infer<typeof listInvoicesSchema>;
 export type LineInput = z.infer<typeof lineSchema>;
+
+export const createAvoirSchema = z.object({
+  reason: z.string().min(1, 'Le motif est obligatoire'),
+  notes: z.string().optional(),
+  lines: z.array(lineSchema).min(1).optional(), // si absent → copie les lignes de la facture originale
+  dueDate: z.coerce.date().optional(),
+});
+export type CreateAvoirInput = z.infer<typeof createAvoirSchema>;

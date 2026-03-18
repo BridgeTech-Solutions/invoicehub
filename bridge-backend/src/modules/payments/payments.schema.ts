@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const createPaymentSchema = z.object({
   paymentDate: z.coerce.date().default(() => new Date()),
-  amount: z.number().positive('Le montant doit être positif'),
+  amount: z.coerce.number().positive('Le montant doit être positif'),
   method: z.enum(['virement', 'especes', 'cheque', 'mobile_money', 'autre']).default('virement'),
   reference: z.string().max(255).optional(),
   notes: z.string().optional(),

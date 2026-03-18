@@ -206,6 +206,9 @@ model CompanySettings {
   logoPath                     String?  @map("logo_path") @db.VarChar(500)
   stampPath                    String?  @map("stamp_path") @db.VarChar(500)
   signaturePath                String?  @map("signature_path") @db.VarChar(500)
+  headerImagePath              String?  @map("header_image_path") @db.VarChar(500)
+  footerImagePath              String?  @map("footer_image_path") @db.VarChar(500)
+  footerSafeZonePx             Int      @default(0) @map("footer_safe_zone_px") @db.SmallInt
   defaultCurrency              String   @default("XAF") @map("default_currency") @db.Char(3)
   defaultTaxRate               Decimal  @default(19.25) @map("default_tax_rate") @db.Decimal(5, 2)
   companyCode                  String   @default("BTS") @map("company_code") @db.VarChar(10)
@@ -214,6 +217,7 @@ model CompanySettings {
   sessionTimeoutMinutes        Int      @default(30) @map("session_timeout_minutes") @db.SmallInt
   maxLoginAttempts             Int      @default(5) @map("max_login_attempts") @db.SmallInt
   autoReminderDays             Int[]    @default([7, 14, 30]) @map("auto_reminder_days")
+  reminderEscalation           Json     @default("{}") @map("reminder_escalation")
   metadata                     Json     @default("{}")
   createdAt                    DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt                    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
@@ -277,6 +281,7 @@ model User {
   twoFactorEnabled     Boolean     @default(false) @map("two_factor_enabled")
   twoFactorSecret      String?     @map("two_factor_secret")
   twoFactorEnabledAt   DateTime?   @map("two_factor_enabled_at") @db.Timestamptz()
+  twoFactorBackupCodes String[]    @default([]) @map("two_factor_backup_codes")
   language             String      @default("fr") @db.Char(2)
   timezone             String      @default("Africa/Douala") @db.VarChar(50)
   theme                String      @default("system") @db.VarChar(20)
@@ -309,6 +314,7 @@ model User {
   payments                Payment[]
   recurringTemplates      RecurringInvoiceTemplate[]
   auditLogs               AuditLog[]
+  backups                 Backup[]
   notifications           Notification[]
   notificationSettings    NotificationSetting[]
 
@@ -323,10 +329,11 @@ model RefreshToken {
   deviceName   String?   @map("device_name") @db.VarChar(255)
   deviceInfo   Json      @default("{}") @map("device_info")
   ipAddress    String?   @map("ip_address")
-  expiresAt    DateTime  @map("expires_at") @db.Timestamptz()
-  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz()
-  revokeReason String?   @map("revoke_reason") @db.VarChar(100)
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz()
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz()
+  revokeReason   String?   @map("revoke_reason") @db.VarChar(100)
+  lastActivityAt DateTime  @default(now()) @map("last_activity_at") @db.Timestamptz()
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz()
 
   @@map("refresh_tokens")
 }
@@ -583,6 +590,7 @@ model Invoice {
   lastSentAt            DateTime?     @map("last_sent_at") @db.Timestamptz()
   lastReminderAt        DateTime?     @map("last_reminder_at") @db.Timestamptz()
   reminderCount         Int           @default(0) @map("reminder_count") @db.SmallInt
+  reminderEscalationLevel Int         @default(0) @map("reminder_escalation_level") @db.SmallInt
   cancelledAt           DateTime?     @map("cancelled_at") @db.Timestamptz()
   cancelReason          String?       @map("cancel_reason")
   cancelledById         String?       @map("cancelled_by") @db.Uuid
@@ -702,7 +710,6 @@ model RecurringInvoiceTemplateLine {
   discountValue  Decimal                  @default(0) @map("discount_value") @db.Decimal(15, 2)
   taxRate        Decimal                  @default(19.25) @map("tax_rate") @db.Decimal(5, 2)
   createdAt      DateTime                 @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt      DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
   @@map("recurring_invoice_template_lines")
 }
@@ -735,43 +742,55 @@ model NotificationSetting {
 }
 
 model EmailTemplate {
-  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  code      String   @unique @db.VarChar(50)
-  name      String   @db.VarChar(255)
-  subject   String   @db.VarChar(500)
-  bodyHtml  String   @map("body_html")
-  variables Json     @default("[]")
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+  id        String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  type      NotificationStatus @unique
+  name      String             @db.VarChar(255)
+  subject   String             @db.VarChar(500)
+  bodyHtml  String             @map("body_html")
+  variables Json               @default("[]")
+  isActive  Boolean            @default(true) @map("is_active")
+  createdAt DateTime           @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
   @@map("email_templates")
 }
 
 model AuditLog {
-  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  userId      String?     @map("user_id") @db.Uuid
-  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
-  action      AuditAction
-  tableName   String      @map("table_name") @db.VarChar(100)
-  recordId    String?     @map("record_id") @db.Uuid
-  oldData     Json?       @map("old_data")
-  newData     Json?       @map("new_data")
-  ipAddress   String?     @map("ip_address")
-  userAgent   String?     @map("user_agent")
-  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz()
+  id            String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId        String?     @map("user_id") @db.Uuid
+  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userEmail     String?     @map("user_email") @db.VarChar(255)
+  userRole      UserRole?   @map("user_role")
+  action        AuditAction
+  entityType    String?     @map("entity_type") @db.VarChar(100)
+  entityId      String?     @map("entity_id") @db.Uuid
+  entityLabel   String?     @map("entity_label") @db.VarChar(255)
+  previousState Json?       @map("previous_state")
+  newState      Json?       @map("new_state")
+  description   String?
+  ipAddress     String?     @map("ip_address")
+  userAgent     String?     @map("user_agent")
+  sessionId     String?     @map("session_id") @db.Uuid
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz()
 
   @@map("audit_logs")
 }
 
 model Backup {
-  id          String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  filename    String       @db.VarChar(500)
-  sizeBytes   BigInt?      @map("size_bytes")
-  status      BackupStatus @default(pending)
-  errorMessage String?     @map("error_message")
-  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz()
-  completedAt DateTime?    @map("completed_at") @db.Timestamptz()
+  id           String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  filename     String       @db.VarChar(255)
+  storageDisk  String       @default("local") @map("storage_disk") @db.VarChar(50)
+  storagePath  String?      @map("storage_path") @db.VarChar(500)
+  sizeBytes    BigInt?      @map("size_bytes")
+  status       BackupStatus @default(pending)
+  type         String       @default("manual") @db.VarChar(20)   // 'manual' | 'scheduled'
+  checksum     String?      @db.VarChar(128)                      // SHA-256 du fichier
+  startedAt    DateTime?    @map("started_at") @db.Timestamptz()
+  completedAt  DateTime?    @map("completed_at") @db.Timestamptz()
+  errorMessage String?      @map("error_message")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz()
+  createdById  String?      @map("created_by") @db.Uuid
+  createdBy    User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   @@map("backups")
 }

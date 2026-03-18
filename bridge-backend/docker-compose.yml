@@ -17,6 +17,18 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   api:
     build:
       context: .
@@ -25,14 +37,34 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "3000:3000"
     env_file: .env
     environment:
       DATABASE_URL: postgresql://postgres:${DB_PASSWORD:-strongpassword}@db:5432/invoicehub
+      REDIS_URL: redis://redis:6379
     volumes:
       - uploads:/app/uploads
 
+  frontend:
+    build:
+      context: ../bridge-frontend
+      dockerfile: docker/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3000/api
+        NEXT_PUBLIC_SOCKET_URL: http://localhost:3000
+        NEXT_PUBLIC_APP_NAME: InvoiceHub
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+
 volumes:
   postgres_data:
+  redis_data:
   uploads:

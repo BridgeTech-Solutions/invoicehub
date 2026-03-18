@@ -1,8 +1,10 @@
+import path from 'path';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { hashPassword, comparePassword } from '../../lib/bcrypt';
 import { AppError } from '../../core/errors/AppError';
-import type { CreateUserInput, UpdateUserInput, ChangePasswordInput, ListUsersInput } from './users.schema';
+import { env } from '../../config/env';
+import type { CreateUserInput, UpdateUserInput, UpdateMeInput, ChangePasswordInput, ListUsersInput } from './users.schema';
 
 const USER_SELECT = {
   id: true,
@@ -19,10 +21,26 @@ const USER_SELECT = {
   theme: true,
   emailNotifications: true,
   invoiceNotifications: true,
+  avatarPath: true,
   lastLoginAt: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.UserSelect;
+
+/** Convertit un chemin filesystem (absolu ou relatif) en URL HTTP publique du backend. */
+function toAvatarUrl(avatarPath: string | null): string | null {
+  if (!avatarPath) return null;
+  const rel = path.isAbsolute(avatarPath)
+    ? path.relative(process.cwd(), avatarPath).replace(/\\/g, '/')
+    : avatarPath.replace(/\\/g, '/');
+  return `${env.BACKEND_URL}/${rel}`;
+}
+
+/** Remplace avatarPath par avatarUrl dans la réponse. */
+function formatUser<T extends { avatarPath: string | null }>(user: T) {
+  const { avatarPath, ...rest } = user;
+  return { ...rest, avatarUrl: toAvatarUrl(avatarPath) };
+}
 
 export class UsersService {
   async list(input: ListUsersInput) {
@@ -53,7 +71,7 @@ export class UsersService {
       }),
     ]);
 
-    return { data: users, total, page, limit, totalPages: Math.ceil(total / limit) };
+    return { data: users.map(formatUser), total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async findById(id: string) {
@@ -62,7 +80,7 @@ export class UsersService {
       select: USER_SELECT,
     });
     if (!user) throw AppError.notFound('Utilisateur introuvable');
-    return user;
+    return formatUser(user);
   }
 
   async create(input: CreateUserInput, createdById: string) {
@@ -71,7 +89,7 @@ export class UsersService {
 
     const passwordHash = await hashPassword(input.password);
 
-    return prisma.user.create({
+    const user = await prisma.user.create({
       data: {
         firstName: input.firstName,
         lastName: input.lastName,
@@ -85,15 +103,26 @@ export class UsersService {
       },
       select: USER_SELECT,
     });
+    return formatUser(user);
   }
 
   async update(id: string, input: UpdateUserInput) {
     await this.findById(id);
-    return prisma.user.update({
+    const user = await prisma.user.update({
       where: { id },
       data: input,
       select: USER_SELECT,
     });
+    return formatUser(user);
+  }
+
+  async updateMe(userId: string, input: UpdateMeInput) {
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: input,
+      select: USER_SELECT,
+    });
+    return formatUser(user);
   }
 
   async changePassword(userId: string, input: ChangePasswordInput): Promise<void> {

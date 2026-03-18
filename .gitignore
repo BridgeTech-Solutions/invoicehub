@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment variables (secrets)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Uploads & user-generated files
+uploads/
+
+# Test / generated PDFs and images at root
+*.pdf
+facture*.jpg
+proforma*.jpg
+*_page-*.jpg
+*_page-*.png
+preview_*.png
+BTS-DC-*.jpg
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# TypeScript build info
+tsconfig.tsbuildinfo
+
+# Redis dump
+dump.rdb

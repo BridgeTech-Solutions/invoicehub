@@ -1,11 +1,20 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { NotificationStatus, NotificationChannel } from '@prisma/client';
 import { notificationsService } from './notifications.service';
 
 const listSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
   unreadOnly: z.coerce.boolean().default(false),
+});
+
+const updateSettingsSchema = z.object({
+  settings: z.array(z.object({
+    type:    z.nativeEnum(NotificationStatus),
+    channel: z.nativeEnum(NotificationChannel),
+    enabled: z.boolean(),
+  })).min(1),
 });
 
 export class NotificationsController {
@@ -32,6 +41,25 @@ export class NotificationsController {
     try {
       await notificationsService.markAllRead(req.user!.id);
       res.json({ success: true, message: 'Toutes les notifications marquées comme lues' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async getSettings(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await notificationsService.getSettings(req.user!.id);
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async updateSettings(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { settings } = updateSettingsSchema.parse(req.body);
+      const data = await notificationsService.updateSettings(req.user!.id, settings);
+      res.json({ success: true, data });
     } catch (err) {
       next(err);
     }

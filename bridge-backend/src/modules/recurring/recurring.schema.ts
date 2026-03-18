@@ -5,11 +5,11 @@ const lineSchema = z.object({
   designation: z.string().min(1).max(500),
   description: z.string().optional(),
   unit: z.enum(['heure', 'jour', 'forfait', 'piece', 'licence', 'mois', 'annee']).default('piece'),
-  quantity: z.number().positive(),
-  unitPriceHt: z.number().min(0),
+  quantity: z.coerce.number().positive(),
+  unitPriceHt: z.coerce.number().min(0),
   discountType: z.enum(['none', 'percentage', 'fixed']).default('none'),
-  discountValue: z.number().min(0).default(0),
-  taxRate: z.number().min(0).max(100).default(19.25),
+  discountValue: z.coerce.number().min(0).default(0),
+  taxRate: z.coerce.number().min(0).max(100).default(19.25),
 });
 
 export const createRecurringSchema = z.object({

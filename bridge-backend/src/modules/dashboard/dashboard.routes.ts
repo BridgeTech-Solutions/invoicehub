@@ -6,9 +6,18 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get('/kpis', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/kpis', async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const data = await dashboardService.getKpis();
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/aging', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = await dashboardService.getAging();
     res.json({ success: true, data });
   } catch (err) {
     next(err);

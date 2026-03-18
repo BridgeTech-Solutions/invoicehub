@@ -1,16 +1,34 @@
 import { Request, Response, NextFunction } from 'express';
 import { proformasService } from './proformas.service';
+import { sendCsvResponse } from '../../lib/csv';
 import {
   createProformaSchema,
   updateProformaSchema,
   listProformasSchema,
   rejectProformaSchema,
+  convertProformaSchema,
 } from './proformas.schema';
 
 export class ProformasController {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const query = listProformasSchema.parse(req.query);
+
+      if (req.query['export'] === 'csv') {
+        const { data } = await proformasService.list({ ...query, page: 1, limit: 10_000 });
+        return sendCsvResponse(res, 'proformas.csv',
+          ['Numéro', 'Client', 'Statut', 'Date émission', 'Valide jusqu\'au', 'Total TTC'],
+          data.map(p => [
+            p.number,
+            (p.client as { name: string }).name,
+            p.status,
+            new Date(p.issueDate).toLocaleDateString('fr-FR'),
+            new Date(p.validUntil).toLocaleDateString('fr-FR'),
+            Number(p.totalTtc),
+          ]),
+        );
+      }
+
       const result = await proformasService.list(query);
       res.json({ success: true, ...result });
     } catch (err) {
@@ -77,7 +95,8 @@ export class ProformasController {
 
   async convert(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await proformasService.convertToInvoice(req.params['id']!, req.user!.id);
+      const options = convertProformaSchema.parse(req.body);
+      const data = await proformasService.convertToInvoice(req.params['id']!, req.user!.id, options);
       res.status(201).json({ success: true, data });
     } catch (err) {
       next(err);
@@ -93,6 +112,15 @@ export class ProformasController {
         'Content-Length': buffer.length,
       });
       res.send(buffer);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async duplicate(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await proformasService.duplicate(req.params['id']!, req.user!.id);
+      res.status(201).json({ success: true, data });
     } catch (err) {
       next(err);
     }

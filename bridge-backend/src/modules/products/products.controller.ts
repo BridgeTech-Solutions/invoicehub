@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { productsService } from './products.service';
+import { sendCsvResponse } from '../../lib/csv';
 import {
   createCategorySchema,
   updateCategorySchema,
@@ -13,6 +14,14 @@ export class ProductsController {
   async listCategories(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await productsService.listCategories();
+
+      if (req.query['export'] === 'csv') {
+        return sendCsvResponse(res, 'categories.csv',
+          ['Nom', 'Description', 'Ordre'],
+          data.map(c => [c.name, c.description ?? '', c.sortOrder ?? '']),
+        );
+      }
+
       res.json({ success: true, data });
     } catch (err) {
       next(err);
@@ -61,6 +70,23 @@ export class ProductsController {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const query = listProductsSchema.parse(req.query);
+
+      if (req.query['export'] === 'csv') {
+        const { data } = await productsService.list({ ...query, page: 1, limit: 10_000 });
+        return sendCsvResponse(res, 'produits.csv',
+          ['Référence', 'Désignation', 'Catégorie', 'Prix HT', 'TVA %', 'Unité', 'Actif'],
+          data.map(p => [
+            p.reference ?? '',
+            p.name,
+            (p.category as { name: string } | null)?.name ?? '',
+            Number(p.unitPriceHt),
+            Number(p.taxRate),
+            p.unit ?? '',
+            p.isActive ? 'Oui' : 'Non',
+          ]),
+        );
+      }
+
       const result = await productsService.list(query);
       res.json({ success: true, ...result });
     } catch (err) {
@@ -71,6 +97,16 @@ export class ProductsController {
   async findById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await productsService.findById(req.params['id']!);
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async lineDefaults(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const clientId = typeof req.query['clientId'] === 'string' ? req.query['clientId'] : undefined;
+      const data = await productsService.lineDefaults(req.params['id']!, clientId);
       res.json({ success: true, data });
     } catch (err) {
       next(err);

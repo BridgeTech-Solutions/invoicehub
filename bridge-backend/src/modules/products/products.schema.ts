@@ -18,9 +18,9 @@ export const createProductSchema = z.object({
   type: z.enum(['product', 'service']).default('product'),
   description: z.string().optional(),
   unit: z.enum(['heure', 'jour', 'forfait', 'piece', 'licence', 'mois', 'annee']).default('piece'),
-  unitPriceHt: z.number().min(0).default(0),
+  unitPriceHt: z.coerce.number().min(0).default(0),
   taxRateId: z.string().uuid().optional(),
-  taxRateValue: z.number().min(0).max(100).default(19.25),
+  taxRateValue: z.coerce.number().min(0).max(100).default(19.25),
   isActive: z.boolean().default(true),
   metadata: z.record(z.unknown()).optional(),
 });
@@ -34,6 +34,8 @@ export const listProductsSchema = z.object({
   type: z.enum(['product', 'service']).optional(),
   isActive: z.coerce.boolean().optional(),
   search: z.string().optional(),
+  /** Si fourni, trie les résultats par fréquence d'utilisation avec ce client */
+  clientId: z.string().uuid().optional(),
 });
 
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;

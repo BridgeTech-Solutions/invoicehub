@@ -25,6 +25,18 @@ export const updateUserSchema = z.object({
   invoiceNotifications: z.boolean().optional(),
 });
 
+/** Schéma de mise à jour du profil personnel (sans changement de rôle) */
+export const updateMeSchema = z.object({
+  firstName: z.string().min(1).max(100).optional(),
+  lastName:  z.string().min(1).max(100).optional(),
+  phone:     z.string().max(50).optional().nullable(),
+  language:  z.enum(['fr', 'en']).optional(),
+  timezone:  z.string().optional(),
+  theme:     z.enum(['light', 'dark', 'system']).optional(),
+  emailNotifications:   z.boolean().optional(),
+  invoiceNotifications: z.boolean().optional(),
+});
+
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: z
@@ -42,7 +54,8 @@ export const listUsersSchema = z.object({
   search: z.string().optional(),
 });
 
-export type CreateUserInput = z.infer<typeof createUserSchema>;
-export type UpdateUserInput = z.infer<typeof updateUserSchema>;
+export type CreateUserInput    = z.infer<typeof createUserSchema>;
+export type UpdateUserInput    = z.infer<typeof updateUserSchema>;
+export type UpdateMeInput      = z.infer<typeof updateMeSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
-export type ListUsersInput = z.infer<typeof listUsersSchema>;
+export type ListUsersInput     = z.infer<typeof listUsersSchema>;

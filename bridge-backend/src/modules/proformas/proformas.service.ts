@@ -2,9 +2,11 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { AppError } from '../../core/errors/AppError';
 import { generateDocumentNumber, getDefaultOfficeId } from '../../lib/documentNumber';
-import { sendMail } from '../../lib/mailer';
-import { generatePdf, buildDocumentHtml } from '../../lib/pdf';
-import type { CreateProformaInput, UpdateProformaInput, ListProformasInput, LineInput } from './proformas.schema';
+import { emailQueue, notificationQueue } from '../../jobs/queues';
+import { broadcastNotification } from '../../lib/broadcast';
+import { generatePdf, buildDocumentHtml, imgToBase64 } from '../../lib/pdf';
+import { DashboardService } from '../dashboard/dashboard.service';
+import type { CreateProformaInput, UpdateProformaInput, ListProformasInput, LineInput, ConvertProformaInput } from './proformas.schema';
 
 /** Calcule les totaux d'une ligne de proforma */
 function computeLine(line: LineInput) {
@@ -109,7 +111,7 @@ export class ProformasService {
     const computedLines = input.lines.map(l => ({ ...l, ...computeLine(l) }));
     const totals = computeTotals(computedLines, input.globalDiscountType ?? 'none', input.globalDiscountValue ?? 0);
 
-    return prisma.proforma.create({
+    const created = await prisma.proforma.create({
       data: {
         number,
         officeId,
@@ -151,14 +153,13 @@ export class ProformasService {
           })),
         },
         statusHistory: {
-          create: {
-            changedById: createdById,
-            newStatus: 'draft',
-          },
+          create: { changedById: createdById, newStatus: 'draft' },
         },
       },
       include: { lines: true, client: true },
     });
+    await DashboardService.invalidateCache();
+    return created;
   }
 
   async update(id: string, input: UpdateProformaInput, userId: string) {
@@ -241,20 +242,29 @@ export class ProformasService {
       },
     });
 
-    // Envoi email si le client a un email
-    if (proforma.client.email) {
-      await sendMail({
-        to: proforma.client.email,
-        subject: `Devis ${proforma.number} — Bridge Technologies Solutions`,
-        html: `
-          <p>Bonjour ${proforma.client.name},</p>
-          <p>Veuillez trouver ci-joint votre devis N° <strong>${proforma.number}</strong>.</p>
-          <p>Ce devis est valable jusqu'au ${new Date(proforma.validUntil).toLocaleDateString('fr-FR')}.</p>
-          <p>Cordialement,<br>Bridge Technologies Solutions</p>
-        `,
-      }).catch(() => {/* Email non critique */});
-    }
+    // Notification in-app à tous les utilisateurs actifs
+    await broadcastNotification({
+      type: 'proforma_sent',
+      title: `Proforma envoyée : ${proforma.number}`,
+      message: `La proforma ${proforma.number} pour ${proforma.client.name} a été envoyée au client.`,
+      data: { proformaId: proforma.id, proformaNumber: proforma.number },
+    }, { excludeUserId: userId });
 
+    // Email au client — désactivé (envoi manuel hors application)
+    // if (proforma.client.email) {
+    //   await emailQueue.add('email', {
+    //     to: proforma.client.email,
+    //     subject: `Devis ${proforma.number} — Bridge Technologies Solutions`,
+    //     html: `
+    //       <p>Bonjour ${proforma.client.name},</p>
+    //       <p>Veuillez trouver ci-joint votre devis N° <strong>${proforma.number}</strong>.</p>
+    //       <p>Ce devis est valable jusqu'au ${new Date(proforma.validUntil).toLocaleDateString('fr-FR')}.</p>
+    //       <p>Cordialement,<br>Bridge Technologies Solutions</p>
+    //     `,
+    //   });
+    // }
+
+    await DashboardService.invalidateCache();
     return updated;
   }
 
@@ -264,7 +274,7 @@ export class ProformasService {
       throw AppError.badRequest('La proforma doit être envoyée pour être acceptée');
     }
 
-    return prisma.proforma.update({
+    const updated = await prisma.proforma.update({
       where: { id },
       data: {
         status: 'accepted',
@@ -273,6 +283,16 @@ export class ProformasService {
         },
       },
     });
+
+    await broadcastNotification({
+      type: 'proforma_accepted',
+      title: `Proforma acceptée : ${proforma.number}`,
+      message: `La proforma ${proforma.number} pour ${proforma.client.name} a été acceptée.`,
+      data: { proformaId: proforma.id, proformaNumber: proforma.number },
+    }, { excludeUserId: userId });
+
+    await DashboardService.invalidateCache();
+    return updated;
   }
 
   async reject(id: string, userId: string, reason?: string) {
@@ -281,7 +301,7 @@ export class ProformasService {
       throw AppError.badRequest('La proforma doit être envoyée pour être rejetée');
     }
 
-    return prisma.proforma.update({
+    const updated = await prisma.proforma.update({
       where: { id },
       data: {
         status: 'rejected',
@@ -290,9 +310,46 @@ export class ProformasService {
         },
       },
     });
+
+    await broadcastNotification({
+      type: 'proforma_rejected',
+      title: `Proforma rejetée : ${proforma.number}`,
+      message: `La proforma ${proforma.number} pour ${proforma.client.name} a été rejetée.${reason ? ` Motif : ${reason}` : ''}`,
+      data: { proformaId: proforma.id, proformaNumber: proforma.number, reason },
+    }, { excludeUserId: userId });
+
+    await DashboardService.invalidateCache();
+    return updated;
   }
 
-  async convertToInvoice(id: string, userId: string) {
+  /**
+   * Convertit une proforma acceptée (ou envoyée) en facture.
+   *
+   * Deux types de conversion sont possibles :
+   *
+   * - **`standard`** (défaut) : La facture reprend l'intégralité des lignes et des montants
+   *   de la proforma. C'est le cas le plus courant.
+   *
+   * - **`acompte`** : La facture couvre un pourcentage du total TTC de la proforma.
+   *   Une ligne récapitulative unique est créée (`Acompte X% sur devis N°…`). Les montants
+   *   HT, TVA et TTC sont calculés proportionnellement. La proforma reste référencée via
+   *   `proformaId` ; une future facture de solde pointera vers cette facture d'acompte
+   *   via `parentInvoiceId`.
+   *
+   * Dans les deux cas, la proforma est marquée `accepted` si elle ne l'était pas déjà,
+   * et toutes les opérations sont exécutées dans une **transaction atomique**.
+   *
+   * @param id      - UUID de la proforma à convertir
+   * @param userId  - UUID de l'utilisateur effectuant la conversion
+   * @param options - `invoiceType` ('standard' | 'acompte') et `acomptePercentage` (si acompte)
+   * @returns La facture créée (avec ses lignes)
+   * @throws `400` - Proforma dans un statut non convertible
+   */
+  async convertToInvoice(
+    id: string,
+    userId: string,
+    options: ConvertProformaInput = { invoiceType: 'standard' },
+  ) {
     const proforma = await this.findById(id);
     if (!['accepted', 'sent'].includes(proforma.status)) {
       throw AppError.badRequest('La proforma doit être envoyée ou acceptée pour être convertie');
@@ -305,12 +362,20 @@ export class ProformasService {
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + dueDays);
 
+    const isAcompte = options.invoiceType === 'acompte';
+    const pct = isAcompte ? options.acomptePercentage! / 100 : 1;
+
+    // Pour un acompte, on calcule les montants proportionnellement (ratio appliqué sur HT, TVA et TTC)
+    const acompteHt  = Number((Number(proforma.totalHt)  * pct).toFixed(2));
+    const acompteTax = Number((Number(proforma.totalTax) * pct).toFixed(2));
+    const acompteTtc = Number((Number(proforma.totalTtc) * pct).toFixed(2));
+
     const invoice = await prisma.$transaction(async (tx) => {
       const inv = await tx.invoice.create({
         data: {
           number: invoiceNumber,
           officeId: proforma.officeId,
-          type: 'standard',
+          type: options.invoiceType,
           clientId: proforma.clientId,
           createdById: userId,
           proformaId: proforma.id,
@@ -320,32 +385,43 @@ export class ProformasService {
           notes: proforma.notes,
           paymentConditions: proforma.paymentConditions,
           currency: proforma.currency,
-          subtotalHt: proforma.subtotalHt,
-          globalDiscountType: proforma.globalDiscountType,
-          globalDiscountValue: proforma.globalDiscountValue,
+
+          // Les totaux HT/TVA représentent TOUJOURS le projet complet.
+          // Pour un acompte, seul totalTtc / amountDue / balanceDue sont réduits.
+          // Cela est cohérent avec invoices.service.create() et permet au template
+          // PDF d'afficher "TOTAL HT = projet complet" + "ACOMPTE HT X% = ..."
+          subtotalHt:           proforma.subtotalHt,
+          globalDiscountType:   proforma.globalDiscountType,
+          globalDiscountValue:  proforma.globalDiscountValue,
           globalDiscountAmount: proforma.globalDiscountAmount,
-          totalHt: proforma.totalHt,
-          totalTax: proforma.totalTax,
-          totalTtc: proforma.totalTtc,
-          amountDue: proforma.totalTtc,
-          balanceDue: proforma.totalTtc,
+          totalHt:              proforma.totalHt,
+          totalTax:             proforma.totalTax,
+          totalTtc:             isAcompte ? acompteTtc : proforma.totalTtc,
+          amountDue:            isAcompte ? acompteTtc : proforma.totalTtc,
+          balanceDue:           isAcompte ? acompteTtc : proforma.totalTtc,
+
+          ...(isAcompte && { acomptePercentage: options.acomptePercentage }),
+
+          // Copie intégrale des lignes de la proforma dans les deux cas.
+          // Pour l'acompte, le template PDF calcule le montant de l'acompte
+          // depuis acomptePercentage × totalHt et l'affiche dans les totaux.
           lines: {
             create: proforma.lines.map(l => ({
-              productId: l.productId,
-              sortOrder: l.sortOrder,
-              designation: l.designation,
-              description: l.description,
-              unit: l.unit,
-              quantity: l.quantity,
-              unitPriceHt: l.unitPriceHt,
-              discountType: l.discountType,
+              productId:     l.productId,
+              sortOrder:     l.sortOrder,
+              designation:   l.designation,
+              description:   l.description,
+              unit:          l.unit,
+              quantity:      l.quantity,
+              unitPriceHt:   l.unitPriceHt,
+              discountType:  l.discountType,
               discountValue: l.discountValue,
-              discountAmount: l.discountAmount,
-              taxRate: l.taxRate,
-              subtotalHt: l.subtotalHt,
-              netHt: l.netHt,
-              taxAmount: l.taxAmount,
-              totalTtc: l.totalTtc,
+              discountAmount:l.discountAmount,
+              taxRate:       l.taxRate,
+              subtotalHt:    l.subtotalHt,
+              netHt:         l.netHt,
+              taxAmount:     l.taxAmount,
+              totalTtc:      l.totalTtc,
             })),
           },
           statusHistory: {
@@ -355,7 +431,7 @@ export class ProformasService {
         include: { lines: true },
       });
 
-      // Marque la proforma comme acceptée (si ce n'est pas déjà le cas)
+      // Marque la proforma comme acceptée si ce n'était pas encore le cas
       await tx.proforma.update({
         where: { id },
         data: {
@@ -369,45 +445,55 @@ export class ProformasService {
       return inv;
     });
 
+    await DashboardService.invalidateCache();
     return invoice;
   }
 
   async generatePdfResponse(id: string) {
-    const proforma = await this.findById(id);
-    const company = await prisma.companySettings.findFirst();
+    const [proforma, settings] = await Promise.all([
+      this.findById(id),
+      prisma.companySettings.findFirst({ select: { headerImagePath: true, footerImagePath: true, stampPath: true, footerSafeZonePx: true } }),
+    ]);
+
+    const headerImageB64 = settings?.headerImagePath ? imgToBase64(settings.headerImagePath) : undefined;
+    const footerImageB64 = settings?.footerImagePath ? imgToBase64(settings.footerImagePath) : undefined;
+    const sealImageB64   = settings?.stampPath       ? imgToBase64(settings.stampPath)       : undefined;
 
     const html = buildDocumentHtml({
-      type: 'Proforma',
-      number: proforma.number,
-      issueDate: new Date(proforma.issueDate).toLocaleDateString('fr-FR'),
+      type:       'Proforma',
+      number:     proforma.number,
+      issueDate:  new Date(proforma.issueDate).toLocaleDateString('fr-FR'),
       validUntil: new Date(proforma.validUntil).toLocaleDateString('fr-FR'),
-      companyName: company?.companyName ?? 'Bridge Technologies Solutions',
-      companyAddress: company?.address ?? 'Douala, Cameroun',
-      companyPhone: company?.phone ?? '',
-      companyEmail: company?.email ?? '',
-      companyTaxNumber: company?.taxNumber ?? undefined,
+
       clientName: proforma.client.name,
-      clientAddress: proforma.client.address ?? undefined,
-      clientEmail: proforma.client.email ?? undefined,
-      clientTaxNumber: proforma.client.taxNumber ?? undefined,
-      subject: proforma.subject ?? undefined,
-      currency: proforma.currency,
+      subject:    proforma.subject ?? undefined,
+      currency:   proforma.currency,
+
       lines: proforma.lines.map(l => ({
         designation: l.designation,
-        quantity: Number(l.quantity),
-        unit: l.unit,
+        description: l.description ?? undefined,
+        quantity:    Number(l.quantity),
+        unit:        l.unit,
         unitPriceHt: Number(l.unitPriceHt),
-        taxRate: Number(l.taxRate),
-        totalTtc: Number(l.totalTtc),
+        netHt:       Number(l.netHt),
+        taxRate:     Number(l.taxRate),
       })),
+
       subtotalHt: Number(proforma.totalHt),
-      totalTax: Number(proforma.totalTax),
-      totalTtc: Number(proforma.totalTtc),
-      notes: proforma.notes ?? undefined,
+      totalTax:   Number(proforma.totalTax),
+      totalTtc:   Number(proforma.totalTtc),
+
+      deliveryDelay:     proforma.deliveryDelay     ?? undefined,
+      warranty:          proforma.warranty          ?? undefined,
       paymentConditions: proforma.paymentConditions ?? undefined,
+      notes:             proforma.notes             ?? undefined,
+      headerImageB64,
+      footerImageB64,
+      sealImageB64,
     });
 
-    const pdfBuffer = await generatePdf(html);
+    const footerSafeZonePx = settings?.footerSafeZonePx || undefined;
+    const pdfBuffer = await generatePdf(html, footerSafeZonePx);
 
     await prisma.proforma.update({
       where: { id },
@@ -415,6 +501,64 @@ export class ProformasService {
     });
 
     return { buffer: pdfBuffer, filename: `${proforma.number.replace(/\//g, '-')}.pdf` };
+  }
+
+  async duplicate(id: string, userId: string) {
+    const original = await this.findById(id);
+    const company = await prisma.companySettings.findFirst();
+    const validityDays = company?.defaultProformaValidityDays ?? 30;
+
+    const validUntil = new Date();
+    validUntil.setDate(validUntil.getDate() + validityDays);
+
+    const number = await generateDocumentNumber(original.officeId, 'proforma');
+
+    return prisma.proforma.create({
+      data: {
+        number,
+        officeId: original.officeId,
+        clientId: original.clientId,
+        createdById: userId,
+        issueDate: new Date(),
+        validUntil,
+        subject: original.subject,
+        notes: original.notes,
+        paymentConditions: original.paymentConditions,
+        deliveryDelay: original.deliveryDelay,
+        warranty: original.warranty,
+        currency: original.currency,
+        globalDiscountType: original.globalDiscountType,
+        globalDiscountValue: original.globalDiscountValue,
+        globalDiscountAmount: original.globalDiscountAmount,
+        subtotalHt: original.subtotalHt,
+        totalHt: original.totalHt,
+        totalTax: original.totalTax,
+        totalTtc: original.totalTtc,
+        lines: {
+          create: original.lines.map(l => ({
+            sortOrder: l.sortOrder,
+            productId: l.productId,
+            designation: l.designation,
+            description: l.description,
+            unit: l.unit,
+            quantity: l.quantity,
+            unitPriceHt: l.unitPriceHt,
+            discountType: l.discountType,
+            discountValue: l.discountValue,
+            discountAmount: l.discountAmount,
+            taxRate: l.taxRate,
+            subtotalHt: l.subtotalHt,
+            netHt: l.netHt,
+            taxAmount: l.taxAmount,
+            totalTtc: l.totalTtc,
+          })),
+        },
+        statusHistory: {
+          create: { changedById: userId, newStatus: 'draft' },
+        },
+      },
+      include: { lines: true, client: true },
+    });
   }
 
   async softDelete(id: string): Promise<void> {

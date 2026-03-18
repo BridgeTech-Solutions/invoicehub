@@ -5,12 +5,14 @@
  * Responsabilités :
  *  - Authentification email + mot de passe avec protection anti-brute-force
  *  - Gestion du 2FA TOTP (génération, activation, désactivation)
+ *  - Codes de secours 2FA (backup codes) — fallback si l'appareil TOTP est perdu
  *  - Émission et rotation des tokens JWT (access + refresh)
  *  - Réinitialisation sécurisée du mot de passe par email
  *
  * Sécurité :
  *  - Les tokens de réinitialisation et refresh tokens sont stockés sous forme
  *    de hash SHA-256 (jamais en clair en base de données)
+ *  - Les backup codes sont stockés sous forme de hash SHA-256 (usage unique)
  *  - La réponse à "forgot password" est identique que l'email existe ou non
  *    (évite l'énumération d'utilisateurs)
  *  - Le compte est verrouillé après N tentatives échouées (configurable)
@@ -20,7 +22,7 @@ import { prisma } from '../../config/database';
 import { comparePassword, hashPassword } from '../../lib/bcrypt';
 import { signAccessToken, signRefreshToken, verifyRefreshToken, getRefreshTokenExpiry } from '../../lib/jwt';
 import { generateTotpSecret, getTotpUri, generateQrCode, verifyTotpToken } from '../../lib/totp';
-import { sendMail } from '../../lib/mailer';
+import { emailQueue } from '../../jobs/queues';
 import { AppError } from '../../core/errors/AppError';
 import { env } from '../../config/env';
 import type { LoginInput } from './auth.schema';
@@ -33,7 +35,7 @@ export class AuthService {
    * 1. Vérifie l'existence et le statut du compte
    * 2. Contrôle le verrouillage anti-brute-force
    * 3. Compare le mot de passe (bcrypt)
-   * 4. Vérifie le code TOTP si le 2FA est activé
+   * 4. Vérifie le code TOTP si le 2FA est activé (ou un backup code en fallback)
    * 5. Réinitialise les compteurs d'échec et émet les tokens
    *
    * @param input     - Email, mot de passe et code TOTP optionnel
@@ -79,7 +81,8 @@ export class AuthService {
     const passwordValid = await comparePassword(input.password, user.passwordHash);
     if (!passwordValid) {
       const attempts = user.failedLoginAttempts + 1;
-      const maxAttempts = 5; // TODO: récupérer depuis company_settings (configurable par admin)
+      const company = await prisma.companySettings.findFirst({ select: { maxLoginAttempts: true } });
+      const maxAttempts = company?.maxLoginAttempts ?? 5;
       const shouldLock = attempts >= maxAttempts;
 
       await prisma.user.update({
@@ -102,9 +105,26 @@ export class AuthService {
         // Code spécial : le frontend doit afficher le champ de saisie TOTP
         throw AppError.unauthorized('Code 2FA requis', 'TOTP_REQUIRED');
       }
-      if (!user.twoFactorSecret || !verifyTotpToken(input.totpToken, user.twoFactorSecret)) {
-        await logAttempt(false, 'bad_totp');
-        throw AppError.unauthorized('Code 2FA invalide');
+
+      const totpValid = user.twoFactorSecret && verifyTotpToken(input.totpToken, user.twoFactorSecret);
+
+      if (!totpValid) {
+        // Fallback : vérification du backup code (hash SHA-256 de la saisie en majuscules)
+        const inputHash = crypto.createHash('sha256').update(input.totpToken.toUpperCase()).digest('hex');
+        const backupIndex = user.twoFactorBackupCodes.indexOf(inputHash);
+
+        if (backupIndex === -1) {
+          await logAttempt(false, 'bad_totp');
+          throw AppError.unauthorized('Code 2FA invalide');
+        }
+
+        // Backup code valide : le consommer (usage unique)
+        const newCodes = [...user.twoFactorBackupCodes];
+        newCodes.splice(backupIndex, 1);
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { twoFactorBackupCodes: newCodes },
+        });
       }
     }
 
@@ -164,6 +184,23 @@ export class AuthService {
 
     if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
       throw AppError.unauthorized('Refresh token révoqué ou expiré');
+    }
+
+    // Vérification du timeout d'inactivité (sessionTimeoutMinutes depuis company_settings)
+    const company = await prisma.companySettings.findFirst({
+      select: { sessionTimeoutMinutes: true },
+    });
+    const timeoutMinutes = company?.sessionTimeoutMinutes ?? 0;
+    if (timeoutMinutes > 0) {
+      const idleMs = Date.now() - stored.lastActivityAt.getTime();
+      if (idleMs > timeoutMinutes * 60 * 1000) {
+        // Révoquer le token silencieusement avant de rejeter
+        await prisma.refreshToken.update({
+          where: { id: stored.id },
+          data: { revokedAt: new Date(), revokeReason: 'session_timeout' },
+        });
+        throw AppError.unauthorized('Session expirée pour inactivité', 'SESSION_TIMEOUT');
+      }
     }
 
     // Rotation : l'ancien token est révoqué avant d'en émettre un nouveau
@@ -229,18 +266,24 @@ export class AuthService {
   }
 
   /**
-   * Deuxième étape du 2FA : valide le code TOTP pour confirmer l'enrôlement
-   * et active définitivement le 2FA sur le compte.
+   * Deuxième étape du 2FA : valide le code TOTP pour confirmer l'enrôlement,
+   * active définitivement le 2FA et génère les **codes de secours** (backup codes).
+   *
+   * Les backup codes sont affichés **une seule fois** — l'utilisateur doit les
+   * sauvegarder. En base, seuls les hash SHA-256 sont stockés.
    *
    * @param userId - UUID de l'utilisateur
    * @param token  - Code à 6 chiffres généré par l'application authenticator
    * @param secret - Secret TOTP reçu lors de `enableTwoFactor()`
+   * @returns Les 8 backup codes en clair (à afficher une seule fois)
    * @throws `400` - Code TOTP invalide
    */
-  async verifyAndActivateTwoFactor(userId: string, token: string, secret: string): Promise<void> {
+  async verifyAndActivateTwoFactor(userId: string, token: string, secret: string): Promise<{ backupCodes: string[] }> {
     if (!verifyTotpToken(token, secret)) {
       throw AppError.badRequest('Code TOTP invalide');
     }
+
+    const { plain, hashed } = this.generateBackupCodes();
 
     await prisma.user.update({
       where: { id: userId },
@@ -248,13 +291,17 @@ export class AuthService {
         twoFactorEnabled: true,
         twoFactorSecret: secret,
         twoFactorEnabledAt: new Date(),
+        twoFactorBackupCodes: hashed,
       },
     });
+
+    return { backupCodes: plain };
   }
 
   /**
    * Désactive le 2FA après vérification d'un code TOTP valide.
    * Exige le code pour éviter qu'un attaquant ayant volé la session puisse désactiver le 2FA.
+   * Efface également tous les backup codes.
    *
    * @param userId - UUID de l'utilisateur
    * @param token  - Code TOTP actuel (preuve de possession de l'appareil)
@@ -273,8 +320,42 @@ export class AuthService {
         twoFactorEnabled: false,
         twoFactorSecret: null,
         twoFactorEnabledAt: null,
+        twoFactorBackupCodes: [],
       },
     });
+  }
+
+  /**
+   * Régénère les backup codes 2FA après vérification d'un code TOTP valide.
+   * Les anciens codes sont immédiatement invalidés.
+   *
+   * À utiliser lorsque l'utilisateur a perdu ses backup codes ou souhaite
+   * en générer de nouveaux pour des raisons de sécurité.
+   *
+   * @param userId    - UUID de l'utilisateur connecté
+   * @param totpToken - Code TOTP actuel (preuve de possession de l'appareil)
+   * @returns Les 8 nouveaux backup codes en clair (affichés une seule fois)
+   * @throws `400` - 2FA non activé, ou code TOTP invalide
+   */
+  async regenerateBackupCodes(userId: string, totpToken: string): Promise<{ backupCodes: string[] }> {
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+
+    if (!user.twoFactorEnabled || !user.twoFactorSecret) {
+      throw AppError.badRequest('Le 2FA n\'est pas activé sur ce compte');
+    }
+
+    if (!verifyTotpToken(totpToken, user.twoFactorSecret)) {
+      throw AppError.unauthorized('Code TOTP invalide');
+    }
+
+    const { plain, hashed } = this.generateBackupCodes();
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { twoFactorBackupCodes: hashed },
+    });
+
+    return { backupCodes: plain };
   }
 
   /**
@@ -317,7 +398,7 @@ export class AuthService {
     // Le token brut est envoyé dans le lien — seul le hash est stocké en base
     const resetUrl = `${env.APP_URL}/reset-password?token=${rawToken}`;
 
-    await sendMail({
+    await emailQueue.add('email', {
       to: user.email,
       subject: 'Réinitialisation de votre mot de passe — InvoiceHub BTS',
       html: `
@@ -385,8 +466,55 @@ export class AuthService {
     ]);
   }
 
+  /** Liste les sessions actives (refresh tokens non révoqués, non expirés) */
+  async listSessions(userId: string, currentTokenHash?: string) {
+    const sessions = await prisma.refreshToken.findMany({
+      where: {
+        userId,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return sessions.map(s => ({
+      id: s.id,
+      deviceName: s.deviceName ?? 'Appareil inconnu',
+      deviceInfo: s.deviceInfo,
+      ipAddress: s.ipAddress,
+      createdAt: s.createdAt,
+      expiresAt: s.expiresAt,
+      current: currentTokenHash ? s.tokenHash === currentTokenHash : false,
+    }));
+  }
+
+  /** Révoque une session spécifique (appartenant à l'utilisateur) */
+  async revokeSession(sessionId: string, userId: string): Promise<void> {
+    const session = await prisma.refreshToken.findFirst({
+      where: { id: sessionId, userId, revokedAt: null },
+    });
+    if (!session) throw AppError.notFound('Session introuvable');
+
+    await prisma.refreshToken.update({
+      where: { id: sessionId },
+      data: { revokedAt: new Date(), revokeReason: 'manual_revoke' },
+    });
+  }
+
+  /** Révoque toutes les sessions sauf la courante */
+  async revokeAllSessions(userId: string, currentTokenHash: string): Promise<void> {
+    await prisma.refreshToken.updateMany({
+      where: {
+        userId,
+        revokedAt: null,
+        tokenHash: { not: currentTokenHash },
+      },
+      data: { revokedAt: new Date(), revokeReason: 'revoke_all' },
+    });
+  }
+
   // ---------------------------------------------------------------------------
-  // Méthode privée
+  // Méthodes privées
   // ---------------------------------------------------------------------------
 
   /**
@@ -417,10 +545,28 @@ export class AuthService {
         ipAddress: ip ?? null,
         deviceInfo: userAgent ? { userAgent } : {},
         deviceName: userAgent ? userAgent.slice(0, 255) : undefined,
+        lastActivityAt: new Date(),
       },
     });
 
     return { accessToken, refreshToken };
+  }
+
+  /**
+   * Génère 8 codes de secours aléatoires (4 octets = 8 caractères hexadécimaux chacun).
+   * Retourne les codes en clair (à montrer une fois à l'utilisateur) et leurs hash SHA-256
+   * (à stocker en base de données).
+   *
+   * Entropie par code : 4 octets = 32 bits ≈ 4 milliards de combinaisons.
+   */
+  private generateBackupCodes(): { plain: string[]; hashed: string[] } {
+    const plain = Array.from({ length: 8 }, () =>
+      crypto.randomBytes(4).toString('hex').toUpperCase()
+    );
+    const hashed = plain.map(c =>
+      crypto.createHash('sha256').update(c).digest('hex')
+    );
+    return { plain, hashed };
   }
 }
 

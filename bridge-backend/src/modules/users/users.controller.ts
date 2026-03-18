@@ -3,6 +3,7 @@ import { usersService } from './users.service';
 import {
   createUserSchema,
   updateUserSchema,
+  updateMeSchema,
   changePasswordSchema,
   listUsersSchema,
 } from './users.schema';
@@ -50,6 +51,16 @@ export class UsersController {
     try {
       const input = updateUserSchema.parse(req.body);
       const user = await usersService.update(req.params['id']!, input);
+      res.json({ success: true, data: user });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async updateMe(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const input = updateMeSchema.parse(req.body);
+      const user = await usersService.updateMe(req.user!.id, input);
       res.json({ success: true, data: user });
     } catch (err) {
       next(err);

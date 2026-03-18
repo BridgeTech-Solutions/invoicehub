@@ -21,9 +21,11 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { AppError } from '../../core/errors/AppError';
 import { generateDocumentNumber, getDefaultOfficeId } from '../../lib/documentNumber';
-import { generatePdf, buildDocumentHtml } from '../../lib/pdf';
-import { sendMail } from '../../lib/mailer';
-import type { CreateInvoiceInput, UpdateInvoiceInput, ListInvoicesInput, LineInput } from './invoices.schema';
+import { generatePdf, buildDocumentHtml, imgToBase64 } from '../../lib/pdf';
+import { emailQueue, notificationQueue } from '../../jobs/queues';
+import { broadcastNotification } from '../../lib/broadcast';
+import { DashboardService } from '../dashboard/dashboard.service';
+import type { CreateInvoiceInput, UpdateInvoiceInput, ListInvoicesInput, LineInput, CreateAvoirInput } from './invoices.schema';
 
 // ---------------------------------------------------------------------------
 // Helpers de calcul financier
@@ -161,7 +163,10 @@ export class InvoicesService {
         office: true,
         createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
         assignedTo: { select: { id: true, firstName: true, lastName: true } },
-        lines: { orderBy: { sortOrder: 'asc' } },
+        lines: {
+          include: { product: { select: { reference: true } } },
+          orderBy: { sortOrder: 'asc' },
+        },
         payments: { where: { deletedAt: null }, orderBy: { paymentDate: 'desc' } },
         statusHistory: {
           orderBy: { changedAt: 'desc' },
@@ -205,10 +210,24 @@ export class InvoicesService {
     // Facture de solde : déduit la somme des acomptes déjà encaissés
     let totalAcomptesDeducted = 0;
     if (input.type === 'solde' && input.parentInvoiceId) {
+      // Garde-fou : empêcher un double solde sur le même acompte
+      const existingSolde = await prisma.invoice.findFirst({
+        where: { parentInvoiceId: input.parentInvoiceId, type: 'solde', deletedAt: null, status: { notIn: ['cancelled'] } },
+        select: { id: true, number: true },
+      });
+      if (existingSolde) {
+        throw AppError.badRequest(`Une facture de solde existe déjà pour cet acompte : ${existingSolde.number}`);
+      }
+
+      // Paiements sur l'acompte direct (parentInvoiceId) ET sur tous les acomptes
+      // liés à ce même parent (cas multi-acomptes : acompte B, C... avec parentInvoiceId = A.id)
       const acomptesAgg = await prisma.payment.aggregate({
         where: {
-          invoice: { parentInvoiceId: input.parentInvoiceId, type: 'acompte' },
           deletedAt: null,
+          OR: [
+            { invoiceId: input.parentInvoiceId },
+            { invoice: { parentInvoiceId: input.parentInvoiceId, type: 'acompte', deletedAt: null } },
+          ],
         },
         _sum: { amount: true },
       });
@@ -308,14 +327,20 @@ export class InvoicesService {
         input.globalDiscountType ?? invoice.globalDiscountType,
         Number(input.globalDiscountValue ?? invoice.globalDiscountValue),
       );
+      // Recalcule le totalTtc en tenant compte du pourcentage d'acompte si applicable
+      const acomptePct = Number(invoice.acomptePercentage ?? 0);
+      const finalTtc = (invoice.type === 'acompte' && acomptePct > 0)
+        ? Number((totals.totalTtc * acomptePct / 100).toFixed(2))
+        : totals.totalTtc;
+
       Object.assign(updateData, {
         subtotalHt: totals.subtotalHt,
         globalDiscountAmount: totals.globalDiscountAmount,
         totalHt: totals.totalHt,
         totalTax: totals.totalTax,
-        totalTtc: totals.totalTtc,
-        amountDue: totals.totalTtc,
-        balanceDue: totals.totalTtc,
+        totalTtc: finalTtc,
+        amountDue: totals.totalTtc,   // amountDue = full TTC (base de calcul solde)
+        balanceDue: finalTtc,
         lines: {
           deleteMany: {},
           create: computedLines.map(l => ({
@@ -371,21 +396,30 @@ export class InvoicesService {
       },
     });
 
-    // Notification email au client — non critique (ne bloque pas la réponse si échec)
-    if (invoice.client.email) {
-      await sendMail({
-        to: invoice.client.email,
-        subject: `Facture ${invoice.number} — Bridge Technologies Solutions`,
-        html: `
-          <p>Bonjour ${invoice.client.name},</p>
-          <p>Veuillez trouver ci-joint votre facture N° <strong>${invoice.number}</strong>.</p>
-          <p>Montant total : <strong>${Number(invoice.totalTtc).toLocaleString('fr-FR')} ${invoice.currency}</strong></p>
-          <p>Date d'échéance : ${new Date(invoice.dueDate).toLocaleDateString('fr-FR')}</p>
-          <p>Cordialement,<br>Bridge Technologies Solutions</p>
-        `,
-      }).catch(() => {/* Email non critique — l'émission est déjà enregistrée */});
-    }
+    // Notification in-app à tous les utilisateurs actifs
+    await broadcastNotification({
+      type: 'invoice_issued',
+      title: `Facture émise : ${invoice.number}`,
+      message: `La facture ${invoice.number} pour ${invoice.client.name} a été émise. Échéance : ${new Date(invoice.dueDate).toLocaleDateString('fr-FR')}.`,
+      data: { invoiceId: invoice.id, invoiceNumber: invoice.number },
+    }, { excludeUserId: userId });
 
+    // Email au client — désactivé (envoi manuel hors application)
+    // if (invoice.client.email) {
+    //   await emailQueue.add('email', {
+    //     to: invoice.client.email,
+    //     subject: `Facture ${invoice.number} — Bridge Technologies Solutions`,
+    //     html: `
+    //       <p>Bonjour ${invoice.client.name},</p>
+    //       <p>Veuillez trouver ci-joint votre facture N° <strong>${invoice.number}</strong>.</p>
+    //       <p>Montant total : <strong>${Number(invoice.totalTtc).toLocaleString('fr-FR')} ${invoice.currency}</strong></p>
+    //       <p>Date d'échéance : ${new Date(invoice.dueDate).toLocaleDateString('fr-FR')}</p>
+    //       <p>Cordialement,<br>Bridge Technologies Solutions</p>
+    //     `,
+    //   });
+    // }
+
+    await DashboardService.invalidateCache();
     return updated;
   }
 
@@ -477,7 +511,158 @@ export class InvoicesService {
       });
 
       return cancelled;
+    }).then(async (cancelled) => {
+      await broadcastNotification({
+        type: 'system',
+        title: `Facture annulée : ${invoice.number}`,
+        message: `La facture ${invoice.number} pour ${invoice.client.name} a été annulée. Un avoir a été généré automatiquement.`,
+        data: { invoiceId: invoice.id, invoiceNumber: invoice.number, reason },
+      }, { excludeUserId: userId });
+      await DashboardService.invalidateCache();
+      return cancelled;
     });
+  }
+
+  /**
+   * Crée un avoir manuel sur une facture existante (CDC §4.4 — avoir hors annulation).
+   *
+   * Contrairement à l'avoir automatique généré par `cancel()`, cette méthode permet
+   * de créer un avoir partiel (lignes et montants personnalisés) sur une facture
+   * encore active (`issued`, `partially_paid`, `paid`, `overdue`).
+   *
+   * @param id    - UUID de la facture à créditer
+   * @param input - Motif, notes, lignes optionnelles et date d'échéance
+   * @param userId - UUID de l'utilisateur créant l'avoir
+   * @returns L'avoir créé avec ses lignes et le client associé
+   * @throws `400` - Type de facture non creditable (avoir d'un avoir interdit)
+   * @throws `400` - Statut de la facture ne permet pas la création d'un avoir
+   * @throws `404` - Facture introuvable
+   */
+  async createAvoir(id: string, input: CreateAvoirInput, userId: string) {
+    const invoice = await this.findById(id);
+
+    // Un avoir ne peut pas être créé depuis un autre avoir
+    if (!['standard', 'solde', 'acompte'].includes(invoice.type)) {
+      throw AppError.badRequest('Un avoir ne peut être créé que depuis une facture de type standard, acompte ou solde');
+    }
+
+    // La facture doit être dans un état émis (pas en brouillon ni annulée)
+    if (!['issued', 'partially_paid', 'paid', 'overdue'].includes(invoice.status)) {
+      throw AppError.badRequest('Un avoir ne peut être créé que sur une facture émise, partiellement payée, payée ou en retard');
+    }
+
+    const avoir = await prisma.$transaction(async (tx) => {
+      const avoirNumber = await generateDocumentNumber(invoice.officeId, 'invoice');
+
+      // Calcul des lignes : personnalisées ou copie des lignes originales
+      let avoirLines: Array<{
+        productId?: string | null;
+        sortOrder: number;
+        designation: string;
+        description?: string | null;
+        unit: string;
+        quantity: number;
+        unitPriceHt: number;
+        discountType: string;
+        discountValue: number;
+        discountAmount: number;
+        taxRate: number;
+        subtotalHt: number;
+        netHt: number;
+        taxAmount: number;
+        totalTtc: number;
+      }>;
+
+      if (input.lines && input.lines.length > 0) {
+        // Lignes personnalisées : recalcul complet via computeLine
+        const computedLines = input.lines.map(l => ({ ...l, ...computeLine(l) }));
+        avoirLines = computedLines.map(l => ({
+          productId: l.productId ?? null,
+          sortOrder: l.sortOrder,
+          designation: l.designation,
+          description: l.description ?? null,
+          unit: l.unit,
+          quantity: l.quantity,
+          unitPriceHt: l.unitPriceHt,
+          discountType: l.discountType,
+          discountValue: l.discountValue,
+          discountAmount: l.discountAmount,
+          taxRate: l.taxRate,
+          subtotalHt: l.subtotalHt,
+          netHt: l.netHt,
+          taxAmount: l.taxAmount,
+          totalTtc: l.totalTtc,
+        }));
+      } else {
+        // Copie exacte des lignes de la facture originale (même montants — snapshots)
+        avoirLines = invoice.lines.map(l => ({
+          productId: l.productId,
+          sortOrder: l.sortOrder,
+          designation: l.designation,
+          description: l.description,
+          unit: l.unit,
+          quantity: Number(l.quantity),
+          unitPriceHt: Number(l.unitPriceHt),
+          discountType: l.discountType,
+          discountValue: Number(l.discountValue),
+          discountAmount: Number(l.discountAmount),
+          taxRate: Number(l.taxRate),
+          subtotalHt: Number(l.subtotalHt),
+          netHt: Number(l.netHt),
+          taxAmount: Number(l.taxAmount),
+          totalTtc: Number(l.totalTtc),
+        }));
+      }
+
+      // Calcul des totaux de l'avoir à partir de ses lignes
+      const totalHt  = Number(avoirLines.reduce((s, l) => s + l.netHt,     0).toFixed(2));
+      const totalTax = Number(avoirLines.reduce((s, l) => s + l.taxAmount,  0).toFixed(2));
+      const totalTtc = Number(avoirLines.reduce((s, l) => s + l.totalTtc,   0).toFixed(2));
+
+      return tx.invoice.create({
+        data: {
+          number: avoirNumber,
+          officeId: invoice.officeId,
+          type: 'avoir',
+          clientId: invoice.clientId,
+          createdById: userId,
+          creditedInvoiceId: invoice.id,
+          issueDate: new Date(),
+          dueDate: input.dueDate ?? new Date(),
+          subject: `Avoir sur facture ${invoice.number}`,
+          notes: input.notes ?? input.reason,
+          currency: invoice.currency,
+          subtotalHt: totalHt,
+          globalDiscountType: 'none',
+          globalDiscountValue: 0,
+          globalDiscountAmount: 0,
+          totalHt,
+          totalTax,
+          totalTtc,
+          amountDue: 0,    // Un avoir solde la créance — montant dû = 0
+          balanceDue: 0,
+          status: 'issued',
+          lines: {
+            create: avoirLines,
+          },
+          statusHistory: {
+            create: { changedById: userId, newStatus: 'issued' },
+          },
+        },
+        include: { lines: true, client: true },
+      });
+    });
+
+    // Notification in-app après la transaction
+    await broadcastNotification({
+      type: 'system',
+      title: `Avoir créé : ${avoir.number}`,
+      message: `Un avoir ${avoir.number} a été créé sur la facture ${invoice.number} pour ${invoice.client.name}. Motif : ${input.reason}`,
+      data: { invoiceId: invoice.id, avoirId: avoir.id, avoirNumber: avoir.number },
+    }, { excludeUserId: userId });
+
+    await DashboardService.invalidateCache();
+    return avoir;
   }
 
   /**
@@ -488,48 +673,289 @@ export class InvoicesService {
    * @returns Buffer PDF et nom de fichier suggéré pour le téléchargement
    */
   async generatePdfResponse(id: string) {
-    const invoice = await this.findById(id);
-    const company = await prisma.companySettings.findFirst();
+    const [invoice, settings] = await Promise.all([
+      this.findById(id),
+      prisma.companySettings.findFirst({ select: { headerImagePath: true, footerImagePath: true, stampPath: true, footerSafeZonePx: true } }),
+    ]);
 
-    const docType = invoice.type === 'avoir' ? 'Avoir' : 'Facture';
+    const isAcompte = invoice.type === 'acompte';
+    const isSolde   = invoice.type === 'solde';
+
+    const totalHt  = Number(invoice.totalHt);
+    const totalTax = Number(invoice.totalTax);
+    const totalTtc = Number(invoice.totalTtc);   // Full TTC (ou acompte TTC si type=acompte)
+    const pct      = isAcompte ? Number(invoice.acomptePercentage ?? 0) : 0;
+
+    // Montants spécifiques acompte (calculés depuis le HT complet stocké)
+    const acompteHt  = isAcompte ? Number((totalHt  * pct / 100).toFixed(2)) : undefined;
+    const acompteTax = isAcompte ? Number((totalTax * pct / 100).toFixed(2)) : undefined;
+
+    // Montants spécifiques solde
+    // amountDue = full TTC − acomptes déjà encaissés = solde TTC
+    const soldeTtc = isSolde ? Number(invoice.amountDue) : undefined;
+    const soldeHt  = (isSolde && soldeTtc !== undefined && totalTtc > 0)
+      ? Number((soldeTtc * totalHt / totalTtc).toFixed(2))
+      : undefined;
+    const soldeTax = (isSolde && soldeTtc !== undefined && soldeHt !== undefined)
+      ? Number((soldeTtc - soldeHt).toFixed(2))
+      : undefined;
+
+    // totalTtc passé au template = ce que le client doit payer sur ce document
+    const displayTtc = isSolde ? (soldeTtc ?? totalTtc) : totalTtc;
+
+    // Composition du B.P. + ville
+    const clientBP = invoice.client.postalBox
+      ? `${invoice.client.postalBox}${invoice.client.city ? ` ${invoice.client.city}-${invoice.client.country}` : ''}`
+      : (invoice.client.city ? `${invoice.client.city}-${invoice.client.country}` : undefined);
+
+    const docType =
+      invoice.type === 'avoir'   ? 'Avoir'           :
+      invoice.type === 'acompte' ? 'Facture Acompte' :
+      invoice.type === 'solde'   ? 'Facture Solde'   : 'Facture';
+
+    const headerImageB64 = settings?.headerImagePath ? imgToBase64(settings.headerImagePath) : undefined;
+    const footerImageB64 = settings?.footerImagePath ? imgToBase64(settings.footerImagePath) : undefined;
+    const sealImageB64   = settings?.stampPath       ? imgToBase64(settings.stampPath)       : undefined;
 
     const html = buildDocumentHtml({
       type: docType,
-      number: invoice.number,
+      number:    invoice.number,
       issueDate: new Date(invoice.issueDate).toLocaleDateString('fr-FR'),
-      dueDate: new Date(invoice.dueDate).toLocaleDateString('fr-FR'),
-      companyName: company?.companyName ?? 'Bridge Technologies Solutions',
-      companyAddress: company?.address ?? 'Douala, Cameroun',
-      companyPhone: company?.phone ?? '',
-      companyEmail: company?.email ?? '',
-      companyTaxNumber: company?.taxNumber ?? undefined,
-      clientName: invoice.client.name,
-      clientAddress: invoice.client.address ?? undefined,
-      clientEmail: invoice.client.email ?? undefined,
-      clientTaxNumber: invoice.client.taxNumber ?? undefined,
-      subject: invoice.subject ?? undefined,
+      dueDate:   new Date(invoice.dueDate).toLocaleDateString('fr-FR'),
+
+      clientName:        invoice.client.name,
+      clientStreet:      invoice.client.address  ?? undefined,
+      clientBP,
+      clientPhone:       invoice.client.phone     ?? undefined,
+      clientEmail:       invoice.client.email     ?? undefined,
+      clientTaxNumber:   invoice.client.taxNumber ?? undefined,
+      clientRccm:        invoice.client.rccm      ?? undefined,
+      clientBankAccount: invoice.client.bankAccount ?? undefined,
+      contactPerson:     invoice.createdBy?.email ?? undefined,
+
+      subject:  invoice.subject          ?? undefined,
       currency: invoice.currency,
+
       lines: invoice.lines.map(l => ({
+        reference:   l.product?.reference ?? undefined,
         designation: l.designation,
-        quantity: Number(l.quantity),
-        unit: l.unit,
+        description: l.description ?? undefined,
+        quantity:    Number(l.quantity),
+        unit:        l.unit,
         unitPriceHt: Number(l.unitPriceHt),
-        taxRate: Number(l.taxRate),
-        totalTtc: Number(l.totalTtc),
+        netHt:       Number(l.netHt),
+        taxRate:     Number(l.taxRate),
       })),
-      subtotalHt: Number(invoice.totalHt),
-      totalTax: Number(invoice.totalTax),
-      totalTtc: Number(invoice.totalTtc),
-      notes: invoice.notes ?? undefined,
+
+      subtotalHt: totalHt,
+      totalTax,
+      totalTtc: displayTtc,
+
+      acomptePercentage: isAcompte ? pct        : undefined,
+      acompteHt,
+      acompteTax,
+      soldeHt,
+      soldeTax,
+
       paymentConditions: invoice.paymentConditions ?? undefined,
+      notes:             invoice.notes             ?? undefined,
+      headerImageB64,
+      footerImageB64,
+      sealImageB64,
     });
 
-    const pdfBuffer = await generatePdf(html);
+    const footerSafeZonePx = settings?.footerSafeZonePx || undefined;
+    const pdfBuffer = await generatePdf(html, footerSafeZonePx);
 
     await prisma.invoice.update({ where: { id }, data: { pdfGeneratedAt: new Date() } });
 
     // Les "/" du numéro sont remplacés par "-" pour un nom de fichier valide
     return { buffer: pdfBuffer, filename: `${invoice.number.replace(/\//g, '-')}.pdf` };
+  }
+
+  /**
+   * Calcul à la volée (dry-run) — aucune donnée sauvegardée.
+   *
+   * Calcule les totaux financiers et détecte les anomalies potentielles :
+   *  - Solde impayé du client (alerte si > 0)
+   *  - Montant inhabituel (> 3× la moyenne historique de ce client)
+   *  - Risque de doublon (facture similaire créée dans les 14 derniers jours)
+   *  - Numéro de BC client déjà utilisé
+   *
+   * @param input - Lignes, clientId, remise globale et BC optionnel
+   * @returns Totaux calculés + liste d'alertes (warnings)
+   */
+  async compute(input: import('./invoices.schema').ComputeInvoiceInput) {
+    const { clientId, lines, globalDiscountType, globalDiscountValue, clientReference } = input;
+
+    // ── Calcul financier ────────────────────────────────────────────────────
+    const computedLines = lines.map(l => ({ ...l, ...computeLine(l as any) }));
+    const totals = computeTotals(computedLines, globalDiscountType, globalDiscountValue);
+
+    // ── Requêtes de détection en parallèle ─────────────────────────────────
+    const [unpaidAgg, avgAgg, similarInvoice, duplicateRef] = await Promise.all([
+
+      // 1. Solde impayé actuel du client
+      prisma.invoice.aggregate({
+        where: {
+          clientId, deletedAt: null,
+          status: { in: ['issued', 'partially_paid', 'overdue'] as any[] },
+        },
+        _sum: { balanceDue: true },
+        _count: true,
+      }),
+
+      // 2. Montant moyen des factures de ce client (12 derniers mois)
+      prisma.invoice.aggregate({
+        where: {
+          clientId, deletedAt: null,
+          status: { notIn: ['cancelled', 'draft'] as any[] },
+          createdAt: { gte: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) },
+        },
+        _avg: { totalTtc: true },
+      }),
+
+      // 3. Doublon probable : même client + montant similaire (±15%) + < 14 jours
+      prisma.invoice.findFirst({
+        where: {
+          clientId, deletedAt: null,
+          status: { notIn: ['cancelled'] as any[] },
+          createdAt: { gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000) },
+          totalTtc: {
+            gte: totals.totalTtc * 0.85,
+            lte: totals.totalTtc * 1.15,
+          },
+        },
+        select: { id: true, number: true, totalTtc: true, createdAt: true },
+      }),
+
+      // 4. Numéro de BC déjà utilisé
+      clientReference
+        ? prisma.invoice.findFirst({
+            where: { clientId, deletedAt: null, clientReference },
+            select: { id: true, number: true },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    // ── Construction des alertes ────────────────────────────────────────────
+    const warnings: Array<{ code: string; severity: 'info' | 'warning' | 'error'; message: string; data?: unknown }> = [];
+
+    const unpaidBalance = Number(unpaidAgg._sum.balanceDue ?? 0);
+    if (unpaidBalance > 0) {
+      warnings.push({
+        code: 'CLIENT_UNPAID_BALANCE',
+        severity: unpaidBalance > totals.totalTtc ? 'error' : 'warning',
+        message: `Ce client a ${unpaidAgg._count} facture(s) impayée(s) pour un solde de ${unpaidBalance.toLocaleString('fr-FR')} XAF`,
+        data: { balance: unpaidBalance, count: unpaidAgg._count },
+      });
+    }
+
+    const avgTtc = Number(avgAgg._avg.totalTtc ?? 0);
+    if (avgTtc > 0 && totals.totalTtc > avgTtc * 3) {
+      warnings.push({
+        code: 'UNUSUAL_AMOUNT',
+        severity: 'warning',
+        message: `Montant ${Math.round(totals.totalTtc / avgTtc)}× supérieur à la moyenne de ce client (${Math.round(avgTtc).toLocaleString('fr-FR')} XAF)`,
+        data: { average: Math.round(avgTtc), current: totals.totalTtc },
+      });
+    }
+
+    if (similarInvoice) {
+      warnings.push({
+        code: 'DUPLICATE_RISK',
+        severity: 'warning',
+        message: `Facture similaire déjà existante : ${similarInvoice.number} — ${Number(similarInvoice.totalTtc).toLocaleString('fr-FR')} XAF (créée il y a moins de 14 jours)`,
+        data: { invoiceId: similarInvoice.id, invoiceNumber: similarInvoice.number },
+      });
+    }
+
+    if (duplicateRef) {
+      warnings.push({
+        code: 'DUPLICATE_CLIENT_REFERENCE',
+        severity: 'error',
+        message: `Le numéro de bon de commande "${clientReference}" a déjà été utilisé sur la facture ${duplicateRef.number}`,
+        data: { invoiceId: duplicateRef.id, invoiceNumber: duplicateRef.number },
+      });
+    }
+
+    return {
+      totals: {
+        subtotalHt:           totals.subtotalHt,
+        globalDiscountAmount: totals.globalDiscountAmount,
+        totalHt:              totals.totalHt,
+        totalTax:             totals.totalTax,
+        totalTtc:             totals.totalTtc,
+      },
+      lines: computedLines.map(l => ({
+        quantity: l.quantity, unitPriceHt: l.unitPriceHt,
+        subtotalHt: l.subtotalHt, discountAmount: l.discountAmount,
+        netHt: l.netHt, taxAmount: l.taxAmount, totalTtc: l.totalTtc,
+      })),
+      warnings,
+      hasErrors:   warnings.some(w => w.severity === 'error'),
+      hasWarnings: warnings.some(w => w.severity === 'warning'),
+    };
+  }
+
+  async duplicate(id: string, userId: string) {
+    const original = await this.findById(id);
+    const company = await prisma.companySettings.findFirst();
+    const dueDays = company?.defaultInvoiceDueDays ?? 30;
+
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + dueDays);
+
+    const number = await generateDocumentNumber(original.officeId, 'invoice');
+
+    return prisma.invoice.create({
+      data: {
+        number,
+        officeId: original.officeId,
+        type: original.type === 'avoir' ? 'standard' : original.type,
+        clientId: original.clientId,
+        createdById: userId,
+        issueDate: new Date(),
+        dueDate,
+        subject: original.subject,
+        notes: original.notes,
+        paymentConditions: original.paymentConditions,
+        currency: original.currency,
+        globalDiscountType: original.globalDiscountType,
+        globalDiscountValue: original.globalDiscountValue,
+        globalDiscountAmount: original.globalDiscountAmount,
+        subtotalHt: original.subtotalHt,
+        totalHt: original.totalHt,
+        totalTax: original.totalTax,
+        totalTtc: original.totalTtc,
+        amountDue: original.totalTtc,
+        balanceDue: original.totalTtc,
+        acomptePercentage: original.acomptePercentage,
+        lines: {
+          create: original.lines.map(l => ({
+            sortOrder: l.sortOrder,
+            productId: l.productId,
+            designation: l.designation,
+            description: l.description,
+            unit: l.unit,
+            quantity: l.quantity,
+            unitPriceHt: l.unitPriceHt,
+            discountType: l.discountType,
+            discountValue: l.discountValue,
+            discountAmount: l.discountAmount,
+            taxRate: l.taxRate,
+            subtotalHt: l.subtotalHt,
+            netHt: l.netHt,
+            taxAmount: l.taxAmount,
+            totalTtc: l.totalTtc,
+          })),
+        },
+        statusHistory: {
+          create: { changedById: userId, newStatus: 'draft' },
+        },
+      },
+      include: { lines: true, client: true },
+    });
   }
 }
 

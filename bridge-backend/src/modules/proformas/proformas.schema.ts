@@ -6,11 +6,11 @@ const lineSchema = z.object({
   designation: z.string().min(1).max(500),
   description: z.string().optional(),
   unit: z.enum(['heure', 'jour', 'forfait', 'piece', 'licence', 'mois', 'annee']).default('piece'),
-  quantity: z.number().positive(),
-  unitPriceHt: z.number().min(0),
+  quantity: z.coerce.number().positive(),
+  unitPriceHt: z.coerce.number().min(0),
   discountType: z.enum(['none', 'percentage', 'fixed']).default('none'),
-  discountValue: z.number().min(0).default(0),
-  taxRate: z.number().min(0).max(100).default(19.25),
+  discountValue: z.coerce.number().min(0).default(0),
+  taxRate: z.coerce.number().min(0).max(100).default(19.25),
 });
 
 export const createProformaSchema = z.object({
@@ -48,7 +48,23 @@ export const rejectProformaSchema = z.object({
   reason: z.string().optional(),
 });
 
+/**
+ * Options de conversion d'une proforma en facture.
+ *
+ * - `invoiceType: 'standard'` (défaut) — facture classique reprenant la totalité des montants.
+ * - `invoiceType: 'acompte'` — facture d'acompte pour un pourcentage du total TTC.
+ *   `acomptePercentage` est alors **obligatoire** (entre 1 et 99 % inclus).
+ */
+export const convertProformaSchema = z.object({
+  invoiceType: z.enum(['standard', 'acompte']).default('standard'),
+  acomptePercentage: z.number().min(1).max(99).optional(),
+}).refine(
+  (data) => data.invoiceType !== 'acompte' || data.acomptePercentage !== undefined,
+  { message: 'acomptePercentage est requis pour une facture d\'acompte', path: ['acomptePercentage'] },
+);
+
 export type CreateProformaInput = z.infer<typeof createProformaSchema>;
 export type UpdateProformaInput = z.infer<typeof updateProformaSchema>;
 export type ListProformasInput = z.infer<typeof listProformasSchema>;
+export type ConvertProformaInput = z.infer<typeof convertProformaSchema>;
 export type LineInput = z.infer<typeof lineSchema>;

@@ -39,36 +39,50 @@ const METHOD_TO_ACTION: Record<string, AuditAction> = {
  * @returns Middleware Express
  */
 export function auditMiddleware(tableName: string, action?: AuditAction) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const resolvedAction = action ?? METHOD_TO_ACTION[req.method];
 
-    // Ne rien faire pour les requêtes GET ou OPTIONS
     if (!resolvedAction) {
       return next();
     }
 
+    // Capturer l'état avant modification (pour PUT/PATCH/DELETE)
+    let oldData: Record<string, unknown> | null = null;
+    const recordId = req.params['id'] ?? null;
+
+    if (recordId && ['PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+      try {
+        // Lecture générique via Prisma — le tableName est le nom du modèle Prisma en camelCase
+        const model = (prisma as unknown as Record<string, { findUnique?: (args: unknown) => Promise<unknown> }>)[tableName];
+        if (model?.findUnique) {
+          oldData = await model.findUnique({ where: { id: recordId } }) as Record<string, unknown> | null;
+        }
+      } catch {
+        // Non critique
+      }
+    }
+
     res.on('finish', () => {
-      // Ne log que les requêtes ayant abouti (codes 2xx)
       if (res.statusCode < 200 || res.statusCode >= 300) return;
 
-      const userId  = req.user?.id ?? null;
-      const recordId = req.params['id'] ?? null;
+      const userId = req.user?.id ?? null;
 
       prisma.auditLog
         .create({
           data: {
             userId,
-            action: resolvedAction,
-            tableName,
-            recordId,
-            // Le corps de la requête est loggé comme `newData` (peut contenir des mises à jour)
-            newData: req.body && Object.keys(req.body).length > 0 ? req.body : undefined,
-            ipAddress: req.ip ?? req.socket.remoteAddress ?? null,
-            userAgent: req.get('user-agent') ?? null,
+            userEmail:     req.user?.email ?? null,
+            userRole:      req.user?.role ?? null,
+            action:        resolvedAction,
+            entityType:    tableName,
+            entityId:      recordId,
+            previousState: oldData ?? undefined,
+            newState:      req.body && Object.keys(req.body).length > 0 ? req.body : undefined,
+            ipAddress:     req.ip ?? req.socket.remoteAddress ?? null,
+            userAgent:     req.get('user-agent') ?? null,
           },
         })
         .catch((err: Error) => {
-          // Dégradation silencieuse : l'audit ne doit jamais faire planter l'API
           logger.warn('Audit log failed', { error: err.message, table: tableName });
         });
     });

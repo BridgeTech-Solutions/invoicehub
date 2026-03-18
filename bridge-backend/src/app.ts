@@ -4,6 +4,8 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 
 import { env } from './config/env';
+import { prisma } from './config/database';
+import { redisConnection } from './config/redis';
 import { httpLogger } from './core/middleware/requestLogger';
 import { errorHandler } from './core/middleware/errorHandler';
 
@@ -17,6 +19,15 @@ import { paymentsRouter } from './modules/payments/payments.routes';
 import { recurringRouter } from './modules/recurring/recurring.routes';
 import { notificationsRouter } from './modules/notifications/notifications.routes';
 import { dashboardRouter } from './modules/dashboard/dashboard.routes';
+import { settingsRouter } from './modules/settings/settings.routes';
+import { settingsUploadRouter } from './modules/settings/settings.upload';
+import { auditRouter } from './modules/audit/audit.routes';
+import { searchRouter } from './modules/search/search.routes';
+import { reportsRouter } from './modules/reports/reports.routes';
+import { taxRatesRouter } from './modules/tax-rates/tax-rates.routes';
+import { officesRouter } from './modules/offices/offices.routes';
+import { emailTemplatesRouter } from './modules/email-templates/email-templates.routes';
+import { backupsRouter } from './modules/backups/backups.routes';
 
 const app = express();
 
@@ -52,6 +63,14 @@ app.use(`${env.API_PREFIX}/auth/forgot-password`, rateLimit({
 }));
 
 // ----------------------------------------------------------------
+// Fichiers statiques (assets uploadés)
+// ----------------------------------------------------------------
+app.use('/uploads', (_req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static('uploads')); // avatars, assets company, pièces jointes
+
+// ----------------------------------------------------------------
 // Parsers
 // ----------------------------------------------------------------
 app.use(express.json({ limit: '10mb' }));
@@ -65,8 +84,24 @@ app.use(httpLogger);
 // ----------------------------------------------------------------
 // Santé
 // ----------------------------------------------------------------
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString(), env: env.NODE_ENV });
+app.get('/health', async (_req, res) => {
+  const checks = await Promise.allSettled([
+    prisma.$queryRaw`SELECT 1`,
+    redisConnection.ping(),
+  ]);
+
+  const db    = checks[0].status === 'fulfilled' ? 'ok' : 'error';
+  const redis = checks[1].status === 'fulfilled' ? 'ok' : 'error';
+  const healthy = db === 'ok' && redis === 'ok';
+
+  res.status(healthy ? 200 : 503).json({
+    status: healthy ? 'ok' : 'degraded',
+    db,
+    redis,
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+    env: env.NODE_ENV,
+  });
 });
 
 // ----------------------------------------------------------------
@@ -85,6 +120,15 @@ app.use(`${prefix}/payments`, paymentsRouter);
 app.use(`${prefix}/recurring`, recurringRouter);
 app.use(`${prefix}/notifications`, notificationsRouter);
 app.use(`${prefix}/dashboard`, dashboardRouter);
+app.use(`${prefix}/settings`, settingsRouter);
+app.use(`${prefix}/settings/assets`, settingsUploadRouter);
+app.use(`${prefix}/audit-logs`, auditRouter);
+app.use(`${prefix}/search`, searchRouter);
+app.use(`${prefix}/reports`, reportsRouter);
+app.use(`${prefix}/tax-rates`, taxRatesRouter);
+app.use(`${prefix}/offices`, officesRouter);
+app.use(`${prefix}/email-templates`, emailTemplatesRouter);
+app.use(`${prefix}/backups`, backupsRouter);
 
 // 404
 app.use((_req, res) => {

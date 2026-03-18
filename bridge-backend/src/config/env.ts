@@ -44,11 +44,54 @@ const envSchema = z.object({
   /** Adresse expéditeur affichée dans les emails sortants */
   SMTP_FROM: z.string().default('noreply@bts.cm'),
 
+  // --- Redis ---
+  /** URL de connexion Redis pour BullMQ (ex: redis://localhost:6379) */
+  REDIS_URL: z.string().default('redis://localhost:6379'),
+
   // --- Application ---
-  /** URL publique de l'application — utilisée dans les liens des emails */
+  /** URL publique de l'application frontend — utilisée dans les liens des emails et CORS */
   APP_URL: z.string().url().default('http://localhost:3000'),
+  /** URL publique du backend — utilisée pour construire les URLs des fichiers uploadés */
+  BACKEND_URL: z.string().url().default('http://localhost:3001'),
   /** Nom de l'émetteur affiché dans l'application authenticator pour le 2FA */
   TOTP_ISSUER: z.string().default('InvoiceHub BTS'),
+
+  // --- Backups ---
+  /** Disque de stockage des backups : local | s3 | google | azure */
+  BACKUP_STORAGE_DISK: z.enum(['local', 's3', 'google', 'azure']).default('local'),
+  /** Dossier local pour les backups (utilisé si BACKUP_STORAGE_DISK=local) */
+  BACKUP_DIR: z.string().default('./uploads/backups'),
+  /** Rétention des backups en jours (suppression automatique) */
+  BACKUP_RETENTION_DAYS: z.coerce.number().default(30),
+  /** Expression cron du backup automatique quotidien */
+  BACKUP_CRON: z.string().default('0 0 * * *'),
+  /** Chemin vers l'exécutable pg_dump */
+  PGDUMP_PATH: z.string().default('pg_dump'),
+  /**
+   * Si défini, lance pg_dump via `docker exec <container> pg_dump ...`
+   * Utile en dev quand la BD est dans Docker et pg_dump n'est pas installé sur l'hôte.
+   * Exemple : bridge-backend-db-1
+   */
+  PGDUMP_DOCKER_CONTAINER: z.string().optional(),
+
+  // S3 / Cloudflare R2 / MinIO
+  S3_BUCKET: z.string().optional(),
+  S3_REGION: z.string().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  /** Endpoint custom pour R2 ou MinIO (laisser vide pour AWS S3) */
+  S3_ENDPOINT: z.string().optional(),
+
+  // Google Cloud Storage
+  GCS_BUCKET: z.string().optional(),
+  /** Chemin vers le fichier JSON de compte de service GCP */
+  GCS_KEY_FILE: z.string().optional(),
+
+  // Microsoft Azure Blob Storage
+  /** Chaîne de connexion Azure Storage (portail Azure → Compte de stockage → Clés d'accès) */
+  AZURE_STORAGE_CONNECTION_STRING: z.string().optional(),
+  /** Nom du conteneur Azure Blob (ex: invoicehub-backups) */
+  AZURE_STORAGE_CONTAINER: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

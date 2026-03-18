@@ -1,4 +1,6 @@
+import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import { authService } from './auth.service';
 import {
   loginSchema,
@@ -56,8 +58,31 @@ export class AuthController {
   async verifyTwoFactor(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { token, secret } = verifyTotpSchema.parse(req.body);
-      await authService.verifyAndActivateTwoFactor(req.user!.id, token, secret);
-      res.json({ success: true, message: '2FA activé avec succès' });
+      const result = await authService.verifyAndActivateTwoFactor(req.user!.id, token, secret);
+      res.json({
+        success: true,
+        message: '2FA activé avec succès',
+        data: {
+          backupCodes: result.backupCodes,
+          warning: 'Sauvegardez ces codes de secours en lieu sûr. Ils ne seront plus affichés.',
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async regenerateBackupCodes(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { token } = disableTotpSchema.parse(req.body); // même schéma : { token: string }
+      const result = await authService.regenerateBackupCodes(req.user!.id, token);
+      res.json({
+        success: true,
+        data: {
+          backupCodes: result.backupCodes,
+          warning: 'Les anciens codes ont été invalidés. Sauvegardez ces nouveaux codes en lieu sûr.',
+        },
+      });
     } catch (err) {
       next(err);
     }
@@ -88,6 +113,40 @@ export class AuthController {
       const { token, newPassword } = resetPasswordSchema.parse(req.body);
       await authService.resetPassword(token, newPassword);
       res.json({ success: true, message: 'Mot de passe réinitialisé avec succès' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async listSessions(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      // Extraire le hash du refresh token courant depuis le body si fourni
+      const body = z.object({ refreshToken: z.string().optional() }).safeParse(req.body);
+      const currentHash = body.success && body.data.refreshToken
+        ? crypto.createHash('sha256').update(body.data.refreshToken).digest('hex')
+        : undefined;
+      const data = await authService.listSessions(req.user!.id, currentHash);
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async revokeSession(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      await authService.revokeSession(req.params['id']!, req.user!.id);
+      res.json({ success: true, message: 'Session révoquée' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async revokeAllSessions(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { refreshToken } = refreshSchema.parse(req.body);
+      const currentHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+      await authService.revokeAllSessions(req.user!.id, currentHash);
+      res.json({ success: true, message: 'Toutes les autres sessions ont été révoquées' });
     } catch (err) {
       next(err);
     }

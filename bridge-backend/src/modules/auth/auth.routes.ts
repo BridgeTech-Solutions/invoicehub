@@ -15,5 +15,11 @@ router.post('/reset-password', authController.resetPassword.bind(authController)
 router.post('/2fa/enable', authenticate, authController.enableTwoFactor.bind(authController));
 router.post('/2fa/verify', authenticate, authController.verifyTwoFactor.bind(authController));
 router.post('/2fa/disable', authenticate, authController.disableTwoFactor.bind(authController));
+router.post('/2fa/backup-codes', authenticate, authController.regenerateBackupCodes.bind(authController));
+
+// Gestion des sessions
+router.get('/sessions', authenticate, authController.listSessions.bind(authController));
+router.delete('/sessions', authenticate, authController.revokeAllSessions.bind(authController));
+router.delete('/sessions/:id', authenticate, authController.revokeSession.bind(authController));
 
 export { router as authRouter };
