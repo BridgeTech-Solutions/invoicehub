@@ -92,7 +92,6 @@ export async function chat(messages: ChatMessage[], context?: string): Promise<s
   let toolCall: ToolCall = { tool: 'none', params: {} };
   try {
     const intentRaw = await ollamaGenerate(intentPrompt, INTENT_SYSTEM_PROMPT);
-    // Extraire le JSON même si Ollama ajoute du texte autour
     const jsonMatch = intentRaw.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]) as { tool?: ToolName; params?: Record<string, unknown> };
@@ -100,9 +99,7 @@ export async function chat(messages: ChatMessage[], context?: string): Promise<s
         toolCall = { tool: parsed.tool, params: parsed.params ?? {} };
       }
     }
-  } catch {
-    // Si l'analyse d'intention échoue, on continue sans données DB
-  }
+  } catch { /* continuer sans données DB */ }
 
   // ── Étape 2 : exécution de l'outil DB ────────────────────────────────
   let dataContext = '';
@@ -112,25 +109,22 @@ export async function chat(messages: ChatMessage[], context?: string): Promise<s
       if (data !== null) {
         dataContext = `\n\n=== Données de la base de données ===\n${JSON.stringify(data, null, 2)}\n=== Fin des données ===\n`;
       }
-    } catch {
-      // Si la requête DB échoue, on continue sans données
-    }
+    } catch { /* continuer sans données */ }
   }
 
   // ── Étape 3 : génération de la réponse finale ─────────────────────────
   const historyText = messages
-    .slice(-6) // Garder les 6 derniers messages pour le contexte
+    .slice(-6)
     .map(m => `${m.role === 'user' ? 'Utilisateur' : 'BTS Assistant'} : ${m.content}`)
     .join('\n');
 
-  const finalPrompt = historyText + dataContext;
-
-  return ollamaGenerate(finalPrompt, BTS_SYSTEM_PROMPT);
+  return ollamaGenerate(historyText + dataContext, BTS_SYSTEM_PROMPT);
 }
 
 /**
  * Traite un message de chat et stream la réponse token par token.
  * Retourne un AsyncGenerator à consommer dans le contrôleur SSE.
+ * Premier yield : objet { toolUsed: string } — tous les suivants : tokens (string).
  */
 export async function* chatStream(
   messages: ChatMessage[],

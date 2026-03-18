@@ -8,14 +8,13 @@ import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
 import {
   Trash2, Plus, MessageSquare, Sparkles,
-  BarChart3, AlertTriangle, Users, ScanSearch, FileQuestion, FilePlus,
-  type LucideIcon,
 } from 'lucide-react'
 import { ChatMessage } from '@/features/ai/ChatMessage'
 import { useChat } from '@/features/ai/useChat'
 import { useChatHistory } from '@/features/ai/useChatHistory'
+import { useSuggestions } from '@/features/ai/useSuggestions'
 
-// ─── Animations ────────────────────────────────────────────────────────────
+// ─── Animations ──────────────────────────────────────────────────────────────
 
 const STYLES = `
 @keyframes bts-bounce {
@@ -31,25 +30,6 @@ const STYLES = `
   to   { opacity: 1; transform: translateY(0); }
 }
 `
-
-// ─── Suggestions initiales ─────────────────────────────────────────────────
-
-interface Suggestion {
-  icon:   LucideIcon
-  color:  string
-  bg:     string
-  label:  string
-  prompt: string
-}
-
-const SUGGESTIONS: Suggestion[] = [
-  { icon: BarChart3,      color: '#2D7DD2', bg: 'rgba(45,125,210,0.1)',  label: 'CA du mois',          prompt: "Quel est notre chiffre d'affaires ce mois ?" },
-  { icon: AlertTriangle,  color: '#dc2626', bg: 'rgba(220,38,38,0.08)',  label: 'Factures en retard',  prompt: 'Montre-moi les factures en retard' },
-  { icon: Users,          color: '#10b981', bg: 'rgba(16,185,129,0.08)', label: 'Meilleurs clients',   prompt: 'Qui sont nos 5 meilleurs clients ?' },
-  { icon: ScanSearch,     color: '#d97706', bg: 'rgba(217,119,6,0.08)',  label: 'Anomalies',           prompt: 'Y a-t-il des anomalies dans les données récentes ?' },
-  { icon: FileQuestion,   color: '#7c3aed', bg: 'rgba(124,58,237,0.08)', label: "C'est quoi un avoir", prompt: "C'est quoi une facture avoir ?" },
-  { icon: FilePlus,       color: '#0891b2', bg: 'rgba(8,145,178,0.08)',  label: 'Créer une proforma',  prompt: 'Comment créer une proforma rapidement ?' },
-]
 
 // ─── Composant conversation sidebar item ──────────────────────────────────
 
@@ -135,6 +115,7 @@ export default function AssistantPage() {
 
   const { messages, isLoading, isStreaming, isAvailable, send, clear, stop, loadMessages } =
     useChat(pathname ?? undefined)
+  const { suggestions } = useSuggestions(pathname)
 
   const [input, setInput]   = useState('')
   const inputRef            = useRef<HTMLTextAreaElement>(null)
@@ -407,7 +388,7 @@ export default function AssistantPage() {
                 maxWidth: 640,
                 margin: '0 auto',
               }}>
-                {SUGGESTIONS.map(s => (
+                {suggestions.map(s => (
                   <button
                     key={s.label}
                     onClick={() => void send(s.prompt)}

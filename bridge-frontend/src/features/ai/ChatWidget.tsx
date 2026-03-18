@@ -7,16 +7,7 @@ import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
 import { ChatMessage } from './ChatMessage'
 import { useChat } from './useChat'
-
-// ─── Suggestions rapides ──────────────────────────────────────────────────
-
-const QUICK_SUGGESTIONS = [
-  'Factures impayées',
-  'CA du mois',
-  'Meilleurs clients',
-  'Anomalies détectées',
-  "C'est quoi une proforma ?",
-]
+import { useSuggestions } from './useSuggestions'
 
 // ─── Animations CSS (injectées une seule fois) ────────────────────────────
 
@@ -55,6 +46,7 @@ export function ChatWidget() {
   const styleInjected           = useRef(false)
 
   const { messages, isLoading, isStreaming, isAvailable, send, clear, stop } = useChat(pathname ?? undefined)
+  const { quick: quickSuggestions } = useSuggestions(pathname)
 
   // Injecter les animations CSS une seule fois
   useEffect(() => {
@@ -265,7 +257,7 @@ export function ChatWidget() {
               gap: 6,
               animation: 'bts-fade-in 0.3s ease',
             }}>
-              {QUICK_SUGGESTIONS.map(s => (
+              {quickSuggestions.map(s => (
                 <button
                   key={s}
                   onClick={() => void handleSuggestion(s)}
