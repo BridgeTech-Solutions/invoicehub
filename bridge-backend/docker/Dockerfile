@@ -11,10 +11,10 @@ COPY . .
 RUN pnpm prisma:generate
 RUN pnpm build
 
-# Production stage
+# ─── Production ───────────────────────────────────────────────
 FROM node:20-slim AS production
 
-# Installer Chromium (PDF) + postgresql-client (pg_dump pour backups)
+# Chromium (PDF Puppeteer) + pg_dump (backups)
 RUN apt-get update && apt-get install -y \
     chromium \
     fonts-liberation \
@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
-# Dire à Puppeteer d'utiliser Chromium système (pas de téléchargement)
+# Puppeteer utilise Chromium système — pas de téléchargement auto
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
@@ -36,9 +36,17 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml* ./
 RUN pnpm install --prod --frozen-lockfile
 
+# Artefacts de build
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
+# Prisma : schema + migrations (requis pour prisma migrate deploy)
+COPY --from=builder /app/prisma ./prisma
+
+# Assets société (logos, header, footer, cachet pour les PDFs)
+COPY --from=builder /app/assets ./assets
+
 EXPOSE 3000
 
-CMD ["node", "dist/server.js"]
+# Lance les migrations puis démarre le serveur
+CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node dist/server.js"]

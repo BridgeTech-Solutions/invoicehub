@@ -1,4 +1,18 @@
-FROM node:20-alpine
+FROM node:20-slim
+
+# Chromium (PDF) + pg_dump (backups)
+RUN apt-get update && apt-get install -y \
+    chromium \
+    fonts-liberation \
+    libatk-bridge2.0-0 \
+    libgtk-3-0 \
+    libnss3 \
+    postgresql-client \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 RUN npm install -g pnpm
 
@@ -7,6 +21,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml* ./
 RUN pnpm install
 
+# Le code source est monté via volume dans docker-compose.dev.yml
 EXPOSE 3000
 
 CMD ["pnpm", "dev"]

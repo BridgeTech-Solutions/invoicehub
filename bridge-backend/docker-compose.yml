@@ -43,8 +43,13 @@ services:
       - "3000:3000"
     env_file: .env
     environment:
+      # Surcharge des valeurs locales du .env incompatibles avec Docker
+      PORT: 3000
       DATABASE_URL: postgresql://postgres:${DB_PASSWORD:-strongpassword}@db:5432/invoicehub
       REDIS_URL: redis://redis:6379
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
+      PGDUMP_PATH: pg_dump
+      PGDUMP_DOCKER_CONTAINER: ""   # Désactivé — pg_dump est local au container
     volumes:
       - uploads:/app/uploads
 
