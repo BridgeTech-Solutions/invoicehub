@@ -6,7 +6,11 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
-import { Trash2, Plus, MessageSquare, Sparkles } from 'lucide-react'
+import {
+  Trash2, Plus, MessageSquare, Sparkles,
+  BarChart3, AlertTriangle, Users, ScanSearch, FileQuestion, FilePlus,
+  type LucideIcon,
+} from 'lucide-react'
 import { ChatMessage } from '@/features/ai/ChatMessage'
 import { useChat } from '@/features/ai/useChat'
 import { useChatHistory } from '@/features/ai/useChatHistory'
@@ -30,13 +34,21 @@ const STYLES = `
 
 // ─── Suggestions initiales ─────────────────────────────────────────────────
 
-const SUGGESTIONS = [
-  { icon: '📊', label: 'CA du mois',          prompt: 'Quel est notre chiffre d\'affaires ce mois ?' },
-  { icon: '⚠️', label: 'Factures en retard',  prompt: 'Montre-moi les factures en retard' },
-  { icon: '👥', label: 'Meilleurs clients',    prompt: 'Qui sont nos 5 meilleurs clients ?' },
-  { icon: '🔍', label: 'Anomalies',            prompt: 'Y a-t-il des anomalies dans les données récentes ?' },
-  { icon: '❓', label: 'C\'est quoi un avoir', prompt: 'C\'est quoi une facture avoir ?' },
-  { icon: '📄', label: 'Créer une proforma',   prompt: 'Comment créer une proforma rapidement ?' },
+interface Suggestion {
+  icon:   LucideIcon
+  color:  string
+  bg:     string
+  label:  string
+  prompt: string
+}
+
+const SUGGESTIONS: Suggestion[] = [
+  { icon: BarChart3,      color: '#2D7DD2', bg: 'rgba(45,125,210,0.1)',  label: 'CA du mois',          prompt: "Quel est notre chiffre d'affaires ce mois ?" },
+  { icon: AlertTriangle,  color: '#dc2626', bg: 'rgba(220,38,38,0.08)',  label: 'Factures en retard',  prompt: 'Montre-moi les factures en retard' },
+  { icon: Users,          color: '#10b981', bg: 'rgba(16,185,129,0.08)', label: 'Meilleurs clients',   prompt: 'Qui sont nos 5 meilleurs clients ?' },
+  { icon: ScanSearch,     color: '#d97706', bg: 'rgba(217,119,6,0.08)',  label: 'Anomalies',           prompt: 'Y a-t-il des anomalies dans les données récentes ?' },
+  { icon: FileQuestion,   color: '#7c3aed', bg: 'rgba(124,58,237,0.08)', label: "C'est quoi un avoir", prompt: "C'est quoi une facture avoir ?" },
+  { icon: FilePlus,       color: '#0891b2', bg: 'rgba(8,145,178,0.08)',  label: 'Créer une proforma',  prompt: 'Comment créer une proforma rapidement ?' },
 ]
 
 // ─── Composant conversation sidebar item ──────────────────────────────────
@@ -409,17 +421,26 @@ export default function AssistantPage() {
                       transition: 'all 0.15s',
                     }}
                     onMouseEnter={e => {
-                      e.currentTarget.style.background = 'var(--primary-light)'
-                      e.currentTarget.style.borderColor = 'var(--primary)'
+                      e.currentTarget.style.background = s.bg
+                      e.currentTarget.style.borderColor = s.color
                     }}
                     onMouseLeave={e => {
                       e.currentTarget.style.background = 'var(--surface-2)'
                       e.currentTarget.style.borderColor = 'var(--border)'
                     }}
                   >
-                    <div style={{ fontSize: 18, marginBottom: 4 }}>{s.icon}</div>
+                    <div style={{
+                      width: 32, height: 32, borderRadius: 8,
+                      background: s.bg,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      marginBottom: 8,
+                    }}>
+                      <s.icon size={16} style={{ color: s.color }} />
+                    </div>
                     <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-1)' }}>{s.label}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>{s.prompt.slice(0, 42)}…</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2, lineHeight: 1.4 }}>
+                      {s.prompt.length > 42 ? s.prompt.slice(0, 42) + '…' : s.prompt}
+                    </div>
                   </button>
                 ))}
               </div>
