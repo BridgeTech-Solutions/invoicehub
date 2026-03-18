@@ -11,6 +11,8 @@ export const chatRequestSchema = z.object({
   context:  z.string().max(100).optional(),
   /** Prénom de l'utilisateur connecté — pour personnaliser les réponses */
   userName: z.string().max(80).optional(),
+  /** Rôle de l'utilisateur connecté — pour adapter les réponses aux permissions */
+  userRole: z.enum(['admin', 'commercial', 'employee']).optional(),
 });
 
 export type ChatMessage  = z.infer<typeof chatMessageSchema>;

@@ -12,7 +12,7 @@ function buildWelcome(userName?: string): ChatMessage {
   }
 }
 
-export function useChat(context?: string, userName?: string) {
+export function useChat(context?: string, userName?: string, userRole?: string) {
   const [state, setState] = useState<ChatState>({
     messages:    [buildWelcome(userName)],
     isLoading:   false,
@@ -58,6 +58,7 @@ export function useChat(context?: string, userName?: string) {
       updatedMessages,
       context,
       userName,
+      userRole,
       // onToken — chaque token reçu est ajouté à la dernière bulle assistant
       (token) => {
         if (!started) {
@@ -88,7 +89,7 @@ export function useChat(context?: string, userName?: string) {
       },
       abortRef.current.signal,
     )
-  }, [context, userName])
+  }, [context, userName, userRole])
 
   const clear = useCallback(() => {
     abortRef.current?.abort()

@@ -102,7 +102,8 @@ function ConvItem({
 export default function AssistantPage() {
   const pathname  = usePathname()
   const authUser  = useAuthStore(s => s.user)
-  const userName  = authUser ? authUser.firstName : undefined
+  const userName  = authUser?.firstName
+  const userRole  = authUser?.role
   const {
     conversations, activeId,
     createConversation, setActive, updateMessages,
@@ -117,7 +118,7 @@ export default function AssistantPage() {
   const activeConv = conversations.find(c => c.id === activeId) ?? conversations[0]
 
   const { messages, isLoading, isStreaming, isAvailable, send, clear, stop, loadMessages } =
-    useChat(pathname ?? undefined, userName)
+    useChat(pathname ?? undefined, userName, userRole)
   const { suggestions } = useSuggestions(pathname)
 
   const [input, setInput]   = useState('')

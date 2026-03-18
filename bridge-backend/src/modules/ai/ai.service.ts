@@ -14,11 +14,36 @@ import type { ChatMessage } from './ai.schema';
 
 // ─── System prompt BTS ────────────────────────────────────────────────────
 
-function buildSystemPrompt(userName?: string): string {
-  const greeting = userName
-    ? `L'utilisateur actuellement connecté s'appelle ${userName}. Utilise son prénom pour t'adresser à lui de manière personnalisée dans ta réponse.\n\n`
-    : '';
-  return greeting + BTS_SYSTEM_PROMPT_BASE;
+function buildSystemPrompt(userName?: string, userRole?: string): string {
+  const roleLabels: Record<string, string> = {
+    admin:      'Administrateur (accès total : factures, proformas, clients, produits, utilisateurs, paramètres, audit)',
+    commercial: 'Commercial (accès : factures, proformas, clients, produits, paiements — pas la gestion des utilisateurs ni les paramètres système)',
+    employee:   'Employé (accès consultation uniquement — peut voir les données mais ne peut pas créer, modifier ou supprimer)',
+  };
+  const roleDesc = userRole ? roleLabels[userRole] ?? userRole : null;
+
+  const lines: string[] = [];
+  if (userName || roleDesc) {
+    lines.push('=== CONTEXTE UTILISATEUR ACTUEL ===');
+    if (userName) lines.push(`Prénom : ${userName} — utilise son prénom naturellement dans tes réponses.`);
+    if (roleDesc) {
+      lines.push(`Rôle : ${roleDesc}`);
+      lines.push('IMPORTANT : adapte TOUJOURS tes réponses à ce rôle :');
+      if (userRole === 'employee') {
+        lines.push('- Cet utilisateur est en LECTURE SEULE. Ne lui explique pas comment créer/modifier/supprimer des éléments — il n\'a pas accès à ces actions.');
+        lines.push('- Guide-le uniquement sur la consultation : voir les factures, chercher un client, comprendre les données affichées.');
+        lines.push('- Si il demande comment faire une action qu\'il ne peut pas faire, explique-lui poliment qu\'il doit contacter un commercial ou un admin.');
+      } else if (userRole === 'commercial') {
+        lines.push('- Ce commercial peut créer et gérer factures, proformas, clients, produits et paiements.');
+        lines.push('- Il n\'a PAS accès à : gestion des utilisateurs, paramètres système, logs d\'audit.');
+        lines.push('- Si il demande ces fonctionnalités restreintes, indique-lui de contacter un administrateur.');
+      } else if (userRole === 'admin') {
+        lines.push('- Cet administrateur a accès à tout. Réponds sans restriction sur toutes les fonctionnalités.');
+      }
+    }
+    lines.push('');
+  }
+  return lines.join('\n') + BTS_SYSTEM_PROMPT_BASE;
 }
 
 const BTS_SYSTEM_PROMPT_BASE = `Tu es BTS Assistant, l'assistant IA d'InvoiceHub pour Bridge Technologies Solutions.
@@ -382,7 +407,7 @@ export async function getStatus() {
 /**
  * Traite un message de chat et retourne la réponse complète (non-streaming).
  */
-export async function chat(messages: ChatMessage[], context?: string, userName?: string): Promise<string> {
+export async function chat(messages: ChatMessage[], context?: string, userName?: string, userRole?: string): Promise<string> {
   const lastMessage = messages[messages.length - 1]!.content;
 
   // ── Étape 1 : analyse d'intention ──────────────────────────────────────
@@ -417,7 +442,7 @@ export async function chat(messages: ChatMessage[], context?: string, userName?:
     .map(m => `${m.role === 'user' ? 'Utilisateur' : 'BTS Assistant'} : ${m.content}`)
     .join('\n');
 
-  return ollamaGenerate(historyText + dataContext, buildSystemPrompt(userName));
+  return ollamaGenerate(historyText + dataContext, buildSystemPrompt(userName, userRole));
 }
 
 /**
@@ -429,6 +454,7 @@ export async function* chatStream(
   messages: ChatMessage[],
   context?: string,
   userName?: string,
+  userRole?: string,
 ): AsyncGenerator<string, void, unknown> {
   const lastMessage = messages[messages.length - 1]!.content;
 
@@ -464,5 +490,5 @@ export async function* chatStream(
     .map(m => `${m.role === 'user' ? 'Utilisateur' : 'BTS Assistant'} : ${m.content}`)
     .join('\n');
 
-  yield* ollamaStream(historyText + dataContext, buildSystemPrompt(userName));
+  yield* ollamaStream(historyText + dataContext, buildSystemPrompt(userName, userRole));
 }

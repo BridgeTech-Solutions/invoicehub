@@ -23,6 +23,7 @@ export const aiApi = {
     messages: ChatMessage[],
     context: string | undefined,
     userName: string | undefined,
+    userRole: string | undefined,
     onToken: (token: string) => void,
     onDone: () => void,
     onError: (err: string) => void,
@@ -40,7 +41,7 @@ export const aiApi = {
         'Accept': 'text/event-stream',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({ messages, context, userName }),
+      body: JSON.stringify({ messages, context, userName, userRole }),
       signal,
     })
 
