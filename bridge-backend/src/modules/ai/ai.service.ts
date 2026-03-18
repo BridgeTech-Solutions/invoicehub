@@ -14,7 +14,14 @@ import type { ChatMessage } from './ai.schema';
 
 // ─── System prompt BTS ────────────────────────────────────────────────────
 
-const BTS_SYSTEM_PROMPT = `Tu es BTS Assistant, l'assistant IA d'InvoiceHub pour Bridge Technologies Solutions.
+function buildSystemPrompt(userName?: string): string {
+  const greeting = userName
+    ? `L'utilisateur actuellement connecté s'appelle ${userName}. Utilise son prénom pour t'adresser à lui de manière personnalisée dans ta réponse.\n\n`
+    : '';
+  return greeting + BTS_SYSTEM_PROMPT_BASE;
+}
+
+const BTS_SYSTEM_PROMPT_BASE = `Tu es BTS Assistant, l'assistant IA d'InvoiceHub pour Bridge Technologies Solutions.
 
 === À PROPOS DE BTS ET INVOICEHUB ===
 - BTS = Bridge Technologies Solutions, entreprise de services informatiques basée à Douala, Cameroun
@@ -95,7 +102,7 @@ export async function getStatus() {
 /**
  * Traite un message de chat et retourne la réponse complète (non-streaming).
  */
-export async function chat(messages: ChatMessage[], context?: string): Promise<string> {
+export async function chat(messages: ChatMessage[], context?: string, userName?: string): Promise<string> {
   const lastMessage = messages[messages.length - 1]!.content;
 
   // ── Étape 1 : analyse d'intention ──────────────────────────────────────
@@ -130,7 +137,7 @@ export async function chat(messages: ChatMessage[], context?: string): Promise<s
     .map(m => `${m.role === 'user' ? 'Utilisateur' : 'BTS Assistant'} : ${m.content}`)
     .join('\n');
 
-  return ollamaGenerate(historyText + dataContext, BTS_SYSTEM_PROMPT);
+  return ollamaGenerate(historyText + dataContext, buildSystemPrompt(userName));
 }
 
 /**
@@ -141,6 +148,7 @@ export async function chat(messages: ChatMessage[], context?: string): Promise<s
 export async function* chatStream(
   messages: ChatMessage[],
   context?: string,
+  userName?: string,
 ): AsyncGenerator<string, void, unknown> {
   const lastMessage = messages[messages.length - 1]!.content;
 
@@ -176,5 +184,5 @@ export async function* chatStream(
     .map(m => `${m.role === 'user' ? 'Utilisateur' : 'BTS Assistant'} : ${m.content}`)
     .join('\n');
 
-  yield* ollamaStream(historyText + dataContext, BTS_SYSTEM_PROMPT);
+  yield* ollamaStream(historyText + dataContext, buildSystemPrompt(userName));
 }

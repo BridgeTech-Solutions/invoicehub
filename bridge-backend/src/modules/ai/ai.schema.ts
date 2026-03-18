@@ -8,7 +8,9 @@ export const chatMessageSchema = z.object({
 export const chatRequestSchema = z.object({
   messages: z.array(chatMessageSchema).min(1).max(50),
   /** Page courante de l'utilisateur — permet à l'IA d'être contextuelle */
-  context: z.string().max(100).optional(),
+  context:  z.string().max(100).optional(),
+  /** Prénom de l'utilisateur connecté — pour personnaliser les réponses */
+  userName: z.string().max(80).optional(),
 });
 
 export type ChatMessage  = z.infer<typeof chatMessageSchema>;

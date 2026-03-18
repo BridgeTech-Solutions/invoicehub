@@ -4,14 +4,17 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { aiApi } from './api'
 import type { ChatMessage, ChatState } from './types'
 
-const WELCOME_MESSAGE: ChatMessage = {
-  role: 'assistant',
-  content: 'Bonjour ! Je suis **BTS Assistant**. Posez-moi une question sur vos factures, clients, proformas, paiements ou sur le fonctionnement d\'InvoiceHub.',
+function buildWelcome(userName?: string): ChatMessage {
+  const greeting = userName ? `Bonjour **${userName}** !` : 'Bonjour !'
+  return {
+    role: 'assistant',
+    content: `${greeting} Je suis **BTS Assistant**. Posez-moi une question sur vos factures, clients, proformas, paiements ou sur le fonctionnement d'InvoiceHub.`,
+  }
 }
 
-export function useChat(context?: string) {
+export function useChat(context?: string, userName?: string) {
   const [state, setState] = useState<ChatState>({
-    messages:    [WELCOME_MESSAGE],
+    messages:    [buildWelcome(userName)],
     isLoading:   false,
     isStreaming:  false,
     isAvailable:  null,
@@ -54,6 +57,7 @@ export function useChat(context?: string) {
     await aiApi.chatStream(
       updatedMessages,
       context,
+      userName,
       // onToken — chaque token reçu est ajouté à la dernière bulle assistant
       (token) => {
         if (!started) {
@@ -84,12 +88,12 @@ export function useChat(context?: string) {
       },
       abortRef.current.signal,
     )
-  }, [context])
+  }, [context, userName])
 
   const clear = useCallback(() => {
     abortRef.current?.abort()
     setState(s => ({
-      messages:    [WELCOME_MESSAGE],
+      messages:    [buildWelcome(userName)],
       isLoading:   false,
       isStreaming:  false,
       isAvailable:  s.isAvailable,

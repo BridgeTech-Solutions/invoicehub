@@ -25,7 +25,7 @@ export class AiController {
    */
   async chatHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { messages, context } = chatRequestSchema.parse(req.body);
+      const { messages, context, userName } = chatRequestSchema.parse(req.body);
       const useStream = req.headers.accept === 'text/event-stream';
 
       if (useStream) {
@@ -37,7 +37,7 @@ export class AiController {
         res.flushHeaders();
 
         try {
-          for await (const token of chatStream(messages, context)) {
+          for await (const token of chatStream(messages, context, userName)) {
             res.write(`data: ${JSON.stringify({ token })}\n\n`);
           }
           res.write('data: [DONE]\n\n');
@@ -49,7 +49,7 @@ export class AiController {
         }
       } else {
         // ── Mode JSON complet ──────────────────────────────────────────
-        const reply = await chat(messages, context);
+        const reply = await chat(messages, context, userName);
         res.json({ success: true, data: { reply } });
       }
     } catch (err) {

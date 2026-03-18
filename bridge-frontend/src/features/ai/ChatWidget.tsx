@@ -8,6 +8,7 @@ import { usePathname } from 'next/navigation'
 import { ChatMessage } from './ChatMessage'
 import { useChat } from './useChat'
 import { useSuggestions } from './useSuggestions'
+import { useAuthStore } from '@/store/auth'
 
 // ─── Animations CSS (injectées une seule fois) ────────────────────────────
 
@@ -38,6 +39,8 @@ const ANIMATION_STYLES = `
 
 export function ChatWidget() {
   const pathname                = usePathname()
+  const user                    = useAuthStore(s => s.user)
+  const userName                = user ? user.firstName : undefined
   const [open, setOpen]         = useState(false)
   const [input, setInput]       = useState('')
   const [hasNew, setHasNew]     = useState(false)
@@ -45,7 +48,7 @@ export function ChatWidget() {
   const inputRef                = useRef<HTMLTextAreaElement>(null)
   const styleInjected           = useRef(false)
 
-  const { messages, isLoading, isStreaming, isAvailable, send, clear, stop } = useChat(pathname ?? undefined)
+  const { messages, isLoading, isStreaming, isAvailable, send, clear, stop } = useChat(pathname ?? undefined, userName)
   const { quick: quickSuggestions } = useSuggestions(pathname)
 
   // Injecter les animations CSS une seule fois

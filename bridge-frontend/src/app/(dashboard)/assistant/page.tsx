@@ -13,6 +13,7 @@ import { ChatMessage } from '@/features/ai/ChatMessage'
 import { useChat } from '@/features/ai/useChat'
 import { useChatHistory } from '@/features/ai/useChatHistory'
 import { useSuggestions } from '@/features/ai/useSuggestions'
+import { useAuthStore } from '@/store/auth'
 
 // ─── Animations ──────────────────────────────────────────────────────────────
 
@@ -99,7 +100,9 @@ function ConvItem({
 // ─── Page principale ────────────────────────────────────────────────────────
 
 export default function AssistantPage() {
-  const pathname = usePathname()
+  const pathname  = usePathname()
+  const authUser  = useAuthStore(s => s.user)
+  const userName  = authUser ? authUser.firstName : undefined
   const {
     conversations, activeId,
     createConversation, setActive, updateMessages,
@@ -114,7 +117,7 @@ export default function AssistantPage() {
   const activeConv = conversations.find(c => c.id === activeId) ?? conversations[0]
 
   const { messages, isLoading, isStreaming, isAvailable, send, clear, stop, loadMessages } =
-    useChat(pathname ?? undefined)
+    useChat(pathname ?? undefined, userName)
   const { suggestions } = useSuggestions(pathname)
 
   const [input, setInput]   = useState('')
