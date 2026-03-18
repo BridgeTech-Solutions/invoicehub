@@ -3,6 +3,7 @@
 import {
   useState, useRef, useEffect, useCallback, type KeyboardEvent,
 } from 'react'
+import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
 import { ChatMessage } from './ChatMessage'
 import { useChat } from './useChat'
@@ -114,7 +115,12 @@ export function ChatWidget() {
 
   const isThinking = isLoading || isStreaming
 
-  return (
+  // Portal — monté sur document.body pour échapper à tout parent avec transform/overflow
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+  if (!mounted) return null
+
+  return createPortal(
     <>
       {/* ── Panel ──────────────────────────────────────────────────────── */}
       {open && (
@@ -478,6 +484,7 @@ export function ChatWidget() {
           }} />
         )}
       </button>
-    </>
+    </>,
+    document.body,
   )
 }
