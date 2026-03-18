@@ -28,6 +28,7 @@ import { taxRatesRouter } from './modules/tax-rates/tax-rates.routes';
 import { officesRouter } from './modules/offices/offices.routes';
 import { emailTemplatesRouter } from './modules/email-templates/email-templates.routes';
 import { backupsRouter } from './modules/backups/backups.routes';
+import { aiRouter } from './modules/ai/ai.routes';
 
 const app = express();
 
@@ -127,6 +128,7 @@ app.use(`${prefix}/search`, searchRouter);
 app.use(`${prefix}/reports`, reportsRouter);
 app.use(`${prefix}/tax-rates`, taxRatesRouter);
 app.use(`${prefix}/offices`, officesRouter);
+app.use(`${prefix}/ai`, aiRouter);
 app.use(`${prefix}/email-templates`, emailTemplatesRouter);
 app.use(`${prefix}/backups`, backupsRouter);
 

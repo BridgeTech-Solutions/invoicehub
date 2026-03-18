@@ -34,4 +34,8 @@ export class AppError extends Error {
   static unprocessable(message: string, code = 'UNPROCESSABLE') {
     return new AppError(message, 422, code);
   }
+
+  static serviceUnavailable(message: string, code = 'SERVICE_UNAVAILABLE') {
+    return new AppError(message, 503, code);
+  }
 }

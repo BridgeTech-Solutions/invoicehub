@@ -50,6 +50,7 @@ services:
       PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
       PGDUMP_PATH: pg_dump
       PGDUMP_DOCKER_CONTAINER: ""   # Désactivé — pg_dump est local au container
+      OLLAMA_URL: http://host.docker.internal:11434   # Ollama tourne sur le serveur hôte
     volumes:
       - uploads:/app/uploads
 

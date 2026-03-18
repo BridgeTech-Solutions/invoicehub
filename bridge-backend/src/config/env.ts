@@ -92,6 +92,14 @@ const envSchema = z.object({
   AZURE_STORAGE_CONNECTION_STRING: z.string().optional(),
   /** Nom du conteneur Azure Blob (ex: invoicehub-backups) */
   AZURE_STORAGE_CONTAINER: z.string().optional(),
+
+  // --- BTS Assistant (Ollama) ---
+  /** URL de l'API Ollama (ex: http://localhost:11434) */
+  OLLAMA_URL: z.string().url().default('http://localhost:11434'),
+  /** Nom du modèle Ollama à utiliser (ex: mistral) */
+  OLLAMA_MODEL: z.string().default('mistral'),
+  /** Active ou désactive BTS Assistant */
+  OLLAMA_ENABLED: z.string().transform(v => v === 'true').default('false'),
 });
 
 const parsed = envSchema.safeParse(process.env);
