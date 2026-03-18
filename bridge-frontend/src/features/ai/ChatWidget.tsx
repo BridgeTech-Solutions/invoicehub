@@ -118,7 +118,8 @@ export function ChatWidget() {
   // Portal — monté sur document.body pour échapper à tout parent avec transform/overflow
   const [mounted, setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
-  if (!mounted) return null
+  // Ne pas afficher sur la page dédiée /assistant (doublon inutile)
+  if (!mounted || pathname === '/assistant') return null
 
   return createPortal(
     <>

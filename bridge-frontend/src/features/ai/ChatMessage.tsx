@@ -14,7 +14,7 @@ function renderMarkdown(text: string): string {
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/`([^`]+)`/g, '<code style="background:rgba(45,125,210,0.12);padding:1px 5px;border-radius:3px;font-size:12px;font-family:monospace">$1</code>')
     .replace(/^[•\-] (.+)$/gm, '<li style="margin-left:12px;list-style-type:disc">$1</li>')
-    .replace(/(<li.*<\/li>)/s, '<ul style="margin:4px 0;padding-left:4px">$1</ul>')
+    .replace(/(<li[^>]*>[\s\S]*?<\/li>(\s*<li[^>]*>[\s\S]*?<\/li>)*)/g, '<ul style="margin:4px 0;padding-left:4px">$1</ul>')
     .replace(/\n/g, '<br/>')
 }
 

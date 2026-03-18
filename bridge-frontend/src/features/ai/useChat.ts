@@ -18,7 +18,10 @@ export function useChat(context?: string) {
     error:        null,
   })
 
-  const abortRef = useRef<AbortController | null>(null)
+  const abortRef  = useRef<AbortController | null>(null)
+  // Ref pour éviter la closure stale sur messages dans send()
+  const stateRef  = useRef(state)
+  useEffect(() => { stateRef.current = state }, [state])
 
   // Vérifier la disponibilité d'Ollama au montage
   useEffect(() => {
@@ -28,10 +31,11 @@ export function useChat(context?: string) {
   }, [])
 
   const send = useCallback(async (content: string) => {
-    if (!content.trim() || state.isLoading || state.isStreaming) return
+    const { isLoading, isStreaming, messages } = stateRef.current
+    if (!content.trim() || isLoading || isStreaming) return
 
     const userMessage: ChatMessage = { role: 'user', content: content.trim() }
-    const updatedMessages = [...state.messages, userMessage]
+    const updatedMessages = [...messages, userMessage]
 
     // Ajouter le message utilisateur + placeholder assistant vide
     setState(s => ({
@@ -80,23 +84,35 @@ export function useChat(context?: string) {
       },
       abortRef.current.signal,
     )
-  }, [state.isLoading, state.isStreaming, state.messages, context])
+  }, [context])
 
   const clear = useCallback(() => {
     abortRef.current?.abort()
-    setState({
+    setState(s => ({
       messages:    [WELCOME_MESSAGE],
       isLoading:   false,
       isStreaming:  false,
-      isAvailable:  state.isAvailable,
+      isAvailable:  s.isAvailable,
       error:        null,
-    })
-  }, [state.isAvailable])
+    }))
+  }, [])
+
+  /** Charge des messages existants (ex: restauration d'une conversation) */
+  const loadMessages = useCallback((messages: ChatMessage[]) => {
+    abortRef.current?.abort()
+    setState(s => ({
+      ...s,
+      messages:   messages.length > 0 ? messages : [WELCOME_MESSAGE],
+      isLoading:  false,
+      isStreaming: false,
+      error:       null,
+    }))
+  }, [])
 
   const stop = useCallback(() => {
     abortRef.current?.abort()
     setState(s => ({ ...s, isLoading: false, isStreaming: false }))
   }, [])
 
-  return { ...state, send, clear, stop }
+  return { ...state, send, clear, stop, loadMessages }
 }

@@ -121,7 +121,7 @@ export default function AssistantPage() {
 
   const activeConv = conversations.find(c => c.id === activeId) ?? conversations[0]
 
-  const { messages, isLoading, isStreaming, isAvailable, send, clear, stop } =
+  const { messages, isLoading, isStreaming, isAvailable, send, clear, stop, loadMessages } =
     useChat(pathname ?? undefined)
 
   const [input, setInput]   = useState('')
@@ -171,9 +171,14 @@ export default function AssistantPage() {
 
   const handleSelectConv = useCallback((id: string) => {
     setActive(id)
-    clear()
+    const conv = conversations.find(c => c.id === id)
+    if (conv && conv.messages.length > 0) {
+      loadMessages(conv.messages)
+    } else {
+      clear()
+    }
     setInput('')
-  }, [setActive, clear])
+  }, [setActive, conversations, loadMessages, clear])
 
   const handleDeleteConv = useCallback((e: React.MouseEvent, id: string) => {
     e.stopPropagation()
