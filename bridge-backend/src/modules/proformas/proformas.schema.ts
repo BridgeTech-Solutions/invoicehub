@@ -1,10 +1,11 @@
 import { z } from 'zod';
+import { safeTextOptional } from '../../lib/sanitize';
 
 const lineSchema = z.object({
   productId: z.string().uuid().optional(),
   sortOrder: z.number().int().default(0),
   designation: z.string().min(1).max(500),
-  description: z.string().optional(),
+  description: safeTextOptional(1000),
   unit: z.enum(['heure', 'jour', 'forfait', 'piece', 'licence', 'mois', 'annee']).default('piece'),
   quantity: z.coerce.number().positive(),
   unitPriceHt: z.coerce.number().min(0),
@@ -20,10 +21,10 @@ export const createProformaSchema = z.object({
   issueDate: z.coerce.date().optional(),
   validUntil: z.coerce.date(),
   subject: z.string().max(500).optional(),
-  notes: z.string().optional(),
-  paymentConditions: z.string().optional(),
-  deliveryDelay: z.string().optional(),
-  warranty: z.string().optional(),
+  notes: safeTextOptional(3000),
+  paymentConditions: safeTextOptional(1000),
+  deliveryDelay: safeTextOptional(500),
+  warranty: safeTextOptional(500),
   currency: z.string().length(3).default('XAF'),
   globalDiscountType: z.enum(['none', 'percentage', 'fixed']).default('none'),
   globalDiscountValue: z.number().min(0).default(0),
@@ -45,7 +46,7 @@ export const listProformasSchema = z.object({
 });
 
 export const rejectProformaSchema = z.object({
-  reason: z.string().optional(),
+  reason: safeTextOptional(500),
 });
 
 /**

@@ -1,10 +1,11 @@
 import { z } from 'zod';
+import { safeTextOptional } from '../../lib/sanitize';
 
 const lineSchema = z.object({
   productId: z.string().uuid().optional(),
   sortOrder: z.number().int().default(0),
   designation: z.string().min(1).max(500),
-  description: z.string().optional(),
+  description: safeTextOptional(1000),
   unit: z.enum(['heure', 'jour', 'forfait', 'piece', 'licence', 'mois', 'annee']).default('piece'),
   quantity: z.coerce.number().positive(),
   unitPriceHt: z.coerce.number().min(0),
@@ -25,8 +26,8 @@ export const createInvoiceSchema = z.object({
   dueDate: z.coerce.date(),
   subject: z.string().max(500).optional(),
   clientReference: z.string().max(100).optional(),
-  notes: z.string().optional(),
-  paymentConditions: z.string().optional(),
+  notes: safeTextOptional(3000),
+  paymentConditions: safeTextOptional(1000),
   currency: z.string().length(3).default('XAF'),
   globalDiscountType: z.enum(['none', 'percentage', 'fixed']).default('none'),
   globalDiscountValue: z.coerce.number().min(0).default(0),

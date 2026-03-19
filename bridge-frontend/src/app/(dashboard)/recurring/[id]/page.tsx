@@ -243,7 +243,7 @@ function RecurringDetailView({ id }: { id: string }) {
                         <td style={{ padding: '11px 10px', fontSize: 12, color: 'var(--text-3)', width: 32 }}>{i + 1}</td>
                         <td style={{ padding: '11px 10px', minWidth: 160 }}>
                           <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)', margin: 0 }}>{line.designation}</p>
-                          {line.description && <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '2px 0 0', lineHeight: 1.4 }} dangerouslySetInnerHTML={{ __html: line.description }} />}
+                          {line.description && <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '2px 0 0', lineHeight: 1.4 }}>{line.description}</p>}
                         </td>
                         <td style={{ padding: '11px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-2)' }}>{Number(line.quantity)}</td>
                         <td style={{ padding: '11px 10px', fontSize: 12.5, color: 'var(--text-3)' }}>{line.unit}</td>

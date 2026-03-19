@@ -49,6 +49,11 @@ COPY --from=builder /app/dist ./dist
 # Assets société (logos, header, footer, cachet pour les PDFs)
 COPY --from=builder /app/assets ./assets
 
+# Utilisateur non-root pour limiter la surface d'attaque
+RUN groupadd --gid 1001 nodejs && useradd --uid 1001 --gid nodejs --shell /bin/bash --create-home nodeapp
+RUN chown -R nodeapp:nodejs /app
+USER nodeapp
+
 EXPOSE 3000
 
 # Lance les migrations, le seed (idempotent), puis démarre le serveur
