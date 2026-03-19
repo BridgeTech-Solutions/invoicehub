@@ -38,16 +38,24 @@ const app: Express = express();
 app.use(helmet());
 
 // Origines autorisées : APP_URL + CORS_ORIGINS (liste séparée par virgules)
+// Normalise chaque URL en supprimant le slash final pour éviter les faux rejets
+const normalizeOrigin = (url: string) => url.replace(/\/$/, '').toLowerCase();
 const allowedOrigins = [
-  env.APP_URL,
-  ...(env.CORS_ORIGINS ? env.CORS_ORIGINS.split(',').map(o => o.trim()).filter(Boolean) : []),
+  normalizeOrigin(env.APP_URL),
+  ...(env.CORS_ORIGINS
+    ? env.CORS_ORIGINS.split(',').map(o => normalizeOrigin(o)).filter(Boolean)
+    : []),
 ];
+
+console.log('[CORS] Origines autorisées :', allowedOrigins);
+
 app.use(cors({
   origin: (origin, callback) => {
-    // Autoriser les requêtes sans origin (ex: Postman, curl, SSR server-side)
+    // Autoriser les requêtes sans origin (Postman, curl, Next.js SSR server-side)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    callback(new Error(`CORS: origine non autorisée — ${origin}`));
+    if (allowedOrigins.includes(normalizeOrigin(origin))) return callback(null, true);
+    // Rejeter proprement — ne pas passer une Error (casserait les preflight OPTIONS)
+    return callback(null, false);
   },
   credentials: true,
 }));
