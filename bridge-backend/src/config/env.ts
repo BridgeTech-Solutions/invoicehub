@@ -51,6 +51,11 @@ const envSchema = z.object({
   // --- Application ---
   /** URL publique de l'application frontend — utilisée dans les liens des emails et CORS */
   APP_URL: z.string().url().default('http://localhost:3001'),
+  /**
+   * Origines CORS supplémentaires (séparées par des virgules).
+   * APP_URL est toujours inclus. Exemple : http://192.168.1.10:3001,https://invoicehub.bts.cm
+   */
+  CORS_ORIGINS: z.string().optional(),
   /** URL publique du backend — utilisée pour construire les URLs des fichiers uploadés */
   BACKEND_URL: z.string().url().default('http://localhost:3000'),
   /** Nom de l'émetteur affiché dans l'application authenticator pour le 2FA */

@@ -36,8 +36,19 @@ const app: Express = express();
 // Sécurité
 // ----------------------------------------------------------------
 app.use(helmet());
+
+// Origines autorisées : APP_URL + CORS_ORIGINS (liste séparée par virgules)
+const allowedOrigins = [
+  env.APP_URL,
+  ...(env.CORS_ORIGINS ? env.CORS_ORIGINS.split(',').map(o => o.trim()).filter(Boolean) : []),
+];
 app.use(cors({
-  origin: env.APP_URL,
+  origin: (origin, callback) => {
+    // Autoriser les requêtes sans origin (ex: Postman, curl, SSR server-side)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origine non autorisée — ${origin}`));
+  },
   credentials: true,
 }));
 

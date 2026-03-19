@@ -26,8 +26,12 @@ export function initSocket(httpServer: HttpServer): Server {
   const pubClient = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
   const subClient = pubClient.duplicate();
 
+  const allowedOrigins = [
+    env.APP_URL,
+    ...(env.CORS_ORIGINS ? env.CORS_ORIGINS.split(',').map(o => o.trim()).filter(Boolean) : []),
+  ];
   io = new Server(httpServer, {
-    cors: { origin: env.APP_URL, credentials: true },
+    cors: { origin: allowedOrigins, credentials: true },
     transports: ['websocket', 'polling'],
   });
 
