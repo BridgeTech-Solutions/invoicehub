@@ -5,7 +5,7 @@ import { authenticate } from '../../core/middleware/auth';
 import { authorize } from '../../core/middleware/rbac';
 import { AppError } from '../../core/errors/AppError';
 
-export const emailTemplatesRouter = Router();
+export const emailTemplatesRouter: ReturnType<typeof Router> = Router();
 
 emailTemplatesRouter.use(authenticate, authorize('admin'));
 
@@ -28,7 +28,7 @@ emailTemplatesRouter.get('/', async (_req: Request, res: Response, next: NextFun
 emailTemplatesRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = await prisma.emailTemplate.findFirst({
-      where: { id: req.params['id']! },
+      where: { id: req.params['id'] as string },
     });
     if (!data) throw AppError.notFound('Template introuvable');
     res.json({ success: true, data });
@@ -42,10 +42,10 @@ emailTemplatesRouter.get('/:id', async (req: Request, res: Response, next: NextF
 emailTemplatesRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const input = updateSchema.parse(req.body);
-    const existing = await prisma.emailTemplate.findFirst({ where: { id: req.params['id']! } });
+    const existing = await prisma.emailTemplate.findFirst({ where: { id: req.params['id'] as string } });
     if (!existing) throw AppError.notFound('Template introuvable');
 
-    const data = await prisma.emailTemplate.update({ where: { id: req.params['id']! }, data: input });
+    const data = await prisma.emailTemplate.update({ where: { id: req.params['id'] as string }, data: input });
     res.json({ success: true, data });
   } catch (err) { next(err); }
 });
@@ -55,7 +55,7 @@ emailTemplatesRouter.put('/:id', async (req: Request, res: Response, next: NextF
  */
 emailTemplatesRouter.post('/:id/preview', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const template = await prisma.emailTemplate.findFirst({ where: { id: req.params['id']! } });
+    const template = await prisma.emailTemplate.findFirst({ where: { id: req.params['id'] as string } });
     if (!template) throw AppError.notFound('Template introuvable');
 
     const vars: Record<string, string> = req.body ?? {};

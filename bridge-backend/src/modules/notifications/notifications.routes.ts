@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { notificationsController } from './notifications.controller';
 import { authenticate } from '../../core/middleware/auth';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 router.use(authenticate);
 

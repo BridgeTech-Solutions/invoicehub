@@ -9,7 +9,7 @@ import { authorize } from '../../core/middleware/rbac';
 import { prisma } from '../../config/database';
 import { AppError } from '../../core/errors/AppError';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 // ── Avatar upload ─────────────────────────────────────────────────────────────
 const AVATAR_DIR = path.resolve(process.cwd(), 'uploads', 'avatars');

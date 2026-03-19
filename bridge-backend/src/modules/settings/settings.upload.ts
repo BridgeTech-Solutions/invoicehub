@@ -28,7 +28,7 @@ import { authenticate } from '../../core/middleware/auth';
 import { authorize } from '../../core/middleware/rbac';
 import { AppError } from '../../core/errors/AppError';
 
-export const settingsUploadRouter = Router();
+export const settingsUploadRouter: ReturnType<typeof Router> = Router();
 
 settingsUploadRouter.use(authenticate, authorize('admin'));
 
@@ -80,7 +80,7 @@ function assetHandler(assetKey: string) {
 
       // Supprimer l'ancienne version si elle existe
       const settings = await prisma.companySettings.findFirst({ select: { [field]: true } });
-      const oldPath = settings?.[field] as string | null;
+      const oldPath = (settings?.[field] as string | null | undefined) ?? null;
       if (oldPath && fs.existsSync(oldPath)) {
         fs.unlinkSync(oldPath);
       }

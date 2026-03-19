@@ -5,7 +5,7 @@ import { authenticate } from '../../core/middleware/auth';
 import { authorize } from '../../core/middleware/rbac';
 import { AppError } from '../../core/errors/AppError';
 
-export const officesRouter = Router();
+export const officesRouter: ReturnType<typeof Router> = Router();
 
 officesRouter.use(authenticate);
 
@@ -33,7 +33,7 @@ officesRouter.get('/', async (_req: Request, res: Response, next: NextFunction) 
 /** GET /api/offices/:id */
 officesRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const data = await prisma.agencyOffice.findFirst({ where: { id: req.params['id']!, deletedAt: null } });
+    const data = await prisma.agencyOffice.findFirst({ where: { id: req.params['id'] as string, deletedAt: null } });
     if (!data) throw AppError.notFound('Bureau introuvable');
     res.json({ success: true, data });
   } catch (err) { next(err); }
@@ -57,14 +57,14 @@ officesRouter.post('/', authorize('admin'), async (req: Request, res: Response, 
 officesRouter.put('/:id', authorize('admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const input = updateSchema.parse(req.body);
-    const existing = await prisma.agencyOffice.findFirst({ where: { id: req.params['id']!, deletedAt: null } });
+    const existing = await prisma.agencyOffice.findFirst({ where: { id: req.params['id'] as string, deletedAt: null } });
     if (!existing) throw AppError.notFound('Bureau introuvable');
 
     if (input.isDefault) {
       await prisma.agencyOffice.updateMany({ where: { isDefault: true }, data: { isDefault: false } });
     }
 
-    const data = await prisma.agencyOffice.update({ where: { id: req.params['id']! }, data: input });
+    const data = await prisma.agencyOffice.update({ where: { id: req.params['id'] as string }, data: input });
     res.json({ success: true, data });
   } catch (err) { next(err); }
 });
@@ -72,11 +72,11 @@ officesRouter.put('/:id', authorize('admin'), async (req: Request, res: Response
 /** DELETE /api/offices/:id — soft delete — admin uniquement */
 officesRouter.delete('/:id', authorize('admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const existing = await prisma.agencyOffice.findFirst({ where: { id: req.params['id']!, deletedAt: null } });
+    const existing = await prisma.agencyOffice.findFirst({ where: { id: req.params['id'] as string, deletedAt: null } });
     if (!existing) throw AppError.notFound('Bureau introuvable');
     if (existing.isDefault) throw AppError.badRequest('Impossible de supprimer le bureau par défaut');
 
-    await prisma.agencyOffice.update({ where: { id: req.params['id']! }, data: { deletedAt: new Date(), isActive: false } });
+    await prisma.agencyOffice.update({ where: { id: req.params['id'] as string }, data: { deletedAt: new Date(), isActive: false } });
     res.json({ success: true, message: 'Bureau supprimé' });
   } catch (err) { next(err); }
 });

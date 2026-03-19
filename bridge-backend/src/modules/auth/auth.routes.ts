@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authController } from './auth.controller';
 import { authenticate } from '../../core/middleware/auth';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 // Routes publiques
 router.post('/login', authController.login.bind(authController));

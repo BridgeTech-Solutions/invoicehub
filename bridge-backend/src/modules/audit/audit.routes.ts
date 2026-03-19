@@ -15,7 +15,7 @@ import { authenticate } from '../../core/middleware/auth';
 import { authorize } from '../../core/middleware/rbac';
 import { sendCsvResponse } from '../../lib/csv';
 
-export const auditRouter = Router();
+export const auditRouter: ReturnType<typeof Router> = Router();
 
 auditRouter.use(authenticate, authorize('admin'));
 

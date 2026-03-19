@@ -206,7 +206,7 @@ export class ProductsService {
         ...input,
         unitPriceHt: input.unitPriceHt,
         taxRateValue: input.taxRateValue,
-        metadata: input.metadata ?? {},
+        metadata: (input.metadata ?? {}) as object,
         createdById,
       },
       include: {
@@ -218,7 +218,7 @@ export class ProductsService {
 
   async update(id: string, input: UpdateProductInput) {
     await this.findById(id);
-    return prisma.product.update({ where: { id }, data: input });
+    return prisma.product.update({ where: { id }, data: input as Parameters<typeof prisma.product.update>[0]['data'] });
   }
 
   async softDelete(id: string): Promise<void> {

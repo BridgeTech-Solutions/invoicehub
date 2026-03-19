@@ -31,7 +31,7 @@ export class BackupsController {
   /** GET /api/backups/:id — Détail d'un backup */
   async findById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const backup = await backupsService.findById(req.params.id);
+      const backup = await backupsService.findById(req.params.id as string);
       res.json({ success: true, data: backup });
     } catch (err) { next(err); }
   }
@@ -39,7 +39,7 @@ export class BackupsController {
   /** GET /api/backups/:id/download — Télécharger le fichier de backup */
   async download(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { url, localPath, filename } = await backupsService.getDownloadInfo(req.params.id);
+      const { url, localPath, filename } = await backupsService.getDownloadInfo(req.params.id as string);
 
       if (url) {
         // S3 ou GCS → redirection vers URL signée (5 min)
@@ -63,7 +63,7 @@ export class BackupsController {
   /** DELETE /api/backups/:id — Supprimer un backup */
   async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      await backupsService.delete(req.params.id);
+      await backupsService.delete(req.params.id as string);
       res.json({ success: true, message: 'Backup supprimé' });
     } catch (err) { next(err); }
   }

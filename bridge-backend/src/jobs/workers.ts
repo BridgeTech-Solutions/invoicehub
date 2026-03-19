@@ -6,7 +6,7 @@
  * correspondant. Les workers sont démarrés une seule fois au lancement du
  * serveur et fermés proprement lors du graceful shutdown.
  */
-import { Worker } from 'bullmq';
+import { Worker, ConnectionOptions } from 'bullmq';
 import { redisConnection } from '../config/redis';
 import { logger } from '../core/middleware/requestLogger';
 
@@ -21,32 +21,32 @@ let workers: Worker[] = [];
 
 export function startWorkers(): void {
   const emailWorker = new Worker('email', processEmailJob, {
-    connection: redisConnection,
+    connection: redisConnection as unknown as ConnectionOptions,
     concurrency: 5,
   });
 
   const notificationWorker = new Worker('notification', processNotificationJob, {
-    connection: redisConnection,
+    connection: redisConnection as unknown as ConnectionOptions,
     concurrency: 10,
   });
 
   const overdueWorker = new Worker('overdue', processOverdueJob, {
-    connection: redisConnection,
+    connection: redisConnection as unknown as ConnectionOptions,
     concurrency: 1,
   });
 
   const recurringWorker = new Worker('recurring', processRecurringJob, {
-    connection: redisConnection,
+    connection: redisConnection as unknown as ConnectionOptions,
     concurrency: 1,
   });
 
   const reminderWorker = new Worker('reminder', processReminderJob, {
-    connection: redisConnection,
+    connection: redisConnection as unknown as ConnectionOptions,
     concurrency: 1,
   });
 
   const backupWorker = new Worker('backup', processBackupJob, {
-    connection: redisConnection,
+    connection: redisConnection as unknown as ConnectionOptions,
     concurrency: 1, // Un seul backup à la fois pour éviter la surcharge
   });
 

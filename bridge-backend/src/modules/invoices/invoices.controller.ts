@@ -42,7 +42,7 @@ export class InvoicesController {
 
   async findById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await invoicesService.findById(req.params['id']!);
+      const data = await invoicesService.findById(req.params['id'] as string);
       res.json({ success: true, data });
     } catch (err) {
       next(err);
@@ -62,7 +62,7 @@ export class InvoicesController {
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const input = updateInvoiceSchema.parse(req.body);
-      const data = await invoicesService.update(req.params['id']!, input, req.user!.id);
+      const data = await invoicesService.update(req.params['id'] as string, input, req.user!.id);
       res.json({ success: true, data });
     } catch (err) {
       next(err);
@@ -71,7 +71,7 @@ export class InvoicesController {
 
   async issue(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await invoicesService.issue(req.params['id']!, req.user!.id);
+      const data = await invoicesService.issue(req.params['id'] as string, req.user!.id);
       res.json({ success: true, data });
     } catch (err) {
       next(err);
@@ -81,7 +81,7 @@ export class InvoicesController {
   async cancel(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { reason } = cancelInvoiceSchema.parse(req.body);
-      const data = await invoicesService.cancel(req.params['id']!, req.user!.id, reason);
+      const data = await invoicesService.cancel(req.params['id'] as string, req.user!.id, reason);
       res.json({ success: true, data, message: 'Facture annulée et avoir créé automatiquement' });
     } catch (err) {
       next(err);
@@ -100,7 +100,7 @@ export class InvoicesController {
 
   async duplicate(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await invoicesService.duplicate(req.params['id']!, req.user!.id);
+      const data = await invoicesService.duplicate(req.params['id'] as string, req.user!.id);
       res.status(201).json({ success: true, data });
     } catch (err) {
       next(err);
@@ -110,14 +110,14 @@ export class InvoicesController {
   async createAvoir(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const input = createAvoirSchema.parse(req.body);
-      const data = await invoicesService.createAvoir(req.params['id']!, input, req.user!.id);
+      const data = await invoicesService.createAvoir(req.params['id'] as string, input, req.user!.id);
       res.status(201).json({ success: true, data });
     } catch (err) { next(err); }
   }
 
   async getPdf(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { buffer, filename } = await invoicesService.generatePdfResponse(req.params['id']!);
+      const { buffer, filename } = await invoicesService.generatePdfResponse(req.params['id'] as string);
       res.set({
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${filename}"`,

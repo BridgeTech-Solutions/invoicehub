@@ -3,8 +3,8 @@ import { productsController } from './products.controller';
 import { authenticate } from '../../core/middleware/auth';
 import { authorize } from '../../core/middleware/rbac';
 
-const categoriesRouter = Router();
-const productsRouter = Router();
+const categoriesRouter: ReturnType<typeof Router> = Router();
+const productsRouter: ReturnType<typeof Router> = Router();
 
 categoriesRouter.use(authenticate);
 productsRouter.use(authenticate);

@@ -311,7 +311,7 @@ export class InvoicesService {
       throw AppError.badRequest('Seules les factures en brouillon peuvent être modifiées');
     }
 
-    const updateData: Prisma.InvoiceUpdateInput = {
+    const updateData: Prisma.InvoiceUncheckedUpdateInput = {
       assignedToId: input.assignedToId,
       dueDate: input.dueDate,
       subject: input.subject,
@@ -643,7 +643,7 @@ export class InvoicesService {
           balanceDue: 0,
           status: 'issued',
           lines: {
-            create: avoirLines,
+            create: avoirLines as Parameters<typeof prisma.invoiceLine.create>[0]['data'][],
           },
           statusHistory: {
             create: { changedById: userId, newStatus: 'issued' },

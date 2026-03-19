@@ -26,7 +26,7 @@ import { prisma } from '../../config/database';
 import { authenticate } from '../../core/middleware/auth';
 import { parseSearchQuery, describeParsedQuery } from './search.parser';
 
-export const searchRouter = Router();
+export const searchRouter: ReturnType<typeof Router> = Router();
 
 searchRouter.use(authenticate);
 

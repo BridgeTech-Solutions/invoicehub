@@ -4,7 +4,7 @@ import { authenticate } from '../../core/middleware/auth';
 import { rateLimitByUser } from '../../core/middleware/rateLimitByUser';
 import { auditMiddleware } from '../../core/middleware/audit';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 router.use(authenticate);
 

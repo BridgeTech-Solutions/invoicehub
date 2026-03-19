@@ -75,7 +75,7 @@ export class LocalAdapter implements StorageAdapter {
 
 export class S3Adapter implements StorageAdapter {
   private bucket: string;
-  private client: import('@aws-sdk/client-s3').S3Client;
+  private client!: import('@aws-sdk/client-s3').S3Client;
 
   constructor() {
     if (!env.S3_BUCKET || !env.S3_REGION || !env.S3_ACCESS_KEY_ID || !env.S3_SECRET_ACCESS_KEY) {

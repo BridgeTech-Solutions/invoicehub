@@ -3,7 +3,7 @@ import { recurringController } from './recurring.controller';
 import { authenticate } from '../../core/middleware/auth';
 import { authorize } from '../../core/middleware/rbac';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 router.use(authenticate);
 

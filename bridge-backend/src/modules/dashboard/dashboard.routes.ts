@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { dashboardService } from './dashboard.service';
 import { authenticate } from '../../core/middleware/auth';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 router.use(authenticate);
 

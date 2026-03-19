@@ -36,7 +36,7 @@ export class PaymentsController {
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const input = createPaymentSchema.parse(req.body);
-      const invoiceId = req.params['id']!;
+      const invoiceId = req.params['id'] as string;
       const data = await paymentsService.create(invoiceId, input, req.user!.id);
       res.status(201).json({ success: true, data });
     } catch (err) {
@@ -46,7 +46,7 @@ export class PaymentsController {
 
   async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      await paymentsService.softDelete(req.params['id']!);
+      await paymentsService.softDelete(req.params['id'] as string);
       res.json({ success: true, message: 'Paiement supprimé' });
     } catch (err) {
       next(err);
@@ -55,7 +55,7 @@ export class PaymentsController {
 
   async getReceipt(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { buffer, filename } = await paymentsService.generateReceipt(req.params['id']!);
+      const { buffer, filename } = await paymentsService.generateReceipt(req.params['id'] as string);
       res.set({
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${filename}"`,

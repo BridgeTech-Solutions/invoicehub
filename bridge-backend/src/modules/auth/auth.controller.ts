@@ -134,7 +134,7 @@ export class AuthController {
 
   async revokeSession(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      await authService.revokeSession(req.params['id']!, req.user!.id);
+      await authService.revokeSession(req.params['id'] as string, req.user!.id);
       res.json({ success: true, message: 'Session révoquée' });
     } catch (err) {
       next(err);

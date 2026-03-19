@@ -177,7 +177,7 @@ export async function processReminderJob(_job: Job<ReminderJobData>): Promise<vo
   const rawConfig = settings?.reminderEscalation;
   const config: EscalationConfig =
     rawConfig && typeof rawConfig === 'object' && 'levels' in rawConfig
-      ? (rawConfig as EscalationConfig)
+      ? (rawConfig as unknown as EscalationConfig)
       : DEFAULT_ESCALATION;
 
   // Trier les niveaux par daysOverdue croissant (sécurité)
@@ -264,7 +264,7 @@ export async function processReminderJob(_job: Job<ReminderJobData>): Promise<vo
 
     // ── Notifications in-app ───────────────────────────────────────────────
     for (const [userId] of recipients) {
-      await notificationQueue.add('notification', {
+      await notificationQueue.add('notification' as string, {
         userId,
         type: 'reminder_sent',
         title,
@@ -284,7 +284,7 @@ export async function processReminderJob(_job: Job<ReminderJobData>): Promise<vo
     // ── Emails internes (niveaux 2, 3, 4) ─────────────────────────────────
     if (levelCfg.sendEmail) {
       for (const [, recipient] of recipients) {
-        await emailQueue.add('email', {
+        await emailQueue.add('email' as string, {
           to:      recipient.email,
           subject: `[InvoiceHub BTS] ${title}`,
           html:    buildEmailHtml(

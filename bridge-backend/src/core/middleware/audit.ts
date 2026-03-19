@@ -15,7 +15,7 @@
  * ```
  */
 import { Request, Response, NextFunction } from 'express';
-import { AuditAction } from '@prisma/client';
+import { AuditAction, Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { logger } from './requestLogger';
 
@@ -48,7 +48,7 @@ export function auditMiddleware(tableName: string, action?: AuditAction) {
 
     // Capturer l'état avant modification (pour PUT/PATCH/DELETE)
     let oldData: Record<string, unknown> | null = null;
-    const recordId = req.params['id'] ?? null;
+    const recordId = (req.params['id'] as string | undefined) ?? null;
 
     if (recordId && ['PUT', 'PATCH', 'DELETE'].includes(req.method)) {
       try {
@@ -76,9 +76,9 @@ export function auditMiddleware(tableName: string, action?: AuditAction) {
             action:        resolvedAction,
             entityType:    tableName,
             entityId:      recordId,
-            previousState: oldData ?? undefined,
-            newState:      req.body && Object.keys(req.body).length > 0 ? req.body : undefined,
-            ipAddress:     req.ip ?? req.socket.remoteAddress ?? null,
+            previousState: (oldData ?? undefined) as Prisma.InputJsonValue | undefined,
+            newState:      (req.body && Object.keys(req.body).length > 0 ? req.body : undefined) as Prisma.InputJsonValue | undefined,
+            ipAddress:     (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ?? req.ip ?? req.socket.remoteAddress ?? null,
             userAgent:     req.get('user-agent') ?? null,
           },
         })

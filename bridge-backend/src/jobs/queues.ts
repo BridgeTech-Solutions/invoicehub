@@ -9,7 +9,7 @@
  *  - `recurring`    — Cron : génération des factures récurrentes
  *  - `reminder`     — Cron : envoi des rappels de paiement configurés
  */
-import { Queue } from 'bullmq';
+import { Queue, ConnectionOptions } from 'bullmq';
 import { redisConnection } from '../config/redis';
 
 // ---------------------------------------------------------------------------
@@ -58,7 +58,7 @@ const defaultJobOptions = {
 };
 
 export const emailQueue = new Queue<EmailJobData>('email', {
-  connection: redisConnection,
+  connection: redisConnection as unknown as ConnectionOptions,
   defaultJobOptions: {
     ...defaultJobOptions,
     attempts: 3,
@@ -67,7 +67,7 @@ export const emailQueue = new Queue<EmailJobData>('email', {
 });
 
 export const notificationQueue = new Queue<NotificationJobData>('notification', {
-  connection: redisConnection,
+  connection: redisConnection as unknown as ConnectionOptions,
   defaultJobOptions: {
     ...defaultJobOptions,
     attempts: 2,
@@ -76,22 +76,22 @@ export const notificationQueue = new Queue<NotificationJobData>('notification', 
 });
 
 export const overdueQueue = new Queue<OverdueJobData>('overdue', {
-  connection: redisConnection,
+  connection: redisConnection as unknown as ConnectionOptions,
   defaultJobOptions,
 });
 
 export const recurringQueue = new Queue<RecurringJobData>('recurring', {
-  connection: redisConnection,
+  connection: redisConnection as unknown as ConnectionOptions,
   defaultJobOptions,
 });
 
 export const reminderQueue = new Queue<ReminderJobData>('reminder', {
-  connection: redisConnection,
+  connection: redisConnection as unknown as ConnectionOptions,
   defaultJobOptions,
 });
 
 export const backupQueue = new Queue<BackupJobData>('backup', {
-  connection: redisConnection,
+  connection: redisConnection as unknown as ConnectionOptions,
   defaultJobOptions: {
     ...defaultJobOptions,
     attempts: 1, // Pas de retry automatique pour les backups (risque de doublons)

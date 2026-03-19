@@ -47,7 +47,7 @@ async function getInvoices(params: {
   if (params.overdue)         where['status'] = 'overdue';
 
   const invoices = await prisma.invoice.findMany({
-    where: where as Parameters<typeof prisma.invoice.findMany>[0]['where'],
+    where: where as NonNullable<Parameters<typeof prisma.invoice.findMany>[0]>['where'],
     include: { client: { select: { name: true } } },
     orderBy: { createdAt: 'desc' },
     take: params.limit ?? 10,
@@ -76,12 +76,12 @@ async function getInvoiceDetail(params: { invoiceNumber?: string; clientName?: s
   if (params.clientName)    where['client'] = { name: { contains: params.clientName, mode: 'insensitive' } };
 
   const invoice = await prisma.invoice.findFirst({
-    where: where as Parameters<typeof prisma.invoice.findFirst>[0]['where'],
+    where: where as NonNullable<Parameters<typeof prisma.invoice.findFirst>[0]>['where'],
     include: {
       client: { select: { name: true, email: true } },
       lines:  {
         select: {
-          position:       true,
+          sortOrder:      true,
           description:    true,
           quantity:       true,
           unit:           true,
@@ -95,7 +95,7 @@ async function getInvoiceDetail(params: { invoiceNumber?: string; clientName?: s
           netHt:          true,
           totalTtc:       true,
         },
-        orderBy: { position: 'asc' },
+        orderBy: { sortOrder: 'asc' },
       },
       payments: {
         where: { deletedAt: null },
@@ -107,16 +107,17 @@ async function getInvoiceDetail(params: { invoiceNumber?: string; clientName?: s
 
   if (!invoice) return null;
 
+  const inv = invoice as unknown as Record<string, unknown>;
   return {
     number:          invoice.number,
-    client:          (invoice.client as { name: string; email: string }).name,
-    clientEmail:     (invoice.client as { name: string; email: string }).email,
+    client:          (inv['client'] as { name: string; email: string }).name,
+    clientEmail:     (inv['client'] as { name: string; email: string }).email,
     type:            invoice.type,
     status:          invoice.status,
     issueDate:       invoice.issueDate,
     dueDate:         invoice.dueDate,
     notes:           invoice.notes,
-    paymentTerms:    invoice.paymentTermsDays,
+    paymentTerms:    (inv['paymentTermsDays'] as number | null),
     remiseGlobaleType:  invoice.globalDiscountType,
     remiseGlobaleValeur: fmt(invoice.globalDiscountValue),
     remiseGlobaleMontant: fmt(invoice.globalDiscountAmount),
@@ -125,8 +126,8 @@ async function getInvoiceDetail(params: { invoiceNumber?: string; clientName?: s
     totalTtc:        fmt(invoice.totalTtc),
     amountPaid:      fmt(invoice.amountPaid),
     balanceDue:      fmt(invoice.balanceDue),
-    lignes: (invoice.lines as Array<Record<string, unknown>>).map(l => ({
-      position:     l['position'],
+    lignes: (inv['lines'] as Array<Record<string, unknown>>).map(l => ({
+      position:     l['sortOrder'],
       description:  l['description'],
       quantite:     fmt(l['quantity']),
       unite:        l['unit'],
@@ -140,7 +141,7 @@ async function getInvoiceDetail(params: { invoiceNumber?: string; clientName?: s
       netHt:        fmt(l['netHt']),
       totalTtc:     fmt(l['totalTtc']),
     })),
-    paiements: (invoice.payments as Array<Record<string, unknown>>).map(p => ({
+    paiements: (inv['payments'] as Array<Record<string, unknown>>).map(p => ({
       montant:      fmt(p['amount']),
       methode:      p['method'],
       date:         p['paymentDate'],
@@ -159,7 +160,7 @@ async function getProformas(params: {
   if (params.status?.length) where['status'] = { in: params.status };
 
   const proformas = await prisma.proforma.findMany({
-    where: where as Parameters<typeof prisma.proforma.findMany>[0]['where'],
+    where: where as NonNullable<Parameters<typeof prisma.proforma.findMany>[0]>['where'],
     include: { client: { select: { name: true } } },
     orderBy: { createdAt: 'desc' },
     take: params.limit ?? 10,
@@ -170,7 +171,7 @@ async function getProformas(params: {
     client:     (p.client as { name: string }).name,
     status:     p.status,
     issueDate:  p.issueDate,
-    expiryDate: p.expiryDate,
+    expiryDate: (p as unknown as Record<string, unknown>)['validUntil'],
     totalHt:    fmt(p.totalHt),
     totalTax:   fmt(p.totalTax),
     totalTtc:   fmt(p.totalTtc),
@@ -184,17 +185,17 @@ async function getProformaDetail(params: { proformaNumber?: string; clientName?:
   if (params.clientName)     where['client'] = { name: { contains: params.clientName, mode: 'insensitive' } };
 
   const proforma = await prisma.proforma.findFirst({
-    where: where as Parameters<typeof prisma.proforma.findFirst>[0]['where'],
+    where: where as NonNullable<Parameters<typeof prisma.proforma.findFirst>[0]>['where'],
     include: {
       client: { select: { name: true } },
       lines: {
         select: {
-          position: true, description: true, quantity: true, unit: true,
+          sortOrder: true, description: true, quantity: true, unit: true,
           unitPriceHt: true, discountType: true, discountValue: true,
           discountAmount: true, taxRate: true, taxAmount: true,
           subtotalHt: true, netHt: true, totalTtc: true,
         },
-        orderBy: { position: 'asc' },
+        orderBy: { sortOrder: 'asc' },
       },
     },
     orderBy: { createdAt: 'desc' },
@@ -202,20 +203,21 @@ async function getProformaDetail(params: { proformaNumber?: string; clientName?:
 
   if (!proforma) return null;
 
+  const pf = proforma as unknown as Record<string, unknown>;
   return {
     number:      proforma.number,
-    client:      (proforma.client as { name: string }).name,
+    client:      (pf['client'] as { name: string }).name,
     status:      proforma.status,
     issueDate:   proforma.issueDate,
-    expiryDate:  proforma.expiryDate,
-    validityDays: proforma.validityDays,
-    paymentTerms: proforma.paymentTermsDays,
+    expiryDate:  pf['validUntil'],
+    validityDays: pf['validityDays'],
+    paymentTerms: pf['paymentTermsDays'],
     remiseGlobaleMontant: fmt(proforma.globalDiscountAmount),
     totalHt:     fmt(proforma.totalHt),
     totalTax:    fmt(proforma.totalTax),
     totalTtc:    fmt(proforma.totalTtc),
-    lignes: (proforma.lines as Array<Record<string, unknown>>).map(l => ({
-      position:     l['position'],
+    lignes: (pf['lines'] as Array<Record<string, unknown>>).map(l => ({
+      position:     l['sortOrder'],
       description:  l['description'],
       quantite:     fmt(l['quantity']),
       unite:        l['unit'],
@@ -239,8 +241,7 @@ async function getClients(params: { name?: string; limit?: number }) {
     orderBy: { name: 'asc' },
     take: params.limit ?? 10,
     select: {
-      name: true, email: true, phone: true, city: true, taxId: true,
-      _count: { select: { invoices: true, proformas: true } },
+      name: true, email: true, phone: true, city: true, taxNumber: true,
     },
   });
 
@@ -249,9 +250,7 @@ async function getClients(params: { name?: string; limit?: number }) {
     email:         c.email,
     phone:         c.phone,
     ville:         c.city,
-    numeroTaxe:    c.taxId,
-    nombreFactures: c._count.invoices,
-    nombreProformas: c._count.proformas,
+    numeroTaxe:    c.taxNumber,
   }));
 }
 
@@ -380,7 +379,7 @@ async function getClientSummary(params: { clientName: string }) {
     email:          client.email,
     telephone:      client.phone,
     ville:          client.city,
-    numeroTaxe:     client.taxId,
+    numeroTaxe:     client.taxNumber,
     totalFacture:   client.invoices.reduce((s, i) => s + fmt(i.totalTtc), 0),
     totalPaye:      client.invoices.reduce((s, i) => s + fmt(i.amountPaid), 0),
     totalDu:        client.invoices.reduce((s, i) => s + fmt(i.balanceDue), 0),
@@ -414,9 +413,9 @@ async function getProductCatalog(params: { name?: string; limit?: number }) {
   return products.map(p => ({
     nom:        p.name,
     categorie:  (p.category as { name: string } | null)?.name ?? 'Sans catégorie',
-    prix:       fmt(p.unitPrice),
+    prix:       fmt(p.unitPriceHt),
     unite:      p.unit,
-    tauxTva:    fmt(p.taxRate),
+    tauxTva:    fmt(p.taxRateValue),
     description: p.description,
     actif:      !p.deletedAt,
   }));

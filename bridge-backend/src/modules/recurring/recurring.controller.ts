@@ -15,7 +15,7 @@ export class RecurringController {
 
   async findById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await recurringService.findById(req.params['id']!);
+      const data = await recurringService.findById(req.params['id'] as string);
       res.json({ success: true, data });
     } catch (err) {
       next(err);
@@ -35,7 +35,7 @@ export class RecurringController {
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const input = updateRecurringSchema.parse(req.body);
-      const data = await recurringService.update(req.params['id']!, input);
+      const data = await recurringService.update(req.params['id'] as string, input);
       res.json({ success: true, data });
     } catch (err) {
       next(err);
@@ -44,7 +44,7 @@ export class RecurringController {
 
   async activate(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      await recurringService.toggleActive(req.params['id']!, true);
+      await recurringService.toggleActive(req.params['id'] as string, true);
       res.json({ success: true, message: 'Gabarit activé' });
     } catch (err) {
       next(err);
@@ -53,7 +53,7 @@ export class RecurringController {
 
   async deactivate(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      await recurringService.toggleActive(req.params['id']!, false);
+      await recurringService.toggleActive(req.params['id'] as string, false);
       res.json({ success: true, message: 'Gabarit désactivé' });
     } catch (err) {
       next(err);
@@ -62,7 +62,7 @@ export class RecurringController {
 
   async generate(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await recurringService.generate(req.params['id']!, req.user!.id);
+      const data = await recurringService.generate(req.params['id'] as string, req.user!.id);
       res.status(201).json({ success: true, data });
     } catch (err) {
       next(err);
@@ -71,7 +71,7 @@ export class RecurringController {
 
   async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      await recurringService.softDelete(req.params['id']!);
+      await recurringService.softDelete(req.params['id'] as string);
       res.json({ success: true, message: 'Gabarit supprimé' });
     } catch (err) {
       next(err);

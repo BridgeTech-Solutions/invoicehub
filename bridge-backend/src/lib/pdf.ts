@@ -259,18 +259,19 @@ export async function generatePdf(html: string, footerSafeZonePx?: number): Prom
       // 5. Reconstruire Contents = [footerFlux, ...contenuOriginal]
       //    Le footer est en premier → rendu derrière le contenu HTML
       const combined = pdfDoc.context.obj([]);
+      type PDFArrayLike = { push(v: unknown): void; asArray(): unknown[] };
       if (footerContentsRef) {
         if (footerContentsRef instanceof PDFArray) {
-          footerContentsRef.asArray().forEach(r => (combined as PDFArray).push(r));
+          footerContentsRef.asArray().forEach(r => (combined as unknown as PDFArrayLike).push(r));
         } else {
-          (combined as PDFArray).push(footerContentsRef);
+          (combined as unknown as PDFArrayLike).push(footerContentsRef);
         }
       }
       if (existingContentsRef) {
         if (existingContentsRef instanceof PDFArray) {
-          existingContentsRef.asArray().forEach(r => (combined as PDFArray).push(r));
+          existingContentsRef.asArray().forEach(r => (combined as unknown as PDFArrayLike).push(r));
         } else {
-          (combined as PDFArray).push(existingContentsRef);
+          (combined as unknown as PDFArrayLike).push(existingContentsRef);
         }
       }
       pdfPage.node.set(PDFName.of('Contents'), combined);

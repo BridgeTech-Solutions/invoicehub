@@ -38,4 +38,8 @@ export class AppError extends Error {
   static serviceUnavailable(message: string, code = 'SERVICE_UNAVAILABLE') {
     return new AppError(message, 503, code);
   }
+
+  static internal(message: string, code = 'INTERNAL_ERROR') {
+    return new AppError(message, 500, code);
+  }
 }

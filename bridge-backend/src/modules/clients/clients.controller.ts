@@ -34,7 +34,7 @@ export class ClientsController {
 
   async findById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const client = await clientsService.findById(req.params['id']!);
+      const client = await clientsService.findById(req.params['id'] as string);
       res.json({ success: true, data: client });
     } catch (err) {
       next(err);
@@ -54,7 +54,7 @@ export class ClientsController {
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const input = updateClientSchema.parse(req.body);
-      const client = await clientsService.update(req.params['id']!, input);
+      const client = await clientsService.update(req.params['id'] as string, input);
       res.json({ success: true, data: client });
     } catch (err) {
       next(err);
@@ -63,7 +63,7 @@ export class ClientsController {
 
   async archive(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      await clientsService.archive(req.params['id']!);
+      await clientsService.archive(req.params['id'] as string);
       res.json({ success: true, message: 'Client archivé' });
     } catch (err) {
       next(err);
@@ -72,7 +72,7 @@ export class ClientsController {
 
   async quickFill(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await clientsService.quickFill(req.params['id']!);
+      const data = await clientsService.quickFill(req.params['id'] as string);
       res.json({ success: true, data });
     } catch (err) {
       next(err);
@@ -81,7 +81,7 @@ export class ClientsController {
 
   async getSummary(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const summary = await clientsService.getSummary(req.params['id']!);
+      const summary = await clientsService.getSummary(req.params['id'] as string);
       res.json({ success: true, data: summary });
     } catch (err) {
       next(err);

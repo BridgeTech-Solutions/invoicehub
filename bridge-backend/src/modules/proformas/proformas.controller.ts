@@ -38,7 +38,7 @@ export class ProformasController {
 
   async findById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await proformasService.findById(req.params['id']!);
+      const data = await proformasService.findById(req.params['id'] as string);
       res.json({ success: true, data });
     } catch (err) {
       next(err);
@@ -58,7 +58,7 @@ export class ProformasController {
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const input = updateProformaSchema.parse(req.body);
-      const data = await proformasService.update(req.params['id']!, input, req.user!.id);
+      const data = await proformasService.update(req.params['id'] as string, input, req.user!.id);
       res.json({ success: true, data });
     } catch (err) {
       next(err);
@@ -67,7 +67,7 @@ export class ProformasController {
 
   async send(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await proformasService.send(req.params['id']!, req.user!.id);
+      const data = await proformasService.send(req.params['id'] as string, req.user!.id);
       res.json({ success: true, data });
     } catch (err) {
       next(err);
@@ -76,7 +76,7 @@ export class ProformasController {
 
   async accept(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await proformasService.accept(req.params['id']!, req.user!.id);
+      const data = await proformasService.accept(req.params['id'] as string, req.user!.id);
       res.json({ success: true, data });
     } catch (err) {
       next(err);
@@ -86,7 +86,7 @@ export class ProformasController {
   async reject(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { reason } = rejectProformaSchema.parse(req.body);
-      const data = await proformasService.reject(req.params['id']!, req.user!.id, reason);
+      const data = await proformasService.reject(req.params['id'] as string, req.user!.id, reason);
       res.json({ success: true, data });
     } catch (err) {
       next(err);
@@ -96,7 +96,7 @@ export class ProformasController {
   async convert(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const options = convertProformaSchema.parse(req.body);
-      const data = await proformasService.convertToInvoice(req.params['id']!, req.user!.id, options);
+      const data = await proformasService.convertToInvoice(req.params['id'] as string, req.user!.id, options);
       res.status(201).json({ success: true, data });
     } catch (err) {
       next(err);
@@ -105,7 +105,7 @@ export class ProformasController {
 
   async getPdf(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { buffer, filename } = await proformasService.generatePdfResponse(req.params['id']!);
+      const { buffer, filename } = await proformasService.generatePdfResponse(req.params['id'] as string);
       res.set({
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${filename}"`,
@@ -119,7 +119,7 @@ export class ProformasController {
 
   async duplicate(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await proformasService.duplicate(req.params['id']!, req.user!.id);
+      const data = await proformasService.duplicate(req.params['id'] as string, req.user!.id);
       res.status(201).json({ success: true, data });
     } catch (err) {
       next(err);
@@ -128,7 +128,7 @@ export class ProformasController {
 
   async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      await proformasService.softDelete(req.params['id']!);
+      await proformasService.softDelete(req.params['id'] as string);
       res.json({ success: true, message: 'Proforma supprimée' });
     } catch (err) {
       next(err);

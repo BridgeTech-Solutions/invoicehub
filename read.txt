@@ -1,0 +1,131 @@
+ Étape 1 — Prérequis
+
+  Vérifier que ces outils sont installés :
+  node --version      # doit être >= 18
+  pnpm --version      # si absent : npm install -g pnpm
+  docker --version
+  docker compose version
+
+  ---
+  Étape 2 — Installation des dépendances
+
+  cd D:/Bel/projets/BRIDGE/bridge-backend
+  pnpm install
+
+  ---
+  Étape 3 — Fichier d'environnement
+
+  cp .env.example .env
+
+  Ouvrir .env et modifier au minimum ces valeurs :
+  JWT_ACCESS_SECRET=monSecretAccesDeMin32CaracteresAbsolument
+  JWT_REFRESH_SECRET=monSecretRefreshDeMin32CaracteresAussi
+  DB_PASSWORD=strongpassword
+  Les secrets JWT doivent faire au moins 32 caractères. Le reste peut rester tel quel pour un test local.
+
+  ---
+  Étape 4 — Démarrer PostgreSQL + Redis
+
+  # Mode développement (DB exposée sur port 5432, hot reload activé)
+  docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db redis
+
+  Vérifier que les conteneurs tournent :
+  docker compose ps
+
+  Les deux services db et redis doivent afficher healthy.
+
+  ---
+  Étape 5 — Initialiser la base de données
+
+  # Générer le client Prisma
+  pnpm prisma:generate
+
+  # Pousser le schéma Prisma vers la base
+  pnpm prisma:push
+
+  Si la base a déjà été initialisée par le fichier SQL (invoicehub_schema_v2.sql monté dans Docker au premier démarrage), le 
+  prisma:push peut retourner quelques warnings — c'est normal.
+
+  Pour vérifier la base visuellement :
+  pnpm prisma:studio
+  # Ouvre http://localhost:5555 dans le navigateur
+
+  ---
+  Étape 6 — Démarrer le serveur en développement
+
+  pnpm dev
+
+  Le serveur démarre sur http://localhost:3000
+
+  Vérifier que tout est opérationnel :
+  curl http://localhost:3000/health
+
+  Réponse attendue :
+  { "status": "ok", "timestamp": "...", "env": "development" }
+
+  ---
+  Étape 7 — Créer un utilisateur admin initial
+
+  Le schéma SQL crée la structure mais pas d'utilisateur. Il faut en créer un directement en base via Prisma Studio ou psql. 
+
+  Option A — via psql dans Docker :
+  docker compose exec db psql -U postgres -d invoicehub -c "
+  INSERT INTO users (id, email, password_hash, first_name, last_name, role, is_active)
+  VALUES (
+    gen_random_uuid(),
+    'admin@bts.cm',
+    '\$2b\$10\$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+    'Admin',
+    'BTS',
+    'admin',
+    true
+  );"
+  Ce hash correspond au mot de passe password. À changer après le premier login.
+
+  Option B — Créer une route seed temporaire (si tu préfères utiliser l'API directement, demande-moi de l'ajouter).
+
+  ---
+  Étape 8 — Importer la collection Postman
+
+  1. Ouvrir Postman
+  2. Import → glisser-déposer les deux fichiers :
+    - bridge-backend/postman/InvoiceHub_v2.postman_collection.json
+    - bridge-backend/postman/InvoiceHub_Dev.postman_environment.json
+  3. Sélectionner l'environnement InvoiceHub Dev en haut à droite
+
+  ---
+  Étape 9 — Tester dans l'ordre
+
+  01 Auth → Login                    → récupère access_token automatiquement
+  03 Clients → Créer un Client       → sauve client_id
+  04 Produits → Créer une Catégorie  → sauve category_id
+  04 Produits → Créer un Produit     → sauve product_id
+  05 Proformas → Créer un Proforma   → sauve proforma_id
+  06 Factures → Calcul à Sec         → vérifie les totaux
+  06 Factures → Créer Facture        → sauve invoice_id
+  06 Factures → Émettre Facture      → statut issued
+  07 Paiements → Paiement Partiel    → statut partially_paid
+  07 Paiements → Paiement Solde      → statut paid
+  09 Dashboard → KPIs                → vérifie les chiffres
+  10 Recherche → Combinée            → teste le parser
+
+  Ou lancer le Scénario A complet depuis le dossier SCENARIOS via Collection Runner (bouton ▶ Run).
+ 2. Connexion avec DBeaver
+
+  Ouvrir DBeaver → Nouvelle connexion → choisir PostgreSQL
+
+  Remplir les champs :
+
+  ┌──────────┬─────────────────┐
+  │  Champ   │     Valeur      │
+  ├──────────┼─────────────────┤
+  │ Host     │ localhost       │
+  ├──────────┼─────────────────┤
+  │ Port     │ 5432            │
+  ├──────────┼─────────────────┤
+  │ Database │ invoicehub      │
+  ├──────────┼─────────────────┤
+  │ Username │ postgres        │
+  ├──────────┼─────────────────┤
+  │ Password │ BTS@Douala2026! │
+  └──────────┴─────────────────┘

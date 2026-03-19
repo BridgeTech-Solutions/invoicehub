@@ -56,8 +56,8 @@ export async function sendTemplatedEmail(
   to: string | string[],
   variables: Record<string, string>,
 ): Promise<void> {
-  const template = await prisma.emailTemplate.findUnique({
-    where: { code: templateCode },
+  const template = await prisma.emailTemplate.findFirst({
+    where: { name: templateCode },
   });
 
   if (!template || !template.isActive) {

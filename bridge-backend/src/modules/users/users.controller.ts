@@ -30,7 +30,7 @@ export class UsersController {
 
   async findById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const user = await usersService.findById(req.params['id']!);
+      const user = await usersService.findById(req.params['id'] as string);
       res.json({ success: true, data: user });
     } catch (err) {
       next(err);
@@ -50,7 +50,7 @@ export class UsersController {
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const input = updateUserSchema.parse(req.body);
-      const user = await usersService.update(req.params['id']!, input);
+      const user = await usersService.update(req.params['id'] as string, input);
       res.json({ success: true, data: user });
     } catch (err) {
       next(err);
@@ -79,7 +79,7 @@ export class UsersController {
 
   async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      await usersService.softDelete(req.params['id']!);
+      await usersService.softDelete(req.params['id'] as string);
       res.json({ success: true, message: 'Utilisateur archivé' });
     } catch (err) {
       next(err);

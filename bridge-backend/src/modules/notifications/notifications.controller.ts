@@ -30,7 +30,7 @@ export class NotificationsController {
 
   async markRead(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      await notificationsService.markRead(req.params['id']!, req.user!.id);
+      await notificationsService.markRead(req.params['id'] as string, req.user!.id);
       res.json({ success: true, message: 'Notification marquée comme lue' });
     } catch (err) {
       next(err);

@@ -35,7 +35,7 @@ export async function processRecurringJob(_job: Job<RecurringJobData>): Promise<
     try {
       const invoice = await recurringService.generate(template.id, template.createdById);
 
-      await notificationQueue.add('notification', {
+      await notificationQueue.add('notification' as string, {
         userId: template.createdById,
         type: 'invoice_issued',
         title: `Facture récurrente générée : ${invoice.number}`,

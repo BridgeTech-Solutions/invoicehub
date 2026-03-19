@@ -11,7 +11,7 @@ import { sendMail } from '../../lib/mailer';
 import type { EmailJobData } from '../queues';
 
 export async function processEmailJob(job: Job<EmailJobData>): Promise<void> {
-  const { to, subject, html, replyTo } = job.data;
+  const { to, subject, html } = job.data;
 
-  await sendMail({ to, subject, html, replyTo });
+  await sendMail({ to, subject, html });
 }

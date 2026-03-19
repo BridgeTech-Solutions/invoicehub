@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Express } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
@@ -30,7 +30,7 @@ import { emailTemplatesRouter } from './modules/email-templates/email-templates.
 import { backupsRouter } from './modules/backups/backups.routes';
 import { aiRouter } from './modules/ai/ai.routes';
 
-const app = express();
+const app: Express = express();
 
 // ----------------------------------------------------------------
 // Sécurité

@@ -30,7 +30,7 @@ export class ProductsController {
 
   async findCategoryById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await productsService.findCategoryById(req.params['id']!);
+      const data = await productsService.findCategoryById(req.params['id'] as string);
       res.json({ success: true, data });
     } catch (err) {
       next(err);
@@ -50,7 +50,7 @@ export class ProductsController {
   async updateCategory(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const input = updateCategorySchema.parse(req.body);
-      const data = await productsService.updateCategory(req.params['id']!, input);
+      const data = await productsService.updateCategory(req.params['id'] as string, input);
       res.json({ success: true, data });
     } catch (err) {
       next(err);
@@ -59,7 +59,7 @@ export class ProductsController {
 
   async deleteCategory(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      await productsService.deleteCategory(req.params['id']!);
+      await productsService.deleteCategory(req.params['id'] as string);
       res.json({ success: true, message: 'Catégorie supprimée' });
     } catch (err) {
       next(err);
@@ -80,7 +80,7 @@ export class ProductsController {
             p.name,
             (p.category as { name: string } | null)?.name ?? '',
             Number(p.unitPriceHt),
-            Number(p.taxRate),
+            Number(p.taxRateValue),
             p.unit ?? '',
             p.isActive ? 'Oui' : 'Non',
           ]),
@@ -96,7 +96,7 @@ export class ProductsController {
 
   async findById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await productsService.findById(req.params['id']!);
+      const data = await productsService.findById(req.params['id'] as string);
       res.json({ success: true, data });
     } catch (err) {
       next(err);
@@ -106,7 +106,7 @@ export class ProductsController {
   async lineDefaults(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const clientId = typeof req.query['clientId'] === 'string' ? req.query['clientId'] : undefined;
-      const data = await productsService.lineDefaults(req.params['id']!, clientId);
+      const data = await productsService.lineDefaults(req.params['id'] as string, clientId);
       res.json({ success: true, data });
     } catch (err) {
       next(err);
@@ -126,7 +126,7 @@ export class ProductsController {
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const input = updateProductSchema.parse(req.body);
-      const data = await productsService.update(req.params['id']!, input);
+      const data = await productsService.update(req.params['id'] as string, input);
       res.json({ success: true, data });
     } catch (err) {
       next(err);
@@ -135,7 +135,7 @@ export class ProductsController {
 
   async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      await productsService.softDelete(req.params['id']!);
+      await productsService.softDelete(req.params['id'] as string);
       res.json({ success: true, message: 'Produit désactivé' });
     } catch (err) {
       next(err);

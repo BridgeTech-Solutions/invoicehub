@@ -4,7 +4,7 @@ import { authorize } from '../../core/middleware/rbac';
 import { auditMiddleware } from '../../core/middleware/audit';
 import { settingsController } from './settings.controller';
 
-export const settingsRouter = Router();
+export const settingsRouter: ReturnType<typeof Router> = Router();
 
 settingsRouter.use(authenticate);
 

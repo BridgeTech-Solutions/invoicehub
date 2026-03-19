@@ -55,7 +55,7 @@ export async function processNotificationJob(job: Job<NotificationJobData>): Pro
     });
 
     if (user) {
-      await emailQueue.add('email', {
+      await emailQueue.add('email' as string, {
         to: user.email,
         subject: title,
         html: `

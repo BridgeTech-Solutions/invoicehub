@@ -82,7 +82,7 @@ export class NotificationsService {
     data: Record<string, unknown> = {},
   ): Promise<void> {
     await prisma.notification.create({
-      data: { userId, type, title, message, data },
+      data: { userId, type, title, message, data: data as object },
     }).catch(() => {/* Non critique */});
   }
 }

@@ -19,7 +19,7 @@ import { prisma } from '../../config/database';
 import { authenticate } from '../../core/middleware/auth';
 import { authorize } from '../../core/middleware/rbac';
 
-export const reportsRouter = Router();
+export const reportsRouter: ReturnType<typeof Router> = Router();
 
 reportsRouter.use(authenticate, authorize('admin', 'commercial'));
 
@@ -36,9 +36,9 @@ const rangeSchema = z.object({
 /** Charge le logo et le nom de l'entreprise depuis les paramètres société */
 async function getReportAssets() {
   const settings = await prisma.companySettings.findFirst({
-    select: { name: true, headerImagePath: true },
+    select: { companyName: true, headerImagePath: true },
   });
-  const companyName = settings?.name ?? 'Bridge Technologies Solutions';
+  const companyName = settings?.companyName ?? 'Bridge Technologies Solutions';
   const logoB64     = settings?.headerImagePath ? imgToBase64(settings.headerImagePath) : undefined;
   return { companyName, logoB64 };
 }

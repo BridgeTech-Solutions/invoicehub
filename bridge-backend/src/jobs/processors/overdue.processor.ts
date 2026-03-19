@@ -37,13 +37,13 @@ export async function processOverdueJob(_job: Job<OverdueJobData>): Promise<void
           invoiceId: inv.id,
           previousStatus: inv.status,
           newStatus: 'overdue',
-          // Pas de changedById — action système automatique
+          changedById: inv.createdById, // action système — attribué au créateur
         },
       }),
     ]);
 
     // Notification au créateur de la facture
-    await notificationQueue.add('notification', {
+    await notificationQueue.add('notification' as string, {
       userId: inv.createdById,
       type: 'invoice_overdue',
       title: `Facture en retard : ${inv.number}`,
@@ -73,11 +73,12 @@ export async function processOverdueJob(_job: Job<OverdueJobData>): Promise<void
           proformaId: pf.id,
           previousStatus: pf.status,
           newStatus: 'expired',
+          changedById: pf.createdById, // action système — attribué au créateur
         },
       }),
     ]);
 
-    await notificationQueue.add('notification', {
+    await notificationQueue.add('notification' as string, {
       userId: pf.createdById,
       type: 'proforma_expired',
       title: `Proforma expirée : ${pf.number}`,

@@ -5,7 +5,7 @@ import { authenticate } from '../../core/middleware/auth';
 import { authorize } from '../../core/middleware/rbac';
 import { AppError } from '../../core/errors/AppError';
 
-export const taxRatesRouter = Router();
+export const taxRatesRouter: ReturnType<typeof Router> = Router();
 
 taxRatesRouter.use(authenticate);
 
@@ -34,7 +34,7 @@ taxRatesRouter.get('/', async (req: Request, res: Response, next: NextFunction) 
 /** GET /api/tax-rates/:id */
 taxRatesRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const data = await prisma.taxRate.findFirst({ where: { id: req.params['id']!, deletedAt: null } });
+    const data = await prisma.taxRate.findFirst({ where: { id: req.params['id'] as string, deletedAt: null } });
     if (!data) throw AppError.notFound('Taux de taxe introuvable');
     res.json({ success: true, data });
   } catch (err) { next(err); }
@@ -59,14 +59,14 @@ taxRatesRouter.post('/', authorize('admin'), async (req: Request, res: Response,
 taxRatesRouter.put('/:id', authorize('admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const input = updateSchema.parse(req.body);
-    const existing = await prisma.taxRate.findFirst({ where: { id: req.params['id']!, deletedAt: null } });
+    const existing = await prisma.taxRate.findFirst({ where: { id: req.params['id'] as string, deletedAt: null } });
     if (!existing) throw AppError.notFound('Taux de taxe introuvable');
 
     if (input.isDefault) {
       await prisma.taxRate.updateMany({ where: { isDefault: true }, data: { isDefault: false } });
     }
 
-    const data = await prisma.taxRate.update({ where: { id: req.params['id']! }, data: input });
+    const data = await prisma.taxRate.update({ where: { id: req.params['id'] as string }, data: input });
     res.json({ success: true, data });
   } catch (err) { next(err); }
 });
@@ -74,11 +74,11 @@ taxRatesRouter.put('/:id', authorize('admin'), async (req: Request, res: Respons
 /** DELETE /api/tax-rates/:id — soft delete — admin uniquement */
 taxRatesRouter.delete('/:id', authorize('admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const existing = await prisma.taxRate.findFirst({ where: { id: req.params['id']!, deletedAt: null } });
+    const existing = await prisma.taxRate.findFirst({ where: { id: req.params['id'] as string, deletedAt: null } });
     if (!existing) throw AppError.notFound('Taux de taxe introuvable');
     if (existing.isDefault) throw AppError.badRequest('Impossible de supprimer le taux par défaut');
 
-    await prisma.taxRate.update({ where: { id: req.params['id']! }, data: { deletedAt: new Date(), isActive: false } });
+    await prisma.taxRate.update({ where: { id: req.params['id'] as string }, data: { deletedAt: new Date(), isActive: false } });
     res.json({ success: true, message: 'Taux de taxe supprimé' });
   } catch (err) { next(err); }
 });

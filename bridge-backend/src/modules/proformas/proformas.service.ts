@@ -168,7 +168,7 @@ export class ProformasService {
       throw AppError.badRequest('Seules les proformas en brouillon peuvent être modifiées');
     }
 
-    const updateData: Prisma.ProformaUpdateInput = {
+    const updateData: Prisma.ProformaUncheckedUpdateInput = {
       assignedToId: input.assignedToId,
       validUntil: input.validUntil,
       subject: input.subject,

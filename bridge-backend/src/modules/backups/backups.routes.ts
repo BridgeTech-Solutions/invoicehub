@@ -4,7 +4,7 @@ import { authenticate } from '../../core/middleware/auth';
 import { authorize } from '../../core/middleware/rbac';
 import { rateLimitByUser } from '../../core/middleware/rateLimitByUser';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 router.use(authenticate, authorize('admin'));
 

@@ -44,13 +44,13 @@ export class ClientsService {
 
   async create(input: CreateClientInput, createdById: string) {
     return prisma.client.create({
-      data: { ...input, createdById, metadata: input.metadata ?? {} },
+      data: { ...input, createdById, metadata: (input.metadata ?? {}) as object },
     });
   }
 
   async update(id: string, input: UpdateClientInput) {
     await this.findById(id);
-    return prisma.client.update({ where: { id }, data: input });
+    return prisma.client.update({ where: { id }, data: input as Parameters<typeof prisma.client.update>[0]['data'] });
   }
 
   async archive(id: string): Promise<void> {

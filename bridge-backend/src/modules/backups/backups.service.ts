@@ -249,11 +249,12 @@ export class BackupsService {
       const gzip   = createGzip({ level: 6 });
       const output = createWriteStream(outputPath);
 
+      if (!pgdump.stdout) { reject(new Error('pg_dump stdout is null')); return; }
       pipeline(pgdump.stdout, gzip, output)
         .then(resolve)
         .catch(reject);
 
-      pgdump.stderr.on('data', (data: Buffer) => {
+      if (pgdump.stderr) pgdump.stderr.on('data', (_data: Buffer) => {
         // pg_dump écrit sa progression sur stderr — pas une erreur
       });
 
