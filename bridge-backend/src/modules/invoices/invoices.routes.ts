@@ -15,6 +15,7 @@ router.post('/', auditMiddleware('invoice', 'CREATE'), invoicesController.create
 // ⚠️ Route statique AVANT /:id
 router.post('/compute', invoicesController.compute.bind(invoicesController));
 router.get('/:id', invoicesController.findById.bind(invoicesController));
+router.get('/:id/solde-prefill', invoicesController.soldePrefill.bind(invoicesController));
 router.put('/:id', auditMiddleware('invoice', 'UPDATE'), invoicesController.update.bind(invoicesController));
 router.post('/:id/issue', auditMiddleware('invoice', 'STATUS_CHANGE'), invoicesController.issue.bind(invoicesController));
 router.post('/:id/cancel', authorize('admin', 'commercial'), auditMiddleware('invoice', 'STATUS_CHANGE'), invoicesController.cancel.bind(invoicesController));

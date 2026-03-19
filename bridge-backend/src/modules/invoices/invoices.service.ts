@@ -916,6 +916,110 @@ export class InvoicesService {
     };
   }
 
+  /**
+   * Pré-remplit les données pour créer une facture de solde depuis un acompte.
+   *
+   * Retourne :
+   *  - Les lignes de la facture acompte (copiées telles quelles)
+   *  - Le total des acomptes déjà encaissés (acomptes multiples inclus)
+   *  - La liste de tous les acomptes liés (pour info)
+   *  - Le montant restant à facturer (solde TTC)
+   *
+   * Fonctionne pour acomptes multiples : si l'acompte passé a lui-même
+   * un parentInvoiceId, le root est remonté automatiquement.
+   *
+   * @param acompteId - UUID de n'importe quel acompte du cycle
+   */
+  async soldePrefill(acompteId: string) {
+    const acompte = await prisma.invoice.findFirst({
+      where: { id: acompteId, deletedAt: null },
+      include: {
+        client: true,
+        lines: { orderBy: { sortOrder: 'asc' } },
+      },
+    });
+    if (!acompte) throw AppError.notFound('Facture introuvable');
+    if (acompte.type !== 'acompte') throw AppError.badRequest('Cette facture n\'est pas une facture d\'acompte');
+
+    // Remonte jusqu'à la racine du cycle (acompte root = celui sans parentInvoiceId)
+    const rootId = acompte.parentInvoiceId ?? acompte.id;
+
+    // Tous les acomptes du cycle (root + acomptes enfants)
+    const allAcomptes = await prisma.invoice.findMany({
+      where: {
+        deletedAt: null,
+        type: 'acompte',
+        OR: [
+          { id: rootId },
+          { parentInvoiceId: rootId },
+        ],
+      },
+      include: {
+        payments: { where: { deletedAt: null }, select: { amount: true, paymentDate: true, method: true } },
+      },
+      orderBy: { issueDate: 'asc' },
+    });
+
+    // Vérifie qu'il n'existe pas déjà un solde non-annulé
+    const existingSolde = await prisma.invoice.findFirst({
+      where: { parentInvoiceId: rootId, type: 'solde', deletedAt: null, status: { notIn: ['cancelled'] } },
+      select: { id: true, number: true },
+    });
+    if (existingSolde) throw AppError.badRequest(`Une facture de solde existe déjà : ${existingSolde.number}`);
+
+    // Somme des paiements sur tous les acomptes du cycle
+    const totalAcomptesEncaisses = allAcomptes.reduce((sum, a) => {
+      return sum + a.payments.reduce((s, p) => s + Number(p.amount), 0);
+    }, 0);
+
+    const fullTtc   = Number(acompte.totalTtc);
+    const soldeTtc  = Number((fullTtc - totalAcomptesEncaisses).toFixed(2));
+
+    // Lignes pré-remplies (même structure que CreateInvoiceInput.lines)
+    const lines = acompte.lines.map(l => ({
+      sortOrder:    l.sortOrder,
+      productId:    l.productId ?? undefined,
+      designation:  l.designation,
+      description:  l.description ?? undefined,
+      unit:         l.unit,
+      quantity:     Number(l.quantity),
+      unitPriceHt:  Number(l.unitPriceHt),
+      discountType: l.discountType,
+      discountValue:Number(l.discountValue),
+      taxRate:      Number(l.taxRate),
+    }));
+
+    return {
+      // Données à passer directement au formulaire de création
+      prefill: {
+        type:               'solde' as const,
+        clientId:           acompte.clientId,
+        parentInvoiceId:    rootId,
+        subject:            acompte.subject,
+        notes:              acompte.notes ?? undefined,
+        paymentConditions:  acompte.paymentConditions ?? undefined,
+        currency:           acompte.currency,
+        globalDiscountType: acompte.globalDiscountType,
+        globalDiscountValue:Number(acompte.globalDiscountValue),
+        lines,
+      },
+      // Résumé du cycle pour affichage
+      summary: {
+        acomptes: allAcomptes.map(a => ({
+          id:          a.id,
+          number:      a.number,
+          status:      a.status,
+          totalTtc:    Number(a.totalTtc),
+          amountPaid:  Number(a.amountPaid),
+          balanceDue:  Number(a.balanceDue),
+        })),
+        totalAcomptesEncaisses: Number(totalAcomptesEncaisses.toFixed(2)),
+        fullTtc,
+        soldeTtc,
+      },
+    };
+  }
+
   async duplicate(id: string, userId: string) {
     const original = await this.findById(id);
     const company = await prisma.companySettings.findFirst();

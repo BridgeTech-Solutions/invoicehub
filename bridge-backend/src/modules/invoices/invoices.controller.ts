@@ -98,6 +98,15 @@ export class InvoicesController {
     }
   }
 
+  async soldePrefill(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await invoicesService.soldePrefill(req.params['id'] as string);
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async duplicate(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await invoicesService.duplicate(req.params['id'] as string, req.user!.id);
