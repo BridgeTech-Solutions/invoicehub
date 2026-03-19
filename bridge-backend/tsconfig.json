@@ -3,7 +3,6 @@
     "target": "ES2022",
     "module": "CommonJS",
     "lib": ["ES2022", "DOM"],
-    "ignoreDeprecations": "6.0",
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
@@ -18,9 +17,8 @@
     "noUnusedParameters": false,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src/**/*"],
