@@ -16,16 +16,18 @@ import type { UpdateSettingsPayload, ReminderEscalationLevel } from '@/features/
 
 // ─── Notification type labels ─────────────────────────────────
 const NOTIF_LABELS: Record<NotificationType, string> = {
-  payment_received:    'Paiement reçu',
-  invoice_issued:      'Facture émise',
-  invoice_overdue:     'Facture en retard',
-  invoice_cancelled:   'Facture annulée',
-  proforma_accepted:   'Proforma acceptée',
-  proforma_rejected:   'Proforma rejetée',
-  proforma_expired:    'Proforma expirée',
-  user_created:        'Nouveau utilisateur créé',
-  reminder_sent:       'Relance envoyée',
-  recurring_generated: 'Facture récurrente générée',
+  proforma_sent:          'Proforma envoyée',
+  proforma_accepted:      'Proforma acceptée',
+  proforma_rejected:      'Proforma rejetée',
+  proforma_expired:       'Proforma expirée',
+  invoice_issued:         'Facture émise',
+  invoice_paid:           'Facture soldée',
+  invoice_partially_paid: 'Paiement partiel reçu',
+  invoice_overdue:        'Facture en retard',
+  payment_registered:     'Paiement enregistré',
+  reminder_sent:          'Relance envoyée',
+  user_created:           'Nouveau utilisateur créé',
+  system:                 'Événement système',
 }
 
 const inputCss: React.CSSProperties = {
