@@ -151,7 +151,7 @@ function ProformaDetailView({ id }: { id: string }) {
                       <td style={{ padding: '11px 10px', minWidth: 180 }}>
                         <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)', margin: 0 }}>{line.designation}</p>
                         {line.description && (
-                          <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '2px 0 0', lineHeight: 1.4 }}>{line.description}</p>
+                          <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '2px 0 0', lineHeight: 1.4 }} dangerouslySetInnerHTML={{ __html: line.description }} />
                         )}
                       </td>
                       <td style={{ padding: '11px 10px', fontSize: 13, color: 'var(--text-2)', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>

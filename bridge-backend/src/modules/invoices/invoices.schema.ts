@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import { safeTextOptional } from '../../lib/sanitize';
+import { safeTextOptional, safeRichTextOptional } from '../../lib/sanitize';
 
 const lineSchema = z.object({
   productId: z.string().uuid().optional(),
   sortOrder: z.number().int().default(0),
   designation: z.string().min(1).max(500),
-  description: safeTextOptional(1000),
+  description: safeRichTextOptional(1000),
   unit: z.enum(['heure', 'jour', 'forfait', 'piece', 'licence', 'mois', 'annee']).default('piece'),
   quantity: z.coerce.number().positive(),
   unitPriceHt: z.coerce.number().min(0),
