@@ -705,6 +705,8 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
             const totalEncaisse   = allLinked.reduce((s, a) => s + Number(a.amountPaid), 0)
             const totalFacture    = allLinked.reduce((s, a) => s + Number(a.totalTtc), 0)
             const balanceRestante = allLinked.reduce((s, a) => s + Number(a.balanceDue), 0)
+            // Montant du solde = TTC calculé depuis les lignes − acomptes encaissés
+            const soldeTtc        = Math.max(0, docTotals.totalTtc - totalEncaisse)
 
             const statusColor = (st: string) =>
               st === 'paid' ? '#16a34a' : st === 'partially_paid' ? '#d97706' : st === 'issued' ? '#2563eb' : '#64748b'
@@ -768,11 +770,11 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, padding: '10px 12px', background: 'rgba(8,145,178,0.08)', borderTop: '2px solid rgba(8,145,178,0.2)' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                           <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
-                            Facturé : {formatXAF(totalFacture)}
+                            Facturé acompte : {formatXAF(totalFacture)}
                           </span>
                           {balanceRestante > 0 && (
                             <span style={{ fontSize: 11.5, color: '#d97706' }}>
-                              ⚠ Impayé : {formatXAF(balanceRestante)}
+                              ⚠ Impayé acompte : {formatXAF(balanceRestante)}
                             </span>
                           )}
                         </div>
@@ -783,6 +785,28 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                           </p>
                         </div>
                       </div>
+
+                      {/* Solde à facturer */}
+                      {docTotals.totalTtc > 0 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, padding: '12px 14px', background: soldeTtc > 0 ? 'rgba(8,145,178,0.12)' : 'rgba(16,185,129,0.08)', borderTop: '2px solid rgba(8,145,178,0.3)', borderRadius: '0 0 var(--radius-sm) var(--radius-sm)' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span style={{ fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              Solde à facturer
+                            </span>
+                            <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
+                              Total TTC {formatXAF(docTotals.totalTtc)} − acomptes {formatXAF(totalEncaisse)}
+                            </span>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <p style={{ margin: 0, fontSize: 20, fontWeight: 800, color: soldeTtc > 0 ? '#0891b2' : '#10b981', fontFamily: 'var(--font-mono)' }}>
+                              {formatXAF(soldeTtc)}
+                            </p>
+                            {soldeTtc === 0 && (
+                              <p style={{ margin: '2px 0 0', fontSize: 11.5, color: '#10b981' }}>✓ Entièrement couvert</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
