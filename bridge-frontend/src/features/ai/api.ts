@@ -29,7 +29,7 @@ export const aiApi = {
     onError: (err: string) => void,
     signal?: AbortSignal,
   ) => {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3002/api'
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api'
     const token   = typeof window !== 'undefined'
       ? JSON.parse(localStorage.getItem('bts-auth') ?? '{}')?.state?.accessToken ?? ''
       : ''
