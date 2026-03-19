@@ -4,7 +4,7 @@ import { prisma } from '../../config/database';
 import { hashPassword, comparePassword } from '../../lib/bcrypt';
 import { AppError } from '../../core/errors/AppError';
 import { env } from '../../config/env';
-import { broadcastNotification } from '../../lib/broadcast';
+import { notificationQueue } from '../../jobs/queues';
 import type { CreateUserInput, UpdateUserInput, UpdateMeInput, ChangePasswordInput, ListUsersInput } from './users.schema';
 
 const USER_SELECT = {
@@ -112,7 +112,7 @@ export class UsersService {
     });
     for (const admin of admins) {
       if (admin.id === createdById) continue; // pas d'auto-notification
-      void broadcastNotification({
+      void notificationQueue.add('notification', {
         userId: admin.id,
         type: 'user_created',
         title: 'Nouveau compte utilisateur',
