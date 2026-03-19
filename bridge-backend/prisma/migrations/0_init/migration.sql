@@ -1,0 +1,4 @@
+-- Baseline migration
+-- Le schéma a été appliqué directement via invoicehub_schema_v2.sql
+-- Ce fichier existe uniquement pour que Prisma reconnaisse l'état initial de la base
+-- et ne tente pas de ré-appliquer le schéma (erreur P3005).

@@ -52,4 +52,4 @@ COPY --from=builder /app/assets ./assets
 EXPOSE 3000
 
 # Lance les migrations, le seed (idempotent), puis démarre le serveur
-CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node_modules/.bin/prisma db seed && node dist/server.js"]
+CMD ["sh", "-c", "node_modules/.bin/prisma migrate resolve --applied 0_init 2>/dev/null || true && node_modules/.bin/prisma migrate deploy && node_modules/.bin/prisma db seed && node dist/server.js"]
