@@ -333,14 +333,31 @@ export class InvoicesService {
         ? Number((totals.totalTtc * acomptePct / 100).toFixed(2))
         : totals.totalTtc;
 
+      // Pour un solde, recalcule amountDue en déduisant les acomptes déjà versés
+      let finalAmountDue = finalTtc;
+      if (invoice.type === 'solde' && invoice.parentInvoiceId) {
+        const acomptesAgg = await prisma.payment.aggregate({
+          where: {
+            deletedAt: null,
+            OR: [
+              { invoiceId: invoice.parentInvoiceId },
+              { invoice: { parentInvoiceId: invoice.parentInvoiceId, type: 'acompte', deletedAt: null } },
+            ],
+          },
+          _sum: { amount: true },
+        });
+        const deducted = Number(acomptesAgg._sum.amount ?? 0);
+        finalAmountDue = Number((totals.totalTtc - deducted).toFixed(2));
+      }
+
       Object.assign(updateData, {
         subtotalHt: totals.subtotalHt,
         globalDiscountAmount: totals.globalDiscountAmount,
         totalHt: totals.totalHt,
         totalTax: totals.totalTax,
         totalTtc: finalTtc,
-        amountDue: totals.totalTtc,   // amountDue = full TTC (base de calcul solde)
-        balanceDue: finalTtc,
+        amountDue: finalAmountDue,
+        balanceDue: finalAmountDue,
         lines: {
           deleteMany: {},
           create: computedLines.map(l => ({
@@ -615,9 +632,10 @@ export class InvoicesService {
       }
 
       // Calcul des totaux de l'avoir à partir de ses lignes
-      const totalHt  = Number(avoirLines.reduce((s, l) => s + l.netHt,     0).toFixed(2));
-      const totalTax = Number(avoirLines.reduce((s, l) => s + l.taxAmount,  0).toFixed(2));
-      const totalTtc = Number(avoirLines.reduce((s, l) => s + l.totalTtc,   0).toFixed(2));
+      // subtotalHt = somme des HT bruts (avant remises ligne), totalHt = subtotalHt (pas de remise globale sur un avoir)
+      const avoirSubtotalHt = Number(avoirLines.reduce((s, l) => s + l.subtotalHt, 0).toFixed(2));
+      const totalTax        = Number(avoirLines.reduce((s, l) => s + l.taxAmount,  0).toFixed(2));
+      const totalTtc        = Number(avoirLines.reduce((s, l) => s + l.totalTtc,   0).toFixed(2));
 
       return tx.invoice.create({
         data: {
@@ -632,11 +650,11 @@ export class InvoicesService {
           subject: `Avoir sur facture ${invoice.number}`,
           notes: input.notes ?? input.reason,
           currency: invoice.currency,
-          subtotalHt: totalHt,
+          subtotalHt: avoirSubtotalHt,
           globalDiscountType: 'none',
           globalDiscountValue: 0,
           globalDiscountAmount: 0,
-          totalHt,
+          totalHt: avoirSubtotalHt,  // pas de remise globale → totalHt = subtotalHt
           totalTax,
           totalTtc,
           amountDue: 0,    // Un avoir solde la créance — montant dû = 0
