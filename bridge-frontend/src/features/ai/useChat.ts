@@ -107,7 +107,7 @@ export function useChat(context?: string, userName?: string, userRole?: string) 
     abortRef.current?.abort()
     setState(s => ({
       ...s,
-      messages:   messages.length > 0 ? messages : [WELCOME_MESSAGE],
+      messages:   messages.length > 0 ? messages : [buildWelcome(userName)],
       isLoading:  false,
       isStreaming: false,
       error:       null,
