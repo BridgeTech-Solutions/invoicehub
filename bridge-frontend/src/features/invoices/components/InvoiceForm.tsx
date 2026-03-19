@@ -278,10 +278,33 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
   )
   const acompteInvoices = acompteInvoicesData?.data ?? []
 
-  // Load full detail of the selected parent acompte (to copy its lines)
+  // Load full detail of the selected parent acompte (to copy its lines for multi-acomptes AND solde pre-fill)
   const { data: parentAcompteDetail } = useInvoice(
-    form.type === 'acompte' && form.parentInvoiceId ? form.parentInvoiceId : ''
+    (form.type === 'acompte' || form.type === 'solde') && form.parentInvoiceId ? form.parentInvoiceId : ''
   )
+
+  // When type=solde and a parent acompte is selected, auto-fill lines + metadata (only if lines are blank)
+  const prefillApplied = useRef<string>('')
+  useEffect(() => {
+    if (form.type !== 'solde' || !form.parentInvoiceId || !parentAcompteDetail) return
+    if (prefillApplied.current === form.parentInvoiceId) return // already applied for this acompte
+    const hasUserLines = form.lines.length > 1 || (form.lines.length === 1 && form.lines[0]!.designation.trim() !== '')
+    if (hasUserLines) return // user already entered lines — don't overwrite
+    applyAcomptePrefill(parentAcompteDetail)
+    prefillApplied.current = form.parentInvoiceId
+  }, [parentAcompteDetail, form.parentInvoiceId, form.type]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function applyAcomptePrefill(src: NonNullable<typeof parentAcompteDetail>) {
+    setForm(f => ({
+      ...f,
+      subject:           src.subject          ?? f.subject,
+      notes:             src.notes            ?? f.notes,
+      paymentConditions: src.paymentConditions ?? f.paymentConditions,
+      globalDiscountType:  src.globalDiscountType,
+      globalDiscountValue: Number(src.globalDiscountValue),
+      lines: src.lines.map(lineToFormLine),
+    }))
+  }
 
   const createMutation  = useCreateInvoice()
   const updateMutation  = useUpdateInvoice(invoice?.id ?? '')
@@ -753,6 +776,29 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                         </div>
                       </div>
                     </div>
+                  )}
+
+                  {/* Bouton import lignes depuis l'acompte */}
+                  {parentAcompteDetail && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const hasLines = form.lines.length > 1 || form.lines[0]!.designation.trim() !== ''
+                        if (hasLines && !confirm('Remplacer les lignes actuelles par celles de l\'acompte ?')) return
+                        prefillApplied.current = ''
+                        applyAcomptePrefill(parentAcompteDetail)
+                        prefillApplied.current = form.parentInvoiceId
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '7px 14px', borderRadius: 'var(--radius-md)',
+                        background: 'rgba(8,145,178,0.08)', border: '1.5px solid rgba(8,145,178,0.3)',
+                        color: '#0891b2', cursor: 'pointer', fontSize: 13,
+                        fontFamily: 'var(--font-display)', fontWeight: 600,
+                      }}
+                    >
+                      <Copy size={13} /> Importer les lignes de l'acompte
+                    </button>
                   )}
 
                   {/* Avertissement acompte non soldé */}
