@@ -13,16 +13,18 @@ import type { NotificationType } from '@/features/notifications/types'
 // ─── Type config ──────────────────────────────────────────────
 
 const TYPE_CONFIG: Record<NotificationType, { label: string; color: string; bg: string; icon: string }> = {
-  payment_received:    { label: 'Paiement reçu',       color: '#10b981', bg: 'rgba(16,185,129,0.1)',  icon: '💳' },
-  invoice_issued:      { label: 'Facture émise',        color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',  icon: '📄' },
-  invoice_overdue:     { label: 'Facture en retard',    color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  icon: '⏰' },
-  invoice_cancelled:   { label: 'Facture annulée',      color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   icon: '❌' },
-  proforma_accepted:   { label: 'Proforma acceptée',    color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',  icon: '✅' },
-  proforma_rejected:   { label: 'Proforma rejetée',     color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   icon: '🚫' },
-  proforma_expired:    { label: 'Proforma expirée',     color: '#6b7280', bg: 'rgba(107,114,128,0.1)', icon: '⌛' },
-  user_created:        { label: 'Nouveau compte',       color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)',  icon: '👤' },
-  reminder_sent:       { label: 'Relance envoyée',      color: '#6b7280', bg: 'rgba(107,114,128,0.1)', icon: '🔔' },
-  recurring_generated: { label: 'Facture récurrente',   color: '#06b6d4', bg: 'rgba(6,182,212,0.1)',   icon: '🔄' },
+  proforma_sent:          { label: 'Proforma envoyée',      color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',  icon: '📤' },
+  proforma_accepted:      { label: 'Proforma acceptée',     color: '#10b981', bg: 'rgba(16,185,129,0.1)',  icon: '✅' },
+  proforma_rejected:      { label: 'Proforma rejetée',      color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   icon: '🚫' },
+  proforma_expired:       { label: 'Proforma expirée',      color: '#6b7280', bg: 'rgba(107,114,128,0.1)', icon: '⌛' },
+  invoice_issued:         { label: 'Facture émise',         color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',  icon: '📄' },
+  invoice_paid:           { label: 'Facture soldée',        color: '#10b981', bg: 'rgba(16,185,129,0.1)',  icon: '💳' },
+  invoice_partially_paid: { label: 'Paiement partiel',      color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  icon: '💰' },
+  invoice_overdue:        { label: 'Facture en retard',     color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  icon: '⏰' },
+  payment_registered:     { label: 'Paiement enregistré',   color: '#10b981', bg: 'rgba(16,185,129,0.1)',  icon: '💳' },
+  reminder_sent:          { label: 'Relance envoyée',       color: '#6b7280', bg: 'rgba(107,114,128,0.1)', icon: '🔔' },
+  user_created:           { label: 'Nouveau compte',        color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)',  icon: '👤' },
+  system:                 { label: 'Système',               color: '#6b7280', bg: 'rgba(107,114,128,0.1)', icon: 'ℹ️' },
 }
 
 // ─── Relative time ────────────────────────────────────────────
@@ -54,9 +56,9 @@ function SkeletonNotif() {
 
 // ─── Notification Item ────────────────────────────────────────
 function NotifItem({
-  id, type, title, body, isRead, createdAt, onMarkRead,
+  id, type, title, message, isRead, createdAt, onMarkRead,
 }: {
-  id: string; type: NotificationType; title: string; body: string | null
+  id: string; type: NotificationType; title: string; message: string | null
   isRead: boolean; createdAt: string; onMarkRead: (id: string) => void
 }) {
   const cfg = TYPE_CONFIG[type] ?? { label: type, color: '#6b7280', bg: 'rgba(107,114,128,0.1)', icon: '🔔' }
@@ -102,9 +104,9 @@ function NotifItem({
         }}>
           {title}
         </p>
-        {body && (
+        {message && (
           <p style={{ fontSize: 12.5, color: 'var(--text-3)', margin: 0, lineHeight: 1.4 }}>
-            {body}
+            {message}
           </p>
         )}
       </div>

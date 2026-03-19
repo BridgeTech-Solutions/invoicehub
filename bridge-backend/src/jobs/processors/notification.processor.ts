@@ -45,6 +45,9 @@ export async function processNotificationJob(job: Job<NotificationJobData>): Pro
     where: { userId, type: type as NotificationStatus },
   });
 
+  // Si l'utilisateur a désactivé ce type de notification, ne pas envoyer d'email
+  if (setting?.enabled === false) return;
+
   // Par défaut : in_app uniquement. Si channel = 'email' ou 'both', envoyer un email.
   const channel = setting?.channel ?? 'in_app';
 

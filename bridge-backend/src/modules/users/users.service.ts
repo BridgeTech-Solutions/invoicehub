@@ -4,6 +4,7 @@ import { prisma } from '../../config/database';
 import { hashPassword, comparePassword } from '../../lib/bcrypt';
 import { AppError } from '../../core/errors/AppError';
 import { env } from '../../config/env';
+import { broadcastNotification } from '../../lib/broadcast';
 import type { CreateUserInput, UpdateUserInput, UpdateMeInput, ChangePasswordInput, ListUsersInput } from './users.schema';
 
 const USER_SELECT = {
@@ -103,6 +104,23 @@ export class UsersService {
       },
       select: USER_SELECT,
     });
+
+    // Notifier les admins qu'un nouveau compte a été créé
+    const admins = await prisma.user.findMany({
+      where: { role: 'admin', status: 'active', deletedAt: null },
+      select: { id: true },
+    });
+    for (const admin of admins) {
+      if (admin.id === createdById) continue; // pas d'auto-notification
+      void broadcastNotification({
+        userId: admin.id,
+        type: 'user_created',
+        title: 'Nouveau compte utilisateur',
+        message: `${user.firstName} ${user.lastName} (${user.role}) a rejoint l'équipe.`,
+        data: { userId: user.id },
+      });
+    }
+
     return formatUser(user);
   }
 

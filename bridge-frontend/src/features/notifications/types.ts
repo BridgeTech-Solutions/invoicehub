@@ -1,20 +1,23 @@
+// Types alignés sur l'enum NotificationStatus du backend (Prisma schema)
 export type NotificationType =
-  | 'payment_received'
-  | 'invoice_issued'
-  | 'invoice_overdue'
-  | 'invoice_cancelled'
+  | 'proforma_sent'
   | 'proforma_accepted'
   | 'proforma_rejected'
   | 'proforma_expired'
-  | 'user_created'
+  | 'invoice_issued'
+  | 'invoice_paid'
+  | 'invoice_partially_paid'
+  | 'invoice_overdue'
+  | 'payment_registered'
   | 'reminder_sent'
-  | 'recurring_generated'
+  | 'user_created'
+  | 'system'
 
 export interface Notification {
   id:        string
   type:      NotificationType
   title:     string
-  body:      string | null
+  message:   string | null
   isRead:    boolean
   data:      Record<string, unknown> | null
   createdAt: string
