@@ -26,8 +26,12 @@ export class ReportsService {
     const rows = await prisma.$queryRaw<Array<{ month: string; ht: number; tax: number; ttc: number; count: bigint }>>`
       SELECT
         TO_CHAR(issue_date, 'YYYY-MM') AS month,
-        SUM(total_ht)::numeric  AS ht,
-        SUM(total_tax)::numeric AS tax,
+        SUM(CASE WHEN type = 'acompte' AND acompte_percentage > 0
+              THEN total_ht * acompte_percentage / 100
+              ELSE total_ht END)::numeric  AS ht,
+        SUM(CASE WHEN type = 'acompte' AND acompte_percentage > 0
+              THEN total_tax * acompte_percentage / 100
+              ELSE total_tax END)::numeric AS tax,
         SUM(total_ttc)::numeric AS ttc,
         COUNT(*)                AS count
       FROM invoices
@@ -51,32 +55,42 @@ export class ReportsService {
   async getRevenueByClient(input: DateRangeInput) {
     const { dateFrom, dateTo } = this._resolveDateRange(input);
 
-    const rows = await prisma.invoice.groupBy({
-      by: ['clientId'],
-      where: {
-        deletedAt: null,
-        status: { notIn: ['draft', 'cancelled'] },
-        issueDate: { gte: dateFrom, lte: dateTo },
-      },
-      _sum: { totalHt: true, totalTax: true, totalTtc: true, amountPaid: true, balanceDue: true },
-      _count: true,
-      orderBy: { _sum: { totalTtc: 'desc' } },
-    });
-
-    const clients = await prisma.client.findMany({
-      where: { id: { in: rows.map(r => r.clientId) } },
-      select: { id: true, name: true, email: true },
-    });
-    const clientMap = new Map(clients.map(c => [c.id, c]));
+    const rows = await prisma.$queryRaw<Array<{
+      client_id: string; client_name: string; client_email: string | null;
+      ht: number; tax: number; ttc: number; amount_paid: number; balance_due: number; cnt: bigint;
+    }>>`
+      SELECT
+        c.id          AS client_id,
+        c.name        AS client_name,
+        c.email       AS client_email,
+        SUM(CASE WHEN i.type = 'acompte' AND i.acompte_percentage > 0
+              THEN i.total_ht * i.acompte_percentage / 100
+              ELSE i.total_ht END)::numeric  AS ht,
+        SUM(CASE WHEN i.type = 'acompte' AND i.acompte_percentage > 0
+              THEN i.total_tax * i.acompte_percentage / 100
+              ELSE i.total_tax END)::numeric AS tax,
+        SUM(i.total_ttc)::numeric    AS ttc,
+        SUM(i.amount_paid)::numeric  AS amount_paid,
+        SUM(i.balance_due)::numeric  AS balance_due,
+        COUNT(*)                     AS cnt
+      FROM invoices i
+      JOIN clients c ON i.client_id = c.id
+      WHERE i.deleted_at IS NULL
+        AND i.status NOT IN ('draft', 'cancelled')
+        AND i.issue_date >= ${dateFrom}
+        AND i.issue_date <= ${dateTo}
+      GROUP BY c.id, c.name, c.email
+      ORDER BY ttc DESC
+    `;
 
     return rows.map(r => ({
-      client:     clientMap.get(r.clientId) ?? { id: r.clientId, name: 'Inconnu', email: null },
-      totalHt:    Number(r._sum.totalHt ?? 0),
-      totalTax:   Number(r._sum.totalTax ?? 0),
-      totalTtc:   Number(r._sum.totalTtc ?? 0),
-      amountPaid: Number(r._sum.amountPaid ?? 0),
-      balanceDue: Number(r._sum.balanceDue ?? 0),
-      invoiceCount: r._count,
+      client:       { id: r.client_id, name: r.client_name, email: r.client_email },
+      totalHt:      Number(r.ht),
+      totalTax:     Number(r.tax),
+      totalTtc:     Number(r.ttc),
+      amountPaid:   Number(r.amount_paid),
+      balanceDue:   Number(r.balance_due),
+      invoiceCount: Number(r.cnt),
     }));
   }
 
@@ -146,8 +160,12 @@ export class ReportsService {
     const rows = await prisma.$queryRaw<Array<{ period: string; ht: number; tax: number; ttc: number; count: bigint }>>`
       SELECT
         TO_CHAR(issue_date, 'YYYY "T"Q') AS period,
-        SUM(total_ht)::numeric  AS ht,
-        SUM(total_tax)::numeric AS tax,
+        SUM(CASE WHEN type = 'acompte' AND acompte_percentage > 0
+              THEN total_ht * acompte_percentage / 100
+              ELSE total_ht END)::numeric  AS ht,
+        SUM(CASE WHEN type = 'acompte' AND acompte_percentage > 0
+              THEN total_tax * acompte_percentage / 100
+              ELSE total_tax END)::numeric AS tax,
         SUM(total_ttc)::numeric AS ttc,
         COUNT(*)                AS count
       FROM invoices
