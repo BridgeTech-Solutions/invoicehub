@@ -283,10 +283,11 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
     (form.type === 'acompte' || form.type === 'solde') && form.parentInvoiceId ? form.parentInvoiceId : ''
   )
 
-  // When type=solde and a parent acompte is selected, auto-fill lines + metadata (only if lines are blank)
+  // When type=solde or type=acompte (multi-versement) and a parent acompte is selected,
+  // auto-fill lines + metadata (only if lines are blank)
   const prefillApplied = useRef<string>('')
   useEffect(() => {
-    if (form.type !== 'solde' || !form.parentInvoiceId || !parentAcompteDetail) return
+    if (!['solde', 'acompte'].includes(form.type) || !form.parentInvoiceId || !parentAcompteDetail) return
     if (prefillApplied.current === form.parentInvoiceId) return // already applied for this acompte
     const hasUserLines = form.lines.length > 1 || (form.lines.length === 1 && form.lines[0]!.designation.trim() !== '')
     if (hasUserLines) return // user already entered lines — don't overwrite
@@ -662,11 +663,17 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                       </p>
                     )}
 
-                    {/* Bouton copier les lignes du parent */}
-                    {form.parentInvoiceId && parentAcompteDetail?.lines && parentAcompteDetail.lines.length > 0 && (
+                    {/* Bouton importer lignes + métadonnées du parent */}
+                    {form.parentInvoiceId && parentAcompteDetail && (
                       <button
                         type="button"
-                        onClick={() => setF('lines', parentAcompteDetail.lines.map(lineToFormLine))}
+                        onClick={() => {
+                          const hasLines = form.lines.length > 1 || form.lines[0]!.designation.trim() !== ''
+                          if (hasLines && !confirm('Remplacer les lignes et infos actuelles par celles de l\'acompte ?')) return
+                          prefillApplied.current = ''
+                          applyAcomptePrefill(parentAcompteDetail)
+                          prefillApplied.current = form.parentInvoiceId
+                        }}
                         style={{
                           display: 'inline-flex', alignItems: 'center', gap: 6,
                           marginTop: 10, padding: '7px 13px',
@@ -678,7 +685,7 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                         }}
                       >
                         <Copy size={13} />
-                        Reprendre les lignes de {parentAcompteDetail.number}
+                        Importer lignes & infos de {parentAcompteDetail.number}
                       </button>
                     )}
                   </div>
