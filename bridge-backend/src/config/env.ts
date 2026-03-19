@@ -50,9 +50,9 @@ const envSchema = z.object({
 
   // --- Application ---
   /** URL publique de l'application frontend — utilisée dans les liens des emails et CORS */
-  APP_URL: z.string().url().default('http://localhost:3000'),
+  APP_URL: z.string().url().default('http://localhost:3001'),
   /** URL publique du backend — utilisée pour construire les URLs des fichiers uploadés */
-  BACKEND_URL: z.string().url().default('http://localhost:3001'),
+  BACKEND_URL: z.string().url().default('http://localhost:3000'),
   /** Nom de l'émetteur affiché dans l'application authenticator pour le 2FA */
   TOTP_ISSUER: z.string().default('InvoiceHub BTS'),
 
