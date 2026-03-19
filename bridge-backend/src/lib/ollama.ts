@@ -22,6 +22,7 @@ interface OllamaGenerateRequest {
   options?: {
     temperature?: number;
     num_predict?: number;
+    num_ctx?: number;
   };
 }
 
@@ -75,9 +76,9 @@ export async function ollamaGenerate(prompt: string, system?: string): Promise<s
         prompt,
         system,
         stream: false,
-        options: { temperature: 0.3 },
+        options: { temperature: 0.3, num_ctx: 8192 },
       } satisfies OllamaGenerateRequest),
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(120_000),
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -112,9 +113,9 @@ export async function* ollamaStream(
         prompt,
         system,
         stream: true,
-        options: { temperature: 0.3 },
+        options: { temperature: 0.3, num_ctx: 8192 },
       } satisfies OllamaGenerateRequest),
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(120_000),
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
