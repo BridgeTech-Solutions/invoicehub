@@ -36,12 +36,15 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml* ./
 RUN pnpm install --prod --frozen-lockfile
 
+# Prisma : schema + migrations (requis pour generate + migrate deploy)
+COPY --from=builder /app/prisma ./prisma
+
+# Regénère le client Prisma dans l'image de production
+# (évite les problèmes de symlinks du store pnpm entre les stages)
+RUN node_modules/.bin/prisma generate
+
 # Artefacts de build
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-
-# Prisma : schema + migrations (requis pour prisma migrate deploy)
-COPY --from=builder /app/prisma ./prisma
 
 # Assets société (logos, header, footer, cachet pour les PDFs)
 COPY --from=builder /app/assets ./assets
