@@ -49,6 +49,9 @@ COPY --from=builder /app/dist ./dist
 # Assets société (logos, header, footer, cachet pour les PDFs)
 COPY --from=builder /app/assets ./assets
 
+# Créer les dossiers uploads avec les bonnes permissions avant de changer d'utilisateur
+RUN mkdir -p /app/uploads/avatars /app/uploads/assets /app/uploads/backups /app/uploads/attachments
+
 # Utilisateur non-root pour limiter la surface d'attaque
 RUN groupadd --gid 1001 nodejs && useradd --uid 1001 --gid nodejs --shell /bin/bash --create-home nodeapp
 RUN chown -R nodeapp:nodejs /app
