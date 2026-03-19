@@ -116,11 +116,12 @@ export class PaymentsService {
       const isPaid        = newBalanceDue <= 0;
 
       // Détermine le nouveau statut selon l'état du paiement
+      // Une facture overdue reste overdue tant qu'elle n'est pas soldée
       const newStatus = isPaid
         ? 'paid'
-        : Number(invoice.amountPaid) === 0
-        ? 'partially_paid'  // Pas de paiement précédent → premier règlement partiel
-        : invoice.status;   // Déjà partiellement payée → statut inchangé
+        : invoice.status === 'overdue'
+        ? 'overdue'         // Paiement partiel sur une facture en retard → reste overdue
+        : 'partially_paid'; // issued ou partially_paid → partially_paid
 
       // 3. Mettre à jour la facture (et son historique de statut si changement)
       await tx.invoice.update({
