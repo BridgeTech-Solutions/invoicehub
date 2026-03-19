@@ -298,6 +298,7 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
   function applyAcomptePrefill(src: NonNullable<typeof parentAcompteDetail>) {
     setForm(f => ({
       ...f,
+      clientId:          src.clientId,
       subject:           src.subject          ?? f.subject,
       notes:             src.notes            ?? f.notes,
       paymentConditions: src.paymentConditions ?? f.paymentConditions,
