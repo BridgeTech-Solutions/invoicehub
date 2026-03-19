@@ -19,7 +19,7 @@ export function PaymentModal({ invoice, onClose }: PaymentModalProps) {
   const balanceDue = Number(invoice.balanceDue)
 
   const [amount,    setAmount]    = useState(balanceDue)
-  const [method,    setMethod]    = useState<string>('bank_transfer')
+  const [method,    setMethod]    = useState<string>('virement')
   const [date,      setDate]      = useState(today())
   const [reference, setReference] = useState('')
   const [notes,     setNotes]     = useState('')

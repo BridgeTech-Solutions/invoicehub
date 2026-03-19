@@ -64,11 +64,11 @@ export const STATUS_LABELS: Record<string, string> = {
 }
 
 export const PAYMENT_METHODS = {
-  cash:           'Espèces',
-  bank_transfer:  'Virement',
-  mobile_money:   'Mobile Money',
-  check:          'Chèque',
-  card:           'Carte bancaire',
+  virement:     'Virement bancaire',
+  especes:      'Espèces',
+  cheque:       'Chèque',
+  mobile_money: 'Mobile Money',
+  autre:        'Autre',
 } as const
 
 export const TAX_RATE_DEFAULT = 19.25  // SYSCOHADA TVA Cameroun
