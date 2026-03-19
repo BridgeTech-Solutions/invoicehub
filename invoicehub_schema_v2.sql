@@ -732,6 +732,7 @@ CREATE TABLE invoices (
     last_sent_at            TIMESTAMPTZ,
     last_reminder_at        TIMESTAMPTZ,
     reminder_count          SMALLINT      NOT NULL DEFAULT 0,
+    reminder_escalation_level SMALLINT    NOT NULL DEFAULT 0, -- 0=aucune, 1=douce, 2=ferme, 3=urgente, 4=critique
 
     -- Annulation (génère un avoir automatiquement — CDC §4.4)
     cancelled_at            TIMESTAMPTZ,
