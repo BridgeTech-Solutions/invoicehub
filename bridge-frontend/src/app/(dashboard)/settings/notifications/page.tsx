@@ -331,7 +331,7 @@ function TemplateEditor({ template }: { template: EmailTemplate }) {
           <Mail size={14} style={{ color: 'var(--primary)' }} />
           <div style={{ textAlign: 'left' }}>
             <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)', margin: 0 }}>{template.name}</p>
-            <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: '1px 0 0', fontFamily: 'var(--font-mono)' }}>{template.code}</p>
+            <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: '1px 0 0', fontFamily: 'var(--font-mono)' }}>{template.type}</p>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
