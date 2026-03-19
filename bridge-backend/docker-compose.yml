@@ -50,9 +50,10 @@ services:
       PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
       PGDUMP_PATH: pg_dump
       PGDUMP_DOCKER_CONTAINER: ""   # Désactivé — pg_dump est local au container
-      # CORS : le frontend tourne sur le port 3001 — doit être autorisé quoi qu'il y ait dans .env
-      APP_URL: ${APP_URL:-http://localhost:3001}
-      BACKEND_URL: ${BACKEND_URL:-http://localhost:3000}
+      # CORS : le frontend tourne sur le port 3001, le backend sur 3000
+      # Ces valeurs sont fixes en Docker — ne pas utiliser la substitution ${} qui lit le .env
+      APP_URL: http://localhost:3001
+      BACKEND_URL: http://localhost:3000
       # Ollama tourne sur le serveur hôte (host.docker.internal = la machine hôte)
       OLLAMA_URL: http://host.docker.internal:11434
       OLLAMA_ENABLED: ${OLLAMA_ENABLED:-false}
