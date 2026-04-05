@@ -111,6 +111,7 @@ export function ActionMenu({ items, width = 200 }: ActionMenuProps) {
   // Le dropdown n'est rendu que lorsque la position est calculée (open ET pos définis)
   const dropdown = (open && pos) ? (
     <div
+      role="menu"
       style={{
         position:     'fixed',
         top:          pos.top,
@@ -136,6 +137,7 @@ export function ActionMenu({ items, width = 200 }: ActionMenuProps) {
             )}
             <button
               type="button"
+              role="menuitem"
               disabled={item.disabled}
               onClick={() => { item.onClick(); setOpen(false) }}
               style={{
@@ -169,6 +171,9 @@ export function ActionMenu({ items, width = 200 }: ActionMenuProps) {
         ref={btnRef}
         type="button"
         onClick={toggle}
+        aria-label="Actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
         style={{
           background: 'none', border: 'none', cursor: 'pointer',
           padding: '5px 7px', borderRadius: 6, color: 'var(--text-3)',

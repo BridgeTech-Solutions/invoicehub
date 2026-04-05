@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useId, useRef, useEffect } from 'react'
 import { Percent, Building, Plus, Pencil, Trash2, Check, X, Loader2, Star, Hash } from 'lucide-react'
 import { useTaxRates, useCreateTaxRate, useUpdateTaxRate, useDeleteTaxRate } from '@/features/tax-rates/hooks'
 import { useOffices, useCreateOffice, useUpdateOffice, useDeleteOffice } from '@/features/offices/hooks'
@@ -19,15 +19,59 @@ function SectionHeader({ icon, title, onAdd, addLabel }: {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ color: 'var(--primary)' }}>{icon}</div>
+        <div aria-hidden="true" style={{ color: 'var(--primary)' }}>{icon}</div>
         <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0 }}>{title}</h2>
       </div>
       {onAdd && (
-        <button type="button" onClick={onAdd}
+        <button type="button" onClick={onAdd} aria-label={addLabel}
           style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: '#fff', cursor: 'pointer', fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-          <Plus size={12} /> {addLabel}
+          <Plus size={12} aria-hidden="true" /> {addLabel}
         </button>
       )}
+    </div>
+  )
+}
+
+// ─── Confirm delete modal ──────────────────────────────────────
+function ConfirmDeleteModal({
+  label, onConfirm, onCancel, isPending,
+}: { label: string; onConfirm: () => void; onCancel: () => void; isPending: boolean }) {
+  const titleId    = useId()
+  const confirmRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => { confirmRef.current?.focus() }, [])
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onCancel])
+
+  return (
+    <div
+      role="presentation"
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel() }}
+    >
+      <div role="dialog" aria-modal="true" aria-labelledby={titleId}
+        style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 28, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
+        <h2 id={titleId} style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: '0 0 10px' }}>
+          Supprimer
+        </h2>
+        <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: '0 0 22px', lineHeight: 1.6 }}>
+          Supprimer <strong>«&nbsp;{label}&nbsp;»</strong> ? Cette action est irréversible.
+        </p>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onCancel}
+            style={{ padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)', cursor: 'pointer', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+            Annuler
+          </button>
+          <button ref={confirmRef} type="button" onClick={onConfirm} disabled={isPending}
+            style={{ padding: '8px 16px', borderRadius: 'var(--radius-md)', border: 'none', background: '#ef4444', color: '#fff', cursor: isPending ? 'not-allowed' : 'pointer', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: isPending ? 0.65 : 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+            {isPending && <Loader2 size={13} className="animate-spin" aria-hidden="true" />}
+            Supprimer
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -42,22 +86,32 @@ function TaxRateForm({ initial, onSave, onCancel, isPending }: {
     rate: initial?.rate ?? 0, description: initial?.description ?? '',
     isDefault: initial?.isDefault ?? false,
   })
+  const uid = useId()
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px auto auto auto', gap: 8, alignItems: 'center', padding: '10px 12px', background: 'rgba(45,125,210,0.04)', borderRadius: 'var(--radius-md)', border: '1.5px dashed rgba(45,125,210,0.25)' }}>
-      <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nom (ex: TVA Standard)" style={inputCss} />
-      <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="Code" style={inputCss} />
-      <input type="number" value={form.rate} onChange={(e) => setForm({ ...form, rate: parseFloat(e.target.value) })} placeholder="%" min={0} max={100} step={0.01} style={inputCss} />
+      <div>
+        <label htmlFor={`${uid}-name`} className="sr-only">Nom du taux</label>
+        <input id={`${uid}-name`} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nom (ex: TVA Standard)" style={inputCss} />
+      </div>
+      <div>
+        <label htmlFor={`${uid}-code`} className="sr-only">Code du taux</label>
+        <input id={`${uid}-code`} value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="Code" style={inputCss} />
+      </div>
+      <div>
+        <label htmlFor={`${uid}-rate`} className="sr-only">Taux en pourcentage</label>
+        <input id={`${uid}-rate`} type="number" value={form.rate} onChange={(e) => setForm({ ...form, rate: parseFloat(e.target.value) })} placeholder="%" min={0} max={100} step={0.01} style={inputCss} />
+      </div>
       <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: 'var(--text-2)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
         <input type="checkbox" checked={form.isDefault} onChange={(e) => setForm({ ...form, isDefault: e.target.checked })} />
         Défaut
       </label>
-      <button type="button" onClick={() => onSave(form)} disabled={!form.name || !form.code || isPending}
-        style={{ padding: '7px 10px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-        {isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+      <button type="button" aria-label="Enregistrer le taux" onClick={() => onSave(form)} disabled={!form.name || !form.code || isPending}
+        style={{ padding: '7px 10px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', opacity: isPending ? 0.65 : 1, minHeight: 44 }}>
+        {isPending ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Check size={13} aria-hidden="true" />}
       </button>
-      <button type="button" onClick={onCancel}
-        style={{ padding: '7px 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-        <X size={13} />
+      <button type="button" aria-label="Annuler" onClick={onCancel}
+        style={{ padding: '7px 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', minHeight: 44 }}>
+        <X size={13} aria-hidden="true" />
       </button>
     </div>
   )
@@ -71,19 +125,20 @@ function TaxRatesSection() {
   const deleteMut = useDeleteTaxRate()
   const [creating, setCreating] = useState(false)
   const [editId, setEditId]     = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<TaxRate | null>(null)
 
   return (
     <div className="card">
-      <SectionHeader icon={<Percent size={15} />} title="Taux de TVA" onAdd={() => setCreating(true)} addLabel="Ajouter" />
+      <SectionHeader icon={<Percent size={15} />} title="Taux de TVA" onAdd={() => setCreating(true)} addLabel="Ajouter un taux" />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {/* Header row */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px auto 80px', gap: 8, padding: '0 12px' }}>
+        <div aria-hidden="true" style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px auto 80px', gap: 8, padding: '0 12px' }}>
           {['Nom', 'Code', 'Taux %', '', 'Actions'].map((h) => (
             <span key={h} style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
           ))}
         </div>
         {isLoading
-          ? Array.from({ length: 3 }).map((_, i) => <div key={i} style={{ height: 40, background: 'var(--border)', borderRadius: 'var(--radius-md)' }} className="animate-pulse" />)
+          ? Array.from({ length: 3 }).map((_, i) => <div key={i} aria-hidden="true" style={{ height: 40, background: 'var(--border)', borderRadius: 'var(--radius-md)' }} className="animate-pulse" />)
           : rates.map((r) => editId === r.id
             ? (
               <TaxRateForm
@@ -97,7 +152,7 @@ function TaxRatesSection() {
             : (
               <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px auto 80px', gap: 8, alignItems: 'center', padding: '10px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', opacity: r.isActive ? 1 : 0.5 }}>
                 <span style={{ fontSize: 13.5, color: 'var(--text-1)', fontWeight: r.isDefault ? 600 : 400, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {r.isDefault && <Star size={11} style={{ color: '#f59e0b', fill: '#f59e0b' }} />}
+                  {r.isDefault && <Star size={11} style={{ color: '#f59e0b', fill: '#f59e0b' }} aria-hidden="true" />}
                   {r.name}
                 </span>
                 <span style={{ fontSize: 12.5, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>{r.code}</span>
@@ -106,19 +161,23 @@ function TaxRatesSection() {
                   {r.isActive ? 'Actif' : 'Inactif'}
                 </span>
                 <div style={{ display: 'flex', gap: 4 }}>
-                  <button type="button" onClick={() => setEditId(r.id)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 4, borderRadius: 4 }}
+                  <button type="button" aria-label={`Modifier le taux ${r.name}`} onClick={() => setEditId(r.id)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 4, borderRadius: 4, minHeight: 44, display: 'flex', alignItems: 'center' }}
                     onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--primary)' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}>
-                    <Pencil size={13} />
+                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}
+                    onFocus={(e)      => { e.currentTarget.style.color = 'var(--primary)' }}
+                    onBlur={(e)       => { e.currentTarget.style.color = 'var(--text-3)' }}>
+                    <Pencil size={13} aria-hidden="true" />
                   </button>
                   {!r.isDefault && (
-                    <button type="button"
-                      onClick={() => { if (confirm(`Supprimer "${r.name}" ?`)) deleteMut.mutate(r.id) }}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 4, borderRadius: 4 }}
+                    <button type="button" aria-label={`Supprimer le taux ${r.name}`}
+                      onClick={() => setDeleteTarget(r)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 4, borderRadius: 4, minHeight: 44, display: 'flex', alignItems: 'center' }}
                       onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}>
-                      <Trash2 size={13} />
+                      onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}
+                      onFocus={(e)      => { e.currentTarget.style.color = '#ef4444' }}
+                      onBlur={(e)       => { e.currentTarget.style.color = 'var(--text-3)' }}>
+                      <Trash2 size={13} aria-hidden="true" />
                     </button>
                   )}
                 </div>
@@ -134,6 +193,14 @@ function TaxRatesSection() {
           />
         )}
       </div>
+      {deleteTarget && (
+        <ConfirmDeleteModal
+          label={deleteTarget.name}
+          onConfirm={() => deleteMut.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) })}
+          onCancel={() => setDeleteTarget(null)}
+          isPending={deleteMut.isPending}
+        />
+      )}
     </div>
   )
 }
@@ -148,22 +215,32 @@ function OfficeForm({ initial, onSave, onCancel, isPending }: {
     city: initial?.city ?? '', address: initial?.address ?? '',
     isDefault: initial?.isDefault ?? false,
   })
+  const uid = useId()
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr auto auto auto', gap: 8, alignItems: 'center', padding: '10px 12px', background: 'rgba(45,125,210,0.04)', borderRadius: 'var(--radius-md)', border: '1.5px dashed rgba(45,125,210,0.25)' }}>
-      <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="Code (DC)" style={inputCss} maxLength={10} />
-      <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nom du bureau" style={inputCss} />
-      <input value={form.city ?? ''} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="Ville" style={inputCss} />
+      <div>
+        <label htmlFor={`${uid}-code`} className="sr-only">Code du bureau</label>
+        <input id={`${uid}-code`} value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="Code (DC)" style={inputCss} maxLength={10} />
+      </div>
+      <div>
+        <label htmlFor={`${uid}-name`} className="sr-only">Nom du bureau</label>
+        <input id={`${uid}-name`} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nom du bureau" style={inputCss} />
+      </div>
+      <div>
+        <label htmlFor={`${uid}-city`} className="sr-only">Ville</label>
+        <input id={`${uid}-city`} value={form.city ?? ''} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="Ville" style={inputCss} />
+      </div>
       <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: 'var(--text-2)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
         <input type="checkbox" checked={form.isDefault} onChange={(e) => setForm({ ...form, isDefault: e.target.checked })} />
         Principal
       </label>
-      <button type="button" onClick={() => onSave(form)} disabled={!form.code || !form.name || isPending}
-        style={{ padding: '7px 10px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-        {isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+      <button type="button" aria-label="Enregistrer le bureau" onClick={() => onSave(form)} disabled={!form.code || !form.name || isPending}
+        style={{ padding: '7px 10px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', opacity: isPending ? 0.65 : 1, minHeight: 44 }}>
+        {isPending ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Check size={13} aria-hidden="true" />}
       </button>
-      <button type="button" onClick={onCancel}
-        style={{ padding: '7px 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-        <X size={13} />
+      <button type="button" aria-label="Annuler" onClick={onCancel}
+        style={{ padding: '7px 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', minHeight: 44 }}>
+        <X size={13} aria-hidden="true" />
       </button>
     </div>
   )
@@ -177,6 +254,7 @@ function OfficesSection() {
   const deleteMut = useDeleteOffice()
   const [creating, setCreating] = useState(false)
   const [editId, setEditId]     = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Office | null>(null)
 
   return (
     <div className="card">
@@ -185,13 +263,13 @@ function OfficesSection() {
         Les codes bureaux sont utilisés dans la numérotation SYSCOHADA : BTS/<strong>DC</strong>/2026/01/FAC001
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr auto 80px', gap: 8, padding: '0 12px' }}>
+        <div aria-hidden="true" style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr auto 80px', gap: 8, padding: '0 12px' }}>
           {['Code', 'Nom', 'Ville', '', 'Actions'].map((h) => (
             <span key={h} style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
           ))}
         </div>
         {isLoading
-          ? Array.from({ length: 2 }).map((_, i) => <div key={i} style={{ height: 40, background: 'var(--border)', borderRadius: 'var(--radius-md)' }} className="animate-pulse" />)
+          ? Array.from({ length: 2 }).map((_, i) => <div key={i} aria-hidden="true" style={{ height: 40, background: 'var(--border)', borderRadius: 'var(--radius-md)' }} className="animate-pulse" />)
           : offices.filter((o) => !o.deletedAt).map((o) => editId === o.id
             ? (
               <OfficeForm
@@ -206,7 +284,7 @@ function OfficesSection() {
               <div key={o.id} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr auto 80px', gap: 8, alignItems: 'center', padding: '10px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)', fontFamily: 'var(--font-mono)' }}>{o.code}</span>
                 <span style={{ fontSize: 13.5, color: 'var(--text-1)', fontWeight: o.isDefault ? 600 : 400, display: 'flex', alignItems: 'center', gap: 5 }}>
-                  {o.isDefault && <Star size={11} style={{ color: '#f59e0b', fill: '#f59e0b' }} />}
+                  {o.isDefault && <Star size={11} style={{ color: '#f59e0b', fill: '#f59e0b' }} aria-hidden="true" />}
                   {o.name}
                 </span>
                 <span style={{ fontSize: 13, color: 'var(--text-3)' }}>{o.city ?? '—'}</span>
@@ -214,19 +292,23 @@ function OfficesSection() {
                   {o.isDefault ? 'Principal' : 'Agence'}
                 </span>
                 <div style={{ display: 'flex', gap: 4 }}>
-                  <button type="button" onClick={() => setEditId(o.id)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 4, borderRadius: 4 }}
+                  <button type="button" aria-label={`Modifier le bureau ${o.name}`} onClick={() => setEditId(o.id)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 4, borderRadius: 4, minHeight: 44, display: 'flex', alignItems: 'center' }}
                     onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--primary)' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}>
-                    <Pencil size={13} />
+                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}
+                    onFocus={(e)      => { e.currentTarget.style.color = 'var(--primary)' }}
+                    onBlur={(e)       => { e.currentTarget.style.color = 'var(--text-3)' }}>
+                    <Pencil size={13} aria-hidden="true" />
                   </button>
                   {!o.isDefault && (
-                    <button type="button"
-                      onClick={() => { if (confirm(`Supprimer le bureau "${o.name}" ?`)) deleteMut.mutate(o.id) }}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 4, borderRadius: 4 }}
+                    <button type="button" aria-label={`Supprimer le bureau ${o.name}`}
+                      onClick={() => setDeleteTarget(o)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 4, borderRadius: 4, minHeight: 44, display: 'flex', alignItems: 'center' }}
                       onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}>
-                      <Trash2 size={13} />
+                      onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}
+                      onFocus={(e)      => { e.currentTarget.style.color = '#ef4444' }}
+                      onBlur={(e)       => { e.currentTarget.style.color = 'var(--text-3)' }}>
+                      <Trash2 size={13} aria-hidden="true" />
                     </button>
                   )}
                 </div>
@@ -242,6 +324,14 @@ function OfficesSection() {
           />
         )}
       </div>
+      {deleteTarget && (
+        <ConfirmDeleteModal
+          label={deleteTarget.name}
+          onConfirm={() => deleteMut.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) })}
+          onCancel={() => setDeleteTarget(null)}
+          isPending={deleteMut.isPending}
+        />
+      )}
     </div>
   )
 }
@@ -265,7 +355,7 @@ function DocumentSequencesSection() {
       </p>
       {isLoading
         ? Array.from({ length: 2 }).map((_, i) => (
-          <div key={i} style={{ height: 80, background: 'var(--border)', borderRadius: 'var(--radius-md)', marginBottom: 8 }} className="animate-pulse" />
+          <div key={i} aria-hidden="true" style={{ height: 80, background: 'var(--border)', borderRadius: 'var(--radius-md)', marginBottom: 8 }} className="animate-pulse" />
         ))
         : activeOffices.length === 0
           ? <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center', padding: '16px 0' }}>Aucun bureau configuré</p>
@@ -290,7 +380,7 @@ function DocumentSequencesSection() {
                       <div key={prefix} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 'var(--radius-md)', background: bg, border: `1px solid ${color}22` }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color, fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: 54 }}>{label}</span>
                         <code style={{ fontSize: 11.5, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', letterSpacing: '0.02em' }}>
-                          BTS/{o.code}/{year}/{month}/{prefix}<span style={{ color }}>###</span>
+                          BTS/{o.code}/{year}/{month}/{prefix}<span style={{ color }} aria-hidden="true">###</span>
                         </code>
                       </div>
                     ))}

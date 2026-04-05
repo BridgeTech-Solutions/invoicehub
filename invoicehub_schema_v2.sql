@@ -635,6 +635,9 @@ CREATE TABLE proforma_lines (
     tax_amount      NUMERIC(15,2) NOT NULL DEFAULT 0,  -- net_ht × tax_rate/100
     total_ttc       NUMERIC(15,2) NOT NULL DEFAULT 0,  -- net_ht + tax_amount
 
+    -- Mode service : masque Ref/Qté/PU sur le PDF — unit_price_ht = montant total de la prestation
+    hide_details    BOOLEAN      NOT NULL DEFAULT FALSE,
+
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
@@ -824,6 +827,9 @@ CREATE TABLE invoice_lines (
     net_ht          NUMERIC(15,2) NOT NULL DEFAULT 0,
     tax_amount      NUMERIC(15,2) NOT NULL DEFAULT 0,
     total_ttc       NUMERIC(15,2) NOT NULL DEFAULT 0,
+
+    -- Mode service : masque Ref/Qté/PU sur le PDF — unit_price_ht = montant total de la prestation
+    hide_details    BOOLEAN      NOT NULL DEFAULT FALSE,
 
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),

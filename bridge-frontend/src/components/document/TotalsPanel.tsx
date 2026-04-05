@@ -40,10 +40,15 @@ export function TotalsPanel({
   const acompteHt  = isAcompte ? Math.round(totals.totalHt  * pct / 100) : 0
   const accomteTva = isAcompte ? Math.round(totals.totalTax * pct / 100) : 0
   const acompteTtc = acompteHt + accomteTva
-  const acompteReste = Math.round(totals.totalTtc - acompteTtc)
+  // Solde restant = total projet − acomptes déjà engagés (précédents) − cet acompte
+  const acompteReste = Math.round(totals.totalTtc - totalAcomptesDeducted - acompteTtc)
 
   // Solde breakdown
-  const soldeDu = Math.round(totals.totalTtc - totalAcomptesDeducted)
+  const soldeTtc = Math.round(totals.totalTtc - totalAcomptesDeducted)
+  // Proportional HT/TVA for the solde (ratio = soldeTtc / totalTtc)
+  const soldeRatio = totals.totalTtc > 0 ? soldeTtc / totals.totalTtc : 0
+  const soldeHt    = Math.round(totals.totalHt  * soldeRatio)
+  const soldeTva   = Math.round(totals.totalTax * soldeRatio)
 
   const row = (label: string, value: string, bold = false, large = false, accent = false) => (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
@@ -177,6 +182,14 @@ export function TotalsPanel({
               <p style={{ margin: '0 0 6px', fontSize: 10.5, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#7c3aed' }}>
                 Acompte {pct}%
               </p>
+              {totalAcomptesDeducted > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0', marginBottom: 4 }}>
+                  <span style={{ fontSize: 12.5, color: '#7c3aed', fontFamily: 'var(--font-body)' }}>Acomptes précédents</span>
+                  <span style={{ fontSize: 12.5, fontWeight: 600, color: '#7c3aed', fontFamily: 'var(--font-mono)' }}>
+                    − {formatXAF(Math.round(totalAcomptesDeducted))}
+                  </span>
+                </div>
+              )}
               {row('Acompte HT',      formatXAF(acompteHt))}
               {row('TVA sur acompte', formatXAF(accomteTva))}
               <div style={{ height: 1, background: 'rgba(124,58,237,0.15)', margin: '4px 0' }} />
@@ -222,12 +235,16 @@ export function TotalsPanel({
                 </span>
               </div>
               <div style={{ height: 1, background: 'rgba(8,145,178,0.15)', margin: '4px 0' }} />
+              {/* Solde HT / TVA / TTC */}
+              {row('Solde HT', formatXAF(soldeHt))}
+              {row('TVA sur solde', formatXAF(soldeTva))}
+              <div style={{ height: 1, background: 'rgba(8,145,178,0.25)', margin: '4px 0' }} />
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0' }}>
                 <span style={{ fontSize: 14, fontWeight: 700, color: '#0891b2', fontFamily: 'var(--font-display)' }}>
                   Solde dû TTC
                 </span>
                 <span style={{ fontSize: 18, fontWeight: 800, color: '#0891b2', fontFamily: 'var(--font-mono)', letterSpacing: '-0.01em' }}>
-                  {formatXAF(soldeDu)}
+                  {formatXAF(soldeTtc)}
                 </span>
               </div>
             </div>

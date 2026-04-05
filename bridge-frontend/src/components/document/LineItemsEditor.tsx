@@ -2,12 +2,14 @@
 
 import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Plus, Trash2, ChevronDown, Search, AlertCircle, GripVertical } from 'lucide-react'
+import { Plus, Trash2, Search, AlertCircle, GripVertical, EyeOff, Eye, PackagePlus } from 'lucide-react'
 import { useProducts } from '@/features/products/hooks'
 import { useProductLineDefaults } from '@/features/products/hooks'
 import type { FormLine, DiscountType } from '@/features/proformas/types'
+import type { Product } from '@/features/products/types'
 import { computeLineValues, makeBlankLine } from '@/lib/document-math'
 import { formatXAF } from '@/lib/utils'
+import { QuickCreateProductModal } from './QuickCreateProductModal'
 
 // ─── Constants ─────────────────────────────────────────────────
 
@@ -40,12 +42,14 @@ interface ProductComboProps {
 }
 
 function ProductCombo({ value, onChange, onSelect, disabled }: ProductComboProps) {
-  const [open,    setOpen]    = useState(false)
-  const [search,  setSearch]  = useState(value)
-  const [pos,     setPos]     = useState<{ top: number; left: number; width: number } | null>(null)
-  const [mounted, setMounted] = useState(false)
-  const containerRef          = useRef<HTMLDivElement>(null)
-  const dropdownRef           = useRef<HTMLDivElement>(null)
+  const [open,             setOpen]            = useState(false)
+  const [search,           setSearch]          = useState(value)
+  const [pos,              setPos]             = useState<{ top: number; left: number; width: number } | null>(null)
+  const [mounted,          setMounted]         = useState(false)
+  const [quickCreateOpen,  setQuickCreateOpen] = useState(false)
+  const [quickCreateName,  setQuickCreateName] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef  = useRef<HTMLDivElement>(null)
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -89,29 +93,57 @@ function ProductCombo({ value, onChange, onSelect, disabled }: ProductComboProps
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
-  const dropdown = (open && pos && filtered.length > 0 && !disabled) ? (
+  // Handler : ouvre le modal de création rapide
+  const handleQuickCreate = () => {
+    setQuickCreateName(search.trim())
+    setOpen(false)
+    setQuickCreateOpen(true)
+  }
+
+  // Handler : produit créé → auto-sélection dans la ligne
+  const handleProductCreated = (created: Product) => {
+    onSelect({
+      id:           created.id,
+      name:         created.name,
+      description:  created.description ?? null,
+      unit:         created.unit,
+      unitPriceHt:  created.unitPriceHt,
+      taxRateValue: created.taxRateValue,
+    })
+    setSearch(created.name)
+    setQuickCreateOpen(false)
+  }
+
+  const showDropdown = open && pos && !disabled
+
+  const dropdown = showDropdown ? (
     <div
       ref={dropdownRef}
       style={{
         position: 'fixed',
-        top:      pos.top,
-        left:     pos.left,
-        width:    pos.width,
+        top:      pos!.top,
+        left:     pos!.left,
+        width:    pos!.width,
         zIndex:   9999,
         background:   'var(--surface)',
         border:       '1px solid var(--border)',
         borderRadius: 'var(--radius-md)',
         boxShadow:    'var(--shadow-md)',
-        maxHeight:    260,
+        maxHeight:    280,
         overflowY:    'auto',
+        display:      'flex',
+        flexDirection: 'column',
       }}
     >
-      <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
+      {/* Header catalogue */}
+      <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--font-display)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           Catalogue produits
         </span>
       </div>
-      {filtered.map((p) => (
+
+      {/* Résultats */}
+      {filtered.length > 0 ? filtered.map((p) => (
         <button
           key={p.id}
           type="button"
@@ -160,7 +192,51 @@ function ProductCombo({ value, onChange, onSelect, disabled }: ProductComboProps
             </p>
           </div>
         </button>
-      ))}
+      )) : (
+        <div style={{ padding: '12px 12px 8px', textAlign: 'center' }}>
+          <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
+            {search.trim() ? `Aucun résultat pour « ${search} »` : 'Catalogue vide'}
+          </span>
+        </div>
+      )}
+
+      {/* ── Bouton Créer ── */}
+      <button
+        type="button"
+        onMouseDown={(e) => { e.preventDefault(); handleQuickCreate() }}
+        style={{
+          flexShrink: 0,
+          width: '100%',
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '9px 12px',
+          background: 'rgba(45,125,210,0.04)',
+          border: 'none',
+          borderTop: '1.5px solid rgba(45,125,210,0.15)',
+          cursor: 'pointer',
+          textAlign: 'left',
+          transition: 'background 0.15s',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(45,125,210,0.09)' }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(45,125,210,0.04)' }}
+      >
+        <div style={{
+          width: 22, height: 22, borderRadius: 6,
+          background: 'rgba(45,125,210,0.12)',
+          border: '1px solid rgba(45,125,210,0.25)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <PackagePlus size={12} aria-hidden="true" style={{ color: 'var(--primary)' }} />
+        </div>
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--primary)', fontFamily: 'var(--font-display)' }}>
+          {search.trim()
+            ? <>Créer <strong>«&nbsp;{search.trim()}&nbsp;»</strong></>
+            : 'Créer un nouveau produit / service'}
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 'auto' }}>
+          Raccourci rapide
+        </span>
+      </button>
     </div>
   ) : null
 
@@ -193,6 +269,12 @@ function ProductCombo({ value, onChange, onSelect, disabled }: ProductComboProps
         />
       </div>
       {mounted ? createPortal(dropdown, document.body) : null}
+      <QuickCreateProductModal
+        open={quickCreateOpen}
+        initialName={quickCreateName}
+        onClose={() => setQuickCreateOpen(false)}
+        onCreated={handleProductCreated}
+      />
     </div>
   )
 }
@@ -218,9 +300,10 @@ function PriceChangeAlert({ productId, clientId, currentPrice }: {
 // Renders HTML formatting (bold, lists…) while editing.
 // Stores raw HTML — the PDF generator uses it directly.
 
-function ContentEditableDesc({ value, onChange }: {
+function ContentEditableDesc({ value, onChange, readonly = false }: {
   value: string
   onChange: (html: string) => void
+  readonly?: boolean
 }) {
   const ref    = useRef<HTMLDivElement>(null)
   const active = useRef(false)
@@ -248,25 +331,26 @@ function ContentEditableDesc({ value, onChange }: {
       )}
       <div
         ref={ref}
-        contentEditable
+        contentEditable={readonly ? false : true}
         suppressContentEditableWarning
-        onFocus={() => { active.current = true; setEmpty(false) }}
-        onInput={(e) => {
+        onFocus={readonly ? undefined : () => { active.current = true; setEmpty(false) }}
+        onInput={readonly ? undefined : (e) => {
           const html = (e.target as HTMLDivElement).innerHTML
           onChange(html)
           setEmpty(isHtmlEmpty(html))
         }}
-        onBlur={(e) => {
+        onBlur={readonly ? undefined : (e) => {
           active.current = false
           const html = e.currentTarget.innerHTML
           onChange(html)
           setEmpty(isHtmlEmpty(html))
         }}
         style={{
-          width: '100%', minHeight: 32,
+          width: '100%', minHeight: readonly ? undefined : 32,
           fontSize: 11.5, color: 'var(--text-3)',
           padding: '4px 8px', background: 'transparent', outline: 'none',
           fontFamily: 'var(--font-body)', lineHeight: 1.5, wordBreak: 'break-word',
+          cursor: readonly ? 'default' : undefined,
         }}
       />
     </div>
@@ -280,6 +364,7 @@ interface LineRowProps {
   index: number
   clientId?: string
   disabled?: boolean
+  allService: boolean   // true si toutes les lignes du tableau sont en mode service
   onUpdate: (line: FormLine) => void
   onRemove: () => void
   // drag-and-drop
@@ -291,7 +376,7 @@ interface LineRowProps {
   onDragEnd: () => void
 }
 
-function LineRow({ line, index, clientId, disabled, onUpdate, onRemove, isDragging, isOver, onDragStart, onDragOver, onDrop, onDragEnd }: LineRowProps) {
+function LineRow({ line, index, clientId, disabled, allService, onUpdate, onRemove, isDragging, isOver, onDragStart, onDragOver, onDrop, onDragEnd }: LineRowProps) {
   const update = useCallback(<K extends keyof FormLine>(field: K, value: FormLine[K]) => {
     const next = { ...line, [field]: value }
     // Recompute if numeric fields changed
@@ -351,8 +436,8 @@ function LineRow({ line, index, clientId, disabled, onUpdate, onRemove, isDraggi
         {index + 1}
       </td>
 
-      {/* Désignation + description */}
-      <td style={{ ...cellCss, minWidth: 200 }}>
+      {/* Désignation + description — en mode service mixte : fusionne Qté + Unité + PU (colSpan=4) */}
+      <td colSpan={line.hideDetails && !allService ? 4 : 1} style={{ ...cellCss, minWidth: 200, textAlign: line.hideDetails && !allService ? 'center' : 'left' }}>
         <ProductCombo
           value={line.designation}
           disabled={disabled}
@@ -360,67 +445,67 @@ function LineRow({ line, index, clientId, disabled, onUpdate, onRemove, isDraggi
           onSelect={(product) => {
             const price = Number(product.unitPriceHt)
             const tax   = Number(product.taxRateValue)
-            const c = computeLineValues(line.quantity, price, line.discountType, line.discountValue, tax)
-            onUpdate({
-              ...line,
-              productId: product.id,
-              designation: product.name,
-              description: product.description ?? '',  // HTML conservé tel quel pour le PDF
-              unit: product.unit,
-              unitPriceHt: price,
-              taxRate: tax,
-              ...c,
-            })
+            const qty   = line.hideDetails ? 1 : line.quantity
+            const c = computeLineValues(qty, price, line.discountType, line.discountValue, tax)
+            onUpdate({ ...line, productId: product.id, designation: product.name, description: product.description ?? '', unit: product.unit, unitPriceHt: price, taxRate: tax, quantity: qty, ...c })
           }}
         />
         {line.productId && clientId && (
           <PriceChangeAlert productId={line.productId} clientId={clientId} currentPrice={line.unitPriceHt} />
         )}
-        {disabled ? (
-          line.description
-            ? <div style={{ fontSize: 11.5, color: 'var(--text-3)', padding: '4px 8px', borderTop: '1px dashed var(--border)', lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: line.description }} />
-            : null
-        ) : (
-          <ContentEditableDesc
-            value={line.description ?? ''}
-            onChange={(html) => update('description', html)}
+        {line.description
+          ? <ContentEditableDesc value={line.description} onChange={(html) => update('description', html)} readonly={disabled} />
+          : (!disabled && <ContentEditableDesc value='' onChange={(html) => update('description', html)} />)
+        }
+      </td>
+
+      {/* Qté — rendu uniquement en mode produit ET table non-all-service */}
+      {!line.hideDetails && !allService && (
+        <td style={{ ...cellCss, width: 72 }}>
+          <input
+            type="number" min="0" step="0.01"
+            value={line.quantity}
+            disabled={disabled}
+            onChange={(e) => update('quantity', parseFloat(e.target.value) || 0)}
+            style={numCss}
           />
-        )}
-      </td>
+        </td>
+      )}
 
-      {/* Qté */}
-      <td style={{ ...cellCss, width: 72 }}>
-        <input
-          type="number" min="0" step="0.01"
-          value={line.quantity}
-          disabled={disabled}
-          onChange={(e) => update('quantity', parseFloat(e.target.value) || 0)}
-          style={numCss}
-        />
-      </td>
+      {/* Unité — rendu uniquement en mode produit ET table non-all-service */}
+      {!line.hideDetails && !allService && (
+        <td style={{ ...cellCss, width: 90 }}>
+          <select
+            value={line.unit}
+            disabled={disabled}
+            onChange={(e) => update('unit', e.target.value)}
+            style={{ ...inputCss, cursor: disabled ? 'default' : 'pointer', appearance: 'none' }}
+          >
+            {UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+          </select>
+        </td>
+      )}
 
-      {/* Unité */}
-      <td style={{ ...cellCss, width: 90 }}>
-        <select
-          value={line.unit}
-          disabled={disabled}
-          onChange={(e) => update('unit', e.target.value)}
-          style={{ ...inputCss, cursor: disabled ? 'default' : 'pointer', appearance: 'none' }}
-        >
-          {UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
-        </select>
-      </td>
-
-      {/* P.U. HT */}
-      <td style={{ ...cellCss, width: 110 }}>
-        <input
-          type="number" min="0" step="100"
-          value={line.unitPriceHt}
-          disabled={disabled}
-          onChange={(e) => update('unitPriceHt', parseFloat(e.target.value) || 0)}
-          style={numCss}
-        />
-      </td>
+      {/* P.U. HT / Montant HT — masqué en mode service mixte (absorbé par le colSpan) */}
+      {!(line.hideDetails && !allService) && (
+        <td style={{ ...cellCss, width: 110 }}>
+          <input
+            type="number" min="0" step="100"
+            value={line.unitPriceHt}
+            disabled={disabled}
+            onChange={(e) => {
+              const val = parseFloat(e.target.value) || 0
+              if (line.hideDetails) {
+                const c = computeLineValues(1, val, line.discountType, line.discountValue, line.taxRate)
+                onUpdate({ ...line, quantity: 1, unitPriceHt: val, ...c })
+              } else {
+                update('unitPriceHt', val)
+              }
+            }}
+            style={numCss}
+          />
+        </td>
+      )}
 
       {/* Remise */}
       <td style={{ ...cellCss, width: 120 }}>
@@ -464,18 +549,47 @@ function LineRow({ line, index, clientId, disabled, onUpdate, onRemove, isDraggi
         </span>
       </td>
 
-      {/* Delete */}
-      <td style={{ ...cellCss, borderRight: 'none', width: 36, textAlign: 'center', padding: '6px' }}>
+      {/* Actions : toggle mode service + delete */}
+      <td style={{ ...cellCss, borderRight: 'none', width: 64, textAlign: 'center', padding: '4px 6px' }}>
         {!disabled && (
-          <button
-            type="button"
-            onClick={onRemove}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex', padding: 4, borderRadius: 4 }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#ef4444'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.07)' }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-3)'; (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
-          >
-            <Trash2 size={14} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'center' }}>
+            <button
+              type="button"
+              title={line.hideDetails ? 'Mode service (Qté/PU masqués) — cliquer pour revenir au mode produit' : 'Passer en mode service (masquer Qté/PU sur le PDF)'}
+              onClick={() => {
+                const next = { ...line, hideDetails: !line.hideDetails }
+                // En mode service : forcer qty=1 et recalculer
+                if (next.hideDetails) {
+                  const c = computeLineValues(1, next.unitPriceHt, next.discountType, next.discountValue, next.taxRate)
+                  onUpdate({ ...next, quantity: 1, ...c })
+                } else {
+                  onUpdate(next)
+                }
+              }}
+              style={{
+                background: line.hideDetails ? 'rgba(124,58,237,0.1)' : 'none',
+                border: 'none', cursor: 'pointer',
+                color: line.hideDetails ? '#7c3aed' : 'var(--text-3)',
+                display: 'flex', padding: 4, borderRadius: 4,
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(124,58,237,0.12)'; (e.currentTarget as HTMLButtonElement).style.color = '#7c3aed' }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = line.hideDetails ? 'rgba(124,58,237,0.1)' : 'none'
+                ;(e.currentTarget as HTMLButtonElement).style.color = line.hideDetails ? '#7c3aed' : 'var(--text-3)'
+              }}
+            >
+              {line.hideDetails ? <EyeOff size={13} /> : <Eye size={13} />}
+            </button>
+            <button
+              type="button"
+              onClick={onRemove}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex', padding: 4, borderRadius: 4 }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#ef4444'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.07)' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-3)'; (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
         )}
       </td>
     </tr>
@@ -487,6 +601,7 @@ function LineRow({ line, index, clientId, disabled, onUpdate, onRemove, isDraggi
 export function LineItemsEditor({ lines, onChange, clientId, disabled = false }: LineItemsEditorProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [overIndex, setOverIndex] = useState<number | null>(null)
+  const allService = lines.length > 0 && lines.every(l => l.hideDetails)
 
   const handleDrop = (targetIndex: number) => {
     if (dragIndex === null || dragIndex === targetIndex) { setDragIndex(null); setOverIndex(null); return }
@@ -549,13 +664,14 @@ export function LineItemsEditor({ lines, onChange, clientId, disabled = false }:
               <th style={{ ...thCss, width: 24, padding: '8px 4px' }}></th>
               <th style={{ ...thCss, width: 32, textAlign: 'center' }}>#</th>
               <th style={{ ...thCss }}>Désignation</th>
-              <th style={{ ...thCss, textAlign: 'right' }}>Qté</th>
-              <th style={{ ...thCss }}>Unité</th>
-              <th style={{ ...thCss, textAlign: 'right' }}>P.U. HT</th>
+              {/* Qté + Unité : masqués si toutes les lignes sont en mode service */}
+              {!lines.every(l => l.hideDetails) && <th style={{ ...thCss, textAlign: 'right' }}>Qté</th>}
+              {!lines.every(l => l.hideDetails) && <th style={{ ...thCss }}>Unité</th>}
+              <th style={{ ...thCss, textAlign: 'right' }}>{lines.every(l => l.hideDetails) ? 'Montant HT' : 'P.U. HT'}</th>
               <th style={{ ...thCss }}>Remise</th>
               <th style={{ ...thCss, textAlign: 'right' }}>TVA %</th>
               <th style={{ ...thCss, textAlign: 'right', borderRight: 'none' }}>Total HT</th>
-              <th style={{ ...thCss, borderRight: 'none', width: 36 }}></th>
+              <th style={{ ...thCss, borderRight: 'none', width: 64 }}></th>
             </tr>
           </thead>
           <tbody>
@@ -572,6 +688,7 @@ export function LineItemsEditor({ lines, onChange, clientId, disabled = false }:
                 index={i}
                 clientId={clientId}
                 disabled={disabled}
+                allService={allService}
                 onUpdate={(l) => updateLine(i, l)}
                 onRemove={() => removeLine(i)}
                 isDragging={dragIndex === i}

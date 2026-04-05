@@ -158,7 +158,7 @@ export class PaymentsService {
           ? `La facture ${invoice.number} est entièrement réglée.`
           : `Un paiement de ${input.amount.toLocaleString('fr-FR')} XAF a été enregistré sur la facture ${invoice.number}.`,
         data: { invoiceId: invoice.id, invoiceNumber: invoice.number, amount: input.amount },
-      }, { excludeUserId: createdById });
+      });
 
       await DashboardService.invalidateCache();
       return payment;

@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import {
   ChevronLeft, Save, Zap, Loader2, Info,
-  AlertTriangle, AlertCircle, XCircle, FileText, Copy,
+  AlertTriangle, AlertCircle, XCircle, FileText, Copy, CheckCircle,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { useClients } from '@/features/clients/hooks'
@@ -94,8 +94,8 @@ function initForm(invoice?: Invoice, opts?: Omit<InvoiceFormProps, 'invoice'>): 
 
 // ─── Field label ───────────────────────────────────────────────
 
-const FL = ({ label, required }: { label: string; required?: boolean }) => (
-  <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)', display: 'block', marginBottom: 5 }}>
+const FL = ({ label, required, htmlFor }: { label: string; required?: boolean; htmlFor?: string }) => (
+  <label htmlFor={htmlFor} style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)', display: 'block', marginBottom: 5 }}>
     {label}{required && <span style={{ color: '#ef4444', marginLeft: 2 }}>*</span>}
   </label>
 )
@@ -232,7 +232,7 @@ function DueDateHint({ dueDate }: { dueDate: string }) {
     const d    = parseISO(dueDate)
     const now  = new Date()
     const diff = Math.round((d.getTime() - now.getTime()) / 86_400_000)
-    if (diff < 0)  return <span style={{ color: '#ef4444', fontSize: 11.5, marginTop: 3, display: 'block' }}>⚠ Échéance dépassée de {Math.abs(diff)} jours</span>
+    if (diff < 0)  return <span style={{ color: '#ef4444', fontSize: 11.5, marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={12} aria-hidden="true" /> Échéance dépassée de {Math.abs(diff)} jours</span>
     if (diff === 0) return <span style={{ color: '#d97706', fontSize: 11.5, marginTop: 3, display: 'block' }}>Échéance aujourd'hui</span>
     return <span style={{ color: 'var(--text-3)', fontSize: 11.5, marginTop: 3, display: 'block' }}>Dans {diff} jour{diff > 1 ? 's' : ''}</span>
   } catch { return null }
@@ -245,6 +245,7 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
 
   const [form, setForm]         = useState<FormState>(() => initForm(invoice, { defaultClientId, defaultType, defaultParentInvoiceId }))
   const [warnings, setWarnings] = useState<ComputeWarning[]>([])
+  const [pendingImport, setPendingImport] = useState<'acompte' | 'solde' | null>(null)
   const debounceRef             = useRef<ReturnType<typeof setTimeout> | null>(null)
   const settingsApplied         = useRef(false)
 
@@ -276,7 +277,9 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
       ? { clientId: form.clientId, type: 'acompte', limit: 50 }
       : undefined
   )
-  const acompteInvoices = acompteInvoicesData?.data ?? []
+  const acompteInvoices     = acompteInvoicesData?.data ?? []
+  // Seuls les acomptes "racine" (pas d'acompte parent) peuvent servir de référence
+  const rootAcompteInvoices = acompteInvoices.filter(i => !i.parentInvoiceId && i.id !== invoice?.id)
 
   // Load full detail of the selected parent acompte (to copy its lines for multi-acomptes AND solde pre-fill)
   const { data: parentAcompteDetail } = useInvoice(
@@ -321,6 +324,26 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
     computeDocumentTotals(form.lines, form.globalDiscountType, form.globalDiscountValue),
     [form.lines, form.globalDiscountType, form.globalDiscountValue]
   )
+
+  // For solde invoices: total encaissé sur les acomptes liés (pour TotalsPanel)
+  const totalEncaisseSolde = useMemo(() => {
+    if (form.type !== 'solde' || !form.parentInvoiceId) return 0
+    const parentAcompte   = acompteInvoices.find(i => i.id === form.parentInvoiceId)
+    const siblingAcomptes = acompteInvoices.filter(i => i.parentInvoiceId === form.parentInvoiceId)
+    const allLinked       = parentAcompte ? [parentAcompte, ...siblingAcomptes] : []
+    return allLinked.reduce((s, a) => s + Number(a.amountPaid), 0)
+  }, [form.type, form.parentInvoiceId, acompteInvoices])
+
+  // For acompte (multi-versement): total déjà engagé par les acomptes précédents liés au même parent
+  const totalEngageAcomptes = useMemo(() => {
+    if (form.type !== 'acompte' || !form.parentInvoiceId) return 0
+    const parentAcompte   = acompteInvoices.find(i => i.id === form.parentInvoiceId)
+    const siblingAcomptes = acompteInvoices.filter(i => i.parentInvoiceId === form.parentInvoiceId)
+    const allLinked       = parentAcompte ? [parentAcompte, ...siblingAcomptes] : []
+    // Exclure la facture en cours d'édition pour ne pas la compter deux fois
+    const others = isEdit ? allLinked.filter(i => i.id !== invoice?.id) : allLinked
+    return others.reduce((s, a) => s + Number(a.amountDue), 0)
+  }, [form.type, form.parentInvoiceId, acompteInvoices, isEdit, invoice?.id])
 
   // Debounced compute dry-run
   const triggerCompute = useCallback(() => {
@@ -374,11 +397,12 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
       designation:   l.designation,
       description:   l.description || undefined,
       unit:          l.unit,
-      quantity:      l.quantity,
+      quantity:      l.hideDetails ? 1 : l.quantity,
       unitPriceHt:   l.unitPriceHt,
       discountType:  l.discountType,
       discountValue: l.discountValue,
       taxRate:       l.taxRate,
+      hideDetails:   l.hideDetails ?? false,
     })),
   })
 
@@ -418,13 +442,13 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
   }
 
   const sectionTitle = (t: string) => (
-    <p style={{ fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 12 }}>
+    <h3 style={{ fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 12 }}>
       {t}
-    </p>
+    </h3>
   )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+    <form onSubmit={(e) => e.preventDefault()} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
 
       {/* ── Top bar ──────────────────────────────────────────── */}
       <div style={{
@@ -498,7 +522,7 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
       </div>
 
       {/* ── Body: 2-column grid ──────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 24, alignItems: 'start' }}>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[300px_1fr]" style={{ alignItems: 'start' }}>
 
         {/* LEFT — Informations */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -523,8 +547,9 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
 
               {/* Client */}
               <div>
-                <FL label="Client" required />
+                <FL label="Client" required htmlFor="inv-client" />
                 <select
+                  id="inv-client"
                   value={form.clientId}
                   onChange={(e) => setF('clientId', e.target.value)}
                   disabled={isEdit}
@@ -547,8 +572,9 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
 
               {/* Subject */}
               <div>
-                <FL label="Objet / Sujet" />
+                <FL label="Objet / Sujet" htmlFor="inv-subject" />
                 <input
+                  id="inv-subject"
                   type="text"
                   value={form.subject}
                   onChange={(e) => setF('subject', e.target.value)}
@@ -560,16 +586,18 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
               {/* Dates */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
-                  <FL label="Date d'émission" />
+                  <FL label="Date d'émission" htmlFor="inv-issueDate" />
                   <input
+                    id="inv-issueDate"
                     type="date" value={form.issueDate}
                     onChange={(e) => setF('issueDate', e.target.value)}
                     style={inputCss} onFocus={focusOn} onBlur={focusOff}
                   />
                 </div>
                 <div>
-                  <FL label="Échéance" required />
+                  <FL label="Échéance" required htmlFor="inv-dueDate" />
                   <input
+                    id="inv-dueDate"
                     type="date" value={form.dueDate}
                     onChange={(e) => setF('dueDate', e.target.value)}
                     required
@@ -581,8 +609,9 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
 
               {/* Client reference */}
               <div>
-                <FL label="Référence client (N° BC)" />
+                <FL label="Référence client (N° BC)" htmlFor="inv-clientRef" />
                 <input
+                  id="inv-clientRef"
                   type="text" value={form.clientReference}
                   onChange={(e) => setF('clientReference', e.target.value)}
                   placeholder="Ex: BC-2024-0042"
@@ -613,7 +642,13 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                   <FL label="Pourcentage d'acompte" required />
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <input
+                      id="inv-acompte-range"
                       type="range" min="1" max="99" value={form.acomptePercentage}
+                      aria-label={`Pourcentage d'acompte : ${form.acomptePercentage}%`}
+                      aria-valuenow={form.acomptePercentage}
+                      aria-valuemin={1}
+                      aria-valuemax={99}
+                      aria-valuetext={`${form.acomptePercentage}%`}
                       onChange={(e) => setF('acomptePercentage', parseInt(e.target.value))}
                       style={{ flex: 1, accentColor: '#7c3aed' }}
                     />
@@ -632,28 +667,27 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                 {/* Liaison multi-acomptes — toujours visible si client sélectionné */}
                 {form.clientId && (
                   <div style={{ borderTop: '1px solid rgba(124,58,237,0.15)', paddingTop: 14 }}>
-                    <FL label="Versement additionnel (projet multi-acomptes)" />
+                    <FL label="Versement additionnel (projet multi-acomptes)" htmlFor="inv-parent-acompte" />
                     <select
+                      id="inv-parent-acompte"
                       value={form.parentInvoiceId}
                       onChange={(e) => setF('parentInvoiceId', e.target.value)}
                       style={{ ...inputCss, cursor: 'pointer' }}
                       onFocus={focusOn} onBlur={focusOff}
                     >
                       <option value="">— 1er acompte (aucun lien) —</option>
-                      {acompteInvoices.length === 0
-                        ? []
-                        : acompteInvoices.map(inv => (
-                            <option key={inv.id} value={inv.id}>
-                              {inv.number} — {formatXAF(Number(inv.totalTtc))} ({
-                                inv.status === 'paid'           ? '✓ payé' :
-                                inv.status === 'partially_paid' ? 'part. payé' :
-                                inv.status === 'issued'         ? 'émis' : inv.status
-                              })
-                            </option>
-                          ))
+                      {rootAcompteInvoices.map(inv => (
+                          <option key={inv.id} value={inv.id}>
+                            {inv.number} — {formatXAF(Number(inv.totalTtc))} ({
+                              inv.status === 'paid'           ? '✓ payé' :
+                              inv.status === 'partially_paid' ? 'part. payé' :
+                              inv.status === 'issued'         ? 'émis' : inv.status
+                            })
+                          </option>
+                        ))
                       }
                     </select>
-                    {acompteInvoices.length === 0 && form.clientId && (
+                    {rootAcompteInvoices.length === 0 && form.clientId && (
                       <p style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 4 }}>
                         Aucun acompte existant pour ce client — ce sera le 1er versement.
                       </p>
@@ -666,28 +700,37 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
 
                     {/* Bouton importer lignes + métadonnées du parent */}
                     {form.parentInvoiceId && parentAcompteDetail && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const hasLines = form.lines.length > 1 || form.lines[0]!.designation.trim() !== ''
-                          if (hasLines && !confirm('Remplacer les lignes et infos actuelles par celles de l\'acompte ?')) return
-                          prefillApplied.current = ''
-                          applyAcomptePrefill(parentAcompteDetail)
-                          prefillApplied.current = form.parentInvoiceId
-                        }}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 6,
-                          marginTop: 10, padding: '7px 13px',
-                          borderRadius: 'var(--radius-sm)',
-                          border: '1.5px solid rgba(124,58,237,0.35)',
-                          background: 'rgba(124,58,237,0.06)',
-                          color: '#7c3aed', fontSize: 12.5, cursor: 'pointer',
-                          fontFamily: 'var(--font-display)', fontWeight: 600,
-                        }}
-                      >
-                        <Copy size={13} />
-                        Importer lignes & infos de {parentAcompteDetail.number}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const hasLines = form.lines.length > 1 || form.lines[0]!.designation.trim() !== ''
+                            if (hasLines) { setPendingImport('acompte'); return }
+                            prefillApplied.current = ''
+                            applyAcomptePrefill(parentAcompteDetail)
+                            prefillApplied.current = form.parentInvoiceId
+                          }}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                            marginTop: 10, padding: '7px 13px',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1.5px solid rgba(124,58,237,0.35)',
+                            background: 'rgba(124,58,237,0.06)',
+                            color: '#7c3aed', fontSize: 12.5, cursor: 'pointer',
+                            fontFamily: 'var(--font-display)', fontWeight: 600,
+                          }}
+                        >
+                          <Copy size={13} />
+                          Importer lignes & infos de {parentAcompteDetail.number}
+                        </button>
+                        {pendingImport === 'acompte' && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, padding: '8px 12px', background: 'rgba(124,58,237,0.06)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(124,58,237,0.2)' }}>
+                            <span style={{ fontSize: 12.5, color: '#7c3aed', flex: 1 }}>Remplacer les lignes actuelles ?</span>
+                            <button type="button" onClick={() => { setPendingImport(null); prefillApplied.current = ''; applyAcomptePrefill(parentAcompteDetail); prefillApplied.current = form.parentInvoiceId }} style={{ padding: '4px 12px', borderRadius: 'var(--radius-sm)', background: '#7c3aed', color: '#fff', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Confirmer</button>
+                            <button type="button" onClick={() => setPendingImport(null)} style={{ padding: '4px 10px', borderRadius: 'var(--radius-sm)', background: 'transparent', color: 'var(--text-3)', border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer' }}>Annuler</button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -719,17 +762,16 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
                   <div>
-                    <FL label="Acompte de référence (1er versement)" required />
+                    <FL label="Acompte de référence (1er versement)" required htmlFor="inv-parent-solde" />
                     <select
+                      id="inv-parent-solde"
                       value={form.parentInvoiceId}
                       onChange={(e) => setF('parentInvoiceId', e.target.value)}
                       style={{ ...inputCss, cursor: 'pointer' }}
                       onFocus={focusOn} onBlur={focusOff}
                     >
                       <option value="">— Sélectionner l'acompte —</option>
-                      {acompteInvoices
-                        .filter(i => !i.parentInvoiceId) // seulement les acomptes "racine"
-                        .map(inv => (
+                      {rootAcompteInvoices.map(inv => (
                           <option key={inv.id} value={inv.id}>
                             {inv.number} — {formatXAF(Number(inv.totalTtc))} ({statusLabel(inv.status)})
                           </option>
@@ -752,7 +794,7 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                             <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-1)', fontFamily: 'var(--font-mono)' }}>
                               {inv.number}
                             </span>
-                            {idx > 0 && <span style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 6 }}>2ème versement</span>}
+                            {idx > 0 && <span style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 6 }}>{idx + 1}ème versement</span>}
                           </div>
                           <span style={{ fontSize: 11.5, fontWeight: 700, padding: '2px 7px', borderRadius: 12, background: `${statusColor(inv.status)}18`, color: statusColor(inv.status), fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                             {statusLabel(inv.status)}
@@ -773,8 +815,8 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                             Facturé acompte : {formatXAF(totalFacture)}
                           </span>
                           {balanceRestante > 0 && (
-                            <span style={{ fontSize: 11.5, color: '#d97706' }}>
-                              ⚠ Impayé acompte : {formatXAF(balanceRestante)}
+                            <span style={{ fontSize: 11.5, color: '#d97706', display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <AlertTriangle size={11} aria-hidden="true" /> Impayé acompte : {formatXAF(balanceRestante)}
                             </span>
                           )}
                         </div>
@@ -802,7 +844,7 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                               {formatXAF(soldeTtc)}
                             </p>
                             {soldeTtc === 0 && (
-                              <p style={{ margin: '2px 0 0', fontSize: 11.5, color: '#10b981' }}>✓ Entièrement couvert</p>
+                              <p style={{ margin: '2px 0 0', fontSize: 11.5, color: '#10b981', display: 'flex', alignItems: 'center', gap: 4 }}><CheckCircle size={11} aria-hidden="true" /> Entièrement couvert</p>
                             )}
                           </div>
                         </div>
@@ -812,31 +854,40 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
 
                   {/* Bouton import lignes depuis l'acompte */}
                   {parentAcompteDetail && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const hasLines = form.lines.length > 1 || form.lines[0]!.designation.trim() !== ''
-                        if (hasLines && !confirm('Remplacer les lignes actuelles par celles de l\'acompte ?')) return
-                        prefillApplied.current = ''
-                        applyAcomptePrefill(parentAcompteDetail)
-                        prefillApplied.current = form.parentInvoiceId
-                      }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        padding: '7px 14px', borderRadius: 'var(--radius-md)',
-                        background: 'rgba(8,145,178,0.08)', border: '1.5px solid rgba(8,145,178,0.3)',
-                        color: '#0891b2', cursor: 'pointer', fontSize: 13,
-                        fontFamily: 'var(--font-display)', fontWeight: 600,
-                      }}
-                    >
-                      <Copy size={13} /> Importer les lignes de l'acompte
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const hasLines = form.lines.length > 1 || form.lines[0]!.designation.trim() !== ''
+                          if (hasLines) { setPendingImport('solde'); return }
+                          prefillApplied.current = ''
+                          applyAcomptePrefill(parentAcompteDetail)
+                          prefillApplied.current = form.parentInvoiceId
+                        }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 6,
+                          padding: '7px 14px', borderRadius: 'var(--radius-md)',
+                          background: 'rgba(8,145,178,0.08)', border: '1.5px solid rgba(8,145,178,0.3)',
+                          color: '#0891b2', cursor: 'pointer', fontSize: 13,
+                          fontFamily: 'var(--font-display)', fontWeight: 600,
+                        }}
+                      >
+                        <Copy size={13} /> Importer les lignes de l'acompte
+                      </button>
+                      {pendingImport === 'solde' && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, padding: '8px 12px', background: 'rgba(8,145,178,0.06)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(8,145,178,0.2)' }}>
+                          <span style={{ fontSize: 12.5, color: '#0891b2', flex: 1 }}>Remplacer les lignes actuelles ?</span>
+                          <button type="button" onClick={() => { setPendingImport(null); prefillApplied.current = ''; applyAcomptePrefill(parentAcompteDetail); prefillApplied.current = form.parentInvoiceId }} style={{ padding: '4px 12px', borderRadius: 'var(--radius-sm)', background: '#0891b2', color: '#fff', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Confirmer</button>
+                          <button type="button" onClick={() => setPendingImport(null)} style={{ padding: '4px 10px', borderRadius: 'var(--radius-sm)', background: 'transparent', color: 'var(--text-3)', border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer' }}>Annuler</button>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {/* Avertissement acompte non soldé */}
                   {parentAcompte && balanceRestante > 0 && (
                     <div style={{ padding: '9px 12px', background: 'rgba(245,158,11,0.07)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(245,158,11,0.25)', display: 'flex', gap: 8 }}>
-                      <span style={{ fontSize: 13, flexShrink: 0 }}>⚠</span>
+                      <AlertTriangle size={14} style={{ color: '#d97706', flexShrink: 0, marginTop: 1 }} aria-hidden="true" />
                       <p style={{ fontSize: 12.5, color: '#92400e', margin: 0, lineHeight: 1.5 }}>
                         L'acompte n'est pas entièrement encaissé ({formatXAF(balanceRestante)} restant). Seuls les paiements reçus seront déduits du solde.
                       </p>
@@ -852,8 +903,9 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
             {sectionTitle('Conditions & Notes')}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
-                <FL label="Conditions de paiement" />
+                <FL label="Conditions de paiement" htmlFor="inv-paymentConditions" />
                 <textarea
+                  id="inv-paymentConditions"
                   value={form.paymentConditions}
                   onChange={(e) => setF('paymentConditions', e.target.value)}
                   placeholder="Ex: Virement à 30 jours date facture"
@@ -863,8 +915,9 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                 />
               </div>
               <div>
-                <FL label="Notes internes" />
+                <FL label="Notes internes" htmlFor="inv-notes" />
                 <textarea
+                  id="inv-notes"
                   value={form.notes}
                   onChange={(e) => setF('notes', e.target.value)}
                   placeholder="Remarques, instructions particulières…"
@@ -912,6 +965,7 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                 onGlobalDiscountValueChange={(v) => setF('globalDiscountValue', v)}
                 invoiceType={form.type}
                 acomptePercentage={form.acomptePercentage}
+                totalAcomptesDeducted={form.type === 'acompte' ? totalEngageAcomptes : totalEncaisseSolde}
               />
             </div>
           </div>
@@ -919,13 +973,13 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
           {/* Validation hint */}
           {form.lines.some(l => !l.designation.trim()) && (
             <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.05)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(239,68,68,0.2)' }}>
-              <p style={{ fontSize: 12.5, color: '#ef4444', margin: 0 }}>
-                ⚠ Toutes les lignes doivent avoir une désignation.
+              <p style={{ fontSize: 12.5, color: '#ef4444', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <AlertTriangle size={13} aria-hidden="true" /> Toutes les lignes doivent avoir une désignation.
               </p>
             </div>
           )}
         </div>
       </div>
-    </div>
+    </form>
   )
 }

@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useId, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, Download, Building2, User, Eye, Pencil, Archive } from 'lucide-react'
+import { Plus, Search, Download, Building2, User, Users, Eye, Pencil, Archive, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
+import { RichEmptyState } from '@/components/ui/RichEmptyState'
+import { toast } from 'sonner'
 import { useClients, useArchiveClient } from '@/features/clients/hooks'
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -12,17 +14,22 @@ import { formatDate, getInitials } from '@/lib/utils'
 import { ROUTES } from '@/lib/constants'
 import type { Client } from '@/features/clients/types'
 
+const PAGE_SIZE = 20
+
 // ─── Status badge ──────────────────────────────────────────────
 function StatusBadge({ status }: { status: Client['status'] }) {
   const isActive = status === 'active'
   return (
-    <span style={{
-      fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700,
-      letterSpacing: '0.05em', textTransform: 'uppercase',
-      padding: '3px 8px', borderRadius: 20,
-      background: isActive ? 'rgba(34,197,94,0.1)' : 'rgba(148,163,184,0.15)',
-      color:      isActive ? '#16a34a'             : '#64748b',
-    }}>
+    <span
+      aria-label={isActive ? 'Client actif' : 'Client archivé'}
+      style={{
+        fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700,
+        letterSpacing: '0.05em', textTransform: 'uppercase',
+        padding: '3px 8px', borderRadius: 20,
+        background: isActive ? 'rgba(34,197,94,0.1)' : 'rgba(148,163,184,0.15)',
+        color:      isActive ? '#16a34a'             : '#64748b',
+      }}
+    >
       {isActive ? 'Actif' : 'Archivé'}
     </span>
   )
@@ -47,6 +54,48 @@ function RowActions({ client }: { client: Client }) {
   return <ActionMenu items={items} />
 }
 
+// ─── Pagination ────────────────────────────────────────────────
+function Pagination({ page, totalPages, onChange }: {
+  page: number; totalPages: number; onChange: (p: number) => void
+}) {
+  if (totalPages <= 1) return null
+
+  const btnBase: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    width: 36, height: 36, borderRadius: 'var(--radius-md)',
+    border: '1.5px solid var(--border)', background: 'var(--surface)',
+    color: 'var(--text-2)', cursor: 'pointer', transition: 'all 0.15s',
+  }
+
+  return (
+    <nav aria-label="Pagination des clients" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <button
+        type="button"
+        onClick={() => onChange(page - 1)}
+        disabled={page <= 1}
+        aria-label="Page précédente"
+        style={{ ...btnBase, opacity: page <= 1 ? 0.4 : 1, cursor: page <= 1 ? 'not-allowed' : 'pointer' }}
+      >
+        <ChevronLeft size={16} aria-hidden />
+      </button>
+
+      <span style={{ fontSize: 13, color: 'var(--text-2)', minWidth: 80, textAlign: 'center' }}>
+        <span aria-live="polite">Page {page} / {totalPages}</span>
+      </span>
+
+      <button
+        type="button"
+        onClick={() => onChange(page + 1)}
+        disabled={page >= totalPages}
+        aria-label="Page suivante"
+        style={{ ...btnBase, opacity: page >= totalPages ? 0.4 : 1, cursor: page >= totalPages ? 'not-allowed' : 'pointer' }}
+      >
+        <ChevronRight size={16} aria-hidden />
+      </button>
+    </nav>
+  )
+}
+
 // ─── Page ──────────────────────────────────────────────────────
 type Tab = 'all' | 'company' | 'individual'
 type StatusFilter = '' | 'active' | 'archived'
@@ -55,31 +104,48 @@ export default function ClientsPage() {
   const [tab, setTab]             = useState<Tab>('all')
   const [search, setSearch]       = useState('')
   const [statusFilter, setStatus] = useState<StatusFilter>('')
+  const [page, setPage]           = useState(1)
+  const [isExporting, setIsExporting] = useState(false)
   const { can } = usePermission()
 
+  const searchId = useId()
+  const statusId = useId()
+
+  const handleTabChange    = useCallback((t: Tab)           => { setTab(t);    setPage(1) }, [])
+  const handleStatusChange = useCallback((s: StatusFilter)  => { setStatus(s); setPage(1) }, [])
+  const handleSearchChange = useCallback((s: string)        => { setSearch(s); setPage(1) }, [])
+
   const params = useMemo(() => ({
-    limit: 50,
+    limit: PAGE_SIZE,
+    page,
     ...(tab !== 'all'    && { type:   tab as 'company' | 'individual' }),
     ...(statusFilter     && { status: statusFilter as 'active' | 'archived' }),
     ...(search           && { search }),
-  }), [tab, search, statusFilter])
+  }), [tab, search, statusFilter, page])
 
   const { data, isLoading } = useClients(params)
   const clients = data?.data ?? []
 
-  const handleExport = () => {
-    const rows = [
-      ['Nom', 'Type', 'Email', 'Téléphone', 'Ville', 'N° Fiscal', 'Statut'].join(';'),
-      ...clients.map((c) => [
-        c.name, c.type === 'company' ? 'Entreprise' : 'Particulier',
-        c.email ?? '', c.phone ?? '', c.city ?? '', c.taxNumber ?? '',
-        c.status === 'active' ? 'Actif' : 'Archivé',
-      ].join(';')),
-    ].join('\n')
-    const blob = new Blob(['\uFEFF' + rows], { type: 'text/csv;charset=utf-8;' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a'); a.href = url; a.download = 'clients.csv'; a.click()
-    URL.revokeObjectURL(url)
+  const handleExport = async () => {
+    if (clients.length === 0) return
+    setIsExporting(true)
+    try {
+      const rows = [
+        ['Nom', 'Type', 'Email', 'Téléphone', 'Ville', 'N° Fiscal', 'Statut'].join(';'),
+        ...clients.map((c) => [
+          c.name, c.type === 'company' ? 'Entreprise' : 'Particulier',
+          c.email ?? '', c.phone ?? '', c.city ?? '', c.taxNumber ?? '',
+          c.status === 'active' ? 'Actif' : 'Archivé',
+        ].join(';')),
+      ].join('\n')
+      const blob = new Blob(['\uFEFF' + rows], { type: 'text/csv;charset=utf-8;' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a'); a.href = url; a.download = 'clients.csv'; a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Export CSV téléchargé')
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   const TABS: { key: Tab; label: string; icon?: React.ElementType }[] = [
@@ -87,6 +153,10 @@ export default function ClientsPage() {
     { key: 'company',    label: 'Entreprises', icon: Building2 },
     { key: 'individual', label: 'Particuliers', icon: User },
   ]
+
+  const totalShown = data
+    ? `${((page - 1) * PAGE_SIZE) + 1}–${Math.min(page * PAGE_SIZE, data.total)} sur ${data.total} client${data.total !== 1 ? 's' : ''}`
+    : undefined
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -96,16 +166,24 @@ export default function ClientsPage() {
         actions={
           <>
             <button
+              type="button"
               onClick={handleExport}
+              disabled={isExporting || clients.length === 0}
+              aria-label="Exporter la liste des clients au format CSV"
               style={{
                 display: 'flex', alignItems: 'center', gap: 7,
                 padding: '8px 14px', borderRadius: 'var(--radius-md)',
                 border: '1.5px solid var(--border)', background: 'var(--surface)',
-                color: 'var(--text-2)', fontSize: 13.5, cursor: 'pointer',
+                color: 'var(--text-2)', fontSize: 13.5, cursor: isExporting ? 'wait' : 'pointer',
                 fontFamily: 'var(--font-display)', fontWeight: 500,
+                opacity: clients.length === 0 ? 0.5 : 1,
+                transition: 'opacity 0.15s',
               }}
             >
-              <Download size={14} /> Exporter
+              {isExporting
+                ? <Loader2 size={14} className="animate-spin" aria-hidden />
+                : <Download size={14} aria-hidden />}
+              Exporter
             </button>
             {can('client', 'create') && (
               <Link
@@ -119,7 +197,7 @@ export default function ClientsPage() {
                   boxShadow: '0 4px 12px rgba(45,125,210,0.3)',
                 }}
               >
-                <Plus size={15} strokeWidth={2.5} /> Nouveau client
+                <Plus size={15} strokeWidth={2.5} aria-hidden /> Nouveau client
               </Link>
             )}
           </>
@@ -129,13 +207,18 @@ export default function ClientsPage() {
       <div className="card" style={{ overflow: 'hidden', padding: 0 }}>
         {/* Toolbar */}
         <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+
+          {/* Search */}
           <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 200 }}>
-            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
+            <label htmlFor={searchId} className="sr-only">Rechercher un client</label>
+            <Search size={14} aria-hidden style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
             <input
-              type="text"
+              id={searchId}
+              type="search"
               placeholder="Rechercher un client..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              aria-label="Rechercher un client"
               style={{
                 width: '100%', padding: '8px 12px 8px 32px',
                 borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)',
@@ -146,14 +229,19 @@ export default function ClientsPage() {
               onBlur={(e)  => { e.target.style.borderColor = 'var(--border)';  e.target.style.background = 'var(--bg)' }}
             />
           </div>
-          <div style={{ display: 'flex', gap: 4 }}>
+
+          {/* Type tabs */}
+          <div role="tablist" aria-label="Filtrer par type de client" style={{ display: 'flex', gap: 4 }}>
             {TABS.map((t) => (
               <button
                 key={t.key}
-                onClick={() => setTab(t.key)}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.key}
+                onClick={() => handleTabChange(t.key)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '7px 14px', borderRadius: 'var(--radius-md)',
+                  padding: '0 14px', minHeight: 44, borderRadius: 'var(--radius-md)',
                   border: tab === t.key ? '1.5px solid var(--primary)' : '1.5px solid transparent',
                   background: tab === t.key ? 'rgba(45,125,210,0.08)' : 'transparent',
                   color: tab === t.key ? 'var(--primary)' : 'var(--text-3)',
@@ -161,25 +249,32 @@ export default function ClientsPage() {
                   fontFamily: 'var(--font-display)', cursor: 'pointer', transition: 'all 0.15s',
                 }}
               >
-                {t.icon && <t.icon size={13} strokeWidth={2} />}
+                {t.icon && <t.icon size={13} strokeWidth={2} aria-hidden />}
                 {t.label}
               </button>
             ))}
           </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatus(e.target.value as StatusFilter)}
-            style={{ padding: '7px 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13, color: 'var(--text-2)', fontFamily: 'var(--font-body)', outline: 'none', cursor: 'pointer' }}
-          >
-            <option value="">Tous les statuts</option>
-            <option value="active">Actifs</option>
-            <option value="archived">Archivés</option>
-          </select>
+
+          {/* Status select */}
+          <div>
+            <label htmlFor={statusId} className="sr-only">Filtrer par statut</label>
+            <select
+              id={statusId}
+              aria-label="Filtrer par statut"
+              value={statusFilter}
+              onChange={(e) => handleStatusChange(e.target.value as StatusFilter)}
+              style={{ padding: '0 10px', height: 44, borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13, color: 'var(--text-2)', fontFamily: 'var(--font-body)', outline: 'none', cursor: 'pointer' }}
+            >
+              <option value="">Tous les statuts</option>
+              <option value="active">Actifs</option>
+              <option value="archived">Archivés</option>
+            </select>
+          </div>
         </div>
 
         {/* Table body */}
         {isLoading ? (
-          <div>
+          <div aria-hidden="true">
             {[...Array(6)].map((_, i) => (
               <div key={i} style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.5fr 1fr 0.8fr 0.8fr 0.8fr 40px', gap: 16, padding: '14px 20px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -194,82 +289,93 @@ export default function ClientsPage() {
             ))}
           </div>
         ) : clients.length === 0 ? (
-          <div style={{ padding: '56px 20px', textAlign: 'center' }}>
-            <User size={40} style={{ color: 'var(--border)', margin: '0 auto 12px' }} />
-            <p style={{ fontSize: 14, color: 'var(--text-3)', marginBottom: 4 }}>
-              {search ? `Aucun résultat pour "${search}"` : 'Aucun client pour le moment'}
-            </p>
-            {can('client', 'create') && !search && (
-              <Link href={ROUTES.CLIENTS + '/new'} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 12, fontSize: 13.5, color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}>
-                <Plus size={13} /> Créer le premier client
-              </Link>
-            )}
-          </div>
+          search
+            ? <RichEmptyState icon={Users} title={`Aucun résultat pour « ${search} »`} description="Essayez un autre nom, email ou numéro de téléphone." compact />
+            : tab !== 'all'
+              ? <RichEmptyState icon={tab === 'company' ? Building2 : User} title={`Aucun client ${tab === 'company' ? 'Entreprise' : 'Particulier'}`} description="Aucun client ne correspond à ce type pour le moment." compact />
+              : <RichEmptyState
+                  icon={Users}
+                  title="Ajoutez vos premiers clients"
+                  description="Centralisez vos clients, suivez leur solde impayé et consultez l'historique complet de leur facturation."
+                  features={['Entreprises & particuliers', 'Solde temps réel', 'NIU / RCCM']}
+                  cta={can('client', 'create') ? { label: '+ Nouveau client', href: `${ROUTES.CLIENTS}/new` } : undefined}
+                  secondaryCta={{ label: 'Voir le guide', href: ROUTES.GUIDE }}
+                />
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Client</th>
-                <th>Contact</th>
-                <th>Ville</th>
-                <th>Type</th>
-                <th>Statut</th>
-                <th>Depuis</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {clients.map((client) => (
-                <tr key={client.id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{
-                        width: 34, height: 34, borderRadius: '50%',
-                        background: 'rgba(45,125,210,0.1)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 11, fontWeight: 700, color: 'var(--primary)',
-                        fontFamily: 'var(--font-display)', flexShrink: 0,
-                      }}>
-                        {getInitials(client.name)}
-                      </span>
-                      <div style={{ minWidth: 0 }}>
-                        <Link href={`${ROUTES.CLIENTS}/${client.id}`} style={{ textDecoration: 'none' }}>
-                          <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)' }}>{client.name}</p>
-                        </Link>
-                        {client.taxNumber && (
-                          <p className="doc-number" style={{ fontSize: 11, color: 'var(--text-3)' }}>{client.taxNumber}</p>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    {client.email && <p style={{ fontSize: 13, color: 'var(--text-2)' }}>{client.email}</p>}
-                    {client.phone && <p style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>{client.phone}</p>}
-                    {!client.email && !client.phone && <span style={{ fontSize: 13, color: 'var(--border)' }}>—</span>}
-                  </td>
-                  <td style={{ fontSize: 13, color: 'var(--text-2)' }}>{client.city ?? '—'}</td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      {client.type === 'company'
-                        ? <><Building2 size={12} style={{ color: 'var(--text-3)' }} /><span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>Entreprise</span></>
-                        : <><User       size={12} style={{ color: 'var(--text-3)' }} /><span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>Particulier</span></>
-                      }
-                    </div>
-                  </td>
-                  <td><StatusBadge status={client.status} /></td>
-                  <td style={{ fontSize: 12, color: 'var(--text-3)' }}>{formatDate(client.createdAt)}</td>
-                  <td><RowActions client={client} /></td>
+          <div style={{ overflowX: 'auto' }}>
+            <table
+              className="data-table"
+              aria-label="Liste des clients"
+              aria-busy={isLoading}
+            >
+              <thead>
+                <tr>
+                  <th scope="col">Client</th>
+                  <th scope="col">Contact</th>
+                  <th scope="col">Ville</th>
+                  <th scope="col">Type</th>
+                  <th scope="col">Statut</th>
+                  <th scope="col">Depuis</th>
+                  <th scope="col"><span className="sr-only">Actions</span></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {clients.map((client) => (
+                  <tr key={client.id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span aria-hidden="true" style={{
+                          width: 34, height: 34, borderRadius: '50%',
+                          background: 'rgba(45,125,210,0.1)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 11, fontWeight: 700, color: 'var(--primary)',
+                          fontFamily: 'var(--font-display)', flexShrink: 0,
+                        }}>
+                          {getInitials(client.name)}
+                        </span>
+                        <div style={{ minWidth: 0 }}>
+                          <Link href={`${ROUTES.CLIENTS}/${client.id}`} style={{ textDecoration: 'none' }}>
+                            <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)' }}>{client.name}</p>
+                          </Link>
+                          {client.taxNumber && (
+                            <p className="doc-number" style={{ fontSize: 11, color: 'var(--text-3)' }}>{client.taxNumber}</p>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      {client.email && <p style={{ fontSize: 13, color: 'var(--text-2)' }}>{client.email}</p>}
+                      {client.phone && <p style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>{client.phone}</p>}
+                      {!client.email && !client.phone && <span style={{ fontSize: 13, color: 'var(--border)' }}>—</span>}
+                    </td>
+                    <td style={{ fontSize: 13, color: 'var(--text-2)' }}>{client.city ?? '—'}</td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        {client.type === 'company'
+                          ? <><Building2 size={12} aria-hidden style={{ color: 'var(--text-3)' }} /><span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>Entreprise</span></>
+                          : <><User       size={12} aria-hidden style={{ color: 'var(--text-3)' }} /><span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>Particulier</span></>
+                        }
+                      </div>
+                    </td>
+                    <td><StatusBadge status={client.status} /></td>
+                    <td style={{ fontSize: 12, color: 'var(--text-3)' }}>{formatDate(client.createdAt)}</td>
+                    <td><RowActions client={client} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
-        {data && data.total > clients.length && (
-          <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', textAlign: 'center' }}>
-            <p style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-              {clients.length} / {data.total} clients affichés
+        {/* Footer: count + pagination */}
+        {data && (data.totalPages > 1 || clients.length > 0) && (
+          <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <p style={{ fontSize: 12.5, color: 'var(--text-3)' }} aria-live="polite">
+              {data.totalPages > 1 ? totalShown : `${clients.length} client${clients.length !== 1 ? 's' : ''}`}
             </p>
+            {data.totalPages > 1 && (
+              <Pagination page={page} totalPages={data.totalPages} onChange={setPage} />
+            )}
           </div>
         )}
       </div>

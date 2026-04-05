@@ -92,7 +92,7 @@ export function InvoiceStatusDonut() {
           {total} facture{total !== 1 ? 's' : ''}
           {(data?.drafts?.count ?? 0) > 0 && (
             <span style={{ color: '#94a3b8', marginLeft: 4 }}>
-              (dont {data!.drafts.count} brouillon{data!.drafts.count > 1 ? 's' : ''})
+              (dont {data?.drafts?.count} brouillon{(data?.drafts?.count ?? 0) > 1 ? 's' : ''})
             </span>
           )}
         </p>
@@ -107,7 +107,10 @@ export function InvoiceStatusDonut() {
         ) : (
           <>
             <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
+              <PieChart
+                aria-label={`Répartition des ${total} factures par statut`}
+                role="img"
+              >
                 <Pie
                   data={slicesWithTotal}
                   cx="50%"
@@ -120,7 +123,7 @@ export function InvoiceStatusDonut() {
                   endAngle={-270}
                 >
                   {slicesWithTotal.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} strokeWidth={0} />
+                    <Cell key={entry.label} fill={entry.color} strokeWidth={0} />
                   ))}
                 </Pie>
                 <Tooltip content={<CustomTooltip />} />
@@ -142,25 +145,45 @@ export function InvoiceStatusDonut() {
       </div>
 
       {/* Legend */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <ul style={{ display: 'flex', flexDirection: 'column', gap: 8, listStyle: 'none', padding: 0, margin: 0 }} aria-label="Légende du graphique">
         {slices.map((s) => {
           const pct = total > 0 ? Math.round((s.value / total) * 100) : 0
           return (
-            <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <li key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, flexShrink: 0 }} aria-hidden="true" />
                 <span style={{ fontSize: 12.5, color: 'var(--text-2)' }}>{s.label}</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{pct}%</span>
-                <span className="amount" style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-1)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} aria-label={`${s.value} factures, ${pct}%`}>
+                <span style={{ fontSize: 12, color: 'var(--text-3)' }} aria-hidden="true">{pct}%</span>
+                <span className="amount" style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-1)' }} aria-hidden="true">
                   {s.value}
                 </span>
               </div>
-            </div>
+            </li>
           )
         })}
-      </div>
+      </ul>
+
+      {/* Table alternative pour screen readers — WCAG AAA 1.4.9 */}
+      <table className="sr-only" aria-label="Répartition des factures par statut">
+        <thead>
+          <tr>
+            <th scope="col">Statut</th>
+            <th scope="col">Nombre</th>
+            <th scope="col">Pourcentage</th>
+          </tr>
+        </thead>
+        <tbody>
+          {slices.map((s) => (
+            <tr key={s.label}>
+              <td>{s.label}</td>
+              <td>{s.value}</td>
+              <td>{total > 0 ? Math.round((s.value / total) * 100) : 0}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

@@ -39,6 +39,15 @@ export function useInvoice(id: string) {
   })
 }
 
+export function useInvoiceHistory(id: string) {
+  return useQuery({
+    queryKey: [...INVOICE_KEYS.detail(id), 'history'],
+    queryFn:  () => invoicesApi.getHistory(id),
+    enabled:  !!id,
+    staleTime: 60_000,
+  })
+}
+
 // ─── Invoice mutations ──────────────────────────────────────────
 
 export function useCreateInvoice() {
@@ -56,13 +65,15 @@ export function useCreateInvoice() {
 }
 
 export function useUpdateInvoice(id: string) {
-  const qc = useQueryClient()
+  const qc     = useQueryClient()
+  const router = useRouter()
   return useMutation({
     mutationFn: (data: UpdateInvoicePayload) => invoicesApi.update(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: INVOICE_KEYS.detail(id) })
       qc.invalidateQueries({ queryKey: INVOICE_KEYS.all })
       toast.success('Modifications enregistrées')
+      router.push(`${ROUTES.INVOICES}/${id}`)
     },
     onError: () => toast.error('Erreur lors de la mise à jour'),
   })
@@ -106,6 +117,20 @@ export function useDuplicateInvoice() {
       router.push(`${ROUTES.INVOICES}/${data.id}`)
     },
     onError: () => toast.error('Erreur lors de la duplication'),
+  })
+}
+
+export function useDeleteInvoice() {
+  const qc     = useQueryClient()
+  const router = useRouter()
+  return useMutation({
+    mutationFn: (id: string) => invoicesApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: INVOICE_KEYS.all })
+      toast.success('Facture supprimée')
+      router.push(ROUTES.INVOICES)
+    },
+    onError: () => toast.error('Suppression impossible (statut non brouillon ?)'),
   })
 }
 

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import {
   useIssueInvoice, useCancelInvoice, useDuplicateInvoice,
-  useDownloadInvoicePdf, useCreateAvoir,
+  useDownloadInvoicePdf, useCreateAvoir, useDeleteInvoice,
 } from '../hooks'
 import { PaymentModal }  from './PaymentModal'
 import { CancelModal }   from './CancelModal'
@@ -28,6 +28,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
 
   const issueMutation     = useIssueInvoice()
   const duplicateMutation = useDuplicateInvoice()
+  const deleteMutation    = useDeleteInvoice()
   const pdfMutation       = useDownloadInvoicePdf()
 
   const { id, status, type, number } = invoice
@@ -148,17 +149,15 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
         {status === 'draft' && (
           <button
             style={btnDanger}
-            disabled={isLoading}
+            disabled={isLoading || deleteMutation.isPending}
             onClick={() => {
-              if (confirm(`Supprimer la facture ${number} ?`)) {
-                /* Drafts can be deleted — no dedicated delete endpoint, use cancel */
-                // Actually backend doesn't have delete for invoices, only for proformas
-                // We just show the option — in practice this would need backend support
-                alert('Suppression non disponible côté API pour les factures.')
+              if (confirm(`Supprimer définitivement la facture ${number} ?`)) {
+                deleteMutation.mutate(id)
               }
             }}
           >
-            <Trash2 size={14} /> Supprimer
+            {deleteMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+            Supprimer
           </button>
         )}
       </div>

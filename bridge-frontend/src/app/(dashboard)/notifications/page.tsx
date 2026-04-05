@@ -1,7 +1,12 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { BellOff, CheckCheck, Loader2, RefreshCw } from 'lucide-react'
+import {
+  BellOff, CheckCheck, Loader2, RefreshCw,
+  Send, ThumbsUp, ThumbsDown, Clock, FileText,
+  CreditCard, Coins, AlertCircle, Bell, UserPlus, Info,
+  ChevronLeft, ChevronRight,
+} from 'lucide-react'
 import {
   useNotifications, useMarkRead, useMarkAllRead,
 } from '@/features/notifications/hooks'
@@ -10,21 +15,23 @@ import { useQueryClient } from '@tanstack/react-query'
 import { formatDate } from '@/lib/utils'
 import type { NotificationType } from '@/features/notifications/types'
 
-// ─── Type config ──────────────────────────────────────────────
-
-const TYPE_CONFIG: Record<NotificationType, { label: string; color: string; bg: string; icon: string }> = {
-  proforma_sent:          { label: 'Proforma envoyée',      color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',  icon: '📤' },
-  proforma_accepted:      { label: 'Proforma acceptée',     color: '#10b981', bg: 'rgba(16,185,129,0.1)',  icon: '✅' },
-  proforma_rejected:      { label: 'Proforma rejetée',      color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   icon: '🚫' },
-  proforma_expired:       { label: 'Proforma expirée',      color: '#6b7280', bg: 'rgba(107,114,128,0.1)', icon: '⌛' },
-  invoice_issued:         { label: 'Facture émise',         color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',  icon: '📄' },
-  invoice_paid:           { label: 'Facture soldée',        color: '#10b981', bg: 'rgba(16,185,129,0.1)',  icon: '💳' },
-  invoice_partially_paid: { label: 'Paiement partiel',      color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  icon: '💰' },
-  invoice_overdue:        { label: 'Facture en retard',     color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  icon: '⏰' },
-  payment_registered:     { label: 'Paiement enregistré',   color: '#10b981', bg: 'rgba(16,185,129,0.1)',  icon: '💳' },
-  reminder_sent:          { label: 'Relance envoyée',       color: '#6b7280', bg: 'rgba(107,114,128,0.1)', icon: '🔔' },
-  user_created:           { label: 'Nouveau compte',        color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)',  icon: '👤' },
-  system:                 { label: 'Système',               color: '#6b7280', bg: 'rgba(107,114,128,0.1)', icon: 'ℹ️' },
+// ─── Type config (Lucide icons — no emojis) ───────────────────
+const TYPE_CONFIG: Record<NotificationType, {
+  label: string; color: string; bg: string
+  Icon: React.ElementType; href?: (entityId?: string) => string
+}> = {
+  proforma_sent:          { label: 'Proforma envoyée',    color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',  Icon: Send,         href: (id) => id ? `/proformas/${id}` : '/proformas' },
+  proforma_accepted:      { label: 'Proforma acceptée',   color: '#10b981', bg: 'rgba(16,185,129,0.1)',  Icon: ThumbsUp,     href: (id) => id ? `/proformas/${id}` : '/proformas' },
+  proforma_rejected:      { label: 'Proforma rejetée',    color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   Icon: ThumbsDown,   href: (id) => id ? `/proformas/${id}` : '/proformas' },
+  proforma_expired:       { label: 'Proforma expirée',    color: '#6b7280', bg: 'rgba(107,114,128,0.1)', Icon: Clock,        href: (id) => id ? `/proformas/${id}` : '/proformas' },
+  invoice_issued:         { label: 'Facture émise',       color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',  Icon: FileText,     href: (id) => id ? `/invoices/${id}` : '/invoices' },
+  invoice_paid:           { label: 'Facture soldée',      color: '#10b981', bg: 'rgba(16,185,129,0.1)',  Icon: CreditCard,   href: (id) => id ? `/invoices/${id}` : '/invoices' },
+  invoice_partially_paid: { label: 'Paiement partiel',    color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  Icon: Coins,        href: (id) => id ? `/invoices/${id}` : '/invoices' },
+  invoice_overdue:        { label: 'Facture en retard',   color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   Icon: AlertCircle,  href: (id) => id ? `/invoices/${id}` : '/invoices' },
+  payment_registered:     { label: 'Paiement enregistré', color: '#10b981', bg: 'rgba(16,185,129,0.1)',  Icon: CreditCard,   href: (id) => id ? `/invoices/${id}` : '/invoices' },
+  reminder_sent:          { label: 'Relance envoyée',     color: '#6b7280', bg: 'rgba(107,114,128,0.1)', Icon: Bell },
+  user_created:           { label: 'Nouveau compte',      color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)',  Icon: UserPlus,     href: () => '/users' },
+  system:                 { label: 'Système',             color: '#6b7280', bg: 'rgba(107,114,128,0.1)', Icon: Info },
 }
 
 // ─── Relative time ────────────────────────────────────────────
@@ -41,10 +48,26 @@ function relativeTime(dateStr: string): string {
   return formatDate(dateStr)
 }
 
+// ─── Pagination avec ellipsis ─────────────────────────────────
+function buildPageRange(current: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const pages: (number | '…')[] = [1]
+  if (current > 3) pages.push('…')
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) {
+    pages.push(p)
+  }
+  if (current < total - 2) pages.push('…')
+  pages.push(total)
+  return pages
+}
+
 // ─── Skeleton ─────────────────────────────────────────────────
 function SkeletonNotif() {
   return (
-    <div style={{ display: 'flex', gap: 14, padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+    <div
+      style={{ display: 'flex', gap: 14, padding: '16px 20px', borderBottom: '1px solid var(--border)' }}
+      aria-hidden="true"
+    >
       <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--border)' }} className="animate-pulse" />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ height: 12, width: '60%', background: 'var(--border)', borderRadius: 4 }} className="animate-pulse" />
@@ -56,45 +79,79 @@ function SkeletonNotif() {
 
 // ─── Notification Item ────────────────────────────────────────
 function NotifItem({
-  id, type, title, message, isRead, createdAt, onMarkRead,
+  id, type, title, message, isRead, createdAt, entityId, onMarkRead,
 }: {
   id: string; type: NotificationType; title: string; message: string | null
-  isRead: boolean; createdAt: string; onMarkRead: (id: string) => void
+  isRead: boolean; createdAt: string; entityId?: string; onMarkRead: (id: string) => void
 }) {
-  const cfg = TYPE_CONFIG[type] ?? { label: type, color: '#6b7280', bg: 'rgba(107,114,128,0.1)', icon: '🔔' }
+  const cfg  = TYPE_CONFIG[type] ?? { label: type, color: '#6b7280', bg: 'rgba(107,114,128,0.1)', Icon: Bell }
+  const href = cfg.href?.(entityId)
+
+  const handleClick = () => {
+    if (!isRead) onMarkRead(id)
+    if (href) window.location.href = href
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      handleClick()
+    }
+  }
+
+  const isInteractive = !isRead || !!href
+  const ariaLabel = [
+    cfg.label, '—', title,
+    !isRead ? '(non lue, cliquer pour marquer comme lue)' : '',
+    href ? '(cliquer pour voir le document)' : '',
+  ].filter(Boolean).join(' ')
 
   return (
     <div
-      onClick={() => !isRead && onMarkRead(id)}
+      role={isInteractive ? 'button' : undefined}
+      tabIndex={isInteractive ? 0 : undefined}
+      aria-label={isInteractive ? ariaLabel : undefined}
+      onClick={isInteractive ? handleClick : undefined}
+      onKeyDown={isInteractive ? handleKeyDown : undefined}
       style={{
         display: 'flex', gap: 14, padding: '16px 20px',
         borderBottom: '1px solid var(--border)',
-        background: isRead ? 'transparent' : 'rgba(45,125,210,0.03)',
-        cursor: isRead ? 'default' : 'pointer', transition: 'background 0.15s',
+        background: isRead ? 'transparent' : 'rgba(45,125,210,0.04)',
+        cursor: isInteractive ? 'pointer' : 'default',
+        transition: 'background 0.15s',
+        outline: 'none',
       }}
-      onMouseEnter={(e) => { if (!isRead) e.currentTarget.style.background = 'var(--surface)' }}
-      onMouseLeave={(e) => { if (!isRead) e.currentTarget.style.background = 'rgba(45,125,210,0.03)' }}
+      onMouseEnter={(e) => { if (isInteractive) e.currentTarget.style.background = 'var(--surface)' }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = isRead ? 'transparent' : 'rgba(45,125,210,0.04)' }}
+      onFocus={(e)      => { if (isInteractive) e.currentTarget.style.boxShadow = 'inset 0 0 0 2px var(--primary)' }}
+      onBlur={(e)       => { e.currentTarget.style.boxShadow = 'none' }}
     >
-      {/* Icon */}
-      <div style={{
-        width: 40, height: 40, borderRadius: '50%',
-        background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        flexShrink: 0, fontSize: 18,
-      }}>
-        {cfg.icon}
+      {/* Icon — SVG Lucide, pas emoji */}
+      <div
+        style={{
+          width: 40, height: 40, borderRadius: '50%',
+          background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}
+        aria-hidden="true"
+      >
+        <cfg.Icon size={18} color={cfg.color} strokeWidth={2} />
       </div>
 
       {/* Content */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
           <span style={{
-            fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-display)',
+            fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-display)',
             textTransform: 'uppercase', letterSpacing: '0.06em', color: cfg.color,
           }}>
             {cfg.label}
           </span>
           {!isRead && (
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--primary)', flexShrink: 0 }} />
+            <span
+              aria-label="Non lue"
+              style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--primary)', flexShrink: 0 }}
+            />
           )}
         </div>
         <p style={{
@@ -112,9 +169,12 @@ function NotifItem({
       </div>
 
       {/* Time */}
-      <span style={{ flexShrink: 0, fontSize: 11.5, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap', alignSelf: 'flex-start' }}>
+      <time
+        dateTime={createdAt}
+        style={{ flexShrink: 0, fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap', alignSelf: 'flex-start' }}
+      >
         {relativeTime(createdAt)}
-      </span>
+      </time>
     </div>
   )
 }
@@ -129,7 +189,6 @@ export default function NotificationsPage() {
   const markAllMut  = useMarkAllRead()
   const qc          = useQueryClient()
 
-  // Real-time via Socket.io
   const handleNewNotif = useCallback(() => {
     qc.invalidateQueries({ queryKey: ['notifications'] })
   }, [qc])
@@ -139,6 +198,7 @@ export default function NotificationsPage() {
   const total       = data?.total       ?? 0
   const totalPages  = data?.totalPages  ?? 1
   const unreadCount = data?.unreadCount ?? 0
+  const pageRange   = buildPageRange(page, totalPages)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -149,7 +209,11 @@ export default function NotificationsPage() {
           <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0 }}>
             Notifications
           </h1>
-          <p style={{ fontSize: 13, color: 'var(--text-3)', margin: '4px 0 0' }}>
+          <p
+            style={{ fontSize: 13, color: 'var(--text-3)', margin: '4px 0 0' }}
+            aria-live="polite"
+            aria-atomic="true"
+          >
             {unreadCount > 0
               ? <><strong style={{ color: 'var(--primary)' }}>{unreadCount}</strong> non lue{unreadCount > 1 ? 's' : ''}</>
               : 'Tout est lu'}
@@ -161,15 +225,17 @@ export default function NotificationsPage() {
             type="button"
             onClick={() => refetch()}
             disabled={isFetching}
+            aria-label="Actualiser les notifications"
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '8px 12px', borderRadius: 'var(--radius-md)',
               border: '1.5px solid var(--border)', background: 'var(--surface)',
-              color: 'var(--text-2)', cursor: 'pointer', fontSize: 13,
-              fontFamily: 'var(--font-display)', fontWeight: 500,
+              color: 'var(--text-2)', cursor: isFetching ? 'not-allowed' : 'pointer',
+              fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 500,
+              opacity: isFetching ? 0.6 : 1, transition: 'opacity 0.15s',
             }}
           >
-            {isFetching ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            {isFetching ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <RefreshCw size={13} aria-hidden="true" />}
             Actualiser
           </button>
           {unreadCount > 0 && (
@@ -177,16 +243,20 @@ export default function NotificationsPage() {
               type="button"
               onClick={() => markAllMut.mutate()}
               disabled={markAllMut.isPending}
+              aria-label="Marquer toutes les notifications comme lues"
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '8px 14px', borderRadius: 'var(--radius-md)',
                 border: 'none', background: 'var(--primary)',
-                color: '#fff', cursor: 'pointer', fontSize: 13,
-                fontFamily: 'var(--font-display)', fontWeight: 600,
+                color: '#fff', cursor: markAllMut.isPending ? 'not-allowed' : 'pointer',
+                fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600,
                 boxShadow: '0 4px 12px rgba(45,125,210,0.25)',
+                opacity: markAllMut.isPending ? 0.7 : 1, transition: 'opacity 0.15s',
               }}
             >
-              {markAllMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <CheckCheck size={13} />}
+              {markAllMut.isPending
+                ? <Loader2 size={13} className="animate-spin" aria-hidden="true" />
+                : <CheckCheck size={13} aria-hidden="true" />}
               Tout marquer comme lu
             </button>
           )}
@@ -194,14 +264,16 @@ export default function NotificationsPage() {
       </div>
 
       {/* Filter tabs */}
-      <div style={{ display: 'flex', gap: 4 }}>
-        {[
-          { label: 'Toutes', value: false },
-          { label: 'Non lues', value: true },
-        ].map((opt) => (
+      <div style={{ display: 'flex', gap: 4 }} role="tablist" aria-label="Filtrer les notifications">
+        {([
+          { label: 'Toutes',   value: false },
+          { label: 'Non lues', value: true  },
+        ] as const).map((opt) => (
           <button
             key={String(opt.value)}
             type="button"
+            role="tab"
+            aria-selected={unreadOnly === opt.value}
             onClick={() => { setUnreadOnly(opt.value); setPage(1) }}
             style={{
               padding: '7px 16px', borderRadius: 'var(--radius-md)', border: '1.5px solid',
@@ -224,7 +296,7 @@ export default function NotificationsPage() {
           : notifs.length === 0
             ? (
               <div style={{ padding: '60px 24px', textAlign: 'center' }}>
-                <BellOff size={32} style={{ color: 'var(--text-3)', margin: '0 auto 12px' }} />
+                <BellOff size={32} style={{ color: 'var(--text-3)', margin: '0 auto 12px' }} aria-hidden="true" />
                 <p style={{ fontSize: 14, color: 'var(--text-3)', margin: 0 }}>
                   {unreadOnly ? 'Aucune notification non lue' : 'Aucune notification'}
                 </p>
@@ -241,27 +313,88 @@ export default function NotificationsPage() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderTop: '1px solid var(--border)' }}>
-            <p style={{ fontSize: 12.5, color: 'var(--text-3)', margin: 0 }}>Page {page} sur {totalPages}</p>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {Array.from({ length: Math.min(totalPages, 7) }).map((_, i) => {
-                const p = i + 1
-                return (
-                  <button key={p} type="button" onClick={() => setPage(p)}
-                    style={{
-                      width: 32, height: 32, borderRadius: 'var(--radius-sm)', border: '1.5px solid',
-                      borderColor: p === page ? 'var(--primary)' : 'var(--border)',
-                      background: p === page ? 'var(--primary)' : 'transparent',
-                      color: p === page ? '#fff' : 'var(--text-2)',
-                      fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-display)', fontWeight: 600,
-                    }}
-                  >
-                    {p}
-                  </button>
-                )
-              })}
+          <nav
+            aria-label="Pagination des notifications"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderTop: '1px solid var(--border)' }}
+          >
+            <p style={{ fontSize: 12.5, color: 'var(--text-3)', margin: 0 }}>
+              Page {page} sur {totalPages}
+            </p>
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              {/* Précédent */}
+              <button
+                type="button"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                aria-label="Page précédente"
+                style={{
+                  width: 32, height: 32, borderRadius: 'var(--radius-sm)',
+                  border: '1.5px solid var(--border)', background: 'transparent',
+                  color: page === 1 ? 'var(--text-3)' : 'var(--text-2)',
+                  cursor: page === 1 ? 'not-allowed' : 'pointer',
+                  opacity: page === 1 ? 0.4 : 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <ChevronLeft size={14} aria-hidden="true" />
+              </button>
+
+              {/* Pages avec ellipsis */}
+              {pageRange.map((p, i) =>
+                p === '…'
+                  ? (
+                    <span
+                      key={`ellipsis-${i}`}
+                      style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: 'var(--text-3)' }}
+                      aria-hidden="true"
+                    >
+                      …
+                    </span>
+                  )
+                  : (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setPage(p)}
+                      aria-label={`Page ${p}`}
+                      aria-current={p === page ? 'page' : undefined}
+                      style={{
+                        width: 32, height: 32, borderRadius: 'var(--radius-sm)',
+                        border: '1.5px solid',
+                        borderColor: p === page ? 'var(--primary)' : 'var(--border)',
+                        background:  p === page ? 'var(--primary)' : 'transparent',
+                        color:       p === page ? '#fff' : 'var(--text-2)',
+                        fontSize: 13, cursor: 'pointer',
+                        fontFamily: 'var(--font-display)', fontWeight: 600,
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {p}
+                    </button>
+                  )
+              )}
+
+              {/* Suivant */}
+              <button
+                type="button"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                aria-label="Page suivante"
+                style={{
+                  width: 32, height: 32, borderRadius: 'var(--radius-sm)',
+                  border: '1.5px solid var(--border)', background: 'transparent',
+                  color: page === totalPages ? 'var(--text-3)' : 'var(--text-2)',
+                  cursor: page === totalPages ? 'not-allowed' : 'pointer',
+                  opacity: page === totalPages ? 0.4 : 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <ChevronRight size={14} aria-hidden="true" />
+              </button>
             </div>
-          </div>
+          </nav>
         )}
       </div>
     </div>

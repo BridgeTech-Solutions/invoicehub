@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useId } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, Save, Send, Loader2, Info } from 'lucide-react'
+import { ChevronLeft, Save, Send, Loader2, Info, AlertTriangle } from 'lucide-react'
 import { addDays, format, parseISO } from 'date-fns'
 import { useClients } from '@/features/clients/hooks'
 import { useClientQuickFill } from '@/features/clients/hooks'
@@ -12,8 +12,8 @@ import { useCreateProforma, useUpdateProforma, useSendProforma } from '../hooks'
 import type { Proforma, FormLine, DiscountType, CreateProformaPayload } from '../types'
 import { lineToFormLine, makeBlankLine } from '@/lib/document-math'
 import { ROUTES } from '@/lib/constants'
-import { formatXAF } from '@/lib/utils'
 import { useSettings } from '@/features/settings/hooks'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 
 // ─── Types ─────────────────────────────────────────────────────
 
@@ -78,11 +78,31 @@ function initForm(proforma?: Proforma, defaultClientId?: string): FormState {
   }
 }
 
-// ─── Label helper ───────────────────────────────────────────────
+// ─── Field component (C7+C8) ────────────────────────────────────
 
-const FL = ({ label, required }: { label: string; required?: boolean }) => (
-  <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)', display: 'block', marginBottom: 5 }}>
-    {label}{required && <span style={{ color: '#ef4444', marginLeft: 2 }}>*</span>}
+const Field = ({
+  htmlFor,
+  label,
+  required,
+}: {
+  htmlFor: string
+  label: string
+  required?: boolean
+}) => (
+  <label
+    htmlFor={htmlFor}
+    style={{
+      fontSize: 12.5, fontWeight: 600, color: 'var(--text-2)',
+      fontFamily: 'var(--font-display)', display: 'block', marginBottom: 5,
+    }}
+  >
+    {label}
+    {required && (
+      <>
+        <span aria-hidden="true" style={{ color: '#ef4444', marginLeft: 2 }}>*</span>
+        <span className="sr-only">(obligatoire)</span>
+      </>
+    )}
   </label>
 )
 
@@ -104,7 +124,7 @@ function QuickFillBanner({ clientId, onApply }: { clientId: string; onApply: (co
       background: 'rgba(45,125,210,0.05)', border: '1px solid rgba(45,125,210,0.2)',
       borderRadius: 'var(--radius-md)', marginBottom: 8,
     }}>
-      <Info size={14} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: 1 }} />
+      <Info size={14} aria-hidden="true" style={{ color: 'var(--primary)', flexShrink: 0, marginTop: 1 }} />
       <div style={{ flex: 1, fontSize: 12.5, color: 'var(--text-2)' }}>
         {behavior && (
           <p style={{ margin: '0 0 3px' }}>
@@ -135,6 +155,11 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
   const [form, setForm]   = useState<FormState>(() => initForm(proforma, defaultClientId))
   const [sendAfter, setSendAfter] = useState(false)
   const settingsApplied   = useRef(false)
+  const isMobile          = useIsMobile()
+
+  // Unique ID prefix for all fields (C7+C8)
+  const uid = useId()
+  const id  = (s: string) => `${uid}-${s}`
 
   const { data: settings } = useSettings()
 
@@ -191,11 +216,12 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
       designation:   l.designation,
       description:   l.description || undefined,
       unit:          l.unit,
-      quantity:      l.quantity,
+      quantity:      l.hideDetails ? 1 : l.quantity,
       unitPriceHt:   l.unitPriceHt,
       discountType:  l.discountType,
       discountValue: l.discountValue,
       taxRate:       l.taxRate,
+      hideDetails:   l.hideDetails ?? false,
     })),
   })
 
@@ -226,6 +252,8 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
     e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'
   }
 
+  const hasBlankLine = form.lines.length > 0 && form.lines.some(l => !l.designation.trim())
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
       {/* ── Top bar ──────────────────────────────────────────── */}
@@ -238,7 +266,8 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
             href={ROUTES.PROFORMAS}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--text-3)', textDecoration: 'none', marginBottom: 4 }}
           >
-            <ChevronLeft size={13} /> Proformas
+            <ChevronLeft size={13} aria-hidden="true" />
+            Proformas
           </Link>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0 }}>
             {isEdit ? 'Modifier la proforma' : 'Nouvelle proforma'}
@@ -256,6 +285,7 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
         </div>
 
         <div style={{ display: 'flex', gap: 10 }}>
+          {/* Sauvegarder brouillon */}
           <button
             type="button"
             disabled={!canSave || isPending}
@@ -267,10 +297,14 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
               color: 'var(--text-2)', fontSize: 13.5, cursor: (!canSave || isPending) ? 'not-allowed' : 'pointer',
               opacity: (!canSave || isPending) ? 0.6 : 1,
               fontFamily: 'var(--font-display)', fontWeight: 500,
+              minHeight: 44,
             }}
           >
-            <Save size={14} /> Sauvegarder brouillon
+            <Save size={14} aria-hidden="true" />
+            Sauvegarder brouillon
           </button>
+
+          {/* Enregistrer & Envoyer (H7: opacity instead of hardcoded colour) */}
           <button
             type="button"
             disabled={!canSave || isPending}
@@ -278,34 +312,47 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
             style={{
               display: 'flex', alignItems: 'center', gap: 7,
               padding: '9px 18px', borderRadius: 'var(--radius-md)',
-              background: (!canSave || isPending) ? '#93b8e0' : 'var(--primary)',
+              background: 'var(--primary)',
               color: '#fff', border: 'none',
               cursor: (!canSave || isPending) ? 'not-allowed' : 'pointer',
+              opacity: (!canSave || isPending) ? 0.65 : 1,
               fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13.5,
               boxShadow: (!canSave || isPending) ? 'none' : '0 4px 12px rgba(45,125,210,0.3)',
+              minHeight: 44,
             }}
           >
-            {isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-            {isEdit ? 'Enregistrer & Envoyer' : 'Enregistrer & Envoyer'}
+            {isPending
+              ? <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+              : <Send size={14} aria-hidden="true" />
+            }
+            Enregistrer &amp; Envoyer
           </button>
         </div>
       </div>
 
-      {/* ── Body: 2-column grid ──────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 24, alignItems: 'start' }}>
+      {/* ── Body: 2-column grid (H6: responsive via useIsMobile) ── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? '1fr' : '300px 1fr',
+        gap: 24,
+        alignItems: 'start',
+      }}>
 
         {/* LEFT — Informations */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Client */}
+
+          {/* Informations générales (H8: <h2> not <p>) */}
           <div className="card" style={{ padding: '18px 20px' }}>
-            <p style={{ fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 12 }}>
+            <h2 style={{ fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 12, marginTop: 0 }}>
               Informations générales
-            </p>
+            </h2>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Client */}
               <div>
-                <FL label="Client" required />
+                <Field htmlFor={id('client')} label="Client" required />
                 <select
+                  id={id('client')}
                   value={form.clientId}
                   onChange={(e) => setF('clientId', e.target.value)}
                   required
@@ -326,9 +373,11 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
                 />
               )}
 
+              {/* Objet */}
               <div>
-                <FL label="Objet / Sujet" />
+                <Field htmlFor={id('subject')} label="Objet / Sujet" />
                 <input
+                  id={id('subject')}
                   type="text"
                   value={form.subject}
                   onChange={(e) => setF('subject', e.target.value)}
@@ -337,10 +386,12 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {/* Date + Validité (M8: responsive inner grid) */}
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
                 <div>
-                  <FL label="Date d'émission" required />
+                  <Field htmlFor={id('issueDate')} label="Date d'émission" required />
                   <input
+                    id={id('issueDate')}
                     type="date"
                     value={form.issueDate}
                     onChange={(e) => setF('issueDate', e.target.value)}
@@ -349,8 +400,9 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
                   />
                 </div>
                 <div>
-                  <FL label="Validité (jours)" required />
+                  <Field htmlFor={id('validityDays')} label="Validité (jours)" required />
                   <input
+                    id={id('validityDays')}
                     type="number"
                     min="1"
                     max="365"
@@ -361,6 +413,7 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
                 </div>
               </div>
 
+              {/* Valid-until display */}
               <div style={{ padding: '8px 12px', background: 'rgba(45,125,210,0.04)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(45,125,210,0.15)' }}>
                 <p style={{ fontSize: 12, color: 'var(--text-3)', margin: 0 }}>
                   Valide jusqu'au{' '}
@@ -377,15 +430,16 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
             </div>
           </div>
 
-          {/* Conditions */}
+          {/* Conditions & Notes (H8: <h2>) */}
           <div className="card" style={{ padding: '18px 20px' }}>
-            <p style={{ fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 12 }}>
-              Conditions & Notes
-            </p>
+            <h2 style={{ fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 12, marginTop: 0 }}>
+              Conditions &amp; Notes
+            </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
-                <FL label="Conditions de paiement" />
+                <Field htmlFor={id('paymentConditions')} label="Conditions de paiement" />
                 <textarea
+                  id={id('paymentConditions')}
                   value={form.paymentConditions}
                   onChange={(e) => setF('paymentConditions', e.target.value)}
                   placeholder="Ex: 30% à la commande, solde à la livraison"
@@ -395,8 +449,9 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
                 />
               </div>
               <div>
-                <FL label="Délai de livraison" />
+                <Field htmlFor={id('deliveryDelay')} label="Délai de livraison" />
                 <input
+                  id={id('deliveryDelay')}
                   type="text"
                   value={form.deliveryDelay}
                   onChange={(e) => setF('deliveryDelay', e.target.value)}
@@ -405,8 +460,9 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
                 />
               </div>
               <div>
-                <FL label="Garantie" />
+                <Field htmlFor={id('warranty')} label="Garantie" />
                 <input
+                  id={id('warranty')}
                   type="text"
                   value={form.warranty}
                   onChange={(e) => setF('warranty', e.target.value)}
@@ -415,8 +471,9 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
                 />
               </div>
               <div>
-                <FL label="Notes internes" />
+                <Field htmlFor={id('notes')} label="Notes internes" />
                 <textarea
+                  id={id('notes')}
                   value={form.notes}
                   onChange={(e) => setF('notes', e.target.value)}
                   placeholder="Remarques, instructions particulières…"
@@ -431,10 +488,11 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
 
         {/* RIGHT — Lignes + Totaux */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Lignes (H8: <h2>) */}
           <div className="card" style={{ padding: '18px 20px' }}>
-            <p style={{ fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 14 }}>
+            <h2 style={{ fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 14, marginTop: 0 }}>
               Lignes de produits / services
-            </p>
+            </h2>
             <LineItemsEditor
               lines={form.lines}
               onChange={(lines) => setF('lines', lines)}
@@ -442,9 +500,9 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
             />
           </div>
 
-          {/* Totals */}
+          {/* Totals (M7: maxWidth instead of fixed width) */}
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <div style={{ width: 340 }}>
+            <div style={{ maxWidth: 380, width: '100%' }}>
               <TotalsPanel
                 lines={form.lines}
                 globalDiscountType={form.globalDiscountType}
@@ -455,11 +513,19 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
             </div>
           </div>
 
-          {/* Validation errors */}
-          {form.lines.length > 0 && form.lines.some(l => !l.designation.trim()) && (
-            <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.05)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(239,68,68,0.2)' }}>
+          {/* Validation errors (H9: AlertTriangle + role="alert") */}
+          {hasBlankLine && (
+            <div
+              role="alert"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 14px', background: 'rgba(239,68,68,0.05)',
+                borderRadius: 'var(--radius-md)', border: '1px solid rgba(239,68,68,0.2)',
+              }}
+            >
+              <AlertTriangle size={14} aria-hidden="true" style={{ color: '#ef4444', flexShrink: 0 }} />
               <p style={{ fontSize: 12.5, color: '#ef4444', margin: 0 }}>
-                ⚠ Toutes les lignes doivent avoir une désignation.
+                Toutes les lignes doivent avoir une désignation.
               </p>
             </div>
           )}

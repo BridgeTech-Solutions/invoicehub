@@ -62,6 +62,7 @@ export function TopClientsTable() {
         </h2>
         <Link
           href={ROUTES.CLIENTS}
+          aria-label="Voir tous les clients"
           style={{ fontSize: 12.5, color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}
         >
           Voir tout →
@@ -85,6 +86,7 @@ export function TopClientsTable() {
                   padding: '12px 20px',
                   borderBottom: '1px solid var(--border)',
                   transition: 'background 0.1s',
+                  cursor: 'pointer',
                 }}
                 onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--bg)' }}
                 onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
@@ -119,8 +121,13 @@ export function TopClientsTable() {
                       </p>
                     </Link>
                     {/* Progress bar */}
-                    <div style={{ height: 4, borderRadius: 2, background: 'var(--border)', overflow: 'hidden' }}>
+                    <div style={{ height: 4, borderRadius: 2, background: 'var(--border)', overflow: 'hidden' }} aria-hidden="true">
                       <div
+                        role="progressbar"
+                        aria-valuenow={pct}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-label={`Part de CA — ${client.clientName} : ${pct}% du meilleur client`}
                         style={{
                           height: '100%',
                           width: `${pct}%`,

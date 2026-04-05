@@ -13,10 +13,11 @@ import {
 export class InvoicesController {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const query = listInvoicesSchema.parse(req.query);
-
       if (req.query['export'] === 'csv') {
-        const { data } = await invoicesService.list({ ...query, page: 1, limit: 10_000 });
+        // Pour le CSV : on parse les filtres en forçant limit/page à des valeurs valides,
+        // puis on remplace par 10 000 pour récupérer toutes les factures.
+        const filters = listInvoicesSchema.parse({ ...req.query, limit: '20', page: '1' });
+        const { data } = await invoicesService.list({ ...filters, page: 1, limit: 10_000 });
         return sendCsvResponse(res, 'factures.csv',
           ['Numéro', 'Client', 'Type', 'Statut', 'Date émission', 'Échéance', 'Total TTC', 'Payé', 'Solde'],
           data.map(i => [
@@ -33,6 +34,7 @@ export class InvoicesController {
         );
       }
 
+      const query = listInvoicesSchema.parse(req.query);
       const result = await invoicesService.list(query);
       res.json({ success: true, ...result });
     } catch (err) {
@@ -121,6 +123,13 @@ export class InvoicesController {
       const input = createAvoirSchema.parse(req.body);
       const data = await invoicesService.createAvoir(req.params['id'] as string, input, req.user!.id);
       res.status(201).json({ success: true, data });
+    } catch (err) { next(err); }
+  }
+
+  async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      await invoicesService.softDelete(req.params['id'] as string);
+      res.status(204).end();
     } catch (err) { next(err); }
   }
 

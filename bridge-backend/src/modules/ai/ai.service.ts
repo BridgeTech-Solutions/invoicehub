@@ -183,33 +183,33 @@ const BTS_SYSTEM_PROMPT_BASE = `Tu es BTS Assistant, l'assistant IA d'InvoiceHub
 - Attention : modifier le prix ne change pas les factures/proformas déjà créés (snapshots)
 
 --- MODULE : PROFORMAS ---
-**Créer un proforma (devis)**
-1. Sidebar → "Proformas" → "Nouveau proforma"
+**Créer une proforma (devis)**
+1. Sidebar → "Proformas" → "Nouvelle proforma"
 2. Sélectionner le client
 3. Ajouter les lignes : choisir un produit du catalogue ou saisir manuellement (description, quantité, prix unitaire)
 4. Appliquer une remise par ligne si nécessaire (montant fixe ou pourcentage)
 5. Ajouter des notes ou conditions générales dans le champ "Notes"
 6. Sauvegarder en brouillon
 
-**Envoyer un proforma au client**
-- Ouvrir le proforma brouillon → bouton "Envoyer"
+**Envoyer une proforma au client**
+- Ouvrir la proforma brouillon → bouton "Envoyer"
 - Statut passe à "Envoyé" — le client peut être notifié par email
 
-**Marquer un proforma comme accepté ou refusé**
-- Ouvrir le proforma envoyé → bouton "Accepter" ou "Refuser"
-- Si accepté : le proforma est prêt à être converti en facture
+**Marquer une proforma comme acceptée ou refusée**
+- Ouvrir la proforma envoyée → bouton "Accepter" ou "Refuser"
+- Si acceptée : la proforma est prête à être convertie en facture
 
-**Convertir un proforma en facture**
-- Ouvrir le proforma accepté → bouton "Convertir en facture"
-- Une facture standard est créée automatiquement avec toutes les lignes et montants du proforma
-- Le proforma passe au statut "Converti" et reste archivé
+**Convertir une proforma en facture**
+- Ouvrir la proforma acceptée → bouton "Convertir en facture"
+- Une facture standard est créée automatiquement avec toutes les lignes et montants de la proforma
+- La proforma passe au statut "Converti" et reste archivée
 
-**Dupliquer un proforma**
-- Ouvrir n'importe quel proforma → bouton "Dupliquer"
-- Un nouveau proforma brouillon identique est créé — utile pour les devis similaires
+**Dupliquer une proforma**
+- Ouvrir n'importe quelle proforma → bouton "Dupliquer"
+- Une nouvelle proforma brouillon identique est créée — utile pour les devis similaires
 
-**Télécharger le PDF d'un proforma**
-- Ouvrir le proforma → bouton "Télécharger PDF"
+**Télécharger le PDF d'une proforma**
+- Ouvrir la proforma → bouton "Télécharger PDF"
 - Le PDF est généré avec l'en-tête BTS, les lignes détaillées, les totaux et les signatures
 
 --- MODULE : FACTURES ---
@@ -385,7 +385,7 @@ Outils disponibles :
   Utiliser quand l'utilisateur mentionne un numéro de facture précis (ex: FAC001, BTS/DC/2026/03/FAC001)
 - getProformas : liste de proformas avec totaux (params: clientName?, status?: string[], limit?: number)
   Statuts possibles: draft, sent, accepted, rejected, expired, converted
-- getProformaDetail : détail complet d'un proforma avec toutes les lignes (params: proformaNumber: string)
+- getProformaDetail : détail complet d'une proforma avec toutes les lignes (params: proformaNumber: string)
   Utiliser quand l'utilisateur mentionne un numéro de proforma précis (ex: PFM001)
 - getClients : récupérer des clients avec statistiques (params: name?, limit?: number)
 - getPayments : récupérer des paiements (params: clientName?, limit?: number)

@@ -310,6 +310,18 @@ export interface DocumentLine {
   netHt: number;
   /** Taux de TVA en % (ex : 19.25) */
   taxRate: number;
+  /**
+   * Libellé de la remise individuelle de cette ligne (ex : "10%" ou "5 000 XAF").
+   * Si absent ou undefined, la cellule Remise affiche "—".
+   * La colonne Remise n'est rendue que si au moins une ligne a ce champ renseigné.
+   */
+  discountLabel?: string;
+  /**
+   * Mode service : masque Ref / Qté / PU sur le PDF.
+   * La colonne PT affiche directement le montant de la prestation.
+   * La quantité est forcée à 1 côté saisie, PU = montant total.
+   */
+  hideDetails?: boolean;
 }
 
 /**
@@ -384,6 +396,20 @@ export interface DocumentHtmlParams {
   /** TVA sur le solde */
   soldeTax?: number;
 
+  // ── Remise globale ───────────────────────────────────────────────────────────
+  /**
+   * Total HT brut des lignes, AVANT remise globale.
+   * Si absent, on utilise subtotalHt (cas sans remise).
+   */
+  subtotalBeforeDiscountHt?: number;
+  /**
+   * Montant de la remise globale à déduire du HT.
+   * Si 0 ou absent, les lignes REMISE + TOTAL HT APRÈS REMISE ne s'affichent pas.
+   */
+  globalDiscountAmount?: number;
+  /** Libellé de la remise affiché sur le document (ex : "REMISE 10%"). */
+  globalDiscountLabel?: string;
+
   // ── Conditions (proforma) ────────────────────────────────────────────────────
   /** Délai de livraison */
   deliveryDelay?: string;
@@ -443,8 +469,19 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
   const isSolde    = params.type === 'Facture Solde';
   const isFacture  = !isProforma;
 
+  // Mode service : si toutes les lignes sont en mode service, tableau simplifié
+  const allService = params.lines.length > 0 && params.lines.every(l => l.hideDetails);
+
+  // Colonne Remise ligne : affichée seulement si au moins une ligne a une remise
+  const hasLineDiscount = !allService && params.lines.some(l => !!l.discountLabel);
+
   /** Nombre de colonnes dans le tableau de lignes */
-  const nbCols = isProforma ? 4 : 5;
+  // Mode service tout : 2 cols (Désignation + PT)
+  // Mode normal proforma sans remise : 4 cols (Désignation + PU + Qté + PT)
+  // Mode normal proforma avec remise : 5 cols (Désignation + PU + Qté + Remise + PT)
+  // Mode normal facture sans remise  : 5 cols (Ref + Désignation + PU + Qté + PT)
+  // Mode normal facture avec remise  : 6 cols (Ref + Désignation + PU + Qté + Remise + PT)
+  const nbCols = allService ? 2 : (isProforma ? (hasLineDiscount ? 5 : 4) : (hasLineDiscount ? 6 : 5));
 
   /** Formateur monétaire SYSCOHADA : 1 500 000 (sans décimale, espace milliers) */
   const fmt = (n: number) =>
@@ -462,25 +499,69 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
   // La colonne "Désignation" affiche la description riche (HTML) si présente,
   // sinon le titre court (designation). Le HTML est injecté tel quel pour
   // que Puppeteer/Chromium interprète gras, italique, listes, etc.
-  const linesRows = params.lines.map(l => `
-    <tr>
-      ${isFacture ? `<td style="${td}text-align:center;">${l.reference ?? '-'}</td>` : ''}
-      <td style="${td}">${l.description || l.designation}</td>
-      <td style="${td}text-align:right;">${fmt(l.unitPriceHt)}</td>
-      <td style="${td}text-align:center;">${l.quantity}${l.unit ? `&nbsp;<span style="font-size:9px;color:#666;">${l.unit}</span>` : ''}</td>
-      <td style="${td}text-align:right;">${fmt(l.netHt)}</td>
-    </tr>`).join('');
+  //
+  // Mode service (hideDetails=true) : Ref/PU/Qté masqués — PT = netHt de la prestation.
+  // Mode mixte : les lignes service fusionnent leurs cellules (colspan) avec texte centré.
+  const linesRows = params.lines.map(l => {
+    const isService = !!l.hideDetails;
+    if (allService) {
+      // Tableau simplifié : Désignation | PT seulement
+      return `
+        <tr>
+          <td style="${td}">${l.description || l.designation}</td>
+          <td style="${td}text-align:right;">${fmt(l.netHt)}</td>
+        </tr>`;
+    }
+    if (isService) {
+      // Mode service en tableau mixte : fusionner toutes colonnes sauf PT
+      // Le colspan tient compte de la colonne Remise si elle est active
+      const serviceColspan = nbCols - 1;
+      return `
+        <tr>
+          <td colspan="${serviceColspan}" style="${td}">${l.description || l.designation}</td>
+          <td style="${td}text-align:right;">${fmt(l.netHt)}</td>
+        </tr>`;
+    }
+    // Cellule Remise : valeur colorée si remise, tiret grisé sinon
+    const remiseCell = hasLineDiscount
+      ? `<td style="${td}text-align:center;${l.discountLabel ? 'color:#ef4444;font-weight:600;' : 'color:#aaa;'}">${l.discountLabel ?? '—'}</td>`
+      : '';
+    return `
+      <tr>
+        ${isFacture ? `<td style="${td}text-align:center;">${l.reference ?? '-'}</td>` : ''}
+        <td style="${td}">${l.description || l.designation}</td>
+        <td style="${td}text-align:right;">${fmt(l.unitPriceHt)}</td>
+        <td style="${td}text-align:center;">${String(l.quantity) + (l.unit ? `&nbsp;<span style="font-size:9px;color:#666;">${l.unit}</span>` : '')}</td>
+        ${remiseCell}
+        <td style="${td}text-align:right;">${fmt(l.netHt)}</td>
+      </tr>`;
+  }).join('');
 
   // ── Lignes de totaux ─────────────────────────────────────────────────────────
   const span = nbCols - 1; // colspan pour les labels de total
   let totalRows = '';
 
+  // Remise globale : si présente, on affiche la ligne de remise + TOTAL HT APRÈS REMISE
+  const hasDiscount     = (params.globalDiscountAmount ?? 0) > 0;
+  const htBrut          = params.subtotalBeforeDiscountHt ?? params.subtotalHt;
+  const discountLabel   = params.globalDiscountLabel ?? 'REMISE';
+  const discountRows    = hasDiscount ? `
+      <tr>
+        <td colspan="${span}" style="${totalTd}">${discountLabel}</td>
+        <td style="${totalTdVal}">-${fmt(params.globalDiscountAmount!)}</td>
+      </tr>
+      <tr>
+        <td colspan="${span}" style="${totalTd}">TOTAL HT APRÈS REMISE</td>
+        <td style="${totalTdVal}">${fmt(params.subtotalHt)}</td>
+      </tr>` : '';
+
   if (isAcompte && params.acomptePercentage != null && params.acompteHt != null && params.acompteTax != null) {
     totalRows = `
       <tr>
         <td colspan="${span}" style="${totalTd}">TOTAL HT</td>
-        <td style="${totalTdVal}">${fmt(params.subtotalHt)}</td>
+        <td style="${totalTdVal}">${fmt(htBrut)}</td>
       </tr>
+      ${discountRows}
       <tr>
         <td colspan="${span}" style="${totalTd}">ACOMPTE HT ${params.acomptePercentage.toFixed(2)}%</td>
         <td style="${totalTdVal}">${fmt(params.acompteHt)}</td>
@@ -498,8 +579,9 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
     totalRows = `
       <tr>
         <td colspan="${span}" style="${totalTd}">TOTAL HT</td>
-        <td style="${totalTdVal}">${fmt(params.subtotalHt)}</td>
+        <td style="${totalTdVal}">${fmt(htBrut)}</td>
       </tr>
+      ${discountRows}
       <tr>
         <td colspan="${span}" style="${totalTd}">SOLDE HT</td>
         <td style="${totalTdVal}">${fmt(params.soldeHt)}</td>
@@ -517,8 +599,9 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
     totalRows = `
       <tr>
         <td colspan="${span}" style="${totalTd}">TOTAL HT</td>
-        <td style="${totalTdVal}">${fmt(params.subtotalHt)}</td>
+        <td style="${totalTdVal}">${fmt(htBrut)}</td>
       </tr>
+      ${discountRows}
       <tr>
         <td colspan="${span}" style="${totalTd}">TVA 19.25%</td>
         <td style="${totalTdVal}">${fmt(params.totalTax)}</td>
@@ -605,20 +688,29 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
   }
 
   // ── Tableau des lignes ───────────────────────────────────────────────────────
-  const desigWidth  = isProforma ? '50%' : '38%';
-  const puWidth     = isProforma ? '18%' : '17%';
-  const qtWidth     = isProforma ? '14%' : '13%';
-  const ptWidth     = '18%';
-  const refWidth    = '14%';
+  // Les largeurs se réduisent légèrement quand la colonne Remise est active
+  const desigWidth = isProforma
+    ? (hasLineDiscount ? '46%' : '56%')
+    : (hasLineDiscount ? '36%' : '44%');
+  const puWidth    = isProforma
+    ? (hasLineDiscount ? '12%' : '13%')
+    : (hasLineDiscount ? '11%' : '12%');
+  const qtWidth    = isProforma
+    ? (hasLineDiscount ? '11%' : '14%')
+    : (hasLineDiscount ? '10%' : '13%');
+  const rmWidth    = '12%';   // colonne Remise (fixe)
+  const ptWidth    = '13%';
+  const refWidth   = hasLineDiscount ? '12%' : '14%';
 
   const linesTable = `
     <table style="width:100%;border-collapse:collapse;margin-bottom:18px;font-size:11px;">
       <thead>
         <tr>
-          ${isFacture ? `<th style="${thStyle}text-align:center;width:${refWidth};">Référence</th>` : ''}
-          <th style="${thStyle}text-align:left;width:${desigWidth};">Désignation</th>
-          <th style="${thStyle}text-align:right;width:${puWidth};">PU</th>
-          <th style="${thStyle}text-align:center;width:${qtWidth};">Qté / Unité</th>
+          ${allService ? '' : (isFacture ? `<th style="${thStyle}text-align:center;width:${refWidth};">Référence</th>` : '')}
+          <th style="${thStyle}text-align:left;${allService ? 'width:82%;' : `width:${desigWidth};`}">Désignation</th>
+          ${allService ? '' : `<th style="${thStyle}text-align:right;width:${puWidth};">PU</th>`}
+          ${allService ? '' : `<th style="${thStyle}text-align:center;width:${qtWidth};">Qté / Unité</th>`}
+          ${hasLineDiscount ? `<th style="${thStyle}text-align:center;width:${rmWidth};">Remise</th>` : ''}
           <th style="${thStyle}text-align:right;width:${ptWidth};">PT</th>
         </tr>
       </thead>

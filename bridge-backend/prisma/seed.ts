@@ -145,20 +145,10 @@ async function seedUsers() {
 // ─── 5. Catégories Produits ───────────────────────────────────────────────────
 
 async function seedCategories() {
-  const categories = [
-    { name: 'Serveurs & Infrastructure', description: 'Serveurs, baies rack, PDU, NAS', icon: 'Server',   color: '#2196F3', sortOrder: 1 },
-    { name: 'Réseau & Sécurité',         description: 'Switches, routeurs, pare-feux, VPN', icon: 'Network', color: '#4CAF50', sortOrder: 2 },
-    { name: 'Logiciels & Licences',      description: 'Licences OS, antivirus, suite bureautique', icon: 'Monitor',color: '#9C27B0', sortOrder: 3 },
-    { name: 'Prestations & Services',    description: 'Installation, formation, maintenance', icon: 'Wrench',  color: '#FF9800', sortOrder: 4 },
-  ];
-  for (const c of categories) {
-    await prisma.productCategory.upsert({
-      where:  { name: c.name },
-      update: {},
-      create: c,
-    });
-    console.log(`  ✓ catégorie "${c.name}"`);
-  }
+  // Les catégories sont déjà insérées par le schéma SQL (invoicehub_schema_v2.sql).
+  // Cette fonction est conservée pour éviter les erreurs si le seed est lancé
+  // sur une base vide, mais n'insère rien si les catégories existent déjà.
+  console.log('  ↩  catégories déjà présentes via le schéma SQL — ignorées');
 }
 
 // ─── 6. Produits ─────────────────────────────────────────────────────────────
@@ -167,20 +157,23 @@ async function seedProducts() {
   const admin = await prisma.user.findUnique({ where: { email: 'admin@bts.cm' } });
   const tva   = await prisma.taxRate.findUnique({ where: { code: 'TVA_19_25' } });
 
-  const catServeurs  = await prisma.productCategory.findUnique({ where: { name: 'Serveurs & Infrastructure' } });
-  const catReseau    = await prisma.productCategory.findUnique({ where: { name: 'Réseau & Sécurité' } });
-  const catLogiciels = await prisma.productCategory.findUnique({ where: { name: 'Logiciels & Licences' } });
-  const catServices  = await prisma.productCategory.findUnique({ where: { name: 'Prestations & Services' } });
+  // Catégories du schéma SQL (invoicehub_schema_v2.sql)
+  const catMateriels    = await prisma.productCategory.findUnique({ where: { name: 'Matériels' } });
+  const catInfra        = await prisma.productCategory.findUnique({ where: { name: 'Infrastructure' } });
+  const catSecurite     = await prisma.productCategory.findUnique({ where: { name: 'Sécurité' } });
+  const catLogiciels    = await prisma.productCategory.findUnique({ where: { name: 'Logiciels' } });
+  const catMaintenance  = await prisma.productCategory.findUnique({ where: { name: 'Maintenance' } });
+  const catConseil      = await prisma.productCategory.findUnique({ where: { name: 'Conseil / DSI' } });
 
   const products = [
-    // Serveurs
+    // Matériels
     {
       name:        'Serveur Dell PowerEdge R750',
       reference:   'SRV-R750',
       type:        'product' as const,
       unit:        'piece'   as const,
       unitPriceHt: 2_850_000,
-      categoryId:  catServeurs!.id,
+      categoryId:  catMateriels?.id ?? null,
       description: '<strong>Serveur rack 2U</strong><ul><li>Intel Xeon Silver 4310 (12 cœurs)</li><li>64 Go RAM DDR4 ECC</li><li>2×960 Go SSD NVMe</li><li>iDRAC9 Enterprise inclus</li></ul>',
     },
     {
@@ -189,7 +182,7 @@ async function seedProducts() {
       type:        'product' as const,
       unit:        'piece'   as const,
       unitPriceHt: 1_980_000,
-      categoryId:  catServeurs!.id,
+      categoryId:  catMateriels?.id ?? null,
       description: 'NAS rack 12 baies, Xeon D-1531, 32 Go ECC, iSCSI, Snapshot Replication, 2×10GbE',
     },
     {
@@ -198,27 +191,18 @@ async function seedProducts() {
       type:        'product' as const,
       unit:        'piece'   as const,
       unitPriceHt: 620_000,
-      categoryId:  catServeurs!.id,
+      categoryId:  catMateriels?.id ?? null,
       description: 'Onduleur ligne-interactive 3000 VA / 2700 W, autonomie 12 min pleine charge, SNMP',
     },
-    // Réseau
+    // Infrastructure réseau
     {
       name:        'Switch Cisco Catalyst 2960-X 48G',
       reference:   'NET-C2960X',
       type:        'product' as const,
       unit:        'piece'   as const,
       unitPriceHt: 480_000,
-      categoryId:  catReseau!.id,
+      categoryId:  catInfra?.id ?? null,
       description: 'Switch manageable 48 ports GE<ol><li>4 ports SFP+ 10G uplink</li><li>Budget PoE+ 740W</li><li>Gestion VLAN, QoS, OSPF</li></ol>',
-    },
-    {
-      name:        'Pare-feu Fortinet FortiGate 100F',
-      reference:   'SEC-FG100F',
-      type:        'product' as const,
-      unit:        'piece'   as const,
-      unitPriceHt: 1_450_000,
-      categoryId:  catReseau!.id,
-      description: 'UTM 10 Gbps, IPS/IDS, VPN SSL, filtrage URL, antivirus intégré, FortiGuard 1 an inclus',
     },
     {
       name:        'Câblage réseau catégorie 6A (forfait)',
@@ -226,8 +210,18 @@ async function seedProducts() {
       type:        'product' as const,
       unit:        'forfait' as const,
       unitPriceHt: 750_000,
-      categoryId:  catReseau!.id,
+      categoryId:  catInfra?.id ?? null,
       description: 'Installation complète câblage STP Cat6A, RJ45 blindés, chemins de câbles et baies de brassage inclus',
+    },
+    // Sécurité
+    {
+      name:        'Pare-feu Fortinet FortiGate 100F',
+      reference:   'SEC-FG100F',
+      type:        'product' as const,
+      unit:        'piece'   as const,
+      unitPriceHt: 1_450_000,
+      categoryId:  catSecurite?.id ?? null,
+      description: 'UTM 10 Gbps, IPS/IDS, VPN SSL, filtrage URL, antivirus intégré, FortiGuard 1 an inclus',
     },
     // Logiciels
     {
@@ -236,42 +230,43 @@ async function seedProducts() {
       type:        'product' as const,
       unit:        'licence' as const,
       unitPriceHt: 990_000,
-      categoryId:  catLogiciels!.id,
+      categoryId:  catLogiciels?.id ?? null,
       description: 'Licence OEM 16 cœurs, droits virtualisation illimités (Hyper-V)',
     },
-    // Services
-    {
-      name:        'Installation et configuration réseau',
-      reference:   'SVC-INSTALL-NET',
-      type:        'service' as const,
-      unit:        'jour'    as const,
-      unitPriceHt: 120_000,
-      categoryId:  catServices!.id,
-      description: 'Mise en rack, câblage, configuration VLAN, QoS, OSPF et tests de conformité',
-    },
-    {
-      name:        'Formation administrateur système',
-      reference:   'SVC-FORM-SYS',
-      type:        'service' as const,
-      unit:        'jour'    as const,
-      unitPriceHt: 150_000,
-      categoryId:  catServices!.id,
-      description: 'Formation sur site — administration Windows Server / Linux, virtualisation Hyper-V ou VMware',
-    },
+    // Maintenance
     {
       name:        'Contrat de maintenance annuel',
       reference:   'SVC-MAINT-AN',
       type:        'service' as const,
       unit:        'forfait' as const,
       unitPriceHt: 600_000,
-      categoryId:  catServices!.id,
+      categoryId:  catMaintenance?.id ?? null,
       description: 'Maintenance préventive et corrective, support téléphonique 8h-18h, 2 visites préventives/an',
+    },
+    {
+      name:        'Installation et configuration réseau',
+      reference:   'SVC-INSTALL-NET',
+      type:        'service' as const,
+      unit:        'jour'    as const,
+      unitPriceHt: 120_000,
+      categoryId:  catMaintenance?.id ?? null,
+      description: 'Mise en rack, câblage, configuration VLAN, QoS, OSPF et tests de conformité',
+    },
+    // Conseil / DSI
+    {
+      name:        'Formation administrateur système',
+      reference:   'SVC-FORM-SYS',
+      type:        'service' as const,
+      unit:        'jour'    as const,
+      unitPriceHt: 150_000,
+      categoryId:  catConseil?.id ?? null,
+      description: 'Formation sur site — administration Windows Server / Linux, virtualisation Hyper-V ou VMware',
     },
   ];
 
   for (const p of products) {
     const existing = await prisma.product.findFirst({
-      where: { name: p.name, categoryId: p.categoryId },
+      where: { name: p.name },
     });
     if (existing) {
       console.log(`  ↩  produit "${p.name}" déjà présent — ignoré`);

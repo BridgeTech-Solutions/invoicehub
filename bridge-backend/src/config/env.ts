@@ -49,15 +49,19 @@ const envSchema = z.object({
   REDIS_URL: z.string().default('redis://localhost:6379'),
 
   // --- Application ---
-  /** URL publique de l'application frontend — utilisée dans les liens des emails et CORS */
-  APP_URL: z.string().url().default('http://localhost:3001'),
+  /**
+   * URL publique de l'application frontend — utilisée dans les liens des emails et CORS.
+   * En production Docker : injectée par docker-compose via SERVER_IP.
+   * En dev local : définir manuellement dans .env (ex: http://localhost:3001).
+   */
+  APP_URL: z.string().url(),
   /**
    * Origines CORS supplémentaires (séparées par des virgules).
    * APP_URL est toujours inclus. Exemple : http://192.168.1.10:3001,https://invoicehub.bts.cm
    */
   CORS_ORIGINS: z.string().optional(),
   /** URL publique du backend — utilisée pour construire les URLs des fichiers uploadés */
-  BACKEND_URL: z.string().url().default('http://localhost:3000'),
+  BACKEND_URL: z.string().url(),
   /** Nom de l'émetteur affiché dans l'application authenticator pour le 2FA */
   TOTP_ISSUER: z.string().default('InvoiceHub BTS'),
 

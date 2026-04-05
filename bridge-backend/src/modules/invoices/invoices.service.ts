@@ -25,75 +25,8 @@ import { generatePdf, buildDocumentHtml, imgToBase64 } from '../../lib/pdf';
 import { emailQueue, notificationQueue } from '../../jobs/queues';
 import { broadcastNotification } from '../../lib/broadcast';
 import { DashboardService } from '../dashboard/dashboard.service';
+import { computeLine, computeTotals } from '../../lib/document-math';
 import type { CreateInvoiceInput, UpdateInvoiceInput, ListInvoicesInput, LineInput, CreateAvoirInput } from './invoices.schema';
-
-// ---------------------------------------------------------------------------
-// Helpers de calcul financier
-// ---------------------------------------------------------------------------
-
-/**
- * Calcule les montants d'une ligne de facture à partir des données saisies.
- *
- * Formule SYSCOHADA :
- *  - `subtotalHt` = quantité × prix_unitaire_HT
- *  - `discountAmount` = subtotalHt × taux_remise / 100  (si remise en %)
- *  - `netHt` = subtotalHt − discountAmount
- *  - `taxAmount` = netHt × taux_TVA / 100
- *  - `totalTtc` = netHt + taxAmount
- *
- * @param line - Données brutes d'une ligne (quantité, prix, remise, TVA)
- * @returns Montants calculés et arrondis à 2 décimales
- */
-function computeLine(line: LineInput) {
-  const subtotalHt = Number((line.quantity * line.unitPriceHt).toFixed(2));
-
-  let discountAmount = 0;
-  if (line.discountType === 'percentage') {
-    discountAmount = Number((subtotalHt * line.discountValue / 100).toFixed(2));
-  } else if (line.discountType === 'fixed') {
-    // La remise fixe ne peut pas dépasser le montant HT
-    discountAmount = Math.min(line.discountValue, subtotalHt);
-  }
-
-  const netHt      = Number((subtotalHt - discountAmount).toFixed(2));
-  const taxAmount  = Number((netHt * line.taxRate / 100).toFixed(2));
-  const totalTtc   = Number((netHt + taxAmount).toFixed(2));
-
-  return { subtotalHt, discountAmount, netHt, taxAmount, totalTtc };
-}
-
-/**
- * Calcule les totaux globaux d'un document à partir des totaux de ses lignes.
- *
- * La remise globale s'applique sur la somme des montants nets HT des lignes
- * (après remises individuelles), avant application de la TVA.
- *
- * @param lines               - Totaux calculés de chaque ligne
- * @param globalDiscountType  - Type de remise globale ('none' | 'percentage' | 'fixed')
- * @param globalDiscountValue - Valeur de la remise globale (% ou montant fixe)
- * @returns Totaux du document : HT, remise globale, TVA, TTC
- */
-function computeTotals(
-  lines: Array<ReturnType<typeof computeLine>>,
-  globalDiscountType: string,
-  globalDiscountValue: number,
-) {
-  // Base de calcul = somme des nets HT de chaque ligne (après remises lignes)
-  const subtotalHt = Number(lines.reduce((s, l) => s + l.netHt, 0).toFixed(2));
-
-  let globalDiscountAmount = 0;
-  if (globalDiscountType === 'percentage') {
-    globalDiscountAmount = Number((subtotalHt * globalDiscountValue / 100).toFixed(2));
-  } else if (globalDiscountType === 'fixed') {
-    globalDiscountAmount = Math.min(globalDiscountValue, subtotalHt);
-  }
-
-  const totalHt  = Number((subtotalHt - globalDiscountAmount).toFixed(2));
-  const totalTax = Number(lines.reduce((s, l) => s + l.taxAmount, 0).toFixed(2));
-  const totalTtc = Number((totalHt + totalTax).toFixed(2));
-
-  return { subtotalHt, globalDiscountAmount, totalHt, totalTax, totalTtc };
-}
 
 // ---------------------------------------------------------------------------
 // Service
@@ -207,6 +140,37 @@ export class InvoicesService {
       acompteAmount = Number((totals.totalTtc * input.acomptePercentage / 100).toFixed(2));
     }
 
+    // Facture d'acompte avec parent : vérifier que le cumul ne dépasse pas le total projet
+    // et mémoriser le total déjà engagé pour l'affichage (stocké dans totalAcomptesDeducted)
+    let acompteAlreadyEngaged = 0;
+    if (input.type === 'acompte' && input.parentInvoiceId) {
+      // Inclure le parent lui-même (amountDue de l'acompte racine)
+      const parentInvoice = await prisma.invoice.findFirst({
+        where: { id: input.parentInvoiceId, type: 'acompte', deletedAt: null, status: { notIn: ['cancelled'] } },
+        select: { amountDue: true },
+      });
+      const parentAmount = Number(parentInvoice?.amountDue ?? 0);
+
+      // Acomptes frères (autres acomptes avec le même parent)
+      const siblingAgg = await prisma.invoice.aggregate({
+        where: {
+          parentInvoiceId: input.parentInvoiceId,
+          type: 'acompte',
+          deletedAt: null,
+          status: { notIn: ['cancelled'] },
+        },
+        _sum: { amountDue: true },
+      });
+      const siblingTotal = Number(siblingAgg._sum.amountDue ?? 0);
+      acompteAlreadyEngaged = parentAmount + siblingTotal;
+
+      if (acompteAlreadyEngaged + acompteAmount > totals.totalTtc) {
+        throw AppError.badRequest(
+          `Le montant cumulé des acomptes (${(acompteAlreadyEngaged + acompteAmount).toLocaleString('fr-FR')} XAF) dépasse le total du projet (${totals.totalTtc.toLocaleString('fr-FR')} XAF). Déjà engagé : ${acompteAlreadyEngaged.toLocaleString('fr-FR')} XAF.`,
+        );
+      }
+    }
+
     // Facture de solde : déduit la somme des acomptes déjà encaissés
     let totalAcomptesDeducted = 0;
     if (input.type === 'solde' && input.parentInvoiceId) {
@@ -234,7 +198,12 @@ export class InvoicesService {
       totalAcomptesDeducted = Number(acomptesAgg._sum.amount ?? 0);
     }
 
-    const amountDue = Number((totals.totalTtc - totalAcomptesDeducted).toFixed(2));
+    // Pour un acompte : amountDue = montant de l'acompte (pas le total projet complet)
+    // Pour un solde   : amountDue = total projet − acomptes déjà versés
+    // Sinon           : amountDue = total TTC
+    const amountDue = input.type === 'acompte'
+      ? acompteAmount
+      : Number((totals.totalTtc - totalAcomptesDeducted).toFixed(2));
 
     return prisma.invoice.create({
       data: {
@@ -262,12 +231,14 @@ export class InvoicesService {
         totalTax: totals.totalTax,
         totalTtc: input.type === 'acompte' ? acompteAmount : totals.totalTtc,
         acomptePercentage: input.acomptePercentage,
-        totalAcomptesDeducted,
+        // Pour un acompte multi-versement : stocke la somme des acomptes précédents
+        // pour que la page de détail affiche le bon "Solde restant TTC"
+        totalAcomptesDeducted: input.type === 'acompte' ? acompteAlreadyEngaged : totalAcomptesDeducted,
         amountDue,
         balanceDue: amountDue,
         lines: {
           create: computedLines.map(l => ({
-            productId: l.productId,
+            ...(l.productId ? { product: { connect: { id: l.productId } } } : {}),
             sortOrder: l.sortOrder,
             designation: l.designation,
             description: l.description,
@@ -282,6 +253,7 @@ export class InvoicesService {
             netHt: l.netHt,
             taxAmount: l.taxAmount,
             totalTtc: l.totalTtc,
+            hideDetails: l.hideDetails ?? false,
           })),
         },
         statusHistory: {
@@ -352,6 +324,8 @@ export class InvoicesService {
 
       Object.assign(updateData, {
         subtotalHt: totals.subtotalHt,
+        globalDiscountType:   input.globalDiscountType  ?? invoice.globalDiscountType,
+        globalDiscountValue:  input.globalDiscountValue ?? invoice.globalDiscountValue,
         globalDiscountAmount: totals.globalDiscountAmount,
         totalHt: totals.totalHt,
         totalTax: totals.totalTax,
@@ -361,7 +335,7 @@ export class InvoicesService {
         lines: {
           deleteMany: {},
           create: computedLines.map(l => ({
-            productId: l.productId,
+            ...(l.productId ? { product: { connect: { id: l.productId } } } : {}),
             sortOrder: l.sortOrder,
             designation: l.designation,
             description: l.description,
@@ -376,6 +350,7 @@ export class InvoicesService {
             netHt: l.netHt,
             taxAmount: l.taxAmount,
             totalTtc: l.totalTtc,
+            hideDetails: l.hideDetails ?? false,
           })),
         },
       });
@@ -419,7 +394,7 @@ export class InvoicesService {
       title: `Facture émise : ${invoice.number}`,
       message: `La facture ${invoice.number} pour ${invoice.client.name} a été émise. Échéance : ${new Date(invoice.dueDate).toLocaleDateString('fr-FR')}.`,
       data: { invoiceId: invoice.id, invoiceNumber: invoice.number },
-    }, { excludeUserId: userId });
+    });
 
     // Email au client — désactivé (envoi manuel hors application)
     // if (invoice.client.email) {
@@ -504,7 +479,7 @@ export class InvoicesService {
           status: 'issued',
           lines: {
             create: invoice.lines.map(l => ({
-              productId: l.productId,
+              ...(l.productId ? { product: { connect: { id: l.productId } } } : {}),
               sortOrder: l.sortOrder,
               designation: l.designation,
               description: l.description,
@@ -519,6 +494,7 @@ export class InvoicesService {
               netHt: l.netHt,
               taxAmount: l.taxAmount,
               totalTtc: l.totalTtc,
+              hideDetails: (l as any).hideDetails ?? false,
             })),
           },
           statusHistory: {
@@ -534,7 +510,7 @@ export class InvoicesService {
         title: `Facture annulée : ${invoice.number}`,
         message: `La facture ${invoice.number} pour ${invoice.client.name} a été annulée. Un avoir a été généré automatiquement.`,
         data: { invoiceId: invoice.id, invoiceNumber: invoice.number, reason },
-      }, { excludeUserId: userId });
+      });
       await DashboardService.invalidateCache();
       return cancelled;
     });
@@ -573,7 +549,7 @@ export class InvoicesService {
 
       // Calcul des lignes : personnalisées ou copie des lignes originales
       let avoirLines: Array<{
-        productId?: string | null;
+        product?: { connect: { id: string } };
         sortOrder: number;
         designation: string;
         description?: string | null;
@@ -594,7 +570,7 @@ export class InvoicesService {
         // Lignes personnalisées : recalcul complet via computeLine
         const computedLines = input.lines.map(l => ({ ...l, ...computeLine(l) }));
         avoirLines = computedLines.map(l => ({
-          productId: l.productId ?? null,
+          ...(l.productId ? { product: { connect: { id: l.productId } } } : {}),
           sortOrder: l.sortOrder,
           designation: l.designation,
           description: l.description ?? null,
@@ -613,7 +589,7 @@ export class InvoicesService {
       } else {
         // Copie exacte des lignes de la facture originale (même montants — snapshots)
         avoirLines = invoice.lines.map(l => ({
-          productId: l.productId,
+          ...(l.productId ? { product: { connect: { id: l.productId } } } : {}),
           sortOrder: l.sortOrder,
           designation: l.designation,
           description: l.description,
@@ -677,7 +653,7 @@ export class InvoicesService {
       title: `Avoir créé : ${avoir.number}`,
       message: `Un avoir ${avoir.number} a été créé sur la facture ${invoice.number} pour ${invoice.client.name}. Motif : ${input.reason}`,
       data: { invoiceId: invoice.id, avoirId: avoir.id, avoirNumber: avoir.number },
-    }, { excludeUserId: userId });
+    });
 
     await DashboardService.invalidateCache();
     return avoir;
@@ -754,20 +730,39 @@ export class InvoicesService {
       subject:  invoice.subject          ?? undefined,
       currency: invoice.currency,
 
-      lines: invoice.lines.map(l => ({
-        reference:   l.product?.reference ?? undefined,
-        designation: l.designation,
-        description: l.description ?? undefined,
-        quantity:    Number(l.quantity),
-        unit:        l.unit,
-        unitPriceHt: Number(l.unitPriceHt),
-        netHt:       Number(l.netHt),
-        taxRate:     Number(l.taxRate),
-      })),
+      lines: invoice.lines.map(l => {
+        const discountAmt = Number(l.discountAmount);
+        return {
+          reference:   l.product?.reference ?? undefined,
+          designation: l.designation,
+          description: l.description ?? undefined,
+          quantity:    Number(l.quantity),
+          unit:        l.unit,
+          unitPriceHt: Number(l.unitPriceHt),
+          netHt:       Number(l.netHt),
+          taxRate:     Number(l.taxRate),
+          hideDetails: l.hideDetails ?? false,
+          // Remise ligne — affiché dans la colonne Remise si > 0
+          discountLabel: discountAmt > 0
+            ? l.discountType === 'percentage'
+              ? `${Number(l.discountValue).toFixed(2)}%`
+              : new Intl.NumberFormat('fr-FR').format(Math.round(discountAmt)) + ' XAF'
+            : undefined,
+        };
+      }),
 
       subtotalHt: totalHt,
       totalTax,
       totalTtc: displayTtc,
+
+      // Remise globale — affiché entre TOTAL HT et TVA si > 0
+      subtotalBeforeDiscountHt: Number(invoice.subtotalHt),
+      globalDiscountAmount: Number(invoice.globalDiscountAmount) || undefined,
+      globalDiscountLabel: Number(invoice.globalDiscountAmount) > 0
+        ? invoice.globalDiscountType === 'percentage'
+          ? `REMISE ${Number(invoice.globalDiscountValue).toFixed(2)}%`
+          : 'REMISE'
+        : undefined,
 
       acomptePercentage: isAcompte ? pct        : undefined,
       acompteHt,
@@ -1056,7 +1051,7 @@ export class InvoicesService {
         lines: {
           create: original.lines.map(l => ({
             sortOrder: l.sortOrder,
-            productId: l.productId,
+            ...(l.productId ? { product: { connect: { id: l.productId } } } : {}),
             designation: l.designation,
             description: l.description,
             unit: l.unit,
@@ -1078,6 +1073,14 @@ export class InvoicesService {
       },
       include: { lines: true, client: true },
     });
+  }
+
+  async softDelete(id: string): Promise<void> {
+    const invoice = await this.findById(id);
+    if (invoice.status !== 'draft') {
+      throw AppError.badRequest('Seules les factures en brouillon peuvent être supprimées');
+    }
+    await prisma.invoice.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 }
 

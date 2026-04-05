@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils'
 
 interface PageHeaderProps {
   title: string
-  description?: string
+  description?: React.ReactNode
   /** Boutons d'action à droite (ex: "+ Nouveau client") */
   actions?: React.ReactNode
   className?: string
@@ -31,7 +31,7 @@ export function PageHeader({ title, description, actions, className }: PageHeade
         >
           {title}
         </h1>
-        {description && (
+        {description != null && (
           <p
             style={{
               marginTop: 4,

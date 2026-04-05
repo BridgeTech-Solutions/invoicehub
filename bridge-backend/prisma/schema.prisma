@@ -526,6 +526,7 @@ model ProformaLine {
   netHt          Decimal      @default(0) @map("net_ht") @db.Decimal(15, 2)
   taxAmount      Decimal      @default(0) @map("tax_amount") @db.Decimal(15, 2)
   totalTtc       Decimal      @default(0) @map("total_ttc") @db.Decimal(15, 2)
+  hideDetails    Boolean      @default(false) @map("hide_details")
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt      DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
@@ -630,6 +631,7 @@ model InvoiceLine {
   netHt          Decimal      @default(0) @map("net_ht") @db.Decimal(15, 2)
   taxAmount      Decimal      @default(0) @map("tax_amount") @db.Decimal(15, 2)
   totalTtc       Decimal      @default(0) @map("total_ttc") @db.Decimal(15, 2)
+  hideDetails    Boolean      @default(false) @map("hide_details")
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt      DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 

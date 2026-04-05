@@ -24,7 +24,7 @@ function AgingSkeleton() {
   return (
     <div className="card" style={{ padding: '20px' }}>
       <div style={{ height: 16, width: 160, background: 'var(--border)', borderRadius: 4, marginBottom: 16 }} className="animate-pulse" />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {[...Array(5)].map((_, i) => (
           <div key={i} style={{ height: 72, background: 'var(--border)', borderRadius: 8, opacity: 0.5 }} className="animate-pulse" />
         ))}
@@ -62,7 +62,7 @@ export function AgingWidget() {
       </div>
 
       {/* Buckets */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {BUCKETS.map((b) => {
           const bucket = data[b.key as keyof typeof data] as { amount: number; count: number }
           const totalAmount = data.total.amount
@@ -104,8 +104,13 @@ export function AgingWidget() {
               </p>
 
               {/* Mini bar */}
-              <div style={{ height: 3, borderRadius: 2, background: 'rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+              <div style={{ height: 3, borderRadius: 2, background: 'rgba(0,0,0,0.08)', overflow: 'hidden' }} aria-hidden="true">
                 <div
+                  role="progressbar"
+                  aria-valuenow={pct}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label={`${b.label} — ${pct}% du total des créances`}
                   style={{
                     height: '100%',
                     width: `${pct}%`,

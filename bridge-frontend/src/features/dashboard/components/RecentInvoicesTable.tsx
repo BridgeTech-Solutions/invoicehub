@@ -58,6 +58,7 @@ export function RecentInvoicesTable() {
         </h2>
         <Link
           href={ROUTES.INVOICES}
+          aria-label="Voir toutes les factures"
           style={{ fontSize: 12.5, color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}
         >
           Voir tout →
@@ -72,11 +73,11 @@ export function RecentInvoicesTable() {
         <table className="data-table">
           <thead>
             <tr>
-              <th>N° Facture</th>
-              <th>Client</th>
-              <th>Date</th>
-              <th>Montant TTC</th>
-              <th>Statut</th>
+              <th scope="col">N° Facture</th>
+              <th scope="col">Client</th>
+              <th scope="col">Date</th>
+              <th scope="col">Montant TTC</th>
+              <th scope="col">Statut</th>
             </tr>
           </thead>
           <tbody>
@@ -99,7 +100,7 @@ export function RecentInvoicesTable() {
                     {inv.client.name}
                   </td>
                   <td style={{ color: 'var(--text-3)', fontSize: 13 }}>
-                    {formatDate(inv.issueDate)}
+                    <time dateTime={inv.issueDate}>{formatDate(inv.issueDate)}</time>
                   </td>
                   <td>
                     <span className="amount" style={{ fontSize: 13 }}>

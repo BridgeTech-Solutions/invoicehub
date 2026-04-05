@@ -65,7 +65,7 @@ export function AvoirModal({ invoice, onClose }: AvoirModalProps) {
   }
 
   const addLine = () => {
-    setLines(prev => [...prev, lineToFormLine({ ...makeBlankLine(prev.length), id: crypto.randomUUID() } as any)])
+    setLines(prev => [...prev, lineToFormLine({ ...makeBlankLine(prev.length), id: `local-${Date.now()}` } as any)])
   }
 
   return (

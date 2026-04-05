@@ -293,18 +293,18 @@ export function Topbar() {
         onClick={toggleMobile}
         className="lg:hidden"
         style={{
-          width: 36, height: 36, border: 'none', background: 'transparent',
+          width: 44, height: 44, border: 'none', background: 'transparent',
           cursor: 'pointer', borderRadius: 8, display: 'none',
           alignItems: 'center', justifyContent: 'center', color: 'var(--text-2)',
           flexShrink: 0,
         }}
-        title="Menu"
+        aria-label="Ouvrir le menu de navigation"
       >
         <Menu size={20} />
       </button>
 
       {/* Breadcrumb */}
-      <nav style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+      <nav aria-label="Fil d'Ariane" style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
         {breadcrumbs.map((crumb, i) => (
           <span key={crumb.href} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {i > 0 && <ChevronRight size={13} strokeWidth={2} style={{ color: 'var(--text-3)', flexShrink: 0 }} />}
@@ -346,6 +346,10 @@ export function Topbar() {
             onChange={(e) => handleSearchChange(e.target.value)}
             onFocus={handleSearchFocus}
             placeholder="Rechercher un client, une facture…"
+            aria-label="Recherche globale"
+            aria-autocomplete="list"
+            aria-expanded={showDropdown}
+            role="combobox"
             style={{
               flex: 1, border: 'none', outline: 'none',
               background: 'transparent', fontSize: 13,
@@ -357,6 +361,7 @@ export function Topbar() {
             <button
               type="button"
               onClick={closeSearch}
+              aria-label="Effacer la recherche"
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 0, display: 'flex', flexShrink: 0 }}
               onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-1)' }}
               onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}
@@ -374,9 +379,10 @@ export function Topbar() {
       {/* Notifications bell */}
       <Link
         href={ROUTES.NOTIFICATIONS}
+        aria-label={notifCount > 0 ? `Notifications — ${notifCount} non lue${notifCount > 1 ? 's' : ''}` : 'Notifications'}
         style={{
           position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          width: 36, height: 36, borderRadius: 8, color: 'var(--text-2)',
+          width: 44, height: 44, borderRadius: 8, color: 'var(--text-2)',
           textDecoration: 'none', flexShrink: 0, transition: 'background 0.15s, color 0.15s',
         }}
         onMouseEnter={(e) => {

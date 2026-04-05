@@ -12,10 +12,9 @@ import {
 export class ProformasController {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const query = listProformasSchema.parse(req.query);
-
       if (req.query['export'] === 'csv') {
-        const { data } = await proformasService.list({ ...query, page: 1, limit: 10_000 });
+        const filters = listProformasSchema.parse({ ...req.query, limit: '20', page: '1' });
+        const { data } = await proformasService.list({ ...filters, page: 1, limit: 10_000 });
         return sendCsvResponse(res, 'proformas.csv',
           ['Numéro', 'Client', 'Statut', 'Date émission', 'Valide jusqu\'au', 'Total TTC'],
           data.map(p => [
@@ -29,6 +28,7 @@ export class ProformasController {
         );
       }
 
+      const query = listProformasSchema.parse(req.query);
       const result = await proformasService.list(query);
       res.json({ success: true, ...result });
     } catch (err) {

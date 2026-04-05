@@ -1,0 +1,8 @@
+{
+      "mcpServers": {
+    "ui-ux-pro-max": {
+      "command": "C:\\Users\\cruzj\\AppData\\Roaming\\npm\\uipro.cmd",
+      "args": ["init", "--ai", "claude"]
+    }
+  }
+}

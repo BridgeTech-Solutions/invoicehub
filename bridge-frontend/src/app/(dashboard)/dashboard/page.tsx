@@ -23,13 +23,13 @@ export default function DashboardPage() {
       <KpiCards />
 
       {/* ── Ligne 2 : Graphique CA + Donut statuts ─────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 16 }}>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_280px]">
         <RevenueChart />
         <InvoiceStatusDonut />
       </div>
 
       {/* ── Ligne 3 : Factures récentes + Top Clients ──── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 16 }}>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]">
         <RecentInvoicesTable />
         <TopClientsTable />
       </div>

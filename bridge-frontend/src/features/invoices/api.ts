@@ -6,6 +6,18 @@ import type {
   CreatePaymentPayload, ListPaymentsParams, Payment,
 } from './types'
 
+export interface AuditLogEntry {
+  id:         string
+  action:     string
+  entityType: string | null
+  entityId:   string | null
+  before:     unknown
+  after:      unknown
+  ipAddress:  string | null
+  createdAt:  string
+  user:       { id: string; firstName: string; lastName: string; email: string } | null
+}
+
 export const invoicesApi = {
   // ─── Invoices CRUD ─────────────────────────────────────────
   list: (params?: ListInvoicesParams) =>
@@ -29,6 +41,9 @@ export const invoicesApi = {
 
   duplicate: (id: string) =>
     apiClient.post<Invoice>(`/invoices/${id}/duplicate`).then(r => r.data),
+
+  delete: (id: string) =>
+    apiClient.delete(`/invoices/${id}`),
 
   // ─── Avoir ──────────────────────────────────────────────────
   createAvoir: (id: string, data: CreateAvoirPayload) =>
@@ -55,6 +70,10 @@ export const invoicesApi = {
     a.href = url; a.download = 'factures.csv'; a.click()
     URL.revokeObjectURL(url)
   },
+
+  // ─── Audit history ──────────────────────────────────────────
+  getHistory: (id: string) =>
+    apiClient.get<AuditLogEntry[]>(`/invoices/${id}/history`).then(r => r.data),
 
   // ─── Payments (nested under invoice) ───────────────────────
   createPayment: (invoiceId: string, data: CreatePaymentPayload) =>

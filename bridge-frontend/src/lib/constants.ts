@@ -22,6 +22,7 @@ export const ROUTES = {
   SETTINGS_NOTIFICATIONS: '/settings/notifications',
   SETTINGS_BACKUPS:       '/settings/backups',
   ASSISTANT:              '/assistant',
+  GUIDE:                  '/guide',
 } as const
 
 export const ROLES = {

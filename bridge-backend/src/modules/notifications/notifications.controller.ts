@@ -6,7 +6,7 @@ import { notificationsService } from './notifications.service';
 const listSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
-  unreadOnly: z.coerce.boolean().default(false),
+  unreadOnly: z.preprocess(val => val === 'true' || val === true, z.boolean()).default(false),
 });
 
 const updateSettingsSchema = z.object({

@@ -6,47 +6,8 @@ import { emailQueue, notificationQueue } from '../../jobs/queues';
 import { broadcastNotification } from '../../lib/broadcast';
 import { generatePdf, buildDocumentHtml, imgToBase64 } from '../../lib/pdf';
 import { DashboardService } from '../dashboard/dashboard.service';
+import { computeLine, computeTotals } from '../../lib/document-math';
 import type { CreateProformaInput, UpdateProformaInput, ListProformasInput, LineInput, ConvertProformaInput } from './proformas.schema';
-
-/** Calcule les totaux d'une ligne de proforma */
-function computeLine(line: LineInput) {
-  const subtotalHt = Number((line.quantity * line.unitPriceHt).toFixed(2));
-
-  let discountAmount = 0;
-  if (line.discountType === 'percentage') {
-    discountAmount = Number((subtotalHt * line.discountValue / 100).toFixed(2));
-  } else if (line.discountType === 'fixed') {
-    discountAmount = Math.min(line.discountValue, subtotalHt);
-  }
-
-  const netHt = Number((subtotalHt - discountAmount).toFixed(2));
-  const taxAmount = Number((netHt * line.taxRate / 100).toFixed(2));
-  const totalTtc = Number((netHt + taxAmount).toFixed(2));
-
-  return { subtotalHt, discountAmount, netHt, taxAmount, totalTtc };
-}
-
-/** Calcule les totaux globaux d'un document */
-function computeTotals(
-  lines: Array<ReturnType<typeof computeLine>>,
-  globalDiscountType: string,
-  globalDiscountValue: number,
-) {
-  const subtotalHt = Number(lines.reduce((s, l) => s + l.netHt, 0).toFixed(2));
-
-  let globalDiscountAmount = 0;
-  if (globalDiscountType === 'percentage') {
-    globalDiscountAmount = Number((subtotalHt * globalDiscountValue / 100).toFixed(2));
-  } else if (globalDiscountType === 'fixed') {
-    globalDiscountAmount = Math.min(globalDiscountValue, subtotalHt);
-  }
-
-  const totalHt = Number((subtotalHt - globalDiscountAmount).toFixed(2));
-  const totalTax = Number(lines.reduce((s, l) => s + l.taxAmount, 0).toFixed(2));
-  const totalTtc = Number((totalHt + totalTax).toFixed(2));
-
-  return { subtotalHt, globalDiscountAmount, totalHt, totalTax, totalTtc };
-}
 
 export class ProformasService {
   async list(input: ListProformasInput) {
@@ -135,7 +96,7 @@ export class ProformasService {
         totalTtc: totals.totalTtc,
         lines: {
           create: computedLines.map(l => ({
-            productId: l.productId,
+            ...(l.productId ? { product: { connect: { id: l.productId } } } : {}),
             sortOrder: l.sortOrder,
             designation: l.designation,
             description: l.description,
@@ -150,6 +111,7 @@ export class ProformasService {
             netHt: l.netHt,
             taxAmount: l.taxAmount,
             totalTtc: l.totalTtc,
+            hideDetails: l.hideDetails ?? false,
           })),
         },
         statusHistory: {
@@ -187,6 +149,8 @@ export class ProformasService {
       );
       Object.assign(updateData, {
         subtotalHt: totals.subtotalHt,
+        globalDiscountType:   input.globalDiscountType  ?? proforma.globalDiscountType,
+        globalDiscountValue:  input.globalDiscountValue ?? proforma.globalDiscountValue,
         globalDiscountAmount: totals.globalDiscountAmount,
         totalHt: totals.totalHt,
         totalTax: totals.totalTax,
@@ -194,7 +158,7 @@ export class ProformasService {
         lines: {
           deleteMany: {},
           create: computedLines.map(l => ({
-            productId: l.productId,
+            ...(l.productId ? { product: { connect: { id: l.productId } } } : {}),
             sortOrder: l.sortOrder,
             designation: l.designation,
             description: l.description,
@@ -209,6 +173,7 @@ export class ProformasService {
             netHt: l.netHt,
             taxAmount: l.taxAmount,
             totalTtc: l.totalTtc,
+            hideDetails: l.hideDetails ?? false,
           })),
         },
       });
@@ -248,7 +213,7 @@ export class ProformasService {
       title: `Proforma envoyée : ${proforma.number}`,
       message: `La proforma ${proforma.number} pour ${proforma.client.name} a été envoyée au client.`,
       data: { proformaId: proforma.id, proformaNumber: proforma.number },
-    }, { excludeUserId: userId });
+    });
 
     // Email au client — désactivé (envoi manuel hors application)
     // if (proforma.client.email) {
@@ -289,7 +254,7 @@ export class ProformasService {
       title: `Proforma acceptée : ${proforma.number}`,
       message: `La proforma ${proforma.number} pour ${proforma.client.name} a été acceptée.`,
       data: { proformaId: proforma.id, proformaNumber: proforma.number },
-    }, { excludeUserId: userId });
+    });
 
     await DashboardService.invalidateCache();
     return updated;
@@ -316,7 +281,7 @@ export class ProformasService {
       title: `Proforma rejetée : ${proforma.number}`,
       message: `La proforma ${proforma.number} pour ${proforma.client.name} a été rejetée.${reason ? ` Motif : ${reason}` : ''}`,
       data: { proformaId: proforma.id, proformaNumber: proforma.number, reason },
-    }, { excludeUserId: userId });
+    });
 
     await DashboardService.invalidateCache();
     return updated;
@@ -407,7 +372,7 @@ export class ProformasService {
           // depuis acomptePercentage × totalHt et l'affiche dans les totaux.
           lines: {
             create: proforma.lines.map(l => ({
-              productId:     l.productId,
+              ...(l.productId ? { product: { connect: { id: l.productId } } } : {}),
               sortOrder:     l.sortOrder,
               designation:   l.designation,
               description:   l.description,
@@ -469,19 +434,38 @@ export class ProformasService {
       subject:    proforma.subject ?? undefined,
       currency:   proforma.currency,
 
-      lines: proforma.lines.map(l => ({
-        designation: l.designation,
-        description: l.description ?? undefined,
-        quantity:    Number(l.quantity),
-        unit:        l.unit,
-        unitPriceHt: Number(l.unitPriceHt),
-        netHt:       Number(l.netHt),
-        taxRate:     Number(l.taxRate),
-      })),
+      lines: proforma.lines.map(l => {
+        const discountAmt = Number(l.discountAmount);
+        return {
+          designation: l.designation,
+          description: l.description ?? undefined,
+          quantity:    Number(l.quantity),
+          unit:        l.unit,
+          unitPriceHt: Number(l.unitPriceHt),
+          netHt:       Number(l.netHt),
+          taxRate:     Number(l.taxRate),
+          hideDetails: l.hideDetails ?? false,
+          // Remise ligne — affiché dans la colonne Remise si > 0
+          discountLabel: discountAmt > 0
+            ? l.discountType === 'percentage'
+              ? `${Number(l.discountValue).toFixed(2)}%`
+              : new Intl.NumberFormat('fr-FR').format(Math.round(discountAmt)) + ' XAF'
+            : undefined,
+        };
+      }),
 
       subtotalHt: Number(proforma.totalHt),
       totalTax:   Number(proforma.totalTax),
       totalTtc:   Number(proforma.totalTtc),
+
+      // Remise globale — affiché entre TOTAL HT et TVA si > 0
+      subtotalBeforeDiscountHt: Number(proforma.subtotalHt),
+      globalDiscountAmount: Number(proforma.globalDiscountAmount) || undefined,
+      globalDiscountLabel: Number(proforma.globalDiscountAmount) > 0
+        ? proforma.globalDiscountType === 'percentage'
+          ? `REMISE ${Number(proforma.globalDiscountValue).toFixed(2)}%`
+          : 'REMISE'
+        : undefined,
 
       deliveryDelay:     proforma.deliveryDelay     ?? undefined,
       warranty:          proforma.warranty          ?? undefined,
@@ -537,7 +521,7 @@ export class ProformasService {
         lines: {
           create: original.lines.map(l => ({
             sortOrder: l.sortOrder,
-            productId: l.productId,
+            ...(l.productId ? { product: { connect: { id: l.productId } } } : {}),
             designation: l.designation,
             description: l.description,
             unit: l.unit,
@@ -551,6 +535,7 @@ export class ProformasService {
             netHt: l.netHt,
             taxAmount: l.taxAmount,
             totalTtc: l.totalTtc,
+            hideDetails: (l as any).hideDetails ?? false,
           })),
         },
         statusHistory: {

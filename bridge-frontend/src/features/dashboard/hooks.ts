@@ -30,9 +30,10 @@ export function useDashboardAging() {
 }
 
 // ─── Socket sync — invalide le cache quand le backend push ─────
-export function useDashboardSocketSync() {
+export function useDashboardSocketSync(onRefresh?: () => void) {
   const qc = useQueryClient()
   useSocket('dashboard:refresh', () => {
     qc.invalidateQueries({ queryKey: ['dashboard'] })
+    onRefresh?.()
   })
 }

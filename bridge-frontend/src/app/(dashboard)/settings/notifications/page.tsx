@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Mail, Eye, Loader2, Check, X, ChevronDown, ChevronUp, Tag, Bell, Shield, Plus, Trash2 } from 'lucide-react'
+import { useState, useEffect, useId } from 'react'
+import { Mail, Loader2, Check, X, ChevronDown, ChevronUp, Tag, Bell, Shield, Plus, Trash2 } from 'lucide-react'
 import {
   useEmailTemplates, useEmailTemplate, useUpdateEmailTemplate,
 } from '@/features/email-templates/hooks'
@@ -40,11 +40,29 @@ function SectionTitle({ icon, title, subtitle }: { icon: React.ReactNode; title:
   return (
     <div style={{ marginBottom: 16, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ color: 'var(--primary)' }}>{icon}</div>
+        <div aria-hidden="true" style={{ color: 'var(--primary)' }}>{icon}</div>
         <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0 }}>{title}</h2>
       </div>
       {subtitle && <p style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '4px 0 0 23px' }}>{subtitle}</p>}
     </div>
+  )
+}
+
+// ─── Accessible toggle switch ─────────────────────────────────
+function Toggle({ checked, onChange, label }: { checked: boolean; onChange: () => void; label: string }) {
+  return (
+    <label style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}>
+      <input
+        type="checkbox"
+        className="sr-only"
+        checked={checked}
+        onChange={onChange}
+        aria-label={label}
+      />
+      <div aria-hidden="true" style={{ width: 36, height: 20, borderRadius: 10, background: checked ? 'var(--primary)' : 'var(--border)', transition: 'background 0.2s', position: 'relative' }}>
+        <div style={{ position: 'absolute', top: 2, left: checked ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s' }} />
+      </div>
+    </label>
   )
 }
 
@@ -79,24 +97,24 @@ function NotifSettingsSection() {
     <div className="card">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ color: 'var(--primary)' }}><Mail size={15} /></div>
+          <div aria-hidden="true" style={{ color: 'var(--primary)' }}><Mail size={15} /></div>
           <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0 }}>Préférences de notifications</h2>
         </div>
         {dirty && (
           <button type="button" onClick={handleSave} disabled={updateMut.isPending}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: '#fff', cursor: 'pointer', fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-            {updateMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Sauvegarder
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: '#fff', cursor: 'pointer', fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: updateMut.isPending ? 0.65 : 1 }}>
+            {updateMut.isPending ? <Loader2 size={12} className="animate-spin" aria-hidden="true" /> : <Check size={12} aria-hidden="true" />} Sauvegarder
           </button>
         )}
       </div>
       {/* Header */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 100px', gap: 12, padding: '0 8px', marginBottom: 8 }}>
+      <div aria-hidden="true" style={{ display: 'grid', gridTemplateColumns: '1fr 100px 100px', gap: 12, padding: '0 8px', marginBottom: 8 }}>
         {['Événement', 'Dans l\'app', 'Email'].map((h) => (
           <span key={h} style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: h === 'Événement' ? 'left' : 'center' }}>{h}</span>
         ))}
       </div>
       {isLoading
-        ? Array.from({ length: 6 }).map((_, i) => <div key={i} style={{ height: 40, background: 'var(--border)', borderRadius: 'var(--radius-md)', marginBottom: 6 }} className="animate-pulse" />)
+        ? Array.from({ length: 6 }).map((_, i) => <div key={i} aria-hidden="true" style={{ height: 40, background: 'var(--border)', borderRadius: 'var(--radius-md)', marginBottom: 6 }} className="animate-pulse" />)
         : (Object.keys(NOTIF_LABELS) as NotificationType[]).map((type) => {
           const s = effective(type)
           return (
@@ -106,20 +124,18 @@ function NotifSettingsSection() {
             >
               <span style={{ fontSize: 13.5, color: 'var(--text-1)' }}>{NOTIF_LABELS[type]}</span>
               <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <label style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={s.inApp} onChange={() => toggle(type, 'inApp')} style={{ display: 'none' }} />
-                  <div style={{ width: 36, height: 20, borderRadius: 10, background: s.inApp ? 'var(--primary)' : 'var(--border)', transition: 'background 0.2s', position: 'relative' }}>
-                    <div style={{ position: 'absolute', top: 2, left: s.inApp ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s' }} />
-                  </div>
-                </label>
+                <Toggle
+                  checked={s.inApp}
+                  onChange={() => toggle(type, 'inApp')}
+                  label={`${NOTIF_LABELS[type]} — dans l'application`}
+                />
               </div>
               <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <label style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={s.email} onChange={() => toggle(type, 'email')} style={{ display: 'none' }} />
-                  <div style={{ width: 36, height: 20, borderRadius: 10, background: s.email ? 'var(--primary)' : 'var(--border)', transition: 'background 0.2s', position: 'relative' }}>
-                    <div style={{ position: 'absolute', top: 2, left: s.email ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s' }} />
-                  </div>
-                </label>
+                <Toggle
+                  checked={s.email}
+                  onChange={() => toggle(type, 'email')}
+                  label={`${NOTIF_LABELS[type]} — par email`}
+                />
               </div>
             </div>
           )
@@ -141,7 +157,6 @@ function RappelsSection() {
     if (!settings) return
     setForm({
       autoReminderDays:   settings.autoReminderDays ?? [],
-      // La DB stocke {} par défaut — normaliser en { levels: [] }
       reminderEscalation: { levels: settings.reminderEscalation?.levels ?? [] },
     })
     setDirty(false)
@@ -152,13 +167,11 @@ function RappelsSection() {
     setDirty(true)
   }
 
-  // Reminder days
   const reminderDays = (form.autoReminderDays ?? []) as number[]
   function addDay() { setField('autoReminderDays', [...reminderDays, 7]) }
   function setDay(i: number, v: number) { setField('autoReminderDays', reminderDays.map((d, idx) => idx === i ? v : d)) }
   function removeDay(i: number) { setField('autoReminderDays', reminderDays.filter((_, idx) => idx !== i)) }
 
-  // Escalation levels
   const levels: ReminderEscalationLevel[] = form.reminderEscalation?.levels ?? []
   function addLevel() {
     setField('reminderEscalation', {
@@ -175,7 +188,6 @@ function RappelsSection() {
   async function handleSave() {
     const payload = {
       ...form,
-      // Filtrer les valeurs NaN/0 qui viendraient d'un input vidé temporairement
       autoReminderDays: (form.autoReminderDays ?? []).filter(
         (d) => Number.isInteger(d) && d > 0,
       ),
@@ -185,7 +197,7 @@ function RappelsSection() {
   }
 
   if (isLoading) return (
-    <div className="card">
+    <div className="card" aria-hidden="true">
       <div style={{ height: 200, background: 'var(--border)', borderRadius: 'var(--radius-md)' }} className="animate-pulse" />
     </div>
   )
@@ -197,13 +209,13 @@ function RappelsSection() {
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ color: 'var(--primary)' }}><Bell size={15} /></div>
+            <div aria-hidden="true" style={{ color: 'var(--primary)' }}><Bell size={15} /></div>
             <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0 }}>Jours de relance automatique</h2>
           </div>
           {dirty && (
             <button type="button" onClick={handleSave} disabled={updateMut.isPending}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: '#fff', cursor: 'pointer', fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-              {updateMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Sauvegarder
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: '#fff', cursor: 'pointer', fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: updateMut.isPending ? 0.65 : 1 }}>
+              {updateMut.isPending ? <Loader2 size={12} className="animate-spin" aria-hidden="true" /> : <Check size={12} aria-hidden="true" />} Sauvegarder
             </button>
           )}
         </div>
@@ -213,23 +225,28 @@ function RappelsSection() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {reminderDays.map((d, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
-              <span style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>J+</span>
+              <span style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }} aria-hidden="true">J+</span>
               <input
                 type="number" min={1} max={365} value={d}
+                aria-label={`Jour de relance ${i + 1} : J+`}
                 onChange={(e) => setDay(i, parseInt(e.target.value, 10))}
                 style={{ ...inputCss, width: 56, padding: '3px 6px', textAlign: 'center', fontSize: 13 }}
               />
-              <button type="button" onClick={() => removeDay(i)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 0, lineHeight: 1, display: 'flex' }}
+              <button type="button"
+                aria-label={`Supprimer le jour de relance J+${d}`}
+                onClick={() => removeDay(i)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 0, lineHeight: 1, display: 'flex', minHeight: 44, alignItems: 'center' }}
                 onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444' }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}>
-                <X size={12} />
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}
+                onFocus={(e)      => { e.currentTarget.style.color = '#ef4444' }}
+                onBlur={(e)       => { e.currentTarget.style.color = 'var(--text-3)' }}>
+                <X size={12} aria-hidden="true" />
               </button>
             </div>
           ))}
           <button type="button" onClick={addDay}
-            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '7px 12px', borderRadius: 'var(--radius-md)', border: '1.5px dashed rgba(45,125,210,0.4)', background: 'transparent', color: 'var(--primary)', cursor: 'pointer', fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-            <Plus size={11} /> Ajouter
+            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '7px 12px', borderRadius: 'var(--radius-md)', border: '1.5px dashed rgba(45,125,210,0.4)', background: 'transparent', color: 'var(--primary)', cursor: 'pointer', fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 600, minHeight: 44 }}>
+            <Plus size={11} aria-hidden="true" /> Ajouter
           </button>
         </div>
       </div>
@@ -239,7 +256,7 @@ function RappelsSection() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ color: 'var(--primary)' }}><Shield size={15} /></div>
+              <div aria-hidden="true" style={{ color: 'var(--primary)' }}><Shield size={15} /></div>
               <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0 }}>Niveaux d&apos;escalade des rappels</h2>
             </div>
             <p style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '4px 0 0 23px' }}>
@@ -248,14 +265,14 @@ function RappelsSection() {
           </div>
           {dirty && (
             <button type="button" onClick={handleSave} disabled={updateMut.isPending}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: '#fff', cursor: 'pointer', fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-              {updateMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Sauvegarder
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: '#fff', cursor: 'pointer', fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: updateMut.isPending ? 0.65 : 1 }}>
+              {updateMut.isPending ? <Loader2 size={12} className="animate-spin" aria-hidden="true" /> : <Check size={12} aria-hidden="true" />} Sauvegarder
             </button>
           )}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {/* Column headers */}
-          <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr auto auto auto 32px', gap: 10, padding: '0 4px' }}>
+          <div aria-hidden="true" style={{ display: 'grid', gridTemplateColumns: '80px 1fr auto auto auto 32px', gap: 10, padding: '0 4px' }}>
             {['Jours', 'Libellé', 'Créateur', 'Managers', 'Email', ''].map((h) => (
               <span key={h} style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>
             ))}
@@ -268,33 +285,63 @@ function RappelsSection() {
           {levels.map((l, i) => (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '80px 1fr auto auto auto 32px', gap: 10, alignItems: 'center', padding: '10px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 11.5, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>J+</span>
-                <input type="number" min={0} max={365} value={l.daysOverdue}
+                <span style={{ fontSize: 11.5, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }} aria-hidden="true">J+</span>
+                <input
+                  type="number" min={0} max={365} value={l.daysOverdue}
+                  aria-label={`Jours de retard pour le niveau ${i + 1}`}
                   onChange={(e) => updateLevel(i, { daysOverdue: parseInt(e.target.value, 10) })}
-                  style={{ ...inputCss, padding: '6px 8px', textAlign: 'center', fontSize: 13 }} />
+                  style={{ ...inputCss, padding: '6px 8px', textAlign: 'center', fontSize: 13 }}
+                />
               </div>
-              <input value={l.label} onChange={(e) => updateLevel(i, { label: e.target.value })}
-                placeholder="Libellé du niveau" style={{ ...inputCss, padding: '7px 10px' }} />
-              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <input type="checkbox" checked={l.notifyCreator} onChange={(e) => updateLevel(i, { notifyCreator: e.target.checked })} />
+              <input
+                value={l.label}
+                aria-label={`Libellé du niveau ${i + 1}`}
+                onChange={(e) => updateLevel(i, { label: e.target.value })}
+                placeholder="Libellé du niveau"
+                style={{ ...inputCss, padding: '7px 10px' }}
+              />
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', minHeight: 44 }}>
+                <input
+                  type="checkbox"
+                  checked={l.notifyCreator}
+                  aria-label={`Notifier le créateur — niveau ${i + 1}`}
+                  onChange={(e) => updateLevel(i, { notifyCreator: e.target.checked })}
+                />
+                <span className="sr-only">Créateur</span>
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <input type="checkbox" checked={l.notifyManagers} onChange={(e) => updateLevel(i, { notifyManagers: e.target.checked })} />
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', minHeight: 44 }}>
+                <input
+                  type="checkbox"
+                  checked={l.notifyManagers}
+                  aria-label={`Notifier les managers — niveau ${i + 1}`}
+                  onChange={(e) => updateLevel(i, { notifyManagers: e.target.checked })}
+                />
+                <span className="sr-only">Managers</span>
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <input type="checkbox" checked={l.sendEmail} onChange={(e) => updateLevel(i, { sendEmail: e.target.checked })} />
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', minHeight: 44 }}>
+                <input
+                  type="checkbox"
+                  checked={l.sendEmail}
+                  aria-label={`Envoyer un email — niveau ${i + 1}`}
+                  onChange={(e) => updateLevel(i, { sendEmail: e.target.checked })}
+                />
+                <span className="sr-only">Email</span>
               </label>
-              <button type="button" onClick={() => removeLevel(i)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 4 }}
+              <button type="button"
+                aria-label={`Supprimer le niveau ${i + 1} : ${l.label}`}
+                onClick={() => removeLevel(i)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 4, minHeight: 44, display: 'flex', alignItems: 'center' }}
                 onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444' }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}>
-                <Trash2 size={13} />
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}
+                onFocus={(e)      => { e.currentTarget.style.color = '#ef4444' }}
+                onBlur={(e)       => { e.currentTarget.style.color = 'var(--text-3)' }}>
+                <Trash2 size={13} aria-hidden="true" />
               </button>
             </div>
           ))}
           <button type="button" onClick={addLevel}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 'var(--radius-md)', border: '1.5px dashed rgba(45,125,210,0.4)', background: 'transparent', color: 'var(--primary)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, alignSelf: 'flex-start' }}>
-            <Plus size={12} /> Ajouter un niveau d&apos;escalade
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 'var(--radius-md)', border: '1.5px dashed rgba(45,125,210,0.4)', background: 'transparent', color: 'var(--primary)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, alignSelf: 'flex-start', minHeight: 44 }}>
+            <Plus size={12} aria-hidden="true" /> Ajouter un niveau d&apos;escalade
           </button>
         </div>
       </div>
@@ -312,7 +359,10 @@ function TemplateEditor({ template }: { template: EmailTemplate }) {
   const [body, setBody]       = useState('')
   const [dirty, setDirty]     = useState(false)
 
-  // Sync body once full template loads
+  const contentId  = useId()
+  const subjectId  = useId()
+  const bodyId     = useId()
+
   useEffect(() => {
     if (full && body === '') setBody(full.bodyHtml)
   }, [full])
@@ -324,13 +374,17 @@ function TemplateEditor({ template }: { template: EmailTemplate }) {
       {/* Collapsed header */}
       <button
         type="button"
+        aria-expanded={expanded}
+        aria-controls={contentId}
         onClick={() => setExpanded((v) => !v)}
         style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', background: 'var(--surface)', border: 'none', cursor: 'pointer' }}
         onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)' }}
         onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface)' }}
+        onFocus={(e)      => { e.currentTarget.style.background = 'var(--surface-2)' }}
+        onBlur={(e)       => { e.currentTarget.style.background = 'var(--surface)' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Mail size={14} style={{ color: 'var(--primary)' }} />
+          <Mail size={14} style={{ color: 'var(--primary)' }} aria-hidden="true" />
           <div style={{ textAlign: 'left' }}>
             <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)', margin: 0 }}>{template.name}</p>
             <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: '1px 0 0', fontFamily: 'var(--font-mono)' }}>{template.type}</p>
@@ -340,68 +394,85 @@ function TemplateEditor({ template }: { template: EmailTemplate }) {
           <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 100, background: template.isActive ? 'rgba(16,185,129,0.1)' : 'rgba(107,114,128,0.1)', color: template.isActive ? '#10b981' : '#6b7280', fontFamily: 'var(--font-display)', fontWeight: 700 }}>
             {template.isActive ? 'Actif' : 'Inactif'}
           </span>
-          {expanded ? <ChevronUp size={15} style={{ color: 'var(--text-3)' }} /> : <ChevronDown size={15} style={{ color: 'var(--text-3)' }} />}
+          {expanded
+            ? <ChevronUp size={15} style={{ color: 'var(--text-3)' }} aria-hidden="true" />
+            : <ChevronDown size={15} style={{ color: 'var(--text-3)' }} aria-hidden="true" />
+          }
         </div>
       </button>
 
       {/* Expanded editor */}
-      {expanded && (
-        <div style={{ padding: 16, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {isLoading
-            ? <div style={{ height: 200, background: 'var(--border)', borderRadius: 'var(--radius-md)' }} className="animate-pulse" />
-            : (
-              <>
-                {/* Variables */}
-                {vars.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '8px 12px', background: 'rgba(45,125,210,0.04)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(45,125,210,0.15)' }}>
-                    <Tag size={12} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: 2 }} />
-                    <span style={{ fontSize: 11.5, color: 'var(--text-3)', marginRight: 4 }}>Variables disponibles :</span>
-                    {vars.map((v) => (
-                      <code key={v} style={{ fontSize: 11.5, background: 'rgba(45,125,210,0.1)', color: 'var(--primary)', padding: '1px 6px', borderRadius: 4, fontFamily: 'var(--font-mono)' }}>{v}</code>
-                    ))}
+      <div id={contentId} hidden={!expanded}>
+        {expanded && (
+          <div style={{ padding: 16, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {isLoading
+              ? <div aria-hidden="true" style={{ height: 200, background: 'var(--border)', borderRadius: 'var(--radius-md)' }} className="animate-pulse" />
+              : (
+                <>
+                  {/* Variables */}
+                  {vars.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '8px 12px', background: 'rgba(45,125,210,0.04)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(45,125,210,0.15)' }}>
+                      <Tag size={12} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: 2 }} aria-hidden="true" />
+                      <span style={{ fontSize: 11.5, color: 'var(--text-3)', marginRight: 4 }}>Variables disponibles :</span>
+                      {vars.map((v) => (
+                        <code key={v} style={{ fontSize: 11.5, background: 'rgba(45,125,210,0.1)', color: 'var(--primary)', padding: '1px 6px', borderRadius: 4, fontFamily: 'var(--font-mono)' }}>{v}</code>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Subject */}
+                  <div>
+                    <label
+                      htmlFor={subjectId}
+                      style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)', display: 'block', marginBottom: 4 }}
+                    >
+                      Objet de l&apos;email
+                    </label>
+                    <input
+                      id={subjectId}
+                      value={subject}
+                      onChange={(e) => { setSubject(e.target.value); setDirty(true) }}
+                      style={{ padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13.5, color: 'var(--text-1)', fontFamily: 'var(--font-body)', outline: 'none', width: '100%', boxSizing: 'border-box' }}
+                    />
                   </div>
-                )}
 
-                {/* Subject */}
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)', display: 'block', marginBottom: 4 }}>Objet de l&apos;email</label>
-                  <input
-                    value={subject}
-                    onChange={(e) => { setSubject(e.target.value); setDirty(true) }}
-                    style={{ padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13.5, color: 'var(--text-1)', fontFamily: 'var(--font-body)', outline: 'none', width: '100%', boxSizing: 'border-box' }}
-                  />
-                </div>
+                  {/* Body HTML */}
+                  <div>
+                    <label
+                      htmlFor={bodyId}
+                      style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)', display: 'block', marginBottom: 4 }}
+                    >
+                      Corps HTML
+                    </label>
+                    <textarea
+                      id={bodyId}
+                      value={body || full?.bodyHtml || ''}
+                      onChange={(e) => { setBody(e.target.value); setDirty(true) }}
+                      rows={10}
+                      style={{ padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 12.5, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', outline: 'none', width: '100%', boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.6 }}
+                    />
+                  </div>
 
-                {/* Body HTML */}
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)', display: 'block', marginBottom: 4 }}>Corps HTML</label>
-                  <textarea
-                    value={body || full?.bodyHtml || ''}
-                    onChange={(e) => { setBody(e.target.value); setDirty(true) }}
-                    rows={10}
-                    style={{ padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 12.5, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', outline: 'none', width: '100%', boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.6 }}
-                  />
-                </div>
-
-                {/* Actions */}
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                  <button type="button" onClick={() => { setExpanded(false); setDirty(false) }}
-                    style={{ padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 500 }}>
-                    Fermer
-                  </button>
-                  <button type="button"
-                    disabled={!dirty || updateMut.isPending}
-                    onClick={() => updateMut.mutate({ subject, bodyHtml: body || full?.bodyHtml }, { onSuccess: () => setDirty(false) })}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius-md)', border: 'none', background: dirty ? 'var(--primary)' : 'var(--surface-2)', color: dirty ? '#fff' : 'var(--text-3)', cursor: dirty ? 'pointer' : 'not-allowed', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-                    {updateMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-                    Sauvegarder
-                  </button>
-                </div>
-              </>
-            )
-          }
-        </div>
-      )}
+                  {/* Actions */}
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    <button type="button" onClick={() => { setExpanded(false); setDirty(false) }}
+                      style={{ padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 500 }}>
+                      Fermer
+                    </button>
+                    <button type="button"
+                      disabled={!dirty || updateMut.isPending}
+                      onClick={() => updateMut.mutate({ subject, bodyHtml: body || full?.bodyHtml }, { onSuccess: () => setDirty(false) })}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius-md)', border: 'none', background: dirty ? 'var(--primary)' : 'var(--surface-2)', color: dirty ? '#fff' : 'var(--text-3)', cursor: dirty ? 'pointer' : 'not-allowed', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: updateMut.isPending ? 0.65 : 1 }}>
+                      {updateMut.isPending ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Check size={13} aria-hidden="true" />}
+                      Sauvegarder
+                    </button>
+                  </div>
+                </>
+              )
+            }
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -414,13 +485,13 @@ function EmailTemplatesSection() {
     <div className="card">
       <div style={{ marginBottom: 16, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ color: 'var(--primary)' }}><Mail size={15} /></div>
+          <div aria-hidden="true" style={{ color: 'var(--primary)' }}><Mail size={15} /></div>
           <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0 }}>Templates d&apos;emails</h2>
         </div>
         <p style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '4px 0 0 23px' }}>Personnalisez les emails envoyés automatiquement. Utilisez les variables entre {'{{'} et {'}}'}.</p>
       </div>
       {isLoading
-        ? Array.from({ length: 4 }).map((_, i) => <div key={i} style={{ height: 48, background: 'var(--border)', borderRadius: 'var(--radius-md)', marginBottom: 6 }} className="animate-pulse" />)
+        ? Array.from({ length: 4 }).map((_, i) => <div key={i} aria-hidden="true" style={{ height: 48, background: 'var(--border)', borderRadius: 'var(--radius-md)', marginBottom: 6 }} className="animate-pulse" />)
         : templates.length === 0
           ? (
             <div style={{ padding: '20px 0', textAlign: 'center' }}>

@@ -2,6 +2,18 @@ import type { FormLine, DocumentTotals, DiscountType } from '@/features/proforma
 
 const r2 = (n: number) => Math.round(n * 100) / 100
 
+/** UUID v4 compatible tous navigateurs (polyfill si crypto.randomUUID indisponible) */
+export function uuid(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  // Fallback : Math.random-based UUID v4
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+  })
+}
+
 /** Mirrors the backend computeLine() function exactly */
 export function computeLineValues(
   quantity: number,
@@ -51,7 +63,7 @@ export function computeDocumentTotals(
 /** Create a blank form line with recomputed values */
 export function makeBlankLine(sortOrder: number, taxRate = 19.25): FormLine {
   return {
-    _localId: crypto.randomUUID(),
+    _localId: uuid(),
     sortOrder,
     designation: '',
     description: '',
@@ -66,18 +78,20 @@ export function makeBlankLine(sortOrder: number, taxRate = 19.25): FormLine {
     netHt: 0,
     taxAmount: 0,
     totalTtc: 0,
+    hideDetails: false,
   }
 }
 
-/** Rebuild a FormLine from a saved ProformaLine */
+/** Rebuild a FormLine from a saved ProformaLine or InvoiceLine */
 export function lineToFormLine(line: {
   id?: string; productId?: string | null; sortOrder: number; designation: string
   description?: string | null; unit: string; quantity: number; unitPriceHt: number
   discountType: DiscountType; discountValue: number; taxRate: number
   subtotalHt: number; discountAmount: number; netHt: number; taxAmount: number; totalTtc: number
+  hideDetails?: boolean | null
 }): FormLine {
   return {
-    _localId: crypto.randomUUID(),
+    _localId: uuid(),
     productId: line.productId ?? undefined,
     sortOrder: line.sortOrder,
     designation: line.designation,
@@ -93,5 +107,6 @@ export function lineToFormLine(line: {
     netHt: Number(line.netHt),
     taxAmount: Number(line.taxAmount),
     totalTtc: Number(line.totalTtc),
+    hideDetails: line.hideDetails ?? false,
   }
 }

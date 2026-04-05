@@ -53,7 +53,7 @@ function CustomTooltip({ active, payload, label }: TooltipProps<number, string>)
 // ─── Skeleton ─────────────────────────────────────────────────
 function ChartSkeleton() {
   return (
-    <div className="card" style={{ padding: '20px', height: 300 }}>
+    <div className="card" style={{ padding: '20px 20px 16px', height: 290 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
         <div style={{ height: 16, width: 180, background: 'var(--border)', borderRadius: 4 }} className="animate-pulse" />
         <div style={{ height: 28, width: 180, background: 'var(--border)', borderRadius: 20 }} className="animate-pulse" />
@@ -143,7 +143,9 @@ export function RevenueChart() {
           {periods.map((p) => (
             <button
               key={p.key}
+              type="button"
               onClick={() => setPeriod(p.key)}
+              aria-pressed={period === p.key}
               style={{
                 padding: '5px 12px',
                 borderRadius: 16,
@@ -171,7 +173,12 @@ export function RevenueChart() {
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <AreaChart
+              data={chartData}
+              margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
+              aria-label={`Graphique d'évolution du chiffre d'affaires — période : ${period}`}
+              role="img"
+            >
               <defs>
                 <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%"  stopColor="#2D7DD2" stopOpacity={0.18} />
@@ -215,6 +222,24 @@ export function RevenueChart() {
           </ResponsiveContainer>
         )}
       </div>
+
+      {/* Table alternative pour screen readers — WCAG AAA 1.4.9 */}
+      <table className="sr-only" aria-label="Données du graphique CA">
+        <thead>
+          <tr>
+            <th scope="col">Période</th>
+            <th scope="col">Chiffre d&apos;affaires (XAF)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {chartData.map((d) => (
+            <tr key={d.label}>
+              <td>{d.display}</td>
+              <td>{formatXAF(d.value)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

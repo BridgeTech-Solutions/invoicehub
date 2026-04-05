@@ -85,8 +85,8 @@ export default function TwoFAPage() {
   }
 
   return (
-    <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', fontFamily: 'var(--font-body)' }}>
-      <div style={{ width: '100%', maxWidth: 420, padding: '0 24px' }}>
+    <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', fontFamily: 'var(--font-body)' }}>
+      <main style={{ width: '100%', maxWidth: 420, padding: '0 24px' }}>
 
         {/* Logo */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
@@ -95,13 +95,16 @@ export default function TwoFAPage() {
 
         {/* Card */}
         <div className="card" style={{ padding: '36px 32px' }}>
-          {/* Icon */}
+
+          {/* Icône décorative (C4: aria-hidden) */}
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
             <div style={{
               width: 52, height: 52, borderRadius: '50%',
               background: 'rgba(45,125,210,0.1)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
+            }}
+              aria-hidden="true"
+            >
               <ShieldCheck size={24} style={{ color: 'var(--primary)' }} />
             </div>
           </div>
@@ -118,8 +121,13 @@ export default function TwoFAPage() {
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {!useBackup ? (
-              /* ── Chiffres TOTP ─────────────────────────────── */
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }} onPaste={handlePaste}>
+              /* ── Chiffres TOTP (C1: aria-label par chiffre + autocomplete) ── */
+              <div
+                role="group"
+                aria-label="Code d'authentification à 6 chiffres"
+                style={{ display: 'flex', gap: 8, justifyContent: 'center' }}
+                onPaste={handlePaste}
+              >
                 {code.map((digit, i) => (
                   <input
                     key={i}
@@ -131,6 +139,8 @@ export default function TwoFAPage() {
                     onChange={(e) => handleDigit(i, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(i, e)}
                     autoFocus={i === 0}
+                    aria-label={`Chiffre ${i + 1} sur 6`}
+                    autoComplete={i === 0 ? 'one-time-code' : 'off'}
                     style={{
                       width: 48, height: 56,
                       textAlign: 'center',
@@ -147,71 +157,101 @@ export default function TwoFAPage() {
                 ))}
               </div>
             ) : (
-              /* ── Code de secours ───────────────────────────── */
-              <input
-                type="text"
-                value={backupCode}
-                onChange={(e) => { setBackupCode(e.target.value.toUpperCase()); setError('') }}
-                placeholder="XXXXXXXX"
-                autoFocus
-                style={{
-                  padding: '11px 14px',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 16, fontWeight: 600,
-                  letterSpacing: '0.15em',
-                  textAlign: 'center',
-                  border: `1.5px solid ${error ? 'var(--s-overdue)' : 'var(--border)'}`,
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--surface)',
-                  outline: 'none',
-                  color: 'var(--text-1)',
-                }}
-              />
+              /* ── Code de secours (C2: label + aria-label) ───────── */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label
+                  htmlFor="backup-code"
+                  style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-2)', fontFamily: 'var(--font-display)' }}
+                >
+                  Code de secours
+                </label>
+                <input
+                  id="backup-code"
+                  type="text"
+                  value={backupCode}
+                  onChange={(e) => { setBackupCode(e.target.value.toUpperCase()); setError('') }}
+                  placeholder="XXXXXXXX"
+                  autoFocus
+                  autoComplete="off"
+                  style={{
+                    padding: '11px 14px',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 16, fontWeight: 600,
+                    letterSpacing: '0.15em',
+                    textAlign: 'center',
+                    border: `1.5px solid ${error ? 'var(--s-overdue)' : 'var(--border)'}`,
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--surface)',
+                    outline: 'none',
+                    color: 'var(--text-1)',
+                  }}
+                />
+              </div>
             )}
 
-            {/* Error */}
+            {/* Erreur (C3: role="alert" + aria-live) */}
             {error && (
-              <p style={{ fontSize: 13, color: 'var(--s-overdue)', textAlign: 'center', marginTop: -8 }}>
+              <p
+                role="alert"
+                aria-live="assertive"
+                style={{ fontSize: 13, color: 'var(--s-overdue)', textAlign: 'center', marginTop: -8 }}
+              >
                 {error}
               </p>
             )}
 
-            {/* Submit */}
+            {/* Submit (H1: opacity, C4: aria-hidden Loader2, M1: aria-busy) */}
             <button
               type="submit"
               disabled={loading}
+              aria-busy={loading}
               style={{
                 padding: '11px', borderRadius: 'var(--radius-md)',
-                background: loading ? '#93b8e0' : 'var(--primary)',
+                background: 'var(--primary)',
                 color: '#fff', border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
                 fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14.5,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                minHeight: 44,
+                opacity: loading ? 0.65 : 1,
                 boxShadow: loading ? 'none' : '0 4px 14px rgba(45,125,210,0.3)',
+                transition: 'opacity 0.15s, background 0.15s',
               }}
             >
-              {loading && <Loader2 size={15} className="animate-spin" />}
+              {loading && <Loader2 size={15} className="animate-spin" aria-hidden="true" />}
               Vérifier
             </button>
 
-            {/* Toggle backup codes */}
+            {/* Toggle backup codes (H2: minHeight: 44) */}
             <button
               type="button"
               onClick={() => { setUseBackup((b) => !b); setError('') }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--primary)', textDecoration: 'underline', fontFamily: 'var(--font-body)' }}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 13, color: 'var(--primary)', textDecoration: 'underline',
+                fontFamily: 'var(--font-body)',
+                minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
             >
               {useBackup ? 'Utiliser le code authenticator' : 'Utiliser un code de secours'}
             </button>
           </form>
         </div>
 
-        {/* Back */}
+        {/* Retour (C4: aria-hidden ChevronLeft) */}
         <div style={{ marginTop: 20, textAlign: 'center' }}>
-          <Link href={ROUTES.LOGIN} style={{ fontSize: 13, color: 'var(--text-3)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <ChevronLeft size={14} />
+          <Link
+            href={ROUTES.LOGIN}
+            style={{
+              fontSize: 13, color: 'var(--text-3)', textDecoration: 'none',
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              minHeight: 44,
+            }}
+          >
+            <ChevronLeft size={14} aria-hidden="true" />
             Retour à la connexion
           </Link>
         </div>
-      </div>
+      </main>
     </div>
   )
 }

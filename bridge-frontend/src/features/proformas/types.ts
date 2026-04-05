@@ -155,6 +155,8 @@ export interface FormLine {
   netHt: number
   taxAmount: number
   totalTtc: number
+  // Mode service : masque Ref/Qté/PU sur le PDF — PU devient le montant total de la prestation
+  hideDetails?: boolean
 }
 
 export interface DocumentTotals {

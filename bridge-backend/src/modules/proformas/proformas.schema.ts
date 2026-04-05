@@ -12,6 +12,7 @@ const lineSchema = z.object({
   discountType: z.enum(['none', 'percentage', 'fixed']).default('none'),
   discountValue: z.coerce.number().min(0).default(0),
   taxRate: z.coerce.number().min(0).max(100).default(19.25),
+  hideDetails: z.boolean().default(false),
 });
 
 export const createProformaSchema = z.object({

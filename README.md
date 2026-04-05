@@ -33,7 +33,8 @@ BRIDGE/
 | Graphiques | — | Recharts 2 |
 | PDF | Puppeteer (Chromium headless) | Téléchargement depuis backend |
 | Email | Nodemailer | — |
-| Conteneurs | Docker + docker-compose | Docker multi-stage |
+| IA locale | Ollama + Mistral (Docker) | Assistant BTS (streaming) |
+| Conteneurs | Docker + docker-compose (5 services) | Docker multi-stage |
 | Package manager | pnpm | pnpm |
 
 ---
@@ -114,19 +115,31 @@ pnpm dev
 
 ### 3. Mode production — Docker complet
 
-```bash
-cd bridge-backend
-docker-compose up --build -d
+Ajouter `SERVER_IP` dans `.env` (IP du serveur sur le réseau local) :
+
+```env
+SERVER_IP=192.168.1.10
+OLLAMA_ENABLED=true     # optionnel — active l'assistant BTS
 ```
+
+Puis lancer le script de déploiement à la racine du projet :
+
+```bash
+# Windows
+deploy.bat
+```
+
+Le script effectue automatiquement : vérifications, git pull, TypeScript, tests, docker-compose build + up, migrations Prisma, et téléchargement du modèle Ollama (avec confirmation).
 
 Services démarrés :
 
 | Service | URL |
 |---|---|
-| API REST | http://localhost:3000 |
-| Interface web | http://localhost:3001 |
-| PostgreSQL | localhost:5432 |
-| Redis | localhost:6379 |
+| API REST | http://SERVER_IP:3000 |
+| Interface web | http://SERVER_IP:3001 |
+| PostgreSQL | interne Docker uniquement |
+| Redis | interne Docker uniquement |
+| Ollama (IA) | interne Docker uniquement |
 
 ---
 
@@ -305,23 +318,30 @@ pnpm lint             # ESLint
 
 ## Déploiement Docker
 
-Le `docker-compose.yml` dans `bridge-backend/` orchestre les 4 services :
+Le `docker-compose.yml` dans `bridge-backend/` orchestre **5 services** :
 
-```yaml
-# PostgreSQL 15  →  localhost:5432
-# Redis 7         →  localhost:6379
-# API Express     →  http://localhost:3000
-# Frontend Next   →  http://localhost:3001
+```
+PostgreSQL 15  →  interne Docker (pas exposé)
+Redis 7        →  interne Docker (pas exposé)
+Ollama         →  interne Docker (modèles dans volume ollama_data)
+API Express    →  http://SERVER_IP:3000
+Frontend Next  →  http://SERVER_IP:3001
 ```
 
+Toutes les URLs réseau sont construites automatiquement depuis `SERVER_IP` défini dans `.env` — pas besoin de modifier `docker-compose.yml`.
+
 ```bash
-# Build et démarrage complet
+# Déploiement complet via le script (recommandé)
+deploy.bat
+
+# Ou manuellement
 cd bridge-backend
 docker-compose up --build -d
 
 # Vérifier les logs
 docker-compose logs -f api
 docker-compose logs -f frontend
+docker-compose logs -f ollama
 
 # Arrêter
 docker-compose down

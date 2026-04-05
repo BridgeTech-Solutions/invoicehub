@@ -1,11 +1,14 @@
 'use client'
 
+import { useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   ChevronLeft, Calendar, Clock, FileText, Link2, Trash2, FileDown, Loader2,
+  User, Shield, CreditCard, PenLine, XCircle, CheckCircle, History, AlertTriangle,
 } from 'lucide-react'
-import { useInvoice, useDeletePayment, useDownloadReceipt } from '@/features/invoices/hooks'
+import { useInvoice, useDeletePayment, useDownloadReceipt, useInvoiceHistory } from '@/features/invoices/hooks'
+import type { AuditLogEntry } from '@/features/invoices/api'
 import { InvoiceActionsMenu } from '@/features/invoices/components/InvoiceActionsMenu'
 import { InvoiceForm } from '@/features/invoices/components/InvoiceForm'
 import { InvoiceStatusTimeline } from '@/features/invoices/components/StatusTimeline'
@@ -80,6 +83,95 @@ function PaymentProgress({ totalTtc, amountPaid, balanceDue }: { totalTtc: numbe
   )
 }
 
+// ─── Audit timeline ──────────────────────────────────────────────
+
+const ACTION_META: Record<string, { label: string; color: string; Icon: React.ElementType }> = {
+  CREATE:             { label: 'Créée',           color: '#10b981', Icon: CheckCircle },
+  UPDATE:             { label: 'Modifiée',         color: '#2D7DD2', Icon: PenLine     },
+  STATUS_CHANGE:      { label: 'Statut changé',    color: '#7c3aed', Icon: Shield      },
+  PAYMENT_REGISTERED: { label: 'Paiement',         color: '#059669', Icon: CreditCard  },
+  SOFT_DELETE:        { label: 'Supprimée',        color: '#ef4444', Icon: XCircle     },
+  LOGIN:              { label: 'Connexion',         color: '#64748b', Icon: User        },
+}
+
+function AuditTimeline({ invoiceId }: { invoiceId: string }) {
+  const { data: logs, isLoading } = useInvoiceHistory(invoiceId)
+
+  if (isLoading) return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
+      {[1,2,3].map(i => (
+        <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--border)', flexShrink: 0 }} className="animate-pulse" />
+          <div style={{ flex: 1 }}>
+            <div style={{ height: 11, width: 120, background: 'var(--border)', borderRadius: 4, marginBottom: 5 }} className="animate-pulse" />
+            <div style={{ height: 10, width: 180, background: 'var(--border)', borderRadius: 4 }} className="animate-pulse" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+
+  if (!logs || logs.length === 0) return (
+    <p style={{ fontSize: 12.5, color: 'var(--text-3)', margin: 0, textAlign: 'center', padding: '12px 0' }}>
+      Aucun événement enregistré
+    </p>
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {logs.map((log: AuditLogEntry, idx: number) => {
+        const meta    = ACTION_META[log.action] ?? { label: log.action, color: '#64748b', Icon: History }
+        const { Icon } = meta
+        const isLast  = idx === logs.length - 1
+        const who     = log.user ? `${log.user.firstName} ${log.user.lastName}` : 'Système'
+        const when    = new Date(log.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+
+        // Extraire info utile du champ after/before
+        let detail = ''
+        if (log.action === 'PAYMENT_REGISTERED' && log.after && typeof log.after === 'object') {
+          const a = log.after as Record<string, unknown>
+          if (a['amount']) detail = `${Number(a['amount']).toLocaleString('fr-FR')} XAF`
+          if (a['method']) detail += detail ? ` · ${a['method']}` : String(a['method'])
+        } else if (log.action === 'STATUS_CHANGE' && log.after && typeof log.after === 'object') {
+          const a = log.after as Record<string, unknown>
+          if (a['status']) detail = String(a['status'])
+        }
+
+        return (
+          <div key={log.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', position: 'relative' }}>
+            {/* Ligne verticale */}
+            {!isLast && (
+              <div style={{ position: 'absolute', left: 13, top: 28, width: 2, height: 'calc(100% - 4px)', background: 'var(--border)', zIndex: 0 }} />
+            )}
+            {/* Icône */}
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: `${meta.color}18`, border: `1.5px solid ${meta.color}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, zIndex: 1 }}>
+              <Icon size={13} style={{ color: meta.color }} />
+            </div>
+            {/* Contenu */}
+            <div style={{ paddingBottom: isLast ? 0 : 14, flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: meta.color, fontFamily: 'var(--font-display)' }}>
+                  {meta.label}
+                </span>
+                {detail && (
+                  <span style={{ fontSize: 11.5, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>
+                    {detail}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+                <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{who}</span>
+                <span style={{ fontSize: 11.5, color: 'var(--border)' }}>·</span>
+                <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{when}</span>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── Skeleton ───────────────────────────────────────────────────
 
 function Skeleton() {
@@ -102,6 +194,7 @@ function InvoiceDetailView({ id }: { id: string }) {
   const receiptMutation = useDownloadReceipt()
   const { user }        = useAuthStore()
   const isAdmin         = user?.role === 'admin'
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
   if (isLoading) return <Skeleton />
   if (!invoice) return (
@@ -142,7 +235,7 @@ function InvoiceDetailView({ id }: { id: string }) {
                 <Calendar size={13} /> {formatDate(invoice.issueDate)}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: isOverdue ? '#ef4444' : 'var(--text-3)' }}>
-                <Clock size={13} /> Échéance {formatDate(invoice.dueDate)} {isOverdue && '⚠'}
+                <Clock size={13} aria-hidden="true" /> Échéance {formatDate(invoice.dueDate)} {isOverdue && <AlertTriangle size={12} style={{ color: '#ef4444', marginLeft: 4 }} aria-hidden="true" />}
               </div>
               {invoice.clientReference && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--text-3)' }}>
@@ -191,7 +284,7 @@ function InvoiceDetailView({ id }: { id: string }) {
       </div>
 
       {/* Body grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 20, alignItems: 'start' }}>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_280px]" style={{ alignItems: 'start' }}>
 
         {/* Main */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -206,7 +299,7 @@ function InvoiceDetailView({ id }: { id: string }) {
                 <thead>
                   <tr>
                     {['#', 'Désignation', 'Qté', 'Unité', 'P.U. HT', 'Remise', 'TVA %', 'Total HT'].map((h, i) => (
-                      <th key={h} style={{ padding: '8px 10px', fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-3)', background: 'var(--surface-2)', borderBottom: '2px solid var(--border)', textAlign: i >= 4 ? 'right' : 'left', whiteSpace: 'nowrap' }}>
+                      <th key={h} scope="col" style={{ padding: '8px 10px', fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-3)', background: 'var(--surface-2)', borderBottom: '2px solid var(--border)', textAlign: i >= 4 ? 'right' : 'left', whiteSpace: 'nowrap' }}>
                         {h}
                       </th>
                     ))}
@@ -262,7 +355,7 @@ function InvoiceDetailView({ id }: { id: string }) {
                 <thead>
                   <tr>
                     {['Date', 'Mode', 'Référence', 'Montant', ''].map((h, i) => (
-                      <th key={i} style={{ padding: '7px 10px', fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-3)', background: 'var(--surface-2)', borderBottom: '2px solid var(--border)', textAlign: i >= 3 ? 'right' : 'left' }}>
+                      <th key={i} scope="col" style={{ padding: '7px 10px', fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-3)', background: 'var(--surface-2)', borderBottom: '2px solid var(--border)', textAlign: i >= 3 ? 'right' : 'left' }}>
                         {h}
                       </th>
                     ))}
@@ -281,17 +374,24 @@ function InvoiceDetailView({ id }: { id: string }) {
                       </td>
                       <td style={{ padding: '10px', textAlign: 'right', width: 72 }}>
                         <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                          <button type="button" title="Reçu PDF" disabled={receiptMutation.isPending}
+                          <button type="button" aria-label="Télécharger le reçu PDF" disabled={receiptMutation.isPending}
                             onClick={() => receiptMutation.mutate({ id: pay.id, filename: `recu-${pay.id.slice(0,8)}.pdf` })}
                             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--primary)' }}>
                             {receiptMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <FileDown size={13} />}
                           </button>
                           {isAdmin && (
-                            <button type="button" title="Annuler ce paiement" disabled={deleteMutation.isPending}
-                              onClick={() => { if (confirm('Annuler ce paiement ?')) deleteMutation.mutate(pay.id) }}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#ef4444' }}>
-                              <Trash2 size={13} />
-                            </button>
+                            pendingDeleteId === pay.id ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <button type="button" onClick={() => { setPendingDeleteId(null); deleteMutation.mutate(pay.id) }} style={{ padding: '2px 8px', borderRadius: 4, background: '#ef4444', color: '#fff', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Confirmer</button>
+                                <button type="button" onClick={() => setPendingDeleteId(null)} style={{ padding: '2px 6px', borderRadius: 4, background: 'transparent', color: 'var(--text-3)', border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer' }}>✕</button>
+                              </div>
+                            ) : (
+                              <button type="button" aria-label="Annuler ce paiement" disabled={deleteMutation.isPending}
+                                onClick={() => setPendingDeleteId(pay.id)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#ef4444' }}>
+                                <Trash2 size={13} />
+                              </button>
+                            )
                           )}
                         </div>
                       </td>
@@ -377,13 +477,24 @@ function InvoiceDetailView({ id }: { id: string }) {
             </div>
           </div>
 
-          {/* History */}
+          {/* Status history */}
           {invoice.statusHistory && invoice.statusHistory.length > 0 && (
             <div className="card" style={{ padding: '16px 18px' }}>
-              <p style={{ fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 14 }}>Historique</p>
+              <p style={{ fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 14 }}>Cycle de vie</p>
               <InvoiceStatusTimeline history={invoice.statusHistory} />
             </div>
           )}
+
+          {/* Audit history */}
+          <div className="card" style={{ padding: '16px 18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14 }}>
+              <History size={13} style={{ color: 'var(--text-3)' }} />
+              <p style={{ fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', margin: 0 }}>
+                Journal des modifications
+              </p>
+            </div>
+            <AuditTimeline invoiceId={invoice.id} />
+          </div>
         </div>
       </div>
     </div>

@@ -1,14 +1,18 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { Plus, Search, Settings2, Package } from 'lucide-react'
+import { useState, useMemo, useId, useCallback, useRef, useEffect } from 'react'
+import { Plus, Search, Settings2, Package, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { RichEmptyState } from '@/components/ui/RichEmptyState'
 import { useProducts, useProductCategories } from '@/features/products/hooks'
 import { ProductCard } from '@/features/products/components/ProductCard'
 import { ProductForm } from '@/features/products/components/ProductForm'
 import { CategoryManager } from '@/features/products/components/CategoryManager'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
+import { ROUTES } from '@/lib/constants'
 import type { Product } from '@/features/products/types'
+
+const PAGE_SIZE = 24
 
 // ─── Skeleton card ─────────────────────────────────────────────
 function CardSkeleton() {
@@ -26,12 +30,41 @@ function CardSkeleton() {
   )
 }
 
+// ─── Pagination ────────────────────────────────────────────────
+function Pagination({ page, totalPages, onChange }: {
+  page: number; totalPages: number; onChange: (p: number) => void
+}) {
+  if (totalPages <= 1) return null
+  const btn: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    width: 36, height: 36, borderRadius: 'var(--radius-md)',
+    border: '1.5px solid var(--border)', background: 'var(--surface)',
+    color: 'var(--text-2)', cursor: 'pointer', transition: 'all 0.15s',
+  }
+  return (
+    <nav aria-label="Pagination des produits" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <button type="button" onClick={() => onChange(page - 1)} disabled={page <= 1} aria-label="Page précédente"
+        style={{ ...btn, opacity: page <= 1 ? 0.4 : 1, cursor: page <= 1 ? 'not-allowed' : 'pointer' }}>
+        <ChevronLeft size={16} aria-hidden />
+      </button>
+      <span style={{ fontSize: 13, color: 'var(--text-2)', minWidth: 80, textAlign: 'center' }}>
+        <span aria-live="polite">Page {page} / {totalPages}</span>
+      </span>
+      <button type="button" onClick={() => onChange(page + 1)} disabled={page >= totalPages} aria-label="Page suivante"
+        style={{ ...btn, opacity: page >= totalPages ? 0.4 : 1, cursor: page >= totalPages ? 'not-allowed' : 'pointer' }}>
+        <ChevronRight size={16} aria-hidden />
+      </button>
+    </nav>
+  )
+}
+
 // ─── Page ──────────────────────────────────────────────────────
 export default function ProductsPage() {
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const [typeFilter,     setTypeFilter]     = useState<'service' | 'product' | null>(null)
   const [search,         setSearch]         = useState('')
   const [showInactive,   setShowInactive]   = useState(false)
+  const [page,           setPage]           = useState(1)
   const [formOpen,       setFormOpen]       = useState(false)
   const [editProduct,    setEditProduct]    = useState<Product | null>(null)
   const [catMgrOpen,     setCatMgrOpen]     = useState(false)
@@ -39,13 +72,26 @@ export default function ProductsPage() {
   const { can } = usePermission()
   const { data: categories = [] } = useProductCategories()
 
+  const searchId   = useId()
+  const dialogId   = useId()
+  const dialogTitleId = useId()
+
+  // Focus trap ref for modal
+  const closeModalRef = useRef<HTMLButtonElement>(null)
+
+  // Reset page on filter change
+  const handleTypeFilter    = useCallback((v: typeof typeFilter)    => { setTypeFilter(v);    setPage(1) }, [])
+  const handleCatFilter     = useCallback((v: string | null)        => { setCategoryFilter(v); setPage(1) }, [])
+  const handleSearchChange  = useCallback((v: string)               => { setSearch(v);         setPage(1) }, [])
+
   const params = useMemo(() => ({
-    limit: 100,
+    limit: PAGE_SIZE,
+    page,
     ...(categoryFilter && { categoryId: categoryFilter }),
     ...(typeFilter     && { type: typeFilter }),
     ...(search         && { search }),
     ...(!showInactive  && { isActive: true }),
-  }), [categoryFilter, typeFilter, search, showInactive])
+  }), [categoryFilter, typeFilter, search, showInactive, page])
 
   const { data, isLoading } = useProducts(params)
   const products = data?.data ?? []
@@ -55,22 +101,48 @@ export default function ProductsPage() {
     setFormOpen(true)
   }
 
-  const handleCloseForm = () => {
+  const handleCloseForm = useCallback(() => {
     setFormOpen(false)
     setEditProduct(null)
-  }
+  }, [])
+
+  // Focus close button when modal opens
+  useEffect(() => {
+    if (formOpen) {
+      setTimeout(() => closeModalRef.current?.focus(), 50)
+    }
+  }, [formOpen])
+
+  // Close modal on Escape
+  useEffect(() => {
+    if (!formOpen) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') handleCloseForm() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [formOpen, handleCloseForm])
+
+  const TYPE_FILTERS = [
+    { key: null,       label: 'Tous les types' },
+    { key: 'service',  label: 'Prestations' },
+    { key: 'product',  label: 'Produits' },
+  ] as const
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <PageHeader
         title="Produits & Services"
-        description={data ? `${data.total} produit${data.total !== 1 ? 's' : ''}` : undefined}
+        description={
+          data
+            ? <span aria-live="polite">{data.total} produit{data.total !== 1 ? 's' : ''}</span>
+            : undefined
+        }
         actions={
           <>
-            {/* Categories manager (admin only) */}
             {can('product', 'create') && (
               <button
+                type="button"
                 onClick={() => setCatMgrOpen(true)}
+                aria-label="Gérer les catégories de produits"
                 style={{
                   display: 'flex', alignItems: 'center', gap: 7,
                   padding: '8px 14px', borderRadius: 'var(--radius-md)',
@@ -79,11 +151,12 @@ export default function ProductsPage() {
                   fontFamily: 'var(--font-display)', fontWeight: 500,
                 }}
               >
-                <Settings2 size={14} /> Catégories
+                <Settings2 size={14} aria-hidden /> Catégories
               </button>
             )}
             {can('product', 'create') && (
               <button
+                type="button"
                 onClick={() => { setEditProduct(null); setFormOpen(true) }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 7,
@@ -94,7 +167,7 @@ export default function ProductsPage() {
                   boxShadow: '0 4px 12px rgba(45,125,210,0.3)',
                 }}
               >
-                <Plus size={15} strokeWidth={2.5} /> Nouveau produit
+                <Plus size={15} strokeWidth={2.5} aria-hidden /> Nouveau produit
               </button>
             )}
           </>
@@ -110,13 +183,17 @@ export default function ProductsPage() {
           background: 'var(--surface)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
           border: '1px solid var(--border)', borderBottom: 'none',
         }}>
+          {/* Search */}
           <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 180 }}>
-            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
+            <label htmlFor={searchId} className="sr-only">Rechercher un produit</label>
+            <Search size={14} aria-hidden style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
             <input
-              type="text"
+              id={searchId}
+              type="search"
               placeholder="Rechercher un produit..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              aria-label="Rechercher un produit"
               style={{
                 width: '100%', padding: '8px 12px 8px 32px',
                 borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)',
@@ -128,23 +205,23 @@ export default function ProductsPage() {
             />
           </div>
 
-          {/* Type filter */}
-          <div style={{ display: 'flex', gap: 4 }}>
-            {([
-              { key: null,       label: 'Tous les types' },
-              { key: 'service',  label: 'Prestations' },
-              { key: 'product',  label: 'Produits' },
-            ] as const).map((f) => (
+          {/* Type filter tabs */}
+          <div role="tablist" aria-label="Filtrer par type de produit" style={{ display: 'flex', gap: 4 }}>
+            {TYPE_FILTERS.map((f) => (
               <button
                 key={String(f.key)}
-                onClick={() => setTypeFilter(f.key)}
+                type="button"
+                role="tab"
+                aria-selected={typeFilter === f.key}
+                onClick={() => handleTypeFilter(f.key as typeof typeFilter)}
                 style={{
-                  padding: '7px 12px', borderRadius: 'var(--radius-md)',
+                  padding: '0 12px', minHeight: 44, borderRadius: 'var(--radius-md)',
                   border: typeFilter === f.key ? '1.5px solid var(--primary)' : '1.5px solid transparent',
                   background: typeFilter === f.key ? 'rgba(45,125,210,0.08)' : 'transparent',
                   color: typeFilter === f.key ? 'var(--primary)' : 'var(--text-3)',
                   fontSize: 12.5, fontWeight: typeFilter === f.key ? 600 : 400,
                   fontFamily: 'var(--font-display)', cursor: 'pointer', transition: 'all 0.15s',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {f.label}
@@ -153,30 +230,37 @@ export default function ProductsPage() {
           </div>
 
           {/* Show inactive toggle */}
-          <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', marginLeft: 'auto' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', marginLeft: 'auto', minHeight: 44 }}>
             <input
               type="checkbox"
               checked={showInactive}
-              onChange={(e) => setShowInactive(e.target.checked)}
-              style={{ accentColor: 'var(--primary)' }}
+              onChange={(e) => { setShowInactive(e.target.checked); setPage(1) }}
+              style={{ accentColor: 'var(--primary)', width: 16, height: 16 }}
             />
             <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>Inclure inactifs</span>
           </label>
         </div>
 
         {/* Category tabs */}
-        <div style={{
-          display: 'flex', gap: 2, overflowX: 'auto',
-          padding: '10px 14px',
-          background: 'var(--surface)',
-          border: '1px solid var(--border)', borderTop: '1px solid var(--border)',
-          borderRadius: '0 0 var(--radius-lg) var(--radius-lg)',
-          scrollbarWidth: 'thin',
-        }}>
+        <div
+          role="tablist"
+          aria-label="Filtrer par catégorie"
+          style={{
+            display: 'flex', gap: 2, overflowX: 'auto',
+            padding: '10px 14px',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)', borderTop: '1px solid var(--border)',
+            borderRadius: '0 0 var(--radius-lg) var(--radius-lg)',
+            scrollbarWidth: 'thin',
+          }}
+        >
           <button
-            onClick={() => setCategoryFilter(null)}
+            type="button"
+            role="tab"
+            aria-selected={categoryFilter === null}
+            onClick={() => handleCatFilter(null)}
             style={{
-              padding: '6px 14px', borderRadius: 20, border: 'none',
+              padding: '0 14px', minHeight: 36, borderRadius: 20, border: 'none',
               background: categoryFilter === null ? 'var(--primary)' : 'var(--bg)',
               color:      categoryFilter === null ? '#fff'           : 'var(--text-3)',
               fontSize: 12.5, fontWeight: categoryFilter === null ? 600 : 400,
@@ -189,9 +273,12 @@ export default function ProductsPage() {
           {categories.map((cat) => (
             <button
               key={cat.id}
-              onClick={() => setCategoryFilter(cat.id)}
+              type="button"
+              role="tab"
+              aria-selected={categoryFilter === cat.id}
+              onClick={() => handleCatFilter(cat.id)}
               style={{
-                padding: '6px 14px', borderRadius: 20, border: 'none',
+                padding: '0 14px', minHeight: 36, borderRadius: 20, border: 'none',
                 background: categoryFilter === cat.id ? (cat.color ?? 'var(--primary)') : 'var(--bg)',
                 color:      categoryFilter === cat.id ? '#fff' : 'var(--text-3)',
                 fontSize: 12.5, fontWeight: categoryFilter === cat.id ? 600 : 400,
@@ -207,35 +294,22 @@ export default function ProductsPage() {
 
       {/* ── Product grid ──────────────────────────────────── */}
       {isLoading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
+        <div aria-hidden="true" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
           {[...Array(9)].map((_, i) => <CardSkeleton key={i} />)}
         </div>
       ) : products.length === 0 ? (
-        <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          padding: '64px 20px', textAlign: 'center',
-          background: 'var(--surface)', borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--border)',
-        }}>
-          <Package size={44} style={{ color: 'var(--border)', marginBottom: 12 }} />
-          <p style={{ fontSize: 14, color: 'var(--text-3)', marginBottom: 4 }}>
-            {search ? `Aucun résultat pour "${search}"` : 'Aucun produit pour le moment'}
-          </p>
-          {can('product', 'create') && !search && (
-            <button
-              onClick={() => setFormOpen(true)}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14,
-                padding: '8px 16px', borderRadius: 'var(--radius-md)',
-                background: 'var(--primary)', color: '#fff', border: 'none',
-                cursor: 'pointer', fontSize: 13.5,
-                fontFamily: 'var(--font-display)', fontWeight: 600,
-              }}
-            >
-              <Plus size={13} /> Créer le premier produit
-            </button>
-          )}
-        </div>
+        search
+          ? <RichEmptyState icon={Package} title={`Aucun résultat pour « ${search} »`} description="Essayez un autre nom, référence ou catégorie." compact />
+          : typeFilter
+            ? <RichEmptyState icon={Package} title={`Aucun ${typeFilter === 'service' ? 'prestation' : 'produit'}`} description={`Aucun élément de type « ${typeFilter === 'service' ? 'Prestation' : 'Produit'} » pour le moment.`} compact />
+            : <RichEmptyState
+                icon={Package}
+                title="Créez votre catalogue"
+                description="Produits ou prestations de service — configurez vos tarifs une fois, réutilisez-les sur tous vos documents."
+                features={['Produits & services', 'Remises par ligne', 'Catégories libres']}
+                cta={can('product', 'create') ? { label: '+ Nouveau produit', onClick: () => setFormOpen(true) } : undefined}
+                secondaryCta={{ label: 'Voir le guide', href: ROUTES.GUIDE }}
+              />
       ) : (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
@@ -243,23 +317,53 @@ export default function ProductsPage() {
               <ProductCard key={product.id} product={product} onEdit={handleEdit} />
             ))}
           </div>
-          {data && data.total > products.length && (
-            <p style={{ textAlign: 'center', fontSize: 12.5, color: 'var(--text-3)' }}>
-              {products.length} / {data.total} produits affichés
-            </p>
+
+          {/* Footer: count + pagination */}
+          {data && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <p style={{ fontSize: 12.5, color: 'var(--text-3)' }} aria-live="polite">
+                {data.totalPages > 1
+                  ? `${((page - 1) * PAGE_SIZE) + 1}–${Math.min(page * PAGE_SIZE, data.total)} sur ${data.total} produits`
+                  : `${products.length} produit${products.length !== 1 ? 's' : ''}`}
+              </p>
+              {data.totalPages > 1 && (
+                <Pagination page={page} totalPages={data.totalPages} onChange={setPage} />
+              )}
+            </div>
           )}
         </>
       )}
 
       {/* ── Product form modal ────────────────────────────── */}
       {formOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div className="card" style={{ width: '100%', maxWidth: 600, maxHeight: '92vh', overflowY: 'auto', padding: '28px' }}>
+        <div
+          role="dialog"
+          id={dialogId}
+          aria-modal="true"
+          aria-labelledby={dialogTitleId}
+          style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={(e) => { if (e.target === e.currentTarget) handleCloseForm() }}
+        >
+          <div
+            className="card"
+            style={{ width: '100%', maxWidth: 600, maxHeight: '92vh', overflowY: 'auto', padding: '28px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
-              <h2 className="font-display" style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)' }}>
+              <h2 id={dialogTitleId} className="font-display" style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)' }}>
                 {editProduct ? 'Modifier le produit' : 'Nouveau produit'}
               </h2>
-              <button onClick={handleCloseForm} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', fontSize: 20, lineHeight: 1 }}>×</button>
+              <button
+                ref={closeModalRef}
+                type="button"
+                onClick={handleCloseForm}
+                aria-label="Fermer"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 'var(--radius-md)', transition: 'background 0.15s' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'none' }}
+              >
+                <X size={18} aria-hidden />
+              </button>
             </div>
             <ProductForm product={editProduct ?? undefined} onClose={handleCloseForm} />
           </div>
