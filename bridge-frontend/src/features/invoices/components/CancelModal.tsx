@@ -42,11 +42,11 @@ export function CancelModal({ invoiceId, invoiceNumber, onClose }: CancelModalPr
           </p>
         </div>
 
-        <p style={{ fontSize: 13, color: 'var(--text-3)', marginBottom: 10 }}>Motif d'annulation (optionnel)</p>
+        <p style={{ fontSize: 13, color: 'var(--text-3)', marginBottom: 10 }}>Motif d'annulation <span style={{ color: '#ef4444' }}>*</span></p>
         <textarea
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          placeholder="Ex: Annulation commande client, erreur de facturation…"
+          placeholder="Veuillez expliquer la raison de l'annulation…"
           rows={3}
           style={{
             width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)',
@@ -66,13 +66,14 @@ export function CancelModal({ invoiceId, invoiceNumber, onClose }: CancelModalPr
           </button>
           <button
             type="button"
-            disabled={mutation.isPending}
-            onClick={() => mutation.mutate({ id: invoiceId, data: { reason: reason || undefined } }, { onSuccess: onClose })}
+            disabled={!reason.trim() || mutation.isPending}
+            onClick={() => mutation.mutate({ id: invoiceId, data: { reason: reason.trim() } }, { onSuccess: onClose })}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '8px 18px', borderRadius: 'var(--radius-md)',
-              background: '#ef4444', color: '#fff', border: 'none',
-              cursor: mutation.isPending ? 'not-allowed' : 'pointer',
+              background: !reason.trim() || mutation.isPending ? '#fda4af' : '#ef4444', 
+              color: '#fff', border: 'none',
+              cursor: !reason.trim() || mutation.isPending ? 'not-allowed' : 'pointer',
               fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13.5,
             }}
           >
