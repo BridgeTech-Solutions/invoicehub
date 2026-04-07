@@ -29,6 +29,7 @@ import { officesRouter } from './modules/offices/offices.routes';
 import { emailTemplatesRouter } from './modules/email-templates/email-templates.routes';
 import { backupsRouter } from './modules/backups/backups.routes';
 import { aiRouter } from './modules/ai/ai.routes';
+import { healthRouter } from './modules/health/health.routes';
 
 const app: Express = express();
 
@@ -82,6 +83,12 @@ app.use(`${env.API_PREFIX}/auth/forgot-password`, rateLimit({
   message: { success: false, code: 'RATE_LIMIT', message: 'Trop de demandes de réinitialisation.' },
 }));
 
+app.use(`${env.API_PREFIX}/auth/refresh`, rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 50,
+  message: { success: false, code: 'RATE_LIMIT', message: 'Trop de tentatives de renouvellement de token.' },
+}));
+
 // ----------------------------------------------------------------
 // Fichiers statiques (assets uploadés)
 // ----------------------------------------------------------------
@@ -128,6 +135,9 @@ app.get('/health', async (_req, res) => {
 // Routes API
 // ----------------------------------------------------------------
 const prefix = env.API_PREFIX;
+
+// Health check — accessible sans authentification
+app.use(`${prefix}/health`, healthRouter);
 
 app.use(`${prefix}/auth`, authRouter);
 app.use(`${prefix}/users`, usersRouter);

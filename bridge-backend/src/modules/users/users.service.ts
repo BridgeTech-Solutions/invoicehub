@@ -5,6 +5,7 @@ import { hashPassword, comparePassword } from '../../lib/bcrypt';
 import { AppError } from '../../core/errors/AppError';
 import { env } from '../../config/env';
 import { notificationQueue } from '../../jobs/queues';
+import { logger } from '../../core/middleware/requestLogger';
 import type { CreateUserInput, UpdateUserInput, UpdateMeInput, ChangePasswordInput, ListUsersInput } from './users.schema';
 
 const USER_SELECT = {
@@ -105,6 +106,8 @@ export class UsersService {
       select: USER_SELECT,
     });
 
+    logger.info(`Utilisateur créé : ${user.email} (${user.role}) par ${createdById}`);
+
     // Notifier les admins qu'un nouveau compte a été créé
     const admins = await prisma.user.findMany({
       where: { role: 'admin', status: 'active', deletedAt: null },
@@ -125,12 +128,33 @@ export class UsersService {
   }
 
   async update(id: string, input: UpdateUserInput) {
-    await this.findById(id);
+    const oldUser = await this.findById(id);
+    
+    // Si le rôle change, révoquer tous les tokens pour forcer la reconnexion
+    if (input.role && input.role !== oldUser.role) {
+      await prisma.refreshToken.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date(), revokeReason: 'role_changed' },
+      });
+      logger.info(`Tokens révoqués pour ${oldUser.email} : changement de rôle ${oldUser.role} → ${input.role}`);
+    }
+
+    // Si le statut passe à suspendu, révoquer tous les tokens
+    if (input.status === 'suspended' && oldUser.status !== 'suspended') {
+      await prisma.refreshToken.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date(), revokeReason: 'account_suspended' },
+      });
+      logger.info(`Tokens révoqués pour ${oldUser.email} : compte suspendu`);
+    }
+
     const user = await prisma.user.update({
       where: { id },
       data: input,
       select: USER_SELECT,
     });
+
+    logger.info(`Utilisateur modifié : ${user.email} (${Object.keys(input).join(', ')})`);
     return formatUser(user);
   }
 
@@ -154,6 +178,8 @@ export class UsersService {
       data: { passwordHash, mustChangePassword: false },
     });
 
+    logger.info(`Mot de passe changé pour : ${user.email}`);
+
     // Révoquer tous les refresh tokens sauf la session courante
     await prisma.refreshToken.updateMany({
       where: { userId, revokedAt: null },
@@ -162,11 +188,36 @@ export class UsersService {
   }
 
   async softDelete(id: string): Promise<void> {
-    await this.findById(id);
+    const user = await this.findById(id);
+    
+    // Archiver l'utilisateur
     await prisma.user.update({
       where: { id },
       data: { deletedAt: new Date(), status: 'suspended' },
     });
+
+    // Révoquer TOUS les refresh tokens de cet utilisateur
+    await prisma.refreshToken.updateMany({
+      where: { userId: id, revokedAt: null },
+      data: { revokedAt: new Date(), revokeReason: 'user_deleted' },
+    });
+
+    logger.info(`Utilisateur archivé : ${user.email}`);
+  }
+
+  async reactivate(id: string): Promise<void> {
+    const user = await prisma.user.findFirst({
+      where: { id, deletedAt: { not: null } },
+      select: { email: true },
+    });
+    if (!user) throw AppError.notFound('Utilisateur archivé introuvable');
+
+    await prisma.user.update({
+      where: { id },
+      data: { deletedAt: null, status: 'active' },
+    });
+
+    logger.info(`Utilisateur réactivé : ${user.email}`);
   }
 }
 

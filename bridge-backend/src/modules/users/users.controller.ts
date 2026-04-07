@@ -85,6 +85,15 @@ export class UsersController {
       next(err);
     }
   }
+
+  async reactivate(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      await usersService.reactivate(req.params['id'] as string);
+      res.json({ success: true, message: 'Utilisateur réactivé' });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export const usersController = new UsersController();

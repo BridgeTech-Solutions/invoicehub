@@ -18,6 +18,7 @@ export const updateUserSchema = z.object({
   lastName: z.string().min(1).max(100).optional(),
   phone: z.string().max(50).optional().nullable(),
   role: z.enum(['admin', 'commercial', 'employee']).optional(),
+  status: z.enum(['active', 'suspended', 'pending_activation']).optional(),
   language: z.enum(['fr', 'en']).optional(),
   timezone: z.string().optional(),
   theme: z.enum(['light', 'dark', 'system']).optional(),

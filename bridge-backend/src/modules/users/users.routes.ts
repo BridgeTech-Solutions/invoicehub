@@ -78,5 +78,6 @@ router.post('/', authorize('admin'), usersController.create.bind(usersController
 router.get('/:id', authorize('admin'), usersController.findById.bind(usersController));
 router.put('/:id', authorize('admin'), usersController.update.bind(usersController));
 router.delete('/:id', authorize('admin'), usersController.delete.bind(usersController));
+router.post('/:id/reactivate', authorize('admin'), usersController.reactivate.bind(usersController));
 
 export { router as usersRouter };
