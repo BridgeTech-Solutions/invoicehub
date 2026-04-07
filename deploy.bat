@@ -420,15 +420,15 @@ set RETRIES=0
 
 set /a RETRIES+=1
 
-if %RETRIES% gtr 30 (
+if %RETRIES% gtr 60 (
 
-  call :fail "L'API ne repond pas apres 30 tentatives. Verifier avec : docker-compose logs api"
+  call :fail "L'API ne repond pas apres 60 tentatives. Verifier avec : docker-compose logs api"
 
   exit /b 1
 
 )
 
-timeout /t 2 /nobreak >nul
+timeout /t 3 /nobreak >nul
 
 docker-compose exec -T api node -e "require('http').get('http://localhost:3005/api/health', r => process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))" >nul 2>&1
 
