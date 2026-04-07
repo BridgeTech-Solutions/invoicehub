@@ -41,7 +41,7 @@ COPY --from=builder /app/prisma ./prisma
 
 # Regénère le client Prisma dans l'image de production
 # (évite les problèmes de symlinks du store pnpm entre les stages)
-RUN node_modules/.bin/prisma generate
+RUN pnpm prisma generate
 
 # Artefacts de build
 COPY --from=builder /app/dist ./dist
@@ -60,4 +60,4 @@ USER nodeapp
 EXPOSE 3000
 
 # Lance les migrations, le seed (idempotent), puis démarre le serveur
-CMD ["sh", "-c", "mkdir -p uploads/avatars uploads/assets uploads/backups uploads/attachments && node_modules/.bin/prisma migrate resolve --applied 0_init 2>/dev/null || true && node_modules/.bin/prisma migrate deploy && node_modules/.bin/prisma db seed && node dist/server.js"]
+CMD ["sh", "-c", "mkdir -p uploads/avatars uploads/assets uploads/backups uploads/attachments && pnpm prisma migrate resolve --applied 0_init 2>/dev/null || true && pnpm prisma migrate deploy && pnpm prisma db seed && node dist/server.js"]
