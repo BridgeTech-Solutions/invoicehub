@@ -7,20 +7,20 @@
  * par cron même si le serveur redémarre plusieurs fois.
  *
  * Crons configurés :
- *  - overdue   : 00:05 UTC — marque les factures/proformas en retard
- *  - recurring : 00:10 UTC — génère les factures récurrentes du jour
- *  - reminder  : 00:15 UTC — envoie les rappels de paiement
- *  - backup    : BACKUP_CRON (défaut 00:00 UTC) — pg_dump automatique
+ *  - overdue   : 08:15 UTC — marque les factures/proformas en retard
+ *  - recurring : 08:15 UTC — génère les factures récurrentes du jour
+ *  - reminder  : 08:15 UTC — envoie les rappels de paiement
+ *  - backup    : 16:30 UTC — pg_dump automatique
  */
 import { overdueQueue, recurringQueue, reminderQueue, backupQueue } from './queues';
 import { env } from '../config/env';
 import { logger } from '../core/middleware/requestLogger';
 
 export async function scheduleJobs(): Promise<void> {
-  // Overdue — tous les jours à 00:05 UTC
+  // Overdue — tous les jours à 08:15 UTC
   await overdueQueue.upsertJobScheduler(
     'overdue-daily',
-    { pattern: '5 0 * * *' },
+    { pattern: '15 8 * * *' },
     {
       name: 'overdue',
       data: { triggeredAt: '' },
@@ -28,10 +28,10 @@ export async function scheduleJobs(): Promise<void> {
     },
   );
 
-  // Recurring — tous les jours à 00:10 UTC
+  // Recurring — tous les jours à 08:15 UTC
   await recurringQueue.upsertJobScheduler(
     'recurring-daily',
-    { pattern: '10 0 * * *' },
+    { pattern: '15 8 * * *' },
     {
       name: 'recurring',
       data: { triggeredAt: '' },
@@ -39,10 +39,10 @@ export async function scheduleJobs(): Promise<void> {
     },
   );
 
-  // Reminders — tous les jours à 00:15 UTC
+  // Reminders — tous les jours à 08:15 UTC
   await reminderQueue.upsertJobScheduler(
     'reminder-daily',
-    { pattern: '15 0 * * *' },
+    { pattern: '15 8 * * *' },
     {
       name: 'reminder',
       data: { triggeredAt: '' },
@@ -50,10 +50,10 @@ export async function scheduleJobs(): Promise<void> {
     },
   );
 
-  // Backup automatique — cron configurable via BACKUP_CRON (défaut : minuit UTC)
+  // Backup automatique — tous les jours à 16:30 UTC
   await backupQueue.upsertJobScheduler(
     'backup-daily',
-    { pattern: env.BACKUP_CRON },
+    { pattern: '30 16 * * *' },
     {
       name: 'backup',
       data: { backupId: '' }, // backupId sera créé par le processor
@@ -61,5 +61,5 @@ export async function scheduleJobs(): Promise<void> {
     },
   );
 
-  logger.info(`Crons BullMQ planifiés (overdue 00:05, recurring 00:10, reminders 00:15, backup "${env.BACKUP_CRON}" UTC)`);
+  logger.info(`Crons BullMQ planifiés (overdue/recurring/reminder 08:15 UTC, backup 16:30 UTC)`);
 }
