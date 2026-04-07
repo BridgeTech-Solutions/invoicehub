@@ -15,8 +15,12 @@ RUN pnpm build
 FROM node:20-slim AS production
 
 # Chromium (PDF Puppeteer) + pg_dump (backups)
-RUN apt-get update && apt-get install -y \
-    chromium \
+# Augmenter timeouts APT pour éviter les timeouts réseau
+RUN apt-get update && \
+    apt-get install -o Acquire::http::Timeout=300 \
+                    -o Acquire::https::Timeout=300 \
+                    -o APT::Acquire::Retries=3 \
+                    -y chromium \
     fonts-liberation \
     libatk-bridge2.0-0 \
     libgtk-3-0 \
