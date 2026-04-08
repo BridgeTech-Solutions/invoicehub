@@ -1,0 +1,25 @@
+# Structure finale du dossier nginx/
+# Généré automatiquement pour Bridge Technologies Solutions
+
+nginx/
+├── Dockerfile              # Image Docker Nginx personnalisée
+├── nginx.conf              # Configuration complète du Reverse Proxy
+├── generate-certs.ps1      # Script PowerShell pour générer les certificats SSL
+├── README.md               # Documentation complète
+└── certs/                  # Dossier pour les certificats SSL
+    ├── invoicehub.crt      # ← À générer (certificat public)
+    └── invoicehub.key      # ← À générer (clé privée)
+
+# Commandes pour utiliser ce dossier :
+
+# 1. Générer les certificats SSL
+.\nginx\generate-certs.ps1
+
+# 2. Construire l'image Docker
+docker build -t nginx-proxy ./nginx
+
+# 3. Démarrer le Reverse Proxy
+docker run -d --name nginx-proxy --network host -p 80:80 -p 443:443 --restart unless-stopped nginx-proxy
+
+# 4. Tester
+curl https://invoicehub.bridgetech-solutions
