@@ -15,7 +15,6 @@ RUN pnpm build
 FROM node:20-slim AS production
 
 # Chromium (PDF Puppeteer) + pg_dump (backups)
-# Augmenter timeouts APT pour éviter les timeouts réseau
 RUN apt-get update && \
     apt-get install -o Acquire::http::Timeout=300 \
                     -o Acquire::https::Timeout=300 \
@@ -29,36 +28,36 @@ RUN apt-get update && \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
-# Puppeteer utilise Chromium système — pas de téléchargement auto
+# Puppeteer utilise Chromium système
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-RUN npm install -g pnpm
+# Création utilisateur en début de stage
+RUN groupadd --gid 1001 nodejs && useradd --uid 1001 --gid nodejs --shell /bin/bash --create-home nodeapp
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml* ./
+RUN npm install -g pnpm
+
+COPY --chown=nodeapp:nodejs package.json pnpm-lock.yaml* ./
 RUN pnpm install --prod --frozen-lockfile
 
-# Prisma : schema + migrations (requis pour generate + migrate deploy)
-COPY --from=builder /app/prisma ./prisma
+# Prisma : schema + migrations
+COPY --chown=nodeapp:nodejs --from=builder /app/prisma ./prisma
 
-# Regénère le client Prisma dans l'image de production
-# (évite les problèmes de symlinks du store pnpm entre les stages)
+# Regénère le client Prisma
 RUN pnpm prisma generate
 
 # Artefacts de build
-COPY --from=builder /app/dist ./dist
+COPY --chown=nodeapp:nodejs --from=builder /app/dist ./dist
 
-# Assets société (logos, header, footer, cachet pour les PDFs)
-COPY --from=builder /app/assets ./assets
+# Assets société
+COPY --chown=nodeapp:nodejs --from=builder /app/assets ./assets
 
-# Créer les dossiers uploads avec les bonnes permissions avant de changer d'utilisateur
-RUN mkdir -p /app/uploads/avatars /app/uploads/assets /app/uploads/backups /app/uploads/attachments
+# Créer les dossiers uploads avec les bonnes permissions directement
+RUN mkdir -p /app/uploads/avatars /app/uploads/assets /app/uploads/backups /app/uploads/attachments && \
+    chown -R nodeapp:nodejs /app/uploads
 
-# Utilisateur non-root pour limiter la surface d'attaque
-RUN groupadd --gid 1001 nodejs && useradd --uid 1001 --gid nodejs --shell /bin/bash --create-home nodeapp
-RUN chown -R nodeapp:nodejs /app
 USER nodeapp
 
 EXPOSE 3000
