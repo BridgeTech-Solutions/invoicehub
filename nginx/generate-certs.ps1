@@ -1,70 +1,31 @@
-# Script PowerShell : Générer les certificats SSL pour Nginx
-# Bridge Technologies Solutions - 2026
+# Script de generation de certificats SSL pour Nginx (Version propre)
 
-Write-Host "🔐 Génération des certificats SSL pour InvoiceHub..." -ForegroundColor Green
+Write-Host "Generer les certificats SSL..." -ForegroundColor Cyan
 
-# Se placer dans le dossier certs
-Set-Location $PSScriptRoot\certs
-
-# Vérifier OpenSSL
-try {
-    $opensslVersion = openssl version 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "❌ OpenSSL n'est pas installé ou accessible" -ForegroundColor Red
-        exit 1
-    }
-    Write-Host "✅ OpenSSL détecté : $opensslVersion" -ForegroundColor Green
-} catch {
-    Write-Host "❌ OpenSSL n'est pas installé. Installez-le avec : winget install OpenSSL.Light" -ForegroundColor Red
-    exit 1
+# Creer le dossier s'il n'existe pas
+if (!(Test-Path "certs")) {
+    New-Item -ItemType Directory -Path "certs"
 }
 
-# Générer la clé privée
-Write-Host "🔑 Génération de la clé privée (2048 bits)..." -ForegroundColor Yellow
-openssl genrsa -out invoicehub.key 2048
+# Generer Private Key
+Write-Host "Generer la cle privee..."
+openssl genrsa -out certs/invoicehub.key 2048
 
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "✅ Clé privée générée : invoicehub.key" -ForegroundColor Green
-} else {
-    Write-Host "❌ Erreur lors de la génération de la clé privée" -ForegroundColor Red
-    exit 1
-}
+# Generer Certificate Request
+Write-Host "Generer la requete de certificat..."
+openssl req -new -key certs/invoicehub.key -out certs/invoicehub.csr -subj "/C=CM/ST=Littoral/L=Douala/O=Bridge Technologies/OU=IT/CN=invoicehub.bridgetech-solutions"
 
-# Générer le certificat auto-signé
-Write-Host "📜 Génération du certificat auto-signé (365 jours)..." -ForegroundColor Yellow
-openssl req -new -x509 -key invoicehub.key -out invoicehub.crt -days 365 -subj "/C=CM/ST=Littoral/L=Douala/O=Bridge Technologies Solutions/OU=IT/CN=invoicehub.bridgetech-solutions"
+# Creer fichier d'extensions (SANs)
+@"
+subjectAltName = DNS:invoicehub.bridgetech-solutions,DNS:api.invoicehub.bridgetech-solutions,DNS:www.invoicehub.bridgetech-solutions,DNS:app2.bridgetech-solutions,DNS:app3.bridgetech-solutions
+"@ | Out-File -FilePath certs/openssl.ext -Encoding ascii
 
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "✅ Certificat généré : invoicehub.crt" -ForegroundColor Green
-} else {
-    Write-Host "❌ Erreur lors de la génération du certificat" -ForegroundColor Red
-    exit 1
-}
+# Generer le certificat auto-signe (365 jours)
+Write-Host "Generer le certificat auto-signe (365 jours)..."
+openssl x509 -req -days 365 -in certs/invoicehub.csr -signkey certs/invoicehub.key -out certs/invoicehub.crt -extfile certs/openssl.ext
 
-# Vérifier les certificats
-Write-Host "🔍 Vérification des certificats..." -ForegroundColor Yellow
-openssl x509 -in invoicehub.crt -text -noout | Select-String "Subject:|DNS:" | ForEach-Object {
-    Write-Host "   $_" -ForegroundColor Cyan
-}
+# Nettoyage
+Remove-Item certs/invoicehub.csr
+Remove-Item certs/openssl.ext
 
-# Importer dans le magasin de certificats Windows (optionnel)
-Write-Host "📥 Importation du certificat dans Windows (Trusted Root)..." -ForegroundColor Yellow
-try {
-    Import-Certificate -FilePath ".\invoicehub.crt" -CertStoreLocation Cert:\LocalMachine\Root -ErrorAction Stop
-    Write-Host "✅ Certificat importé dans le magasin Windows" -ForegroundColor Green
-} catch {
-    Write-Host "⚠️  Impossible d'importer le certificat (droits admin requis)" -ForegroundColor Yellow
-}
-
-# Résumé
-Write-Host "`n🎉 Certificats SSL générés avec succès !" -ForegroundColor Green
-Write-Host "📁 Fichiers créés dans : $PSScriptRoot\certs\" -ForegroundColor White
-Write-Host "   - invoicehub.key (clé privée - confidentielle)" -ForegroundColor White
-Write-Host "   - invoicehub.crt (certificat public)" -ForegroundColor White
-Write-Host "`n🚀 Vous pouvez maintenant construire l'image Nginx :" -ForegroundColor Green
-Write-Host "   docker build -t nginx-proxy ./nginx" -ForegroundColor White
-
-Write-Host "`n💡 Prochaines étapes :" -ForegroundColor Cyan
-Write-Host "   1. Démarrer InvoiceHub : docker-compose up -d" -ForegroundColor White
-Write-Host "   2. Démarrer Nginx : docker run -d --name nginx-proxy --network host -p 80:80 -p 443:443 nginx-proxy" -ForegroundColor White
-Write-Host "   3. Tester : https://invoicehub.bridgetech-solutions" -ForegroundColor White
+Write-Host "Certificats generes avec succes dans le dossier 'certs' !" -ForegroundColor Green

@@ -4,11 +4,11 @@
 
 **Architecture cible** : 
 - Docker Desktop sur Windows Server (WSL 2)
-- **Reverse Proxy centralisé** (Nginx) dans `C:\ReverseProxy` — gère HTTPS + routage par domaine
-- **Réseau Docker `proxy-net`** — Communication sécurisée entre services
-- **DNS Server rôle Windows** — Résolution de noms centralisée (zéro config client si DNS configuré)
+- **Reverse Proxy isolé** (Nginx) dans `.\nginx` — gère HTTPS + routage par domaine
+- **Réseau Docker `bridge-net`** — Communication sécurisée entre services
+- **DNS Server rôle Windows** — Résolution de noms centralisée
 - **SSL/TLS auto-signé** — Sécurité interne réseau
-- **Multi-apps** — Chaque app isolée, gérée par son propre docker-compose
+- **Séparation des services** — L'application et Nginx ont chacun leur propre `docker-compose.yml`
 
 **Durée estimée** : 45-60 minutes (première installation)
 
@@ -125,7 +125,7 @@ PC Client                      Windows Server (192.168.1.10)
 **Points clés** :
 - ✅ **DNS pointe vers 192.168.1.10** (IP du serveur Windows avec Nginx)
 - ✅ **Nginx écoute 80/443** sur le serveur (uniquement)
-- ✅ **Nginx redirige vers les conteneurs** (invoicehub-frontend:3001, invoicehub-api:3000)
+- ✅ **Nginx redirige vers les conteneurs** (invoicehub-frontend:3001, invoicehub-api:3005)
 - ✅ **Pas de ports applicatifs exposés** — Sécurité ✓
 - ✅ **Multi-apps sur même serveur** — Scalable ✓
 
@@ -306,10 +306,10 @@ C:\BTS-Apps\
 
 ```powershell
 # Créer le réseau partagé
-docker network create proxy-net
+docker network create bridge-net
 
 # Vérifier
-docker network ls | Select-String proxy-net
+docker network ls | Select-String bridge-net
 ```
 
 **Ce réseau sera utilisé par** :
@@ -323,40 +323,14 @@ docker network ls | Select-String proxy-net
 
 ### Étape 4A : Générer le certificat
 
-**PowerShell** (dans `C:\BTS-Apps\ReverseProxy\certs`) :
+**PowerShell** (dans `C:\BTS-Apps\ReverseProxy`) :
 
 ```powershell
-cd C:\BTS-Apps\ReverseProxy\certs
-
-# Générer Private Key (2048 bits, 365 jours)
-openssl genrsa -out invoicehub.key 2048
-
-# Générer Certificate Request
-openssl req -new `
-  -key invoicehub.key `
-  -out invoicehub.csr `
-  -subj "/C=CM/ST=Littoral/L=Douala/O=Bridge Technologies/OU=IT/CN=invoicehub.bridgetech-solutions"
-
-# Créer fichier d'extensions (SANs)
-@"
-subjectAltName = DNS:invoicehub.bridgetech-solutions,DNS:api.invoicehub.bridgetech-solutions,DNS:www.invoicehub.bridgetech-solutions,DNS:app2.bridgetech-solutions,DNS:app3.bridgetech-solutions
-"@ | Out-File -Encoding ASCII openssl.ext
-
-# Générer le certificat auto-signé (365 jours)
-openssl x509 -req `
-  -days 365 `
-  -in invoicehub.csr `
-  -signkey invoicehub.key `
-  -out invoicehub.crt `
-  -extfile openssl.ext
-
-# Vérifier
-openssl x509 -in invoicehub.crt -text -noout | Select-String "Subject|DNS"
+cd C:\BTS-Apps\ReverseProxy
+.\generate-certs.ps1
 ```
 
-**Résultat** :
-- `invoicehub.key` — Clé privée
-- `invoicehub.crt` — Certificat public (valable 365 jours)
+*Vérifiez que `invoicehub.crt` et `invoicehub.key` sont bien présents dans `C:\BTS-Apps\ReverseProxy\certs\` après l'exécution.*
 
 ### Étape 4B : Importer le certificat (optionnel mais recommandé)
 
@@ -364,7 +338,7 @@ Pour éviter les avertissements SSL dans les navigateurs :
 
 ```powershell
 Import-Certificate `
-  -FilePath C:\BTS-Apps\ReverseProxy\certs\invoicehub.crt `
+  -FilePath C:\Users\Administrateur\Documents\Appli Bridge\nginx\certs\invoicehub.crt `
   -CertStoreLocation Cert:\LocalMachine\Root
 ```
 
@@ -408,7 +382,7 @@ http {
     }
 
     upstream invoicehub_api {
-        server invoicehub-api:3000;
+        server invoicehub-api:3005;
     }
 
     upstream app2_frontend {
@@ -567,7 +541,7 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./certs:/etc/nginx/certs:ro
     networks:
-      - proxy-net
+      - bridge-net
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
       interval: 30s
@@ -575,7 +549,7 @@ services:
       retries: 3
 
 networks:
-  proxy-net:
+  bridge-net:
     external: true
 ```
 
@@ -603,7 +577,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - invoicehub
+      - bridge-net
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -619,7 +593,7 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - invoicehub
+      - bridge-net
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -635,7 +609,7 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     networks:
-      - invoicehub
+      - bridge-net
     restart: unless-stopped
     environment:
       OLLAMA_KEEP_ALIVE: 5m
@@ -646,10 +620,10 @@ services:
       dockerfile: docker/Dockerfile
     container_name: invoicehub-api
     ports:
-      - "3000:3000"  # Port interne UNIQUEMENT
+      - "3005:3005"  # Port interne UNIQUEMENT
     environment:
       NODE_ENV: production
-      PORT: 3000
+      PORT: 3005
       DATABASE_URL: postgresql://postgres:ChoosingAStrongPassword123@db:5432/invoicehub?schema=public
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -664,11 +638,10 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - invoicehub
-      - proxy-net  # Connecté au réseau du proxy
+      - bridge-net  # Connecté au réseau du proxy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3005/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -687,8 +660,7 @@ services:
     depends_on:
       - api
     networks:
-      - invoicehub
-      - proxy-net  # Connecté au réseau du proxy
+      - bridge-net  # Connecté au réseau du proxy
     restart: unless-stopped
 
 volumes:
@@ -697,9 +669,7 @@ volumes:
   ollama_data:
 
 networks:
-  invoicehub:
-    driver: bridge
-  proxy-net:
+  bridge-net:
     external: true
 ```
 
@@ -709,7 +679,7 @@ networks:
 
 ```env
 NODE_ENV=production
-PORT=3000
+PORT=3005
 FRONTEND_PORT=3001
 
 # Domaines (Nginx gère HTTPS)
@@ -800,7 +770,7 @@ docker-compose ps
 docker-compose logs -f api
 ```
 
-**Attendre que l'API soit prête** (voir "Server running on http://0.0.0.0:3000" dans les logs).
+**Attendre que l'API soit prête** (voir "Server running on http://0.0.0.0:3005" dans les logs).
 
 ### Étape 7C : Démarrer le Reverse Proxy
 
@@ -943,11 +913,11 @@ services:
       NODE_ENV: production
       PORT: 4001
     networks:
-      - proxy-net
+      - bridge-net
     restart: unless-stopped
 
 networks:
-  proxy-net:
+  bridge-net:
     external: true
 ```
 
@@ -985,7 +955,7 @@ server {
 # Reconstruire et redémarrer
 cd C:\BTS-Apps\ReverseProxy
 docker-compose build
-docker-compose restart nginx-proxy
+docker-compose restart
 ```
 
 ---
@@ -1005,7 +975,7 @@ docker-compose -f C:\BTS-Apps\invoicehub\docker-compose.yml logs -f api
 docker-compose -f C:\BTS-Apps\invoicehub\docker-compose.yml restart api
 
 # Redémarrer Nginx
-docker-compose -f C:\BTS-Apps\ReverseProxy\docker-compose.yml restart nginx-proxy
+docker-compose -f C:\BTS-Apps\ReverseProxy\docker-compose.yml restart
 
 # Arrêter tous les services
 docker-compose -f C:\BTS-Apps\invoicehub\docker-compose.yml down
@@ -1048,7 +1018,7 @@ docker ps
 docker-compose -f C:\BTS-Apps\invoicehub\docker-compose.yml logs api
 
 # Redémarrer Nginx
-docker-compose -f C:\BTS-Apps\ReverseProxy\docker-compose.yml restart nginx-proxy
+docker-compose -f C:\BTS-Apps\ReverseProxy\docker-compose.yml restart
 ```
 
 ### "Certificat SSL non approuvé"
@@ -1070,8 +1040,8 @@ Import-Certificate -FilePath C:\BTS-Apps\ReverseProxy\certs\invoicehub.crt -Cert
 - [ ] **DNS Server rôle Windows** installé et zona créée
 - [ ] Enregistrements DNS ajoutés (invoicehub, api.invoicehub, app2, app3)
 - [ ] PC clients configurés pour utiliser le DNS serveur
-- [ ] Réseau Docker `proxy-net` créé
-- [ ] Certificats SSL générés
+- [ ] Réseau Docker `bridge-net` créé
+- [ ] Certificats SSL générés via `.\generate-certs.ps1`
 - [ ] Nginx docker-compose créé et testé
 - [ ] InvoiceHub docker-compose adapté + `.env` configuré
 - [ ] InvoiceHub construit et démarré ✅
@@ -1100,23 +1070,23 @@ Import-Certificate -FilePath C:\BTS-Apps\ReverseProxy\certs\invoicehub.crt -Cert
 │  │  │  ├─ Port 443 (SSL/TLS termination)                 │ │ │
 │  │  │  └─ Certificates: invoicehub.crt + .key            │ │ │
 │  │  └─────────────────────────────────────────────────────┘ │ │
-│  │                    ↓ (via proxy-net)                     │ │
+│  │                    ↓ (via bridge-net)                    │ │
 │  │  ┌─────────────────────────────────────────────────────┐ │ │
 │  │  │  InvoiceHub (C:\BTS-Apps\invoicehub)               │ │ │
 │  │  │                                                     │ │ │
 │  │  │  ┌──────────┐ ┌─────────┐ ┌──────────────────┐    │ │ │
 │  │  │  │Frontend  │ │   API   │ │   PostgreSQL     │    │ │ │
 │  │  │  │Container │ │Container│ │   + Redis        │    │ │ │
-│  │  │  │ 3001     │ │ 3000    │ │   + Ollama       │    │ │ │
+│  │  │  │ 3001     │ │ 3005    │ │   + Ollama       │    │ │ │
 │  │  │  └──────────┘ └─────────┘ └──────────────────┘    │ │ │
 │  │  └─────────────────────────────────────────────────────┘ │ │
 │  │                                                           │ │
 │  │  ┌─────────────────────────────────────────────────────┐ │ │
 │  │  │  App 2 (C:\BTS-Apps\app2)                          │ │ │
-│  │  │  Container sur port 4001 (via proxy-net)           │ │ │
+│  │  │  Container sur port 4001 (via bridge-net)          │ │ │
 │  │  └─────────────────────────────────────────────────────┘ │ │
 │  │                                                           │ │
-│  │  Réseau : proxy-net (Docker bridge network)              │ │
+│  │  Réseau : bridge-net (Docker bridge network)             │ │
 │  │                                                           │ │
 │  └───────────────────────────────────────────────────────────┘ │
 │                                                                 │
@@ -1142,11 +1112,11 @@ Import-Certificate -FilePath C:\BTS-Apps\ReverseProxy\certs\invoicehub.crt -Cert
 
 **Points clés** :
 1. **Zéro port applicatif exposé** — Seul Nginx écoute 80/443
-2. **Réseau Docker isolé** — proxy-net pour communication sécurisée
+2. **Réseau Docker isolé** — bridge-net pour communication sécurisée
 3. **DNS centralisé** — Résolution de noms entièrement gérée par le serveur
 4. **Multi-apps scalable** — Ajouter App2, App3 sans complexité
 5. **Production ready** — SSL/TLS, health checks, restart policies
 
 ---
 
-**🎉 Guide complet prêt pour validation !**
+**🎉 Guide complet mis à jour !**

@@ -3,16 +3,12 @@ version: '3.9'
 # ─────────────────────────────────────────────────────────────────────────────
 #  InvoiceHub v2.0 — Docker Compose (production)
 #  Bridge Technologies Solutions — Douala, Cameroun
-#
-#  Avant de démarrer, configurer dans .env :
-#    SERVER_IP      → IP du serveur Windows sur le réseau local (ex: 192.168.1.10)
-#    DB_PASSWORD    → mot de passe PostgreSQL
-#    JWT_ACCESS_SECRET / JWT_REFRESH_SECRET → chaînes aléatoires ≥ 32 caractères
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
   db:
     image: postgres:15-alpine
+    container_name: invoicehub-db
     restart: unless-stopped
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -21,44 +17,26 @@ services:
       POSTGRES_DB: invoicehub
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${DB_PASSWORD:?Definir DB_PASSWORD dans .env}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d invoicehub"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-    # Pas de ports exposés — accessible uniquement depuis les autres conteneurs
+    networks:
+      - bridge-net
     mem_limit: 512m
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   redis:
     image: redis:7-alpine
+    container_name: invoicehub-redis
     restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    # Pas de ports exposés — accessible uniquement depuis les autres conteneurs
+    networks:
+      - bridge-net
     mem_limit: 256m
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "3"
 
   api:
     build:
       context: .
       dockerfile: docker/Dockerfile
+    container_name: invoicehub-api
     restart: unless-stopped
     depends_on:
       db:
@@ -73,51 +51,39 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3005
-      # Connexions internes Docker (via noms de services, pas localhost)
-      DATABASE_URL: postgresql://postgres:${DB_PASSWORD:?Definir DB_PASSWORD dans .env}@db:5432/invoicehub
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD}@db:5432/invoicehub
       REDIS_URL: redis://redis:6379
-      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
-      PGDUMP_PATH: pg_dump
-      PGDUMP_DOCKER_CONTAINER: ""
-      # URLs réseau local — lues depuis .env (SERVER_IP défini par l'admin)
-      APP_URL: http://${SERVER_IP:?Definir SERVER_IP dans .env}:3001
-      BACKEND_URL: http://${SERVER_IP}:3005
-      CORS_ORIGINS: http://${SERVER_IP}:3001
-      # Ollama dans le réseau Docker (conteneur ollama)
       OLLAMA_URL: http://ollama:11434
-      OLLAMA_ENABLED: ${OLLAMA_ENABLED:-false}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral}
+      # URL publique via Nginx
+      APP_URL: https://invoicehub.bridgetech-solutions
+      BACKEND_URL: https://api.invoicehub.bridgetech-solutions
+      CORS_ORIGINS: https://invoicehub.bridgetech-solutions
     volumes:
       - uploads:/app/uploads
+    networks:
+      - bridge-net
     mem_limit: 1g
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "20m"
-        max-file: "5"
 
   ollama:
     image: ollama/ollama:latest
+    container_name: invoicehub-ollama
     restart: unless-stopped
     volumes:
       - ollama_data:/root/.ollama
-    # Pas de ports exposés — accessible uniquement depuis les autres conteneurs
+    networks:
+      - bridge-net
     mem_limit: 4g
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   frontend:
     build:
       context: ../bridge-frontend
       dockerfile: docker/Dockerfile
       args:
-        # Ces valeurs sont gravées dans le build Next.js — doivent pointer vers le serveur
-        NEXT_PUBLIC_API_URL: http://${SERVER_IP:?Definir SERVER_IP dans .env}:3005/api
-        NEXT_PUBLIC_SOCKET_URL: http://${SERVER_IP}:3005
+        # URLs publiques (utilisées par le navigateur du client)
+        NEXT_PUBLIC_API_URL: https://api.invoicehub.bridgetech-solutions/api
+        NEXT_PUBLIC_SOCKET_URL: https://api.invoicehub.bridgetech-solutions
         NEXT_PUBLIC_APP_NAME: InvoiceHub
+    container_name: invoicehub-frontend
     restart: unless-stopped
     depends_on:
       - api
@@ -126,15 +92,17 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
+    networks:
+      - bridge-net
     mem_limit: 512m
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
 volumes:
   postgres_data:
   redis_data:
   uploads:
-  ollama_data:    # modèles Ollama persistés entre les redémarrages
+  ollama_data:
+
+networks:
+  bridge-net:
+    driver: bridge
+    name: bridge-net
