@@ -1,5 +1,3 @@
-version: '3.9'
-
 # ─────────────────────────────────────────────────────────────────────────────
 #  InvoiceHub v2.0 — Docker Compose (production)
 #  Bridge Technologies Solutions — Douala, Cameroun
@@ -17,6 +15,12 @@ services:
       POSTGRES_DB: invoicehub
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${DB_PASSWORD:?Definir DB_PASSWORD dans .env}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d invoicehub"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - bridge-net
     mem_limit: 512m
@@ -28,6 +32,12 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - bridge-net
     mem_limit: 256m
