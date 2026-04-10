@@ -197,6 +197,7 @@ export class ProformasService {
       data: {
         status: 'sent',
         lastSentAt: new Date(),
+        draftReminderLevel: 0,
         statusHistory: {
           create: {
             changedById: userId,

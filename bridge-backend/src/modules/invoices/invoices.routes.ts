@@ -6,6 +6,8 @@ import { authorize } from '../../core/middleware/rbac';
 import { rateLimitByUser } from '../../core/middleware/rateLimitByUser';
 import { auditMiddleware } from '../../core/middleware/audit';
 import { prisma } from '../../config/database';
+import { AppError } from '../../core/errors/AppError';
+import { paymentsService } from '../payments/payments.service';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -41,5 +43,36 @@ router.get('/:id/pdf', rateLimitByUser({ max: 10, windowMs: 60_000 }), invoicesC
 
 // Paiements d'une facture
 router.post('/:id/payment', auditMiddleware('payment', 'PAYMENT_REGISTERED'), paymentsController.create.bind(paymentsController));
+
+// ── Quick-confirm depuis notification in-app ────────────────────────────────
+// POST /:id/quick-confirm-payment — marque la facture comme payée (montant = balanceDue)
+router.post('/:id/quick-confirm-payment', auditMiddleware('payment', 'PAYMENT_REGISTERED'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const invoiceId = req.params['id'] as string;
+    const inv = await prisma.invoice.findFirst({
+      where: { id: invoiceId, deletedAt: null },
+      select: { balanceDue: true, number: true },
+    });
+    if (!inv) throw new AppError('Facture introuvable', 404);
+    const balanceDue = Number(inv.balanceDue);
+    if (balanceDue <= 0) throw new AppError('Solde déjà nul', 400);
+
+    const data = await paymentsService.create(invoiceId, {
+      amount:      balanceDue,
+      method:      'virement',
+      reference:   `Confirmé via notification — ${inv.number}`,
+      paymentDate: new Date(),
+    }, req.user!.id);
+
+    res.status(201).json({ success: true, data, message: 'Facture marquée comme payée' });
+  } catch (err) { next(err); }
+});
+
+// POST /:id/quick-confirm-issued — marque un brouillon comme émis
+router.post('/:id/quick-confirm-issued', auditMiddleware('invoice', 'STATUS_CHANGE'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await invoicesController.issue(req, res, next);
+  } catch (err) { next(err); }
+});
 
 export { router as invoicesRouter };

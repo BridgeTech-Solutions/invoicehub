@@ -12,7 +12,7 @@ import { useSettings, useUpdateSettings } from '@/features/settings/hooks'
 import { TEMPLATE_VARIABLES } from '@/features/email-templates/types'
 import type { NotificationType } from '@/features/notifications/types'
 import type { EmailTemplate } from '@/features/email-templates/types'
-import type { UpdateSettingsPayload, ReminderEscalationLevel } from '@/features/settings/types'
+import type { UpdateSettingsPayload, ReminderEscalationLevel, CheckLevel } from '@/features/settings/types'
 
 // ─── Notification type labels ─────────────────────────────────
 const NOTIF_LABELS: Record<NotificationType, string> = {
@@ -145,6 +145,112 @@ function NotifSettingsSection() {
   )
 }
 
+// ─── Composant réutilisable pour les niveaux check / draft ────
+function CheckLevelCard({
+  title, subtitle, levels, onAdd, onUpdate, onRemove, dirty, saving, onSave,
+}: {
+  title:    string
+  subtitle: string
+  levels:   CheckLevel[]
+  onAdd:    () => void
+  onUpdate: (i: number, patch: Partial<CheckLevel>) => void
+  onRemove: (i: number) => void
+  dirty:    boolean
+  saving:   boolean
+  onSave:   () => void
+}) {
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div aria-hidden="true" style={{ color: 'var(--primary)' }}><Bell size={15} /></div>
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0 }}>{title}</h2>
+          </div>
+          <p style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '4px 0 0 23px' }}>{subtitle}</p>
+        </div>
+        {dirty && (
+          <button type="button" onClick={onSave} disabled={saving}
+            style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: '#fff', cursor: 'pointer', fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: saving ? 0.65 : 1 }}>
+            {saving ? <Loader2 size={12} className="animate-spin" aria-hidden="true" /> : <Check size={12} aria-hidden="true" />} Sauvegarder
+          </button>
+        )}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* Header */}
+        <div aria-hidden="true" style={{ display: 'grid', gridTemplateColumns: '100px auto auto 32px', gap: 10, padding: '0 4px' }}>
+          {['Délai (jours)', 'Managers', 'Email', ''].map((h) => (
+            <span key={h} style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>
+          ))}
+        </div>
+        {levels.length === 0 && (
+          <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center', padding: '16px 0', margin: 0 }}>
+            Aucun niveau configuré.
+          </p>
+        )}
+        {levels.map((l, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '100px auto auto 32px', gap: 10, alignItems: 'center', padding: '10px 12px', background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 11.5, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }} aria-hidden="true">J+</span>
+              <input
+                type="number" min={1} max={365} value={l.daysSince}
+                aria-label={`Délai niveau ${i + 1} : J+`}
+                onChange={(e) => onUpdate(i, { daysSince: parseInt(e.target.value, 10) })}
+                style={{ padding: '6px 8px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13, color: 'var(--text-1)', outline: 'none', width: '100%', boxSizing: 'border-box' as const, textAlign: 'center' as const }}
+              />
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', gap: 6, minHeight: 44 }}>
+              <input
+                type="checkbox"
+                checked={l.notifyManagers}
+                aria-label={`Notifier les managers — niveau ${i + 1}`}
+                onChange={(e) => onUpdate(i, { notifyManagers: e.target.checked })}
+              />
+              <span className="sr-only">Managers</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', gap: 6, minHeight: 44 }}>
+              <input
+                type="checkbox"
+                checked={l.sendEmail}
+                aria-label={`Envoyer un email — niveau ${i + 1}`}
+                onChange={(e) => onUpdate(i, { sendEmail: e.target.checked })}
+              />
+              <span className="sr-only">Email</span>
+            </label>
+            <button type="button"
+              aria-label={`Supprimer le niveau ${i + 1} — J+${l.daysSince}`}
+              onClick={() => onRemove(i)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 4, minHeight: 44, display: 'flex', alignItems: 'center' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444' }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}
+              onFocus={(e)      => { e.currentTarget.style.color = '#ef4444' }}
+              onBlur={(e)       => { e.currentTarget.style.color = 'var(--text-3)' }}>
+              <Trash2 size={13} aria-hidden="true" />
+            </button>
+          </div>
+        ))}
+        <button type="button" onClick={onAdd}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 'var(--radius-md)', border: '1.5px dashed rgba(45,125,210,0.4)', background: 'transparent', color: 'var(--primary)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, alignSelf: 'flex-start', minHeight: 44 }}>
+          <Plus size={12} aria-hidden="true" /> Ajouter un niveau
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// Valeurs par défaut côté frontend (miroir des DEFAULT_*_LEVELS backend)
+const DEFAULT_CHECK_LEVELS: CheckLevel[] = [
+  { daysSince: 3,  notifyManagers: false, sendEmail: false },
+  { daysSince: 7,  notifyManagers: false, sendEmail: true  },
+  { daysSince: 15, notifyManagers: true,  sendEmail: true  },
+]
+
+const DEFAULT_DRAFT_CHECK_LEVELS: CheckLevel[] = [
+  { daysSince: 1, notifyManagers: false, sendEmail: false },
+  { daysSince: 3, notifyManagers: false, sendEmail: false },
+  { daysSince: 7, notifyManagers: true,  sendEmail: true  },
+]
+
 // ─── Rappels & escalade section ───────────────────────────────
 function RappelsSection() {
   const { data: settings, isLoading } = useSettings()
@@ -156,8 +262,12 @@ function RappelsSection() {
   useEffect(() => {
     if (!settings) return
     setForm({
-      autoReminderDays:   settings.autoReminderDays ?? [],
-      reminderEscalation: { levels: settings.reminderEscalation?.levels ?? [] },
+      autoReminderDays: settings.autoReminderDays ?? [],
+      reminderEscalation: {
+        levels:           settings.reminderEscalation?.levels           ?? [],
+        checkLevels:      settings.reminderEscalation?.checkLevels      ?? DEFAULT_CHECK_LEVELS,
+        draftCheckLevels: settings.reminderEscalation?.draftCheckLevels ?? DEFAULT_DRAFT_CHECK_LEVELS,
+      },
     })
     setDirty(false)
   }, [settings])
@@ -175,14 +285,47 @@ function RappelsSection() {
   const levels: ReminderEscalationLevel[] = form.reminderEscalation?.levels ?? []
   function addLevel() {
     setField('reminderEscalation', {
+      ...form.reminderEscalation,
       levels: [...levels, { daysOverdue: 0, label: 'Niveau ' + (levels.length + 1), notifyCreator: true, notifyManagers: false, sendEmail: true }],
     })
   }
   function updateLevel(i: number, patch: Partial<ReminderEscalationLevel>) {
-    setField('reminderEscalation', { levels: levels.map((l, idx) => idx === i ? { ...l, ...patch } : l) })
+    setField('reminderEscalation', { ...form.reminderEscalation, levels: levels.map((l, idx) => idx === i ? { ...l, ...patch } : l) })
   }
   function removeLevel(i: number) {
-    setField('reminderEscalation', { levels: levels.filter((_, idx) => idx !== i) })
+    setField('reminderEscalation', { ...form.reminderEscalation, levels: levels.filter((_, idx) => idx !== i) })
+  }
+
+  // ── Check levels (factures issued + proformas sent) ────────────────────────
+  const checkLevels: CheckLevel[] = form.reminderEscalation?.checkLevels ?? DEFAULT_CHECK_LEVELS
+  function addCheckLevel() {
+    setField('reminderEscalation', {
+      ...form.reminderEscalation,
+      levels,
+      checkLevels: [...checkLevels, { daysSince: 30, notifyManagers: false, sendEmail: false }],
+    })
+  }
+  function updateCheckLevel(i: number, patch: Partial<CheckLevel>) {
+    setField('reminderEscalation', { ...form.reminderEscalation, levels, checkLevels: checkLevels.map((l, idx) => idx === i ? { ...l, ...patch } : l) })
+  }
+  function removeCheckLevel(i: number) {
+    setField('reminderEscalation', { ...form.reminderEscalation, levels, checkLevels: checkLevels.filter((_, idx) => idx !== i) })
+  }
+
+  // ── Draft check levels (brouillons non envoyés) ────────────────────────────
+  const draftCheckLevels: CheckLevel[] = form.reminderEscalation?.draftCheckLevels ?? DEFAULT_DRAFT_CHECK_LEVELS
+  function addDraftCheckLevel() {
+    setField('reminderEscalation', {
+      ...form.reminderEscalation,
+      levels,
+      draftCheckLevels: [...draftCheckLevels, { daysSince: 14, notifyManagers: false, sendEmail: false }],
+    })
+  }
+  function updateDraftCheckLevel(i: number, patch: Partial<CheckLevel>) {
+    setField('reminderEscalation', { ...form.reminderEscalation, levels, draftCheckLevels: draftCheckLevels.map((l, idx) => idx === i ? { ...l, ...patch } : l) })
+  }
+  function removeDraftCheckLevel(i: number) {
+    setField('reminderEscalation', { ...form.reminderEscalation, levels, draftCheckLevels: draftCheckLevels.filter((_, idx) => idx !== i) })
   }
 
   async function handleSave() {
@@ -345,6 +488,32 @@ function RappelsSection() {
           </button>
         </div>
       </div>
+
+      {/* Vérification factures émises / proformas envoyées */}
+      <CheckLevelCard
+        title="Vérification paiements & réponses clients"
+        subtitle="Relances internes pour les factures émises sans paiement et les proformas sans réponse (J+3 / J+7 / J+15 par défaut)"
+        levels={checkLevels}
+        onAdd={addCheckLevel}
+        onUpdate={updateCheckLevel}
+        onRemove={removeCheckLevel}
+        dirty={dirty}
+        saving={updateMut.isPending}
+        onSave={handleSave}
+      />
+
+      {/* Brouillons non envoyés */}
+      <CheckLevelCard
+        title="Relance brouillons non envoyés"
+        subtitle="Escalade pour les factures et proformas restées en brouillon sans être envoyées au client (J+1 / J+3 / J+7 par défaut)"
+        levels={draftCheckLevels}
+        onAdd={addDraftCheckLevel}
+        onUpdate={updateDraftCheckLevel}
+        onRemove={removeDraftCheckLevel}
+        dirty={dirty}
+        saving={updateMut.isPending}
+        onSave={handleSave}
+      />
     </div>
   )
 }

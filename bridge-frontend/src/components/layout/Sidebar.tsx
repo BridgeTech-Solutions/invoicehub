@@ -43,57 +43,51 @@ interface NavSection {
 // ─── Navigation config ────────────────────────────────────────
 const NAV: NavSection[] = [
   {
-    title: 'Principal',
+    title: 'Ventes & Facturation',
     items: [
-      { label: 'Tableau de bord', href: ROUTES.DASHBOARD, icon: LayoutDashboard },
-    ],
-  },
-  {
-    title: 'Commercial',
-    items: [
-      { label: 'Clients',             href: ROUTES.CLIENTS,   icon: Users },
-      {
-        label: 'Produits & Services', href: ROUTES.PRODUCTS,  icon: Package,
-        children: [
-          { label: 'Catégories', href: ROUTES.PRODUCT_CATEGORIES, icon: Tag },
-        ],
-      },
       {
         label: 'Proformas', href: ROUTES.PROFORMAS, icon: FileText,
-        children: [
-          { label: 'Nouvelle proforma', href: '/proformas/new', icon: Plus },
-        ],
+        children: [{ label: 'Nouvelle proforma', href: '/proformas/new', icon: Plus }],
       },
       {
         label: 'Factures', href: ROUTES.INVOICES, icon: Receipt,
-        children: [
-          { label: 'Nouvelle facture', href: '/invoices/new', icon: Plus },
-        ],
+        children: [{ label: 'Nouvelle facture', href: '/invoices/new', icon: Plus }],
       },
       { label: 'Paiements',   href: ROUTES.PAYMENTS,  icon: CreditCard },
-      { label: 'Récurrentes', href: ROUTES.RECURRING,  icon: RefreshCw },
+      { label: 'Récurrentes', href: ROUTES.RECURRING, icon: RefreshCw },
     ],
   },
   {
-    title: 'Analyse',
+    title: 'Tiers & Stocks',
     items: [
-      { label: 'Rapports',      href: ROUTES.REPORTS,   icon: BarChart3 },
-      { label: 'BTS Assistant', href: ROUTES.ASSISTANT, icon: Sparkles  },
-      { label: 'Guide',         href: ROUTES.GUIDE,     icon: BookOpen, external: true },
+      { label: 'Clients', href: ROUTES.CLIENTS, icon: Users },
+      {
+        label: 'Produits & Services', href: ROUTES.PRODUCTS, icon: Package,
+        children: [{ label: 'Catégories', href: ROUTES.PRODUCT_CATEGORIES, icon: Tag }],
+      },
+    ],
+  },
+  {
+    title: 'Gestion & Reporting',
+    items: [
+      { label: 'Tableau de bord', href: ROUTES.DASHBOARD, icon: LayoutDashboard },
+      { label: 'Rapports',        href: ROUTES.REPORTS,   icon: BarChart3 },
+      { label: 'BTS Assistant',   href: ROUTES.ASSISTANT, icon: Sparkles },
+      { label: 'Guide',           href: ROUTES.GUIDE,     icon: BookOpen, external: true },
     ],
   },
   {
     title: 'Système',
     items: [
-      { label: 'Notifications',    href: ROUTES.NOTIFICATIONS, icon: Bell,          bell: true },
-      { label: 'Utilisateurs',     href: ROUTES.USERS,         icon: UserCog,       roles: ['admin'] },
-      { label: "Journaux d'audit", href: ROUTES.AUDIT,         icon: ClipboardList, roles: ['admin'] },
+      { label: 'Notifications', href: ROUTES.NOTIFICATIONS, icon: Bell, bell: true },
+      { label: 'Utilisateurs',  href: ROUTES.USERS,         icon: UserCog, roles: ['admin'] },
+      { label: "Audit",         href: ROUTES.AUDIT,         icon: ClipboardList, roles: ['admin'] },
       {
         label: 'Paramètres', href: ROUTES.SETTINGS, icon: Settings,
         children: [
           { label: 'Entreprise',    href: ROUTES.SETTINGS_COMPANY,       icon: Building2,   roles: ['admin'] },
           { label: 'Sécurité',      href: ROUTES.SETTINGS_SECURITY,      icon: ShieldCheck },
-          { label: 'Notifications', href: ROUTES.SETTINGS_NOTIFICATIONS, icon: BellRing    },
+          { label: 'Notifications', href: ROUTES.SETTINGS_NOTIFICATIONS, icon: BellRing },
           { label: 'Sauvegardes',   href: ROUTES.SETTINGS_BACKUPS,       icon: HardDrive,   roles: ['admin'] },
         ],
       },
@@ -149,6 +143,13 @@ export function Sidebar() {
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
+
+  // État pour gérer les pôles (sections) dépliables
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {}
+    NAV.forEach(section => initial[section.title] = true)
+    return initial
+  })
 
   // Auto-collapse on ≤ 1024px screens
   useEffect(() => {
@@ -259,32 +260,29 @@ export function Sidebar() {
         {NAV.map((section) => (
           <div key={section.title} className="mb-0.5">
             {!collapsed && (
-              // H6: <p> → <span aria-hidden> (label visuel uniquement)
-              <span
-                aria-hidden="true"
-                className="nav-section-title px-3 py-1"
+              <button
+                onClick={() => setOpenSections(prev => ({ ...prev, [section.title]: !prev[section.title] }))}
+                className="nav-section-title px-3 py-1 flex items-center justify-between w-full"
                 style={{
-                  display: 'block',
-                  fontSize: 9, fontFamily: 'var(--font-display)', fontWeight: 700,
+                  fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700,
                   letterSpacing: '0.12em', textTransform: 'uppercase',
-                  color: 'var(--sidebar-section)',
+                  color: 'var(--sidebar-section)', border: 'none', background: 'transparent', cursor: 'pointer',
                 }}
               >
-                {section.title}
-              </span>
+                <span>{section.title}</span>
+                {openSections[section.title] ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+              </button>
             )}
             {collapsed && <div style={{ height: 6 }} />}
 
-            {section.items
+            {(!collapsed ? openSections[section.title] : true) && section.items
               .filter((item) => !item.roles || item.roles.includes(user?.role ?? ''))
               .map((item) => {
                 const active      = isActive(item.href)
                 const childActive = isChildActive(item)
                 const Icon        = item.icon
                 const hasBadge    = item.bell && notifCount > 0
-                const badgeLabel  = hasBadge
-                  ? `, ${notifCount} notification${notifCount > 1 ? 's' : ''} non lue${notifCount > 1 ? 's' : ''}`
-                  : ''
+                const badgeLabel  = hasBadge ? ` — ${notifCount} notification${notifCount > 1 ? 's' : ''} non lue${notifCount > 1 ? 's' : ''}` : ''
                 const visibleChildren = item.children?.filter((c) => !c.roles || c.roles.includes(user?.role ?? ''))
                 const hasChildren     = !collapsed && !!visibleChildren && visibleChildren.length > 0
                 const isOpen          = !collapsed && (openItems[item.href] || childActive)
@@ -310,8 +308,8 @@ export function Sidebar() {
                           color:          (active || childActive) ? 'var(--sidebar-active-text)' : 'var(--sidebar-text)',
                           background:     active ? 'var(--sidebar-active-bg)' : 'transparent',
                           fontFamily:     'var(--font-body)',
-                          fontSize:       12.5,
-                          fontWeight:     (active || childActive) ? 500 : 400,
+                          fontSize:       13,
+                          fontWeight:     (active || childActive) ? 600 : 400,
                           textDecoration: 'none',
                           letterSpacing:  '0.01em',
                           minWidth:       0,
@@ -322,7 +320,7 @@ export function Sidebar() {
                         }}
                         onMouseEnter={(e) => {
                           if (!active) {
-                            e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
                             e.currentTarget.style.color      = 'var(--sidebar-text-hover)'
                           }
                         }}
@@ -336,7 +334,7 @@ export function Sidebar() {
                         {active && (
                           <span
                             className="absolute left-0 top-1.5 bottom-1.5 rounded-r-full"
-                            style={{ width: 3, background: 'var(--primary)' }}
+                            style={{ width: 4, background: 'var(--primary)' }}
                             aria-hidden="true"
                           />
                         )}
@@ -426,7 +424,7 @@ export function Sidebar() {
 
                     {/* Sous-items (H3: minHeight 44) */}
                     {hasChildren && isOpen && (
-                      <div style={{ marginLeft: 20, marginTop: 1, marginBottom: 2, borderLeft: '1px solid rgba(255,255,255,0.08)', paddingLeft: 6 }}>
+                      <div style={{ marginLeft: 20, marginTop: 2, marginBottom: 4, borderLeft: '1px solid rgba(255,255,255,0.15)', paddingLeft: 8 }}>
                         {item.children!
                           .filter((child) => !child.roles || child.roles.includes(user?.role ?? ''))
                           .map((child) => {
@@ -440,9 +438,9 @@ export function Sidebar() {
                                 aria-current={childIsActive ? 'page' : undefined}
                                 className="flex items-center gap-2 rounded-md transition-all duration-150"
                                 style={{
-                                  padding:        '5px 8px',
+                                  padding:        '4px 8px',
                                   fontSize:       12,
-                                  color:          childIsActive ? 'var(--sidebar-active-text)' : 'rgba(255,255,255,0.5)',
+                                  color:          childIsActive ? 'var(--sidebar-active-text)' : 'rgba(255,255,255,0.72)',
                                   background:     childIsActive ? 'rgba(45,125,210,0.15)' : 'transparent',
                                   fontFamily:     'var(--font-body)',
                                   fontWeight:     childIsActive ? 500 : 400,
@@ -454,14 +452,14 @@ export function Sidebar() {
                                 }}
                                 onMouseEnter={(e) => {
                                   if (!childIsActive) {
-                                    e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                                    e.currentTarget.style.color      = 'rgba(255,255,255,0.8)'
+                                    e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
+                                    e.currentTarget.style.color      = 'rgba(255,255,255,0.9)'
                                   }
                                 }}
                                 onMouseLeave={(e) => {
                                   if (!childIsActive) {
                                     e.currentTarget.style.background = 'transparent'
-                                    e.currentTarget.style.color      = 'rgba(255,255,255,0.5)'
+                                    e.currentTarget.style.color      = 'rgba(255,255,255,0.72)'
                                   }
                                 }}
                               >
@@ -512,7 +510,7 @@ export function Sidebar() {
             aria-label={`Avatar de ${displayName}`}
             className="flex-shrink-0 flex items-center justify-center rounded-full text-white font-bold"
             style={{
-              width: 30, height: 30,
+              width: 32, height: 32,
               background: 'linear-gradient(135deg, var(--primary) 0%, #1a5fa8 100%)',
               fontSize: 11, fontFamily: 'var(--font-display)',
               boxShadow: '0 2px 8px rgba(45,125,210,0.4)', overflow: 'hidden', padding: 0,
@@ -520,7 +518,7 @@ export function Sidebar() {
           >
             {me?.avatarUrl
               // M2: aria-hidden sur l'img (le role="img" parent porte le label)
-              ? <img src={me.avatarUrl} alt="" aria-hidden="true" style={{ width: 30, height: 30, objectFit: 'cover', display: 'block' }} />
+              ? <img src={me.avatarUrl} alt="" aria-hidden="true" style={{ width: 32, height: 32, objectFit: 'cover', display: 'block' }} />
               : <span aria-hidden="true">{initials}</span>
             }
           </span>
@@ -530,10 +528,10 @@ export function Sidebar() {
             aria-hidden={collapsed}
             style={{ opacity: collapsed ? 0 : 1, width: collapsed ? 0 : 'auto', overflow: 'hidden', whiteSpace: 'nowrap', transition: 'opacity 0.2s, width 0.2s' }}
           >
-            <span className="user-name truncate" style={{ fontSize: 12.5, fontWeight: 600, color: '#ffffff', fontFamily: 'var(--font-display)' }}>
+            <span className="user-name truncate" style={{ fontSize: 13, fontWeight: 600, color: '#ffffff', fontFamily: 'var(--font-display)' }}>
               {displayName}
             </span>
-            <span style={{ fontSize: 10, color: 'var(--sidebar-text)', textTransform: 'capitalize' }}>
+            <span style={{ fontSize: 11, color: 'var(--sidebar-text)', textTransform: 'capitalize' }}>
               {user?.role ?? ''}
             </span>
           </div>
@@ -572,7 +570,7 @@ export function Sidebar() {
                 role="menuitem"
                 className="flex items-center gap-3 px-4 transition-colors duration-100"
                 style={{
-                  fontSize: 13, color: 'var(--sidebar-text-hover)', textDecoration: 'none',
+                  fontSize: 14, color: 'var(--sidebar-text-hover)', textDecoration: 'none',
                   fontFamily: 'var(--font-body)',
                   // H5: touch target ≥ 44px
                   minHeight: 44, display: 'flex', alignItems: 'center',
@@ -593,7 +591,7 @@ export function Sidebar() {
               role="menuitem"
               className="w-full flex items-center gap-3 px-4 transition-colors duration-100"
               style={{
-                fontSize: 13, color: '#f87171', background: 'transparent',
+                fontSize: 14, color: '#f87171', background: 'transparent',
                 border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)',
                 // H5: touch target ≥ 44px
                 minHeight: 44, display: 'flex', alignItems: 'center',

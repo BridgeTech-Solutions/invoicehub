@@ -180,7 +180,7 @@ export function ChatWidget() {
                   background: isAvailable === false ? '#f43f5e' : isAvailable === true ? '#10b981' : '#d97706',
                   display: 'inline-block',
                 }} />
-                {isAvailable === null ? 'Connexion...' : isAvailable ? 'En ligne · Mistral 7B' : 'Hors ligne'}
+                {isAvailable === null ? 'Connexion...' : isAvailable ? 'En ligne · Phi-3 Mini' : 'Hors ligne'}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 4 }}>

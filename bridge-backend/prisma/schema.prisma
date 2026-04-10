@@ -491,6 +491,7 @@ model Proforma {
   lastSentAt           DateTime?      @map("last_sent_at") @db.Timestamptz()
   lastReminderAt       DateTime?      @map("last_reminder_at") @db.Timestamptz()
   reminderCount        Int            @default(0) @map("reminder_count") @db.SmallInt
+  draftReminderLevel   Int            @default(0) @map("draft_reminder_level") @db.SmallInt
   qrCodePath           String?        @map("qr_code_path") @db.VarChar(500)
   pdfPath              String?        @map("pdf_path") @db.VarChar(500)
   pdfGeneratedAt       DateTime?      @map("pdf_generated_at") @db.Timestamptz()
@@ -592,6 +593,7 @@ model Invoice {
   lastReminderAt        DateTime?     @map("last_reminder_at") @db.Timestamptz()
   reminderCount         Int           @default(0) @map("reminder_count") @db.SmallInt
   reminderEscalationLevel Int         @default(0) @map("reminder_escalation_level") @db.SmallInt
+  draftReminderLevel    Int           @default(0) @map("draft_reminder_level") @db.SmallInt
   cancelledAt           DateTime?     @map("cancelled_at") @db.Timestamptz()
   cancelReason          String?       @map("cancel_reason")
   cancelledById         String?       @map("cancelled_by") @db.Uuid
@@ -723,7 +725,7 @@ model Notification {
   type       NotificationStatus
   title      String             @db.VarChar(255)
   message    String
-  data       Json               @default("{}")
+  data       Json               @default("{}") @map("metadata")
   isRead     Boolean            @default(false) @map("is_read")
   readAt     DateTime?          @map("read_at") @db.Timestamptz()
   createdAt  DateTime           @default(now()) @map("created_at") @db.Timestamptz()

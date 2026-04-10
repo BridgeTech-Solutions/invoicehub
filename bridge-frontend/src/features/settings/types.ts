@@ -6,6 +6,13 @@ export interface ReminderEscalationLevel {
   sendEmail:        boolean
 }
 
+/** Niveau de vérification active (issued/sent) ou brouillon */
+export interface CheckLevel {
+  daysSince:      number
+  notifyManagers: boolean
+  sendEmail:      boolean
+}
+
 export interface CompanySettings {
   id:                           string
   companyName:                  string
@@ -33,7 +40,11 @@ export interface CompanySettings {
   signaturePath:                string | null
   headerImagePath:              string | null
   footerImagePath:              string | null
-  reminderEscalation:           { levels: ReminderEscalationLevel[] } | null
+  reminderEscalation:           {
+    levels:           ReminderEscalationLevel[]
+    checkLevels?:     CheckLevel[]
+    draftCheckLevels?: CheckLevel[]
+  } | null
   createdAt:                    string
   updatedAt:                    string
 }

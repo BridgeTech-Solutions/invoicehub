@@ -30,8 +30,14 @@ import { emailTemplatesRouter } from './modules/email-templates/email-templates.
 import { backupsRouter } from './modules/backups/backups.routes';
 import { aiRouter } from './modules/ai/ai.routes';
 import { healthRouter } from './modules/health/health.routes';
+import { guideRouter } from './modules/guide/guide.routes';
 
 const app: Express = express();
+
+// Derrière Nginx (reverse proxy) — Express doit faire confiance au header
+// X-Forwarded-For pour que express-rate-limit identifie correctement les IPs.
+// `1` = on fait confiance à 1 seul proxy (Nginx) directement devant l'app.
+app.set('trust proxy', 1);
 
 // ----------------------------------------------------------------
 // Sécurité
@@ -158,6 +164,7 @@ app.use(`${prefix}/reports`, reportsRouter);
 app.use(`${prefix}/tax-rates`, taxRatesRouter);
 app.use(`${prefix}/offices`, officesRouter);
 app.use(`${prefix}/ai`, aiRouter);
+app.use(`${prefix}/guide`, guideRouter);
 app.use(`${prefix}/email-templates`, emailTemplatesRouter);
 app.use(`${prefix}/backups`, backupsRouter);
 

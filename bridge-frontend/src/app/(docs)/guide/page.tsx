@@ -3,6 +3,10 @@
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { ROUTES } from '@/lib/constants'
+import { useGuideVideos, useUploadGuideVideo, useDeleteGuideVideo } from '@/features/guide/hooks'
+import { useAuthStore } from '@/features/auth/store'
+
+const BASE_MEDIA_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api').replace('/api', '')
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -294,6 +298,145 @@ function SectionDivider() {
   return <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '52px 0' }} />
 }
 
+function VideoPlaceholder({ section, title, caption }: { section: string; title: string; caption: string }) {
+  const { data: videos = {} } = useGuideVideos()
+  const user = useAuthStore((s) => s.user)
+  const isAdmin = user?.role === 'admin'
+
+  const uploadMut  = useUploadGuideVideo(section)
+  const deleteMut  = useDeleteGuideVideo()
+  const fileRef    = useRef<HTMLInputElement>(null)
+  const [progress, setProgress] = useState<number | null>(null)
+
+  const relativePath = videos[section]
+  const videoSrc     = relativePath ? `${BASE_MEDIA_URL}/${relativePath}` : null
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setProgress(0)
+    uploadMut.mutate(
+      { file, onProgress: (pct) => setProgress(pct) },
+      { onSettled: () => setProgress(null) },
+    )
+    // Reset input so same file can be re-selected
+    e.target.value = ''
+  }
+
+  return (
+    <figure style={{ margin: '20px 0 28px', borderRadius: 10, overflow: 'hidden', border: '1.5px solid var(--border)' }}>
+      <div style={{ position: 'relative', background: '#000', lineHeight: 0 }}>
+
+        {/* ── Vidéo disponible ── */}
+        {videoSrc ? (
+          <video
+            controls
+            preload="metadata"
+            style={{ width: '100%', display: 'block', maxHeight: 360 }}
+          >
+            <source src={videoSrc} />
+            Votre navigateur ne supporte pas la lecture vidéo.
+          </video>
+        ) : (
+          /* ── Placeholder ── */
+          <div style={{
+            height: 200, background: 'linear-gradient(135deg, #0f2d4a 0%, #1a3d5c 100%)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12,
+          }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: '50%',
+              background: 'rgba(255,255,255,0.15)', border: '2px solid rgba(255,255,255,0.4)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="white" aria-hidden="true">
+                <polygon points="5,3 19,12 5,21" />
+              </svg>
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.75)', fontFamily: 'var(--font-display)' }}>
+              {title}
+            </span>
+            <div style={{
+              position: 'absolute', top: 10, right: 12,
+              fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 100,
+              background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.6)',
+              fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase',
+            }}>
+              Vidéo à venir
+            </div>
+          </div>
+        )}
+
+        {/* ── Contrôles admin ── */}
+        {isAdmin && (
+          <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 6 }}>
+            {/* Bouton upload */}
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploadMut.isPending}
+              title={videoSrc ? 'Remplacer la vidéo' : 'Uploader la vidéo'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                background: 'rgba(45,125,210,0.85)', color: '#fff', backdropFilter: 'blur(4px)',
+                fontSize: 11.5, fontWeight: 600, fontFamily: 'var(--font-display)',
+                opacity: uploadMut.isPending ? 0.7 : 1,
+              }}
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              {uploadMut.isPending ? `${progress ?? 0}%` : videoSrc ? 'Remplacer' : 'Uploader'}
+            </button>
+
+            {/* Bouton supprimer (seulement si vidéo présente) */}
+            {videoSrc && (
+              <button
+                type="button"
+                onClick={() => deleteMut.mutate(section)}
+                disabled={deleteMut.isPending}
+                title="Supprimer la vidéo"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 28, height: 28, borderRadius: 6, border: 'none', cursor: 'pointer',
+                  background: 'rgba(220,38,38,0.85)', color: '#fff', backdropFilter: 'blur(4px)',
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Barre de progression */}
+        {progress !== null && (
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, background: 'rgba(0,0,0,0.3)' }}>
+            <div style={{ height: '100%', width: `${progress}%`, background: '#2D7DD2', transition: 'width 0.2s' }} />
+          </div>
+        )}
+      </div>
+
+      {/* Input fichier caché */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="video/mp4,video/webm,video/ogg"
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
+
+      <figcaption style={{
+        padding: '8px 14px', background: 'var(--surface)', borderTop: '1px solid var(--border)',
+        fontSize: 12, color: 'var(--text-3)', lineHeight: 1.5,
+      }}>
+        {caption}
+      </figcaption>
+    </figure>
+  )
+}
+
 function SectionHeading({ id, color, badge, title, subtitle }: {
   id: string; color: string; badge: string; title: string; subtitle?: string
 }) {
@@ -566,6 +709,11 @@ export default function GuidePage() {
               title="Factures"
               subtitle="Le document officiel qui demande le paiement à votre client."
             />
+            <VideoPlaceholder
+              section="facturation"
+              title="Formation — Créer et gérer vos factures"
+              caption="Cette vidéo explique comment créer une facture, gérer les statuts de paiement et télécharger le PDF."
+            />
             <Txt>
               Une facture est le document que vous émettez pour demander le règlement d'une vente ou d'une prestation réalisée.
               InvoiceHub vous permet de créer plusieurs types de factures selon votre situation, et de suivre leur état jusqu'au paiement complet.
@@ -690,6 +838,11 @@ export default function GuidePage() {
               title="Proformas & Devis"
               subtitle="Obtenez l'accord du client avant d'émettre une facture officielle."
             />
+            <VideoPlaceholder
+              section="proformas"
+              title="Formation — Proformas & Devis"
+              caption="Cette vidéo montre comment créer une proforma, suivre la réponse du client et la convertir en facture."
+            />
 
             <SubSection id="pro-quand" title="À quoi sert une proforma ?" />
             <Txt>
@@ -790,6 +943,11 @@ export default function GuidePage() {
               title="Factures récurrentes"
               subtitle="Configurez une fois, InvoiceHub facture automatiquement chaque mois."
             />
+            <VideoPlaceholder
+              section="recurrence"
+              title="Formation — Factures récurrentes"
+              caption="Cette vidéo explique comment configurer un gabarit de facturation récurrente et gérer les abonnements clients."
+            />
 
             <SubSection id="rec-fonctionnement" title="Comment ça marche ?" />
             <Txt>
@@ -862,6 +1020,11 @@ export default function GuidePage() {
               title="Clients"
               subtitle="Votre carnet clients avec l'historique complet de chaque relation."
             />
+            <VideoPlaceholder
+              section="clients"
+              title="Formation — Gestion des clients"
+              caption="Cette vidéo montre comment ajouter un client, consulter sa fiche et retrouver l'historique de ses factures."
+            />
 
             <SubSection id="cli-infos" title="Informations à enregistrer" />
             <Txt>
@@ -930,6 +1093,11 @@ export default function GuidePage() {
             <SectionHeading id="produits" color="#d97706" badge="Gestion"
               title="Produits & Services"
               subtitle="Votre catalogue tarifaire pour ne jamais resaisir un prix deux fois."
+            />
+            <VideoPlaceholder
+              section="produits"
+              title="Formation — Produits & Services"
+              caption="Cette vidéo explique comment créer votre catalogue, organiser les catégories et utiliser l'auto-complétion dans les factures."
             />
             <Txt>
               Le catalogue regroupe tous vos produits et prestations avec leurs prix et taux de taxe.
@@ -1025,6 +1193,11 @@ export default function GuidePage() {
               title="Tableau de bord & Rapports"
               subtitle="La santé financière de BTS en un coup d'œil, mise à jour en temps réel."
             />
+            <VideoPlaceholder
+              section="rapports"
+              title="Formation — Tableau de bord & Rapports"
+              caption="Cette vidéo présente les indicateurs clés, les graphiques de chiffre d'affaires et la lecture du tableau d'encours."
+            />
             <Txt>
               Le tableau de bord est votre vue d'ensemble sur l'activité financière de BTS.
               En un seul regard, vous voyez combien vous avez facturé, combien a été payé, qui vous doit de l'argent et depuis combien de temps.
@@ -1115,6 +1288,11 @@ export default function GuidePage() {
               title="Notifications"
               subtitle="InvoiceHub vous alerte automatiquement sur les événements importants."
             />
+            <VideoPlaceholder
+              section="notifications"
+              title="Formation — Notifications & Rappels"
+              caption="Cette vidéo explique comment fonctionne le système de notifications internes et comment confirmer une action en un clic."
+            />
             <Txt>
               InvoiceHub vous tient informé en temps réel des événements qui nécessitent votre attention.
               Vous n'avez pas besoin de vérifier constamment l'application — une alerte apparaît dans la cloche en haut de l'écran dès que quelque chose se passe.
@@ -1174,6 +1352,11 @@ export default function GuidePage() {
             <SectionHeading id="assistant" color="#7c3aed" badge="Intelligence artificielle"
               title="Assistant BTS"
               subtitle="Posez des questions sur vos données en français et obtenez des réponses immédiates."
+            />
+            <VideoPlaceholder
+              section="assistant"
+              title="Formation — Assistant BTS"
+              caption="Cette vidéo montre comment interroger l'assistant en langage naturel pour analyser vos factures et vos paiements."
             />
             <Txt>
               L'assistant BTS vous permet de poser des questions sur votre activité en français, comme si vous parliez à un collègue.
@@ -1240,6 +1423,11 @@ export default function GuidePage() {
             <SectionHeading id="securite" color="#dc2626" badge="Mon compte"
               title="Sécurité de votre compte"
               subtitle="Protégez l'accès à vos données de facturation."
+            />
+            <VideoPlaceholder
+              section="securite"
+              title="Formation — Sécurité du compte"
+              caption="Cette vidéo explique comment activer la double authentification (2FA) et gérer les sessions actives."
             />
             <Txt>
               Cette section vous permet de renforcer la protection de votre compte InvoiceHub.
@@ -1326,6 +1514,11 @@ export default function GuidePage() {
               title="Historique des actions"
               subtitle="Un journal complet et inaltérable de tout ce qui s'est passé dans InvoiceHub."
             />
+            <VideoPlaceholder
+              section="audit"
+              title="Formation — Historique des actions"
+              caption="Cette vidéo montre comment consulter et filtrer le journal d'audit pour retrouver qui a fait quoi et quand."
+            />
             <Txt>
               L'historique des actions enregistre automatiquement chaque opération effectuée dans InvoiceHub :
               création d'une facture, modification d'un client, enregistrement d'un paiement, connexion d'un utilisateur…
@@ -1379,6 +1572,11 @@ export default function GuidePage() {
             <SectionHeading id="parametres" color="#7c3aed" badge="Administration"
               title="Paramètres"
               subtitle="Configuration globale de votre espace InvoiceHub : entreprise, facturation, sécurité, notifications et sauvegardes."
+            />
+            <VideoPlaceholder
+              section="parametres"
+              title="Formation — Paramètres & Administration"
+              caption="Cette vidéo guide l'administrateur dans la configuration de l'entreprise, des rappels automatiques et des accès utilisateurs."
             />
             <Callout type="warning">
               L'accès aux paramètres est réservé aux <strong>administrateurs</strong>. Les commerciaux et les employés ne voient pas cet onglet dans leur menu.

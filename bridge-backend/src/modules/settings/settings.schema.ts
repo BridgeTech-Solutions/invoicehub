@@ -36,7 +36,9 @@ export const updateSettingsSchema = z.object({
 
   /**
    * Configuration d'escalade des alertes internes.
-   * Chaque niveau définit : daysOverdue, label, notifyCreator, notifyManagers, sendEmail.
+   * - levels        : escalade factures OVERDUE (daysOverdue, label, notifyCreator, notifyManagers, sendEmail)
+   * - checkLevels   : vérification factures ISSUED + proformas SENT (daysSince, notifyManagers, sendEmail)
+   * - draftCheckLevels : escalade brouillons non envoyés — Cas B (daysSince, notifyManagers, sendEmail)
    */
   reminderEscalation: z.object({
     levels: z.array(z.object({
@@ -46,6 +48,18 @@ export const updateSettingsSchema = z.object({
       notifyManagers: z.boolean(),
       sendEmail:      z.boolean(),
     })).max(10).optional().default([]),
+
+    checkLevels: z.array(z.object({
+      daysSince:      z.number().int().min(1),
+      notifyManagers: z.boolean(),
+      sendEmail:      z.boolean(),
+    })).max(10).optional(),
+
+    draftCheckLevels: z.array(z.object({
+      daysSince:      z.number().int().min(1),
+      notifyManagers: z.boolean(),
+      sendEmail:      z.boolean(),
+    })).max(10).optional(),
   }).optional(),
 
   // ── PDF ──────────────────────────────────────────────────────────────────────

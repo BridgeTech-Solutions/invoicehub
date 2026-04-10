@@ -9,7 +9,7 @@ services:
     container_name: invoicehub-db
     restart: unless-stopped
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - invoicehub_postgres:/var/lib/postgresql/data
       - ../invoicehub_schema_v2.sql:/docker-entrypoint-initdb.d/init.sql
     environment:
       POSTGRES_DB: invoicehub
@@ -31,7 +31,7 @@ services:
     restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
-      - redis_data:/data
+      - invoicehub_redis:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -46,6 +46,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+    image: invoicehub-api:latest
     container_name: invoicehub-api
     restart: unless-stopped
     depends_on:
@@ -69,7 +70,7 @@ services:
       BACKEND_URL: https://api.invoicehub.bridgetech-solutions
       CORS_ORIGINS: https://invoicehub.bridgetech-solutions
     volumes:
-      - uploads:/app/uploads
+      - invoicehub_uploads:/app/uploads
     networks:
       - bridge-net
     mem_limit: 1g
@@ -79,7 +80,7 @@ services:
     container_name: invoicehub-ollama
     restart: unless-stopped
     volumes:
-      - ollama_data:/root/.ollama
+      - invoicehub_ollama:/root/.ollama
     networks:
       - bridge-net
     mem_limit: 4g
@@ -93,6 +94,7 @@ services:
         NEXT_PUBLIC_API_URL: https://api.invoicehub.bridgetech-solutions/api
         NEXT_PUBLIC_SOCKET_URL: https://api.invoicehub.bridgetech-solutions
         NEXT_PUBLIC_APP_NAME: InvoiceHub
+    image: invoicehub-frontend:latest
     container_name: invoicehub-frontend
     restart: unless-stopped
     depends_on:
@@ -107,10 +109,10 @@ services:
     mem_limit: 512m
 
 volumes:
-  postgres_data:
-  redis_data:
-  uploads:
-  ollama_data:
+  invoicehub_postgres:
+  invoicehub_redis:
+  invoicehub_uploads:
+  invoicehub_ollama:
 
 networks:
   bridge-net:

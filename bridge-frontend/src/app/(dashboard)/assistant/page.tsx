@@ -248,7 +248,7 @@ export default function AssistantPage() {
                   width: 5, height: 5, borderRadius: '50%', display: 'inline-block',
                   background: isAvailable === true ? '#10b981' : isAvailable === false ? '#f43f5e' : '#d97706',
                 }} />
-                {isAvailable === null ? 'Connexion…' : isAvailable ? 'Mistral 7B' : 'Hors ligne'}
+                {isAvailable === null ? 'Connexion…' : isAvailable ? 'Phi-3 Mini' : 'Hors ligne'}
               </div>
             </div>
           </div>

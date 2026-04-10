@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { proformasController } from './proformas.controller';
 import { authenticate } from '../../core/middleware/auth';
 import { rateLimitByUser } from '../../core/middleware/rateLimitByUser';
@@ -19,5 +19,20 @@ router.post('/:id/reject', auditMiddleware('proforma', 'STATUS_CHANGE'), proform
 router.post('/:id/convert', auditMiddleware('proforma', 'CONVERT_TO_INVOICE'), proformasController.convert.bind(proformasController));
 router.post('/:id/duplicate', proformasController.duplicate.bind(proformasController));
 router.get('/:id/pdf', rateLimitByUser({ max: 10, windowMs: 60_000 }), proformasController.getPdf.bind(proformasController));
+
+// ── Quick-confirm depuis notification in-app ────────────────────────────────
+// POST /:id/quick-confirm-sent — marque un brouillon comme envoyé au client
+router.post('/:id/quick-confirm-sent', auditMiddleware('proforma', 'EMAIL_SENT'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await proformasController.send(req, res, next);
+  } catch (err) { next(err); }
+});
+
+// POST /:id/quick-confirm-accepted — marque une proforma envoyée comme acceptée
+router.post('/:id/quick-confirm-accepted', auditMiddleware('proforma', 'STATUS_CHANGE'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await proformasController.accept(req, res, next);
+  } catch (err) { next(err); }
+});
 
 export { router as proformasRouter };

@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: 'Tableau de bord — InvoiceHub' }
 
 export default function DashboardPage() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
 
       {/* ── En-tête ──────────────────────────────────────── */}
       <PageHeader
@@ -22,20 +22,25 @@ export default function DashboardPage() {
       {/* ── KPI Cards (4) ─────────────────────────────────── */}
       <KpiCards />
 
-      {/* ── Ligne 2 : Graphique CA + Donut statuts ─────── */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_280px]">
-        <RevenueChart />
-        <InvoiceStatusDonut />
-      </div>
+      {/* ── Analyses ─────────────────────────────────────── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-      {/* ── Ligne 3 : Factures récentes + Top Clients ──── */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]">
-        <RecentInvoicesTable />
-        <TopClientsTable />
-      </div>
+        {/* ── Ligne 2 : Graphique CA + Donut statuts ─────── */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_280px]">
+          <RevenueChart />
+          <InvoiceStatusDonut />
+        </div>
 
-      {/* ── Ligne 4 : Aging des créances ────────────────── */}
-      <AgingWidget />
+        {/* ── Ligne 3 : Factures récentes + Top Clients ──── */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr_2fr]">
+          <RecentInvoicesTable />
+          <TopClientsTable />
+        </div>
+
+        {/* ── Ligne 4 : Aging des créances ────────────────── */}
+        <AgingWidget />
+
+      </div>
 
     </div>
   )

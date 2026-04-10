@@ -1,15 +1,17 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import Link from 'next/link'
 import {
   BellOff, CheckCheck, Loader2, RefreshCw,
   Send, ThumbsUp, ThumbsDown, Clock, FileText,
   CreditCard, Coins, AlertCircle, Bell, UserPlus, Info,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, CheckCircle2, XCircle,
 } from 'lucide-react'
 import {
   useNotifications, useMarkRead, useMarkAllRead,
 } from '@/features/notifications/hooks'
+import { notificationsApi } from '@/features/notifications/api'
 import { useSocket } from '@/hooks/useSocket'
 import { useQueryClient } from '@tanstack/react-query'
 import { formatDate } from '@/lib/utils'
@@ -77,15 +79,145 @@ function SkeletonNotif() {
   )
 }
 
+// ─── Quick-action buttons ─────────────────────────────────────
+type ActionState = 'idle' | 'loading' | 'done' | 'error'
+
+function QuickActions({
+  notifId, data, onMarkRead, onDone,
+}: {
+  notifId:    string
+  data:       Record<string, unknown>
+  onMarkRead: (id: string) => void
+  onDone:     () => void
+}) {
+  const [state, setState] = useState<ActionState>('idle')
+  const action = data.action as string | undefined
+
+  const run = async (fn: () => Promise<void>) => {
+    setState('loading')
+    try {
+      await fn()
+      onMarkRead(notifId)
+      setState('done')
+      onDone()
+    } catch {
+      setState('error')
+    }
+  }
+
+  if (state === 'done') {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10 }}>
+        <CheckCircle2 size={14} style={{ color: '#10b981' }} />
+        <span style={{ fontSize: 12, color: '#10b981', fontWeight: 600 }}>Mis à jour</span>
+      </div>
+    )
+  }
+
+  const btnBase: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 5,
+    padding: '5px 12px', borderRadius: 6, border: 'none',
+    fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-display)',
+    cursor: state === 'loading' ? 'not-allowed' : 'pointer',
+    opacity: state === 'loading' ? 0.7 : 1, transition: 'opacity 0.15s',
+  }
+
+  const btnPrimary: React.CSSProperties = {
+    ...btnBase, background: 'var(--primary)', color: '#fff',
+  }
+  const btnGhost: React.CSSProperties = {
+    ...btnBase, background: 'transparent',
+    border: '1.5px solid var(--border)', color: 'var(--text-2)',
+  }
+
+  // ── confirm_payment : facture issued → payée ───────────────
+  if (action === 'confirm_payment' && data.invoiceId) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+        <button type="button" style={btnPrimary} disabled={state === 'loading'}
+          onClick={() => run(() => notificationsApi.quickConfirmPayment(data.invoiceId as string))}>
+          {state === 'loading' ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />}
+          Oui, marquer payée
+        </button>
+        <Link href={`/invoices/${data.invoiceId}`} style={{ ...btnGhost, textDecoration: 'none' }}>
+          Voir la facture →
+        </Link>
+        {state === 'error' && <span style={{ fontSize: 11, color: '#ef4444' }}>Erreur — réessayez</span>}
+      </div>
+    )
+  }
+
+  // ── confirm_invoice_draft_sent : brouillon facture → émise ─
+  if (action === 'confirm_invoice_draft_sent' && data.invoiceId) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+        <button type="button" style={btnPrimary} disabled={state === 'loading'}
+          onClick={() => run(() => notificationsApi.quickConfirmIssued(data.invoiceId as string))}>
+          {state === 'loading' ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
+          Oui, marquer émise
+        </button>
+        <button type="button" style={btnGhost} disabled={state === 'loading'}
+          onClick={() => { onMarkRead(notifId); setState('done') }}>
+          <XCircle size={11} />
+          Non, garder brouillon
+        </button>
+        {state === 'error' && <span style={{ fontSize: 11, color: '#ef4444' }}>Erreur — réessayez</span>}
+      </div>
+    )
+  }
+
+  // ── confirm_proforma_status : proforma sent → réponse client
+  if (action === 'confirm_proforma_status' && data.proformaId) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+        <button type="button" style={btnPrimary} disabled={state === 'loading'}
+          onClick={() => run(() => notificationsApi.quickConfirmProformaAccepted(data.proformaId as string))}>
+          {state === 'loading' ? <Loader2 size={11} className="animate-spin" /> : <ThumbsUp size={11} />}
+          Acceptée
+        </button>
+        <Link href={`/proformas/${data.proformaId}`} style={{ ...btnGhost, textDecoration: 'none' }}>
+          Rejetée / Voir →
+        </Link>
+        {state === 'error' && <span style={{ fontSize: 11, color: '#ef4444' }}>Erreur — réessayez</span>}
+      </div>
+    )
+  }
+
+  // ── confirm_proforma_draft_sent : brouillon proforma → envoyée
+  if (action === 'confirm_proforma_draft_sent' && data.proformaId) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+        <button type="button" style={btnPrimary} disabled={state === 'loading'}
+          onClick={() => run(() => notificationsApi.quickConfirmProformaSent(data.proformaId as string))}>
+          {state === 'loading' ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
+          Oui, marquer envoyée
+        </button>
+        <button type="button" style={btnGhost} disabled={state === 'loading'}
+          onClick={() => { onMarkRead(notifId); setState('done') }}>
+          <XCircle size={11} />
+          Non, garder brouillon
+        </button>
+        {state === 'error' && <span style={{ fontSize: 11, color: '#ef4444' }}>Erreur — réessayez</span>}
+      </div>
+    )
+  }
+
+  return null
+}
+
 // ─── Notification Item ────────────────────────────────────────
 function NotifItem({
-  id, type, title, message, isRead, createdAt, entityId, onMarkRead,
+  id, type, title, message, isRead, createdAt, data, entityId, onMarkRead, onRefresh,
 }: {
   id: string; type: NotificationType; title: string; message: string | null
-  isRead: boolean; createdAt: string; entityId?: string; onMarkRead: (id: string) => void
+  isRead: boolean; createdAt: string; data: Record<string, unknown> | null
+  entityId?: string; onMarkRead: (id: string) => void; onRefresh: () => void
 }) {
-  const cfg  = TYPE_CONFIG[type] ?? { label: type, color: '#6b7280', bg: 'rgba(107,114,128,0.1)', Icon: Bell }
-  const href = cfg.href?.(entityId)
+  const cfg         = TYPE_CONFIG[type] ?? { label: type, color: '#6b7280', bg: 'rgba(107,114,128,0.1)', Icon: Bell }
+  const href        = cfg.href?.(entityId)
+  const hasActions  = !!data?.action
+  // Notifications avec boutons d'action ne sont pas cliquables globalement
+  const isClickable = !hasActions && (!isRead || !!href)
 
   const handleClick = () => {
     if (!isRead) onMarkRead(id)
@@ -93,45 +225,37 @@ function NotifItem({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
+    if ((e.key === 'Enter' || e.key === ' ') && isClickable) {
       e.preventDefault()
       handleClick()
     }
   }
 
-  const isInteractive = !isRead || !!href
-  const ariaLabel = [
-    cfg.label, '—', title,
-    !isRead ? '(non lue, cliquer pour marquer comme lue)' : '',
-    href ? '(cliquer pour voir le document)' : '',
-  ].filter(Boolean).join(' ')
-
   return (
     <div
-      role={isInteractive ? 'button' : undefined}
-      tabIndex={isInteractive ? 0 : undefined}
-      aria-label={isInteractive ? ariaLabel : undefined}
-      onClick={isInteractive ? handleClick : undefined}
-      onKeyDown={isInteractive ? handleKeyDown : undefined}
+      role={isClickable ? 'button' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      onClick={isClickable ? handleClick : undefined}
+      onKeyDown={isClickable ? handleKeyDown : undefined}
       style={{
         display: 'flex', gap: 14, padding: '16px 20px',
         borderBottom: '1px solid var(--border)',
         background: isRead ? 'transparent' : 'rgba(45,125,210,0.04)',
-        cursor: isInteractive ? 'pointer' : 'default',
+        cursor: isClickable ? 'pointer' : 'default',
         transition: 'background 0.15s',
         outline: 'none',
       }}
-      onMouseEnter={(e) => { if (isInteractive) e.currentTarget.style.background = 'var(--surface)' }}
+      onMouseEnter={(e) => { if (isClickable) e.currentTarget.style.background = 'var(--surface)' }}
       onMouseLeave={(e) => { e.currentTarget.style.background = isRead ? 'transparent' : 'rgba(45,125,210,0.04)' }}
-      onFocus={(e)      => { if (isInteractive) e.currentTarget.style.boxShadow = 'inset 0 0 0 2px var(--primary)' }}
+      onFocus={(e)      => { if (isClickable) e.currentTarget.style.boxShadow = 'inset 0 0 0 2px var(--primary)' }}
       onBlur={(e)       => { e.currentTarget.style.boxShadow = 'none' }}
     >
-      {/* Icon — SVG Lucide, pas emoji */}
+      {/* Icon */}
       <div
         style={{
           width: 40, height: 40, borderRadius: '50%',
           background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0,
+          flexShrink: 0, alignSelf: 'flex-start',
         }}
         aria-hidden="true"
       >
@@ -166,6 +290,16 @@ function NotifItem({
             {message}
           </p>
         )}
+
+        {/* Boutons d'action rapide */}
+        {!!data?.action && (
+          <QuickActions
+            notifId={id}
+            data={data}
+            onMarkRead={onMarkRead}
+            onDone={onRefresh}
+          />
+        )}
       </div>
 
       {/* Time */}
@@ -193,6 +327,10 @@ export default function NotificationsPage() {
     qc.invalidateQueries({ queryKey: ['notifications'] })
   }, [qc])
   useSocket('notification:new', handleNewNotif)
+
+  const handleActionDone = useCallback(() => {
+    qc.invalidateQueries({ queryKey: ['notifications'] })
+  }, [qc])
 
   const notifs      = data?.data        ?? []
   const total       = data?.total       ?? 0
@@ -307,6 +445,7 @@ export default function NotificationsPage() {
                 key={n.id}
                 {...n}
                 onMarkRead={(id) => markReadMut.mutate(id)}
+                onRefresh={handleActionDone}
               />
             ))
         }

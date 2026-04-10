@@ -85,17 +85,17 @@ call :step "7" "Migrations Prisma"
 docker-compose exec -T api npx prisma migrate deploy || (call :fail "Migration echouee" & exit /b 1)
 call :ok "Migrations appliquees"
 
-call :step "8" "Verification Ollama (phi3)"
-docker-compose exec -T ollama ollama list 2>nul | findstr /i /c:"phi3 " /c:"phi3:latest" >nul
+call :step "8" "Verification Ollama (phi3:mini)"
+docker-compose exec -T ollama ollama list 2>nul | findstr /i /c:"phi3:mini" >nul
 if %errorlevel% neq 0 (
-  echo  Le modele Phi3 n'est pas present.
-  set /p CONFIRM_OLLAMA="Telecharger Phi3 maintenant ? [O/N] : "
+  echo  Le modele phi3:mini n'est pas present.
+  set /p CONFIRM_OLLAMA="Telecharger phi3:mini maintenant ? (~2.3 GiB) [O/N] : "
   if /i "!CONFIRM_OLLAMA!"=="O" (
-    docker-compose exec -T ollama ollama pull phi3
-    call :ok "Modele phi3 telecharge"
+    docker-compose exec -T ollama ollama pull phi3:mini
+    call :ok "Modele phi3:mini telecharge"
   )
 ) else (
-  call :ok "Modele phi3 deja present"
+  call :ok "Modele phi3:mini deja present"
 )
 
 :summary

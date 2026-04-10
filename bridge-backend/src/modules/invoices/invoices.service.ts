@@ -382,6 +382,7 @@ export class InvoicesService {
       data: {
         status: 'issued',
         lastSentAt: new Date(),
+        draftReminderLevel: 0,
         statusHistory: {
           create: { changedById: userId, previousStatus: 'draft', newStatus: 'issued' },
         },

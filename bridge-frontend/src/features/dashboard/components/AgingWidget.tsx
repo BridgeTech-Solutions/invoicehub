@@ -75,7 +75,7 @@ export function AgingWidget() {
                 background: bucket.amount > 0 ? b.bg : 'var(--bg)',
                 border: `1px solid ${bucket.amount > 0 ? b.color + '30' : 'var(--border)'}`,
                 borderRadius: 8,
-                padding: '12px 14px',
+                padding: '12px 16px',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -88,13 +88,13 @@ export function AgingWidget() {
                 }}>
                   {b.label}
                 </span>
-                <span style={{ fontSize: 10, color: 'var(--text-3)' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-3)' }}>
                   {bucket.count} fac.
                 </span>
               </div>
 
               <p className="amount" style={{
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 700,
                 color: bucket.amount > 0 ? b.color : 'var(--text-3)',
                 marginBottom: 4,
@@ -104,7 +104,7 @@ export function AgingWidget() {
               </p>
 
               {/* Mini bar */}
-              <div style={{ height: 3, borderRadius: 2, background: 'rgba(0,0,0,0.08)', overflow: 'hidden' }} aria-hidden="true">
+              <div style={{ height: 4, borderRadius: 2, background: 'rgba(0,0,0,0.08)', overflow: 'hidden' }} aria-hidden="true">
                 <div
                   role="progressbar"
                   aria-valuenow={pct}
@@ -120,7 +120,7 @@ export function AgingWidget() {
                   }}
                 />
               </div>
-              <p style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 3 }}>{pct}% du total</p>
+              <p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>{pct}% du total</p>
             </div>
           )
         })}

@@ -33,4 +33,26 @@ export const notificationsApi = {
     const { data } = await apiClient.put<NotificationSetting[]>('/notifications/settings', { settings })
     return data
   },
+
+  // ── Quick-confirm depuis notification ──────────────────────────────────────
+
+  /** POST /invoices/:id/quick-confirm-payment — marque la facture comme payée */
+  async quickConfirmPayment(invoiceId: string): Promise<void> {
+    await apiClient.post(`/invoices/${invoiceId}/quick-confirm-payment`)
+  },
+
+  /** POST /invoices/:id/quick-confirm-issued — passe le brouillon facture en "émise" */
+  async quickConfirmIssued(invoiceId: string): Promise<void> {
+    await apiClient.post(`/invoices/${invoiceId}/quick-confirm-issued`)
+  },
+
+  /** POST /proformas/:id/quick-confirm-sent — passe le brouillon proforma en "envoyée" */
+  async quickConfirmProformaSent(proformaId: string): Promise<void> {
+    await apiClient.post(`/proformas/${proformaId}/quick-confirm-sent`)
+  },
+
+  /** POST /proformas/:id/quick-confirm-accepted — marque la proforma comme acceptée */
+  async quickConfirmProformaAccepted(proformaId: string): Promise<void> {
+    await apiClient.post(`/proformas/${proformaId}/quick-confirm-accepted`)
+  },
 }

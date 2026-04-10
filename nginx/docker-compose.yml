@@ -5,7 +5,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: invoicehub-proxy
+    image: bts-proxy:latest
+    container_name: bts-proxy
     restart: unless-stopped
     ports:
       - "80:80"

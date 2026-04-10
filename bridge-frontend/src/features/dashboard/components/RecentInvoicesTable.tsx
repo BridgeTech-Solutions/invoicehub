@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { FileText } from 'lucide-react'
 import { useDashboardKpis } from '../hooks'
 import { formatXAF, formatDate } from '@/lib/utils'
 import { ROUTES, STATUS_LABELS } from '@/lib/constants'
@@ -59,15 +60,22 @@ export function RecentInvoicesTable() {
         <Link
           href={ROUTES.INVOICES}
           aria-label="Voir toutes les factures"
-          style={{ fontSize: 12.5, color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}
+          style={{ fontSize: 13, color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}
         >
           Voir tout →
         </Link>
       </div>
 
       {invoices.length === 0 ? (
-        <div style={{ padding: '32px 20px', textAlign: 'center' }}>
+        <div style={{ padding: '48px 20px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <FileText size={32} strokeWidth={1.5} style={{ color: 'var(--text-3)' }} aria-hidden="true" />
           <p style={{ fontSize: 13, color: 'var(--text-3)' }}>Aucune facture pour le moment</p>
+          <Link
+            href="/invoices/new"
+            style={{ fontSize: 13, color: 'var(--primary)', fontWeight: 500, textDecoration: 'none' }}
+          >
+            Créer une facture →
+          </Link>
         </div>
       ) : (
         <table className="data-table">

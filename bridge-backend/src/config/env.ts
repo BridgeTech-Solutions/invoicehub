@@ -105,8 +105,8 @@ const envSchema = z.object({
   // --- BTS Assistant (Ollama) ---
   /** URL de l'API Ollama (ex: http://localhost:11434) */
   OLLAMA_URL: z.string().url().default('http://localhost:11434'),
-  /** Nom du modèle Ollama à utiliser (ex: mistral) */
-  OLLAMA_MODEL: z.string().default('mistral'),
+  /** Nom du modèle Ollama à utiliser (ex: phi3:mini) */
+  OLLAMA_MODEL: z.string().default('phi3:mini'),
   /** Active ou désactive BTS Assistant */
   OLLAMA_ENABLED: z.string().transform(v => v === 'true').default('false'),
 });

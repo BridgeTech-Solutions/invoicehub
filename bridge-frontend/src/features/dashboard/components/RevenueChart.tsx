@@ -119,7 +119,7 @@ export function RevenueChart() {
   return (
     <div className="card" style={{ padding: '20px 20px 16px', overflow: 'hidden' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <div>
           <h2 className="font-display" style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-1)' }}>
             Évolution du chiffre d&apos;affaires
@@ -136,7 +136,7 @@ export function RevenueChart() {
             background: 'var(--bg)',
             border: '1px solid var(--border)',
             borderRadius: 20,
-            padding: 3,
+            padding: 4,
             gap: 2,
           }}
         >
@@ -147,7 +147,7 @@ export function RevenueChart() {
               onClick={() => setPeriod(p.key)}
               aria-pressed={period === p.key}
               style={{
-                padding: '5px 12px',
+                padding: '4px 12px',
                 borderRadius: 16,
                 border: 'none',
                 cursor: 'pointer',

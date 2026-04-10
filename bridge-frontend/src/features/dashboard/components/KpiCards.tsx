@@ -38,8 +38,8 @@ function useCountUp(target: number, duration = 700): number {
 // ─── Skeleton ─────────────────────────────────────────────────
 function KpiSkeleton() {
   return (
-    <div className="card" style={{ padding: '20px 22px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
+    <div className="card" style={{ padding: '20px 24px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
         <div style={{ height: 11, width: 120, background: 'var(--border)', borderRadius: 4 }} className="animate-pulse" />
         <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--border)' }} className="animate-pulse" />
       </div>
@@ -72,10 +72,10 @@ function KpiCard({ label, value, numericValue, formatter, sub, trend, icon: Icon
   const trendLabel = trend === 'up' ? 'En hausse' : trend === 'down' ? 'En baisse' : 'Stable'
 
   return (
-    <div className="card card-hover" style={{ padding: '20px 22px' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
+    <div className="card card-hover" style={{ padding: '20px 24px', borderLeft: `3px solid ${color}` }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
         <p style={{
-          fontSize: 11.5,
+          fontSize: 11,
           fontFamily: 'var(--font-display)',
           fontWeight: 600,
           textTransform: 'uppercase',
@@ -94,7 +94,7 @@ function KpiCard({ label, value, numericValue, formatter, sub, trend, icon: Icon
         </span>
       </div>
 
-      <p className="amount" style={{ fontSize: 22, fontWeight: 600, color: 'var(--text-1)', lineHeight: 1.2, marginBottom: 8 }}>
+      <p className="amount" style={{ fontSize: 24, fontWeight: 600, color: 'var(--text-1)', lineHeight: 1.2, marginBottom: 8 }}>
         {displayValue}
       </p>
 
@@ -119,7 +119,7 @@ function KpiCard({ label, value, numericValue, formatter, sub, trend, icon: Icon
           <Link
             href={href}
             aria-label={`Voir le détail — ${label}`}
-            style={{ fontSize: 11.5, color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}
+            style={{ fontSize: 12, color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}
           >
             Voir →
           </Link>

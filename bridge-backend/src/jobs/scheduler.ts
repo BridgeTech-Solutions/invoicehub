@@ -7,20 +7,20 @@
  * par cron même si le serveur redémarre plusieurs fois.
  *
  * Crons configurés :
- *  - overdue      : 08:30 UTC — marque les factures/proformas en retard
- *  - recurring : 08:30 UTC — génère les factures récurrentes du jour
- *  - reminder  : 08:30 UTC — envoie les rappels de paiement
- *  - backup    : 16:30 UTC — pg_dump automatique
+ *  - overdue      : 07:45 UTC (08:45 WAT) — marque les factures/proformas en retard
+ *  - recurring    : 07:50 UTC (08:50 WAT) — génère les factures récurrentes du jour
+ *  - reminder     : 08:00 UTC (09:00 WAT) — vérification active + rappels internes
+ *  - backup       : 16:30 UTC             — pg_dump automatique
  */
 import { overdueQueue, recurringQueue, reminderQueue, backupQueue } from './queues';
 import { env } from '../config/env';
 import { logger } from '../core/middleware/requestLogger';
 
 export async function scheduleJobs(): Promise<void> {
-  // Overdue — tous les jours à 08:30 UTC
+  // Overdue — tous les jours à 07:45 UTC (08:45 WAT) — avant le reminder
   await overdueQueue.upsertJobScheduler(
     'overdue-daily',
-    { pattern: '30 8 * * *' },
+    { pattern: '45 7 * * *' },
     {
       name: 'overdue',
       data: { triggeredAt: '' },
@@ -28,10 +28,10 @@ export async function scheduleJobs(): Promise<void> {
     },
   );
 
-  // Recurring — tous les jours à 08:30 UTC
+  // Recurring — tous les jours à 07:50 UTC (08:50 WAT) — avant le reminder
   await recurringQueue.upsertJobScheduler(
     'recurring-daily',
-    { pattern: '30 8 * * *' },
+    { pattern: '50 7 * * *' },
     {
       name: 'recurring',
       data: { triggeredAt: '' },
@@ -39,10 +39,10 @@ export async function scheduleJobs(): Promise<void> {
     },
   );
 
-  // Reminders — tous les jours à 08:30 UTC
+  // Reminders — tous les jours à 08:00 UTC = 09:00 WAT (Cameroun)
   await reminderQueue.upsertJobScheduler(
     'reminder-daily',
-    { pattern: '30 8 * * *' },
+    { pattern: '0 8 * * *' },
     {
       name: 'reminder',
       data: { triggeredAt: '' },
@@ -61,5 +61,5 @@ export async function scheduleJobs(): Promise<void> {
     },
   );
 
-  logger.info(`Crons BullMQ planifiés (overdue/recurring/reminder 08:30 UTC, backup 16:30 UTC)`);
+  logger.info(`Crons BullMQ planifiés (overdue 07:45, recurring 07:50, reminder 08:00 UTC / backup 16:30 UTC)`);
 }
