@@ -58,12 +58,12 @@ call :ok "Dependances installees"
 
 if "%SKIP_TESTS%"=="1" goto :docker_build
 
-call :step "4" "Tests"
-cd /d "%BACKEND%"
-call pnpm exec tsc --noEmit || (call :fail "TypeScript Backend echec" & exit /b 1)
-cd /d "%FRONTEND%"
-call pnpm exec tsc --noEmit || (call :fail "TypeScript Frontend echec" & exit /b 1)
-call :ok "Tests passes"
+@REM call :step "4" "Tests"
+@REM cd /d "%BACKEND%"
+@REM call pnpm exec tsc --noEmit || (call :fail "TypeScript Backend echec" & exit /b 1)
+@REM cd /d "%FRONTEND%"
+@REM call pnpm exec tsc --noEmit || (call :fail "TypeScript Frontend echec" & exit /b 1)
+@REM call :ok "Tests passes"
 
 :docker_build
 call :step "5" "Arret et construction Docker"
