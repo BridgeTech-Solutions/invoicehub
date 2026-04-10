@@ -2,16 +2,23 @@
 
 import { useState, useMemo, useId, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { Plus, Search, FileText, Clock, Copy, Trash2, FileDown, Send, Eye, Download, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import {
+  Plus, Search, FileText, Clock, Copy, Trash2,
+  FileDown, Send, Eye, Download, X, ChevronLeft, ChevronRight, Loader2,
+} from 'lucide-react'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
+import { DocListItem, SkeletonDocItem } from '@/components/ui/DocListItem'
 import { useRouter } from 'next/navigation'
-import { useProformas, useSendProforma, useDuplicateProforma, useDeleteProforma, useDownloadProformaPdf } from '@/features/proformas/hooks'
+import {
+  useProformas, useSendProforma, useDuplicateProforma,
+  useDeleteProforma, useDownloadProformaPdf,
+} from '@/features/proformas/hooks'
 import { proformasApi } from '@/features/proformas/api'
 import { toast } from 'sonner'
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
-import { formatDate, formatXAF, getInitials } from '@/lib/utils'
+import { formatDate, buildPageRange } from '@/lib/utils'
 import { ROUTES, STATUS_LABELS, PROFORMA_STATUSES } from '@/lib/constants'
 import type { ProformaListItem, ProformaStatus } from '@/features/proformas/types'
 
@@ -33,7 +40,7 @@ function StatusBadge({ status }: { status: ProformaStatus }) {
       style={{
         ...s, fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700,
         letterSpacing: '0.04em', padding: '3px 9px', borderRadius: 20,
-        textTransform: 'uppercase',
+        textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0,
       }}
     >
       {STATUS_LABELS[status] ?? status}
@@ -72,11 +79,11 @@ function ConfirmDeleteModal({
         </p>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
           <button type="button" onClick={onCancel}
-            style={{ padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)', cursor: 'pointer', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+            style={{ padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)', cursor: 'pointer', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, minHeight: 44 }}>
             Annuler
           </button>
           <button ref={confirmRef} type="button" onClick={onConfirm} disabled={isPending}
-            style={{ padding: '8px 16px', borderRadius: 'var(--radius-md)', border: 'none', background: '#ef4444', color: '#fff', cursor: isPending ? 'not-allowed' : 'pointer', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: isPending ? 0.65 : 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+            style={{ padding: '8px 16px', borderRadius: 'var(--radius-md)', border: 'none', background: '#ef4444', color: '#fff', cursor: isPending ? 'not-allowed' : 'pointer', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: isPending ? 0.65 : 1, display: 'flex', alignItems: 'center', gap: 6, minHeight: 44 }}>
             {isPending && <Loader2 size={13} className="animate-spin" aria-hidden="true" />}
             Supprimer
           </button>
@@ -85,9 +92,6 @@ function ConfirmDeleteModal({
     </div>
   )
 }
-
-// We need Loader2 for the modal
-import { Loader2 } from 'lucide-react'
 
 // ─── Row actions ────────────────────────────────────────────────
 
@@ -126,21 +130,7 @@ function RowActions({ p }: { p: ProformaListItem }) {
   )
 }
 
-// ─── Skeleton row ───────────────────────────────────────────────
-
-function SkeletonRow() {
-  return (
-    <tr aria-hidden="true">
-      {[180, 120, 70, 70, 100, 100, 80, 100, 60].map((w, i) => (
-        <td key={i} style={{ padding: '14px 14px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ height: 13, width: w, background: 'var(--border)', borderRadius: 4 }} className="animate-pulse" />
-        </td>
-      ))}
-    </tr>
-  )
-}
-
-// ─── Page ───────────────────────────────────────────────────────
+// ─── Tab config ─────────────────────────────────────────────────
 
 type StatusTab = ProformaStatus | 'all'
 
@@ -153,17 +143,7 @@ const TABS: { key: StatusTab; label: string }[] = [
   { key: 'expired',  label: 'Expirées'  },
 ]
 
-const TABLE_HEADERS: { label: string; align: 'left' | 'right'; srOnly?: boolean }[] = [
-  { label: 'N° Proforma',  align: 'left'  },
-  { label: 'Client',       align: 'left'  },
-  { label: 'Date',         align: 'left'  },
-  { label: 'Validité',     align: 'left'  },
-  { label: 'Total HT',     align: 'right' },
-  { label: 'Total TTC',    align: 'right' },
-  { label: 'Statut',       align: 'left'  },
-  { label: 'Créé par',     align: 'left'  },
-  { label: 'Actions',      align: 'left', srOnly: true },
-]
+// ─── Page ───────────────────────────────────────────────────────
 
 export default function ProformasPage() {
   const [tab,       setTab]       = useState<StatusTab>('all')
@@ -188,7 +168,7 @@ export default function ProformasPage() {
       })
       toast.success('Export CSV téléchargé')
     } catch {
-      toast.error('Erreur lors de l\'export')
+      toast.error("Erreur lors de l'export")
     } finally {
       setExporting(false)
     }
@@ -207,6 +187,7 @@ export default function ProformasPage() {
   const proformas  = data?.data       ?? []
   const total      = data?.total      ?? 0
   const totalPages = data?.totalPages ?? 1
+  const pageRange  = buildPageRange(page, totalPages)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -227,14 +208,7 @@ export default function ProformasPage() {
             {can('client', 'create') && (
               <Link
                 href={`${ROUTES.PROFORMAS}/new`}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 7, minHeight: 44,
-                  padding: '8px 16px', borderRadius: 'var(--radius-md)',
-                  background: 'var(--primary)', color: '#fff',
-                  textDecoration: 'none', fontSize: 13.5,
-                  fontFamily: 'var(--font-display)', fontWeight: 600,
-                  boxShadow: '0 4px 12px rgba(45,125,210,0.3)',
-                }}
+                style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 44, padding: '8px 16px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', textDecoration: 'none', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, boxShadow: '0 4px 12px rgba(45,125,210,0.3)' }}
               >
                 <Plus size={15} strokeWidth={2.5} aria-hidden="true" /> Nouvelle proforma
               </Link>
@@ -244,255 +218,134 @@ export default function ProformasPage() {
       />
 
       <div className="card" style={{ overflow: 'hidden', padding: 0 }}>
-        {/* Toolbar */}
+
+        {/* ── Toolbar ── */}
         <div style={{ padding: '12px 16px' }}>
-          {/* Ligne 1 : recherche + dates */}
+          {/* Recherche + dates */}
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* Search */}
             <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 180, maxWidth: 320 }}>
               <label htmlFor={searchId} className="sr-only">Rechercher par numéro, client ou objet</label>
-              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} aria-hidden="true" />
+              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} aria-hidden="true" />
               <input
                 id={searchId}
-                type="text" placeholder="Rechercher N°, client, objet…"
-                value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-                style={{ width: '100%', padding: '8px 12px 8px 32px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13.5, color: 'var(--text-1)', fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' }}
+                type="search"
+                placeholder="Rechercher N°, client, objet…"
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+                style={{ width: '100%', padding: '8px 12px 8px 32px', height: 44, borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13.5, color: 'var(--text-1)', fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' }}
                 onFocus={(e) => { e.target.style.borderColor = 'var(--primary)' }}
                 onBlur={(e)  => { e.target.style.borderColor = 'var(--border)' }}
               />
             </div>
 
-            {/* Date range */}
-            <div
-              role="group"
-              aria-labelledby={dateGrpId}
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            >
+            <div role="group" aria-labelledby={dateGrpId} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span id={dateGrpId} className="sr-only">Période</span>
               <span style={{ fontSize: 12.5, color: 'var(--text-3)', whiteSpace: 'nowrap' }} aria-hidden="true">Du</span>
-              <input
-                type="date"
-                value={dateFrom}
-                aria-label="Date de début"
+              <input type="date" value={dateFrom} aria-label="Date de début"
                 onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
-                style={{ padding: '7px 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13, color: 'var(--text-2)', fontFamily: 'var(--font-body)', outline: 'none', cursor: 'pointer' }}
+                style={{ height: 44, padding: '0 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13, color: 'var(--text-2)', fontFamily: 'var(--font-body)', outline: 'none', cursor: 'pointer' }}
               />
               <span style={{ fontSize: 12.5, color: 'var(--text-3)' }} aria-hidden="true">au</span>
-              <input
-                type="date"
-                value={dateTo}
-                aria-label="Date de fin"
+              <input type="date" value={dateTo} aria-label="Date de fin"
                 onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
-                style={{ padding: '7px 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13, color: 'var(--text-2)', fontFamily: 'var(--font-body)', outline: 'none', cursor: 'pointer' }}
+                style={{ height: 44, padding: '0 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13, color: 'var(--text-2)', fontFamily: 'var(--font-body)', outline: 'none', cursor: 'pointer' }}
               />
               {(dateFrom || dateTo) && (
-                <button
-                  type="button"
-                  aria-label="Effacer la période"
+                <button type="button" aria-label="Effacer la période"
                   onClick={() => { setDateFrom(''); setDateTo(''); setPage(1) }}
-                  style={{ padding: '6px 8px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', minHeight: 44 }}
-                >
+                  style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <X size={13} aria-hidden="true" />
                 </button>
               )}
             </div>
           </div>
 
-          {/* Ligne 2 : onglets statut */}
-          <div
-            role="tablist"
-            aria-label="Filtrer par statut"
-            style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}
-          >
+          {/* Onglets statut */}
+          <div role="tablist" aria-label="Filtrer par statut"
+            style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
             {TABS.map(t => (
-              <button
-                key={t.key}
-                role="tab"
-                aria-selected={tab === t.key}
-                type="button"
+              <button key={t.key} type="button" role="tab" aria-selected={tab === t.key}
                 onClick={() => { setTab(t.key); setPage(1) }}
-                style={{
-                  padding: '7px 16px', borderRadius: 20, fontSize: 13,
-                  fontFamily: 'var(--font-display)', fontWeight: 600,
-                  cursor: 'pointer', border: 'none', minHeight: 44,
-                  background: tab === t.key ? 'var(--primary)' : 'transparent',
-                  color: tab === t.key ? '#fff' : 'var(--text-3)',
-                  transition: 'all 0.15s',
-                }}
-              >
+                style={{ padding: '7px 16px', minHeight: 44, borderRadius: 20, fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', border: 'none', background: tab === t.key ? 'var(--primary)' : 'transparent', color: tab === t.key ? '#fff' : 'var(--text-3)', transition: 'all 0.15s' }}>
                 {t.label}
               </button>
             ))}
           </div>
         </div>
+
         <div style={{ borderTop: '1px solid var(--border)' }} />
 
-        {/* Table */}
-        {isLoading ? (
-          <table className="data-table" aria-label="Liste des proformas" aria-busy="true">
-            <thead>
-              <tr>
-                {TABLE_HEADERS.map((h) => (
-                  <th key={h.label} scope="col" style={{ textAlign: h.align }}>
-                    {h.srOnly ? <span className="sr-only">{h.label}</span> : h.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>{[...Array(6)].map((_, i) => <SkeletonRow key={i} />)}</tbody>
-          </table>
-        ) : proformas.length === 0 ? (
-          search
-            ? <RichEmptyState icon={FileText} title={`Aucun résultat pour « ${search} »`} description="Essayez un autre numéro, nom de client ou sujet." compact />
-            : tab !== 'all'
-              ? <RichEmptyState icon={FileText} title={`Aucune proforma ${TABS.find(t => t.key === tab)?.label?.toLowerCase() ?? ''}`} description="Aucune proforma ne correspond à ce filtre." compact />
-              : <RichEmptyState
-                  icon={FileText}
-                  title="Envoyez votre premier devis"
-                  description="Créez des proformas, envoyez-les à vos clients et convertissez-les en factures en un clic. Suivi des statuts en temps réel."
-                  features={['Conversion 1 clic', 'Suivi statut', 'PDF avec cachet']}
-                  cta={can('client', 'create') ? { label: '+ Nouvelle proforma', href: `${ROUTES.PROFORMAS}/new` } : undefined}
-                  secondaryCta={{ label: 'Voir le guide', href: ROUTES.GUIDE }}
+        {/* ── Liste ── */}
+        <div aria-label="Liste des proformas" aria-busy={isLoading}>
+          {isLoading ? (
+            Array.from({ length: 7 }).map((_, i) => <SkeletonDocItem key={i} />)
+          ) : proformas.length === 0 ? (
+            search
+              ? <RichEmptyState icon={FileText} title={`Aucun résultat pour « ${search} »`} description="Essayez un autre numéro, nom de client ou sujet." compact />
+              : tab !== 'all'
+                ? <RichEmptyState icon={FileText} title={`Aucune proforma ${TABS.find(t => t.key === tab)?.label?.toLowerCase() ?? ''}`} description="Aucune proforma ne correspond à ce filtre." compact />
+                : <RichEmptyState
+                    icon={FileText}
+                    title="Envoyez votre premier devis"
+                    description="Créez des proformas, envoyez-les à vos clients et convertissez-les en factures en un clic. Suivi des statuts en temps réel."
+                    features={['Conversion 1 clic', 'Suivi statut', 'PDF avec cachet']}
+                    cta={can('client', 'create') ? { label: '+ Nouvelle proforma', href: `${ROUTES.PROFORMAS}/new` } : undefined}
+                    secondaryCta={{ label: 'Voir le guide', href: ROUTES.GUIDE }}
+                  />
+          ) : (
+            proformas.map((p) => {
+              const isExpired = p.status !== 'accepted' && p.status !== 'rejected' && new Date(p.validUntil) < new Date()
+              const isAlertBg = isExpired || p.status === 'rejected'
+              return (
+                <DocListItem
+                  key={p.id}
+                  id={p.id}
+                  number={p.number}
+                  subject={p.subject}
+                  clientName={p.client.name}
+                  issueDate={formatDate(p.issueDate)}
+                  limitDate={formatDate(p.validUntil)}
+                  limitLabel="Val."
+                  limitAlert={isExpired}
+                  totalTtc={Number(p.totalTtc)}
+                  statusBadge={<StatusBadge status={p.status} />}
+                  href={`${ROUTES.PROFORMAS}/${p.id}`}
+                  actions={<RowActions p={p} />}
+                  alertBg={isAlertBg}
                 />
-        ) : (
-          <table
-            className="data-table"
-            aria-label="Liste des proformas"
-            aria-busy={isLoading}
-          >
-            <thead>
-              <tr>
-                {TABLE_HEADERS.map((h) => (
-                  <th key={h.label} scope="col" style={{ textAlign: h.align }}>
-                    {h.srOnly ? <span className="sr-only">{h.label}</span> : h.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {proformas.map((p) => {
-                const isExpired = p.status !== 'accepted' && p.status !== 'rejected' && new Date(p.validUntil) < new Date()
-                return (
-                  <tr key={p.id}>
-                    {/* N° */}
-                    <td>
-                      <Link href={`${ROUTES.PROFORMAS}/${p.id}`} style={{ textDecoration: 'none' }}>
-                        <span className="doc-number" style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--primary)' }}>
-                          {p.number}
-                        </span>
-                      </Link>
-                      {p.subject && (
-                        <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: '2px 0 0', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {p.subject}
-                        </p>
-                      )}
-                    </td>
+              )
+            })
+          )}
+        </div>
 
-                    {/* Client */}
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span
-                          aria-hidden="true"
-                          style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(45,125,210,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--primary)', fontFamily: 'var(--font-display)', flexShrink: 0 }}
-                        >
-                          {getInitials(p.client.name)}
-                        </span>
-                        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-1)' }}>{p.client.name}</span>
-                      </div>
-                    </td>
-
-                    {/* Date */}
-                    <td>
-                      <time dateTime={p.issueDate} style={{ fontSize: 12.5, color: 'var(--text-2)' }}>
-                        {formatDate(p.issueDate)}
-                      </time>
-                    </td>
-
-                    {/* Validité */}
-                    <td>
-                      <time
-                        dateTime={p.validUntil}
-                        style={{ fontSize: 12.5, color: isExpired ? '#ef4444' : 'var(--text-2)', display: 'flex', alignItems: 'center', gap: 4 }}
-                      >
-                        {isExpired && (
-                          <>
-                            <Clock size={11} aria-hidden="true" />
-                            <span className="sr-only">Expirée — </span>
-                          </>
-                        )}
-                        {formatDate(p.validUntil)}
-                      </time>
-                    </td>
-
-                    {/* Totaux */}
-                    <td style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--text-2)' }}>
-                        {new Intl.NumberFormat('fr-FR').format(Math.round(Number(p.totalHt)))} XAF
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--text-1)' }}>
-                        {formatXAF(Number(p.totalTtc))}
-                      </span>
-                    </td>
-
-                    {/* Statut */}
-                    <td><StatusBadge status={p.status} /></td>
-
-                    {/* Créé par */}
-                    <td style={{ fontSize: 12, color: 'var(--text-3)' }}>
-                      {p.createdBy.firstName} {p.createdBy.lastName[0]}.
-                    </td>
-
-                    {/* Actions */}
-                    <td><RowActions p={p} /></td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-
-        {/* Pagination */}
+        {/* ── Pagination ── */}
         {totalPages > 1 && (
-          <nav aria-label="Pagination des proformas" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderTop: '1px solid var(--border)' }}>
+          <nav aria-label="Pagination des proformas"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, padding: '12px 20px', borderTop: '1px solid var(--border)' }}>
             <p style={{ fontSize: 12.5, color: 'var(--text-3)', margin: 0 }}>
-              Page {page} sur {totalPages} · <strong aria-live="polite">{total}</strong> proformas
+              Page {page}/{totalPages} · <strong aria-live="polite">{total}</strong> proformas
             </p>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <button type="button" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
                 aria-label="Page précédente"
-                style={{ width: 32, height: 44, borderRadius: 'var(--radius-sm)', border: '1.5px solid var(--border)', background: 'transparent', color: page === 1 ? 'var(--border)' : 'var(--text-2)', cursor: page === 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <ChevronLeft size={14} aria-hidden="true" />
+                style={{ width: 44, height: 44, borderRadius: 'var(--radius-sm)', border: '1.5px solid var(--border)', background: 'transparent', color: page === 1 ? 'var(--text-3)' : 'var(--text-2)', cursor: page === 1 ? 'not-allowed' : 'pointer', opacity: page === 1 ? 0.4 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ChevronLeft size={16} aria-hidden="true" />
               </button>
-              {Array.from({ length: Math.min(totalPages, 7) }).map((_, i) => {
-                const pg = i + 1
-                const isCurrent = pg === page
-                return (
-                  <button
-                    key={pg}
-                    type="button"
-                    onClick={() => setPage(pg)}
-                    aria-label={`Page ${pg}`}
-                    aria-current={isCurrent ? 'page' : undefined}
-                    style={{ width: 32, height: 44, borderRadius: 'var(--radius-sm)', border: '1.5px solid', borderColor: isCurrent ? 'var(--primary)' : 'var(--border)', background: isCurrent ? 'var(--primary)' : 'transparent', color: isCurrent ? '#fff' : 'var(--text-2)', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-display)', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  >
-                    {pg}
-                  </button>
-                )
-              })}
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
+              {pageRange.map((p, i) =>
+                p === '…'
+                  ? <span key={`e-${i}`} aria-hidden="true" style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: 'var(--text-3)' }}>…</span>
+                  : (
+                    <button key={p} type="button" onClick={() => setPage(p)}
+                      aria-label={`Page ${p}`} aria-current={p === page ? 'page' : undefined}
+                      style={{ width: 44, height: 44, borderRadius: 'var(--radius-sm)', border: '1.5px solid', borderColor: p === page ? 'var(--primary)' : 'var(--border)', background: p === page ? 'var(--primary)' : 'transparent', color: p === page ? '#fff' : 'var(--text-2)', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-display)', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {p}
+                    </button>
+                  )
+              )}
+              <button type="button" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
                 aria-label="Page suivante"
-                style={{ width: 32, height: 44, borderRadius: 'var(--radius-sm)', border: '1.5px solid var(--border)', background: 'transparent', color: page === totalPages ? 'var(--border)' : 'var(--text-2)', cursor: page === totalPages ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <ChevronRight size={14} aria-hidden="true" />
+                style={{ width: 44, height: 44, borderRadius: 'var(--radius-sm)', border: '1.5px solid var(--border)', background: 'transparent', color: page === totalPages ? 'var(--text-3)' : 'var(--text-2)', cursor: page === totalPages ? 'not-allowed' : 'pointer', opacity: page === totalPages ? 0.4 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ChevronRight size={16} aria-hidden="true" />
               </button>
             </div>
           </nav>
