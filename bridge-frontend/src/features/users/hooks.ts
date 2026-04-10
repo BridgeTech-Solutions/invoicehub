@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { usersApi } from './api'
+import { usersApi, type AuditLogEntry } from './api'
 import { useAuthStore } from '@/features/auth/store'
 import type {
   ListUsersParams, CreateUserPayload,
@@ -71,6 +71,40 @@ export function useDeleteUser() {
       toast.success('Utilisateur suspendu')
     },
     onError: () => toast.error('Impossible de suspendre cet utilisateur'),
+  })
+}
+
+// ─── Reactivate (admin) ───────────────────────────────────────
+export function useReactivateUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => usersApi.reactivate(id),
+    onSuccess: (_d, id) => {
+      qc.invalidateQueries({ queryKey: KEYS.all })
+      qc.invalidateQueries({ queryKey: KEYS.one(id) })
+      toast.success('Compte réactivé')
+    },
+    onError: () => toast.error('Impossible de réactiver ce compte'),
+  })
+}
+
+// ─── Reset password (admin) ───────────────────────────────────
+export function useResetUserPassword() {
+  return useMutation({
+    mutationFn: ({ id, newPassword }: { id: string; newPassword: string }) =>
+      usersApi.resetPassword(id, newPassword),
+    onSuccess: () => toast.success('Mot de passe réinitialisé — l\'utilisateur devra le changer à sa prochaine connexion'),
+    onError:   () => toast.error('Erreur lors de la réinitialisation'),
+  })
+}
+
+// ─── Activity (admin) ─────────────────────────────────────────
+export function useUserActivity(id: string) {
+  return useQuery<AuditLogEntry[]>({
+    queryKey:  [...KEYS.one(id), 'activity'],
+    queryFn:   () => usersApi.getActivity(id),
+    enabled:   !!id,
+    staleTime: 30_000,
   })
 }
 

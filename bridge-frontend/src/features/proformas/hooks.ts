@@ -11,9 +11,18 @@ export const PROFORMA_KEYS = {
   all:    ['proformas'] as const,
   list:   (p?: ListProformasParams) => ['proformas', 'list', p] as const,
   detail: (id: string)              => ['proformas', 'detail', id] as const,
+  counts: ['proformas', 'counts']   as const,
 }
 
 // ─── Queries ───────────────────────────────────────────────────
+
+export function useProformaCounts() {
+  return useQuery({
+    queryKey: PROFORMA_KEYS.counts,
+    queryFn:  () => proformasApi.counts(),
+    staleTime: 60_000,
+  })
+}
 
 export function useProformas(params?: ListProformasParams) {
   return useQuery({

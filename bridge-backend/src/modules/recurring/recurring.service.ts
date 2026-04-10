@@ -18,13 +18,20 @@ function nextDate(from: Date, interval: string): Date {
 
 export class RecurringService {
   async list(input: ListRecurringInput) {
-    const { page, limit, clientId, isActive } = input;
+    const { page, limit, clientId, isActive, search, interval } = input;
     const skip = (page - 1) * limit;
 
     const where: Prisma.RecurringInvoiceTemplateWhereInput = {
       deletedAt: null,
-      ...(clientId && { clientId }),
+      ...(clientId  && { clientId }),
       ...(isActive !== undefined && { isActive }),
+      ...(interval  && { interval }),
+      ...(search    && {
+        OR: [
+          { subject: { contains: search, mode: 'insensitive' } },
+          { client:  { name: { contains: search, mode: 'insensitive' } } },
+        ],
+      }),
     };
 
     const [total, data] = await Promise.all([

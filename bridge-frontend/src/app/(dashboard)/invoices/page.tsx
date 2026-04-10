@@ -6,12 +6,12 @@ import { useRouter } from 'next/navigation'
 import {
   Plus, Search, FileDown, Copy, Pencil, Zap, CreditCard,
   Download, Trash2, X, ChevronLeft, ChevronRight,
-  Loader2, Receipt,
+  Loader2, Receipt, SlidersHorizontal, ChevronDown,
 } from 'lucide-react'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
 import { DocListItem, SkeletonDocItem } from '@/components/ui/DocListItem'
 import {
-  useInvoices, useIssueInvoice, useDuplicateInvoice,
+  useInvoices, useInvoiceCounts, useIssueInvoice, useDuplicateInvoice,
   useDownloadInvoicePdf, useDeleteInvoice,
 } from '@/features/invoices/hooks'
 import { invoicesApi } from '@/features/invoices/api'
@@ -184,9 +184,20 @@ export default function InvoicesPage() {
   const [page,         setPage]         = useState(1)
   const [exporting,    setExporting]    = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<InvoiceListItem | null>(null)
+  const [filtersOpen,  setFiltersOpen]  = useState(false)
 
   const deleteMutation = useDeleteInvoice()
   const currentTab     = TABS.find(t => t.key === activeTab)!
+  const { data: counts } = useInvoiceCounts()
+
+  const hasActiveFilters = !!(typeFilter || dateFrom || dateTo)
+
+  function resetFilters() {
+    setTypeFilter('')
+    setDateFrom('')
+    setDateTo('')
+    setPage(1)
+  }
 
   const { data, isLoading } = useInvoices({
     page, limit: 20,
@@ -275,7 +286,9 @@ export default function InvoicesPage() {
 
         {/* ── Filtres ── */}
         <div className="card" style={{ padding: '12px 16px' }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+
+          {/* Ligne principale : recherche + toggle filtres */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             {/* Recherche */}
             <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 160 }}>
               <Search size={14} aria-hidden="true" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} />
@@ -287,52 +300,94 @@ export default function InvoicesPage() {
               />
             </div>
 
-            {/* Filtre type */}
-            <label htmlFor="inv-type" className="sr-only">Type de facture</label>
-            <select id="inv-type" value={typeFilter}
-              onChange={(e) => { setTypeFilter(e.target.value as InvoiceType | ''); setPage(1) }}
-              style={{ height: 44, padding: '0 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13.5, color: 'var(--text-2)', fontFamily: 'var(--font-body)', outline: 'none', cursor: 'pointer' }}>
-              <option value="">Tous les types</option>
-              {Object.entries(INVOICE_TYPES).map(([val, label]) => (
-                <option key={val} value={val}>{label}</option>
-              ))}
-            </select>
-
-            {/* Période */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}
-              role="group" aria-label="Filtrer par période">
-              <span style={{ fontSize: 12.5, color: 'var(--text-3)', whiteSpace: 'nowrap' }} aria-hidden="true">Période :</span>
-              <label htmlFor="inv-date-from" className="sr-only">Date de début</label>
-              <input id="inv-date-from" type="date" value={dateFrom}
-                onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
-                style={{ height: 44, padding: '0 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13, color: 'var(--text-2)', fontFamily: 'var(--font-body)', outline: 'none', cursor: 'pointer' }}
-              />
-              <span style={{ fontSize: 12.5, color: 'var(--text-3)' }} aria-hidden="true">→</span>
-              <label htmlFor="inv-date-to" className="sr-only">Date de fin</label>
-              <input id="inv-date-to" type="date" value={dateTo}
-                onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
-                style={{ height: 44, padding: '0 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13, color: 'var(--text-2)', fontFamily: 'var(--font-body)', outline: 'none', cursor: 'pointer' }}
-              />
-              {(dateFrom || dateTo) && (
-                <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); setPage(1) }}
-                  aria-label="Réinitialiser les dates"
-                  style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <X size={13} aria-hidden="true" />
-                </button>
+            {/* Toggle filtres avancés */}
+            <button type="button"
+              aria-expanded={filtersOpen}
+              aria-controls="inv-advanced-filters"
+              onClick={() => setFiltersOpen(o => !o)}
+              style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6, height: 44, padding: '0 14px', borderRadius: 'var(--radius-md)', border: `1.5px solid ${hasActiveFilters ? 'var(--primary)' : 'var(--border)'}`, background: hasActiveFilters ? 'rgba(45,125,210,0.06)' : 'transparent', color: hasActiveFilters ? 'var(--primary)' : 'var(--text-2)', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0 }}>
+              <SlidersHorizontal size={14} aria-hidden="true" />
+              Filtres
+              {hasActiveFilters && (
+                <span aria-label="Filtres actifs" style={{ position: 'absolute', top: 8, right: 8, width: 7, height: 7, borderRadius: '50%', background: 'var(--primary)' }} />
               )}
+              <ChevronDown size={13} aria-hidden="true" style={{ transition: 'transform 0.2s', transform: filtersOpen ? 'rotate(180deg)' : 'none', marginLeft: 2 }} />
+            </button>
+
+            {/* Reset filtres avancés */}
+            {hasActiveFilters && (
+              <button type="button" onClick={resetFilters}
+                aria-label="Réinitialiser les filtres"
+                style={{ display: 'flex', alignItems: 'center', gap: 5, height: 44, padding: '0 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-3)', fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                <X size={12} aria-hidden="true" />
+                Réinitialiser
+              </button>
+            )}
+          </div>
+
+          {/* Filtres avancés — collapsibles */}
+          <div
+            id="inv-advanced-filters"
+            style={{
+              overflow: 'hidden',
+              maxHeight: filtersOpen ? 200 : 0,
+              opacity: filtersOpen ? 1 : 0,
+              transition: 'max-height 0.25s ease, opacity 0.2s ease',
+            }}
+          >
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', paddingTop: 10, marginTop: 10, borderTop: '1px solid var(--border)' }}>
+              {/* Filtre type */}
+              <label htmlFor="inv-type" className="sr-only">Type de facture</label>
+              <select id="inv-type" value={typeFilter}
+                onChange={(e) => { setTypeFilter(e.target.value as InvoiceType | ''); setPage(1) }}
+                style={{ height: 44, padding: '0 12px', borderRadius: 'var(--radius-md)', border: `1.5px solid ${typeFilter ? 'var(--primary)' : 'var(--border)'}`, background: 'var(--bg)', fontSize: 13.5, color: typeFilter ? 'var(--primary)' : 'var(--text-2)', fontFamily: 'var(--font-body)', outline: 'none', cursor: 'pointer', fontWeight: typeFilter ? 600 : 400 }}>
+                <option value="">Tous les types</option>
+                {Object.entries(INVOICE_TYPES).map(([val, label]) => (
+                  <option key={val} value={val}>{label}</option>
+                ))}
+              </select>
+
+              {/* Période */}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}
+                role="group" aria-label="Filtrer par période">
+                <span style={{ fontSize: 12.5, color: 'var(--text-3)', whiteSpace: 'nowrap' }} aria-hidden="true">Période :</span>
+                <label htmlFor="inv-date-from" className="sr-only">Date de début</label>
+                <input id="inv-date-from" type="date" value={dateFrom}
+                  onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
+                  style={{ height: 44, padding: '0 10px', borderRadius: 'var(--radius-md)', border: `1.5px solid ${dateFrom ? 'var(--primary)' : 'var(--border)'}`, background: 'var(--bg)', fontSize: 13, color: 'var(--text-2)', fontFamily: 'var(--font-body)', outline: 'none', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: 12.5, color: 'var(--text-3)' }} aria-hidden="true">→</span>
+                <label htmlFor="inv-date-to" className="sr-only">Date de fin</label>
+                <input id="inv-date-to" type="date" value={dateTo}
+                  onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
+                  style={{ height: 44, padding: '0 10px', borderRadius: 'var(--radius-md)', border: `1.5px solid ${dateTo ? 'var(--primary)' : 'var(--border)'}`, background: 'var(--bg)', fontSize: 13, color: 'var(--text-2)', fontFamily: 'var(--font-body)', outline: 'none', cursor: 'pointer' }}
+                />
+              </div>
             </div>
           </div>
 
-          {/* Tabs statut */}
+          {/* Tabs statut avec compteurs */}
           <div role="tablist" aria-label="Filtrer par statut"
             style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
             {TABS.map(tab => {
               const active = activeTab === tab.key
+              const count = tab.key === 'all'
+                ? undefined
+                : tab.key === 'overdue'
+                  ? counts?.['overdue_tab']
+                  : tab.status
+                    ? counts?.[tab.status]
+                    : undefined
               return (
                 <button key={tab.key} type="button" role="tab" aria-selected={active}
                   onClick={() => { setActiveTab(tab.key); setPage(1) }}
-                  style={{ padding: '7px 16px', minHeight: 44, borderRadius: 20, fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', border: 'none', background: active ? 'var(--primary)' : 'transparent', color: active ? '#fff' : 'var(--text-3)', transition: 'all 0.15s' }}>
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', minHeight: 44, borderRadius: 20, fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', border: 'none', background: active ? 'var(--primary)' : 'transparent', color: active ? '#fff' : 'var(--text-3)', transition: 'all 0.15s' }}>
                   {tab.label}
+                  {count !== undefined && count > 0 && (
+                    <span style={{ fontSize: 11, fontWeight: 700, lineHeight: 1, padding: '2px 6px', borderRadius: 99, background: active ? 'rgba(255,255,255,0.25)' : 'rgba(45,125,210,0.12)', color: active ? '#fff' : 'var(--primary)', fontFamily: 'var(--font-mono)' }}>
+                      {count}
+                    </span>
+                  )}
                 </button>
               )
             })}

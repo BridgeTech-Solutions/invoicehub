@@ -36,6 +36,9 @@ export const proformasApi = {
   duplicate: (id: string) =>
     apiClient.post<Proforma>(`/proformas/${id}/duplicate`).then(r => r.data),
 
+  counts: () =>
+    apiClient.get<Record<string, number>>('/proformas/counts').then(r => r.data),
+
   exportCsv: async (params?: ListProformasParams) => {
     const res = await apiClient.get('/proformas', { params: { ...params, export: 'csv', page: 1, limit: 10_000 }, responseType: 'blob' })
     const url = URL.createObjectURL(new Blob([res.data]))

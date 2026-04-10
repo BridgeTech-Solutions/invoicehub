@@ -5,12 +5,13 @@ import Link from 'next/link'
 import {
   Plus, Search, FileText, Clock, Copy, Trash2,
   FileDown, Send, Eye, Download, X, ChevronLeft, ChevronRight, Loader2,
+  SlidersHorizontal, ChevronDown,
 } from 'lucide-react'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
 import { DocListItem, SkeletonDocItem } from '@/components/ui/DocListItem'
 import { useRouter } from 'next/navigation'
 import {
-  useProformas, useSendProforma, useDuplicateProforma,
+  useProformas, useProformaCounts, useSendProforma, useDuplicateProforma,
   useDeleteProforma, useDownloadProformaPdf,
 } from '@/features/proformas/hooks'
 import { proformasApi } from '@/features/proformas/api'
@@ -146,16 +147,26 @@ const TABS: { key: StatusTab; label: string }[] = [
 // ─── Page ───────────────────────────────────────────────────────
 
 export default function ProformasPage() {
-  const [tab,       setTab]       = useState<StatusTab>('all')
-  const [search,    setSearch]    = useState('')
-  const [dateFrom,  setDateFrom]  = useState('')
-  const [dateTo,    setDateTo]    = useState('')
-  const [page,      setPage]      = useState(1)
-  const [exporting, setExporting] = useState(false)
+  const [tab,          setTab]          = useState<StatusTab>('all')
+  const [search,       setSearch]       = useState('')
+  const [dateFrom,     setDateFrom]     = useState('')
+  const [dateTo,       setDateTo]       = useState('')
+  const [page,         setPage]         = useState(1)
+  const [exporting,    setExporting]    = useState(false)
+  const [filtersOpen,  setFiltersOpen]  = useState(false)
   const { can } = usePermission()
 
   const searchId  = useId()
   const dateGrpId = useId()
+
+  const { data: counts } = useProformaCounts()
+  const hasActiveFilters = !!(dateFrom || dateTo)
+
+  function resetFilters() {
+    setDateFrom('')
+    setDateTo('')
+    setPage(1)
+  }
 
   async function handleExport() {
     setExporting(true)
@@ -221,9 +232,10 @@ export default function ProformasPage() {
 
         {/* ── Toolbar ── */}
         <div style={{ padding: '12px 16px' }}>
-          {/* Recherche + dates */}
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 180, maxWidth: 320 }}>
+
+          {/* Ligne principale : recherche + toggle filtres */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 180 }}>
               <label htmlFor={searchId} className="sr-only">Rechercher par numéro, client ou objet</label>
               <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} aria-hidden="true" />
               <input
@@ -238,38 +250,74 @@ export default function ProformasPage() {
               />
             </div>
 
-            <div role="group" aria-labelledby={dateGrpId} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span id={dateGrpId} className="sr-only">Période</span>
-              <span style={{ fontSize: 12.5, color: 'var(--text-3)', whiteSpace: 'nowrap' }} aria-hidden="true">Du</span>
+            {/* Toggle filtres avancés */}
+            <button type="button"
+              aria-expanded={filtersOpen}
+              aria-controls="pfm-advanced-filters"
+              onClick={() => setFiltersOpen(o => !o)}
+              style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6, height: 44, padding: '0 14px', borderRadius: 'var(--radius-md)', border: `1.5px solid ${hasActiveFilters ? 'var(--primary)' : 'var(--border)'}`, background: hasActiveFilters ? 'rgba(45,125,210,0.06)' : 'transparent', color: hasActiveFilters ? 'var(--primary)' : 'var(--text-2)', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0 }}>
+              <SlidersHorizontal size={14} aria-hidden="true" />
+              Filtres
+              {hasActiveFilters && (
+                <span aria-label="Filtres actifs" style={{ position: 'absolute', top: 8, right: 8, width: 7, height: 7, borderRadius: '50%', background: 'var(--primary)' }} />
+              )}
+              <ChevronDown size={13} aria-hidden="true" style={{ transition: 'transform 0.2s', transform: filtersOpen ? 'rotate(180deg)' : 'none', marginLeft: 2 }} />
+            </button>
+
+            {/* Reset filtres */}
+            {hasActiveFilters && (
+              <button type="button" onClick={resetFilters}
+                aria-label="Réinitialiser les filtres"
+                style={{ display: 'flex', alignItems: 'center', gap: 5, height: 44, padding: '0 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-3)', fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                <X size={12} aria-hidden="true" />
+                Réinitialiser
+              </button>
+            )}
+          </div>
+
+          {/* Filtres avancés — collapsibles */}
+          <div
+            id="pfm-advanced-filters"
+            style={{
+              overflow: 'hidden',
+              maxHeight: filtersOpen ? 120 : 0,
+              opacity: filtersOpen ? 1 : 0,
+              transition: 'max-height 0.25s ease, opacity 0.2s ease',
+            }}
+          >
+            <div role="group" aria-labelledby={dateGrpId} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', paddingTop: 10, marginTop: 10, borderTop: '1px solid var(--border)' }}>
+              <span id={dateGrpId} style={{ fontSize: 12.5, color: 'var(--text-3)', whiteSpace: 'nowrap' }} aria-hidden="true">Période :</span>
               <input type="date" value={dateFrom} aria-label="Date de début"
                 onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
-                style={{ height: 44, padding: '0 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13, color: 'var(--text-2)', fontFamily: 'var(--font-body)', outline: 'none', cursor: 'pointer' }}
+                style={{ height: 44, padding: '0 10px', borderRadius: 'var(--radius-md)', border: `1.5px solid ${dateFrom ? 'var(--primary)' : 'var(--border)'}`, background: 'var(--bg)', fontSize: 13, color: 'var(--text-2)', fontFamily: 'var(--font-body)', outline: 'none', cursor: 'pointer' }}
               />
-              <span style={{ fontSize: 12.5, color: 'var(--text-3)' }} aria-hidden="true">au</span>
+              <span style={{ fontSize: 12.5, color: 'var(--text-3)' }} aria-hidden="true">→</span>
               <input type="date" value={dateTo} aria-label="Date de fin"
                 onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
-                style={{ height: 44, padding: '0 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13, color: 'var(--text-2)', fontFamily: 'var(--font-body)', outline: 'none', cursor: 'pointer' }}
+                style={{ height: 44, padding: '0 10px', borderRadius: 'var(--radius-md)', border: `1.5px solid ${dateTo ? 'var(--primary)' : 'var(--border)'}`, background: 'var(--bg)', fontSize: 13, color: 'var(--text-2)', fontFamily: 'var(--font-body)', outline: 'none', cursor: 'pointer' }}
               />
-              {(dateFrom || dateTo) && (
-                <button type="button" aria-label="Effacer la période"
-                  onClick={() => { setDateFrom(''); setDateTo(''); setPage(1) }}
-                  style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <X size={13} aria-hidden="true" />
-                </button>
-              )}
             </div>
           </div>
 
-          {/* Onglets statut */}
+          {/* Onglets statut avec compteurs */}
           <div role="tablist" aria-label="Filtrer par statut"
             style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-            {TABS.map(t => (
-              <button key={t.key} type="button" role="tab" aria-selected={tab === t.key}
-                onClick={() => { setTab(t.key); setPage(1) }}
-                style={{ padding: '7px 16px', minHeight: 44, borderRadius: 20, fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', border: 'none', background: tab === t.key ? 'var(--primary)' : 'transparent', color: tab === t.key ? '#fff' : 'var(--text-3)', transition: 'all 0.15s' }}>
-                {t.label}
-              </button>
-            ))}
+            {TABS.map(t => {
+              const active = tab === t.key
+              const count = t.key === 'all' ? undefined : counts?.[t.key]
+              return (
+                <button key={t.key} type="button" role="tab" aria-selected={active}
+                  onClick={() => { setTab(t.key); setPage(1) }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', minHeight: 44, borderRadius: 20, fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', border: 'none', background: active ? 'var(--primary)' : 'transparent', color: active ? '#fff' : 'var(--text-3)', transition: 'all 0.15s' }}>
+                  {t.label}
+                  {count !== undefined && count > 0 && (
+                    <span style={{ fontSize: 11, fontWeight: 700, lineHeight: 1, padding: '2px 6px', borderRadius: 99, background: active ? 'rgba(255,255,255,0.25)' : 'rgba(45,125,210,0.12)', color: active ? '#fff' : 'var(--primary)', fontFamily: 'var(--font-mono)' }}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </div>
         </div>
 

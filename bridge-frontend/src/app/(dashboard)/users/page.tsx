@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useRef, useEffect, useId } from 'react'
+import { useRouter } from 'next/navigation'
 import { Search, UserPlus, Loader2, Shield, Pencil, Trash2, KeyRound, X, AlertTriangle } from 'lucide-react'
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '@/features/users/hooks'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, getInitials } from '@/lib/utils'
 import type { User, CreateUserPayload, UpdateUserPayload, UserStatus } from '@/features/users/types'
+import { ROUTES } from '@/lib/constants'
 import type { Role } from '@/lib/constants'
 import type { AxiosError } from 'axios'
 
@@ -455,6 +457,7 @@ const TABLE_HEADERS: { label: string; srOnly?: boolean }[] = [
 // ─── Page ─────────────────────────────────────────────────────
 export default function UsersPage() {
   const { user: me } = useAuthStore()
+  const router  = useRouter()
   const isAdmin = me?.role === 'admin'
   const [search,       setSearch]       = useState('')
   const [roleFilter,   setRoleFilter]   = useState<Role | ''>('')
@@ -576,7 +579,12 @@ export default function UsersPage() {
                   : users.map((u) => (
                     <tr
                       key={u.id}
-                      style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.1s' }}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Voir le profil de ${u.firstName} ${u.lastName}`}
+                      onClick={() => router.push(`${ROUTES.USERS}/${u.id}`)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(`${ROUTES.USERS}/${u.id}`) } }}
+                      style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.1s', cursor: 'pointer' }}
                       onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface)')}
                       onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                     >

@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
@@ -205,6 +206,21 @@ export class UsersService {
     logger.info(`Utilisateur archivé : ${user.email}`);
   }
 
+  async resetPassword(id: string, newPassword: string): Promise<void> {
+    const user = await this.findById(id);
+    const passwordHash = await hashPassword(newPassword);
+    await prisma.user.update({
+      where: { id },
+      data: { passwordHash, mustChangePassword: true },
+    });
+    // Révoquer tous les tokens pour forcer une reconnexion
+    await prisma.refreshToken.updateMany({
+      where: { userId: id, revokedAt: null },
+      data: { revokedAt: new Date(), revokeReason: 'password_reset_by_admin' },
+    });
+    logger.info(`Mot de passe réinitialisé par admin pour : ${user.email}`);
+  }
+
   async reactivate(id: string): Promise<void> {
     const user = await prisma.user.findFirst({
       where: { id, deletedAt: { not: null } },
@@ -218,6 +234,30 @@ export class UsersService {
     });
 
     logger.info(`Utilisateur réactivé : ${user.email}`);
+  }
+
+  async uploadAvatar(userId: string, filePath: string): Promise<void> {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { avatarPath: true } });
+    if (user?.avatarPath && fs.existsSync(user.avatarPath)) {
+      fs.unlinkSync(user.avatarPath);
+    }
+    await prisma.user.update({ where: { id: userId }, data: { avatarPath: filePath } });
+  }
+
+  async deleteAvatar(userId: string): Promise<void> {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { avatarPath: true } });
+    if (user?.avatarPath && fs.existsSync(user.avatarPath)) {
+      fs.unlinkSync(user.avatarPath);
+    }
+    await prisma.user.update({ where: { id: userId }, data: { avatarPath: null } });
+  }
+
+  async getActivity(id: string) {
+    return prisma.auditLog.findMany({
+      where:   { userId: id },
+      orderBy: { createdAt: 'desc' },
+      take:    30,
+    });
   }
 }
 

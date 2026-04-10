@@ -26,6 +26,7 @@ import { emailQueue, notificationQueue } from '../../jobs/queues';
 import { broadcastNotification } from '../../lib/broadcast';
 import { DashboardService } from '../dashboard/dashboard.service';
 import { computeLine, computeTotals } from '../../lib/document-math';
+import { paymentsService } from '../payments/payments.service';
 import type { CreateInvoiceInput, UpdateInvoiceInput, ListInvoicesInput, LineInput, CreateAvoirInput } from './invoices.schema';
 
 // ---------------------------------------------------------------------------
@@ -80,6 +81,32 @@ export class InvoicesService {
     ]);
 
     return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  /**
+   * Compteurs par statut pour les onglets de la liste.
+   * Inclut `overdue_tab` : émises/partiellement payées avec échéance dépassée.
+   */
+  async counts() {
+    const now = new Date();
+    const [byStatus, overdueTab] = await Promise.all([
+      prisma.invoice.groupBy({
+        by: ['status'],
+        where: { deletedAt: null },
+        _count: { _all: true },
+      }),
+      prisma.invoice.count({
+        where: {
+          deletedAt: null,
+          status: { in: ['issued', 'partially_paid'] },
+          dueDate: { lt: now },
+        },
+      }),
+    ]);
+    const data: Record<string, number> = {};
+    for (const r of byStatus) data[r.status] = r._count._all;
+    data['overdue_tab'] = overdueTab;
+    return data;
   }
 
   /**
@@ -1082,6 +1109,35 @@ export class InvoicesService {
       throw AppError.badRequest('Seules les factures en brouillon peuvent être supprimées');
     }
     await prisma.invoice.update({ where: { id }, data: { deletedAt: new Date() } });
+  }
+
+  async getHistory(id: string) {
+    return prisma.auditLog.findMany({
+      where: {
+        entityId:   id,
+        entityType: { in: ['invoice', 'payment'] },
+      },
+      include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+  }
+
+  async quickConfirmPayment(invoiceId: string, userId: string) {
+    const inv = await prisma.invoice.findFirst({
+      where:  { id: invoiceId, deletedAt: null },
+      select: { balanceDue: true, number: true },
+    });
+    if (!inv) throw AppError.notFound('Facture introuvable');
+    const balanceDue = Number(inv.balanceDue);
+    if (balanceDue <= 0) throw AppError.badRequest('Solde déjà nul');
+
+    return paymentsService.create(invoiceId, {
+      amount:      balanceDue,
+      method:      'virement',
+      reference:   `Confirmé via notification — ${inv.number}`,
+      paymentDate: new Date(),
+    }, userId);
   }
 }
 

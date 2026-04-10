@@ -30,10 +30,12 @@ export const updateRecurringSchema = createRecurringSchema.partial().omit({ line
 });
 
 export const listRecurringSchema = z.object({
-  page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().positive().max(100).default(20),
+  page:     z.coerce.number().int().positive().default(1),
+  limit:    z.coerce.number().int().positive().max(100).default(20),
   clientId: z.string().uuid().optional(),
   isActive: z.coerce.boolean().optional(),
+  search:   z.string().trim().optional(),
+  interval: z.enum(['monthly', 'quarterly', 'biannual', 'annual']).optional(),
 });
 
 export type CreateRecurringInput = z.infer<typeof createRecurringSchema>;

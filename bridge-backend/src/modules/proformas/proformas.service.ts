@@ -46,6 +46,17 @@ export class ProformasService {
     return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
+  async counts() {
+    const byStatus = await prisma.proforma.groupBy({
+      by: ['status'],
+      where: { deletedAt: null },
+      _count: { _all: true },
+    });
+    const data: Record<string, number> = {};
+    for (const r of byStatus) data[r.status] = r._count._all;
+    return data;
+  }
+
   async findById(id: string) {
     const proforma = await prisma.proforma.findFirst({
       where: { id, deletedAt: null },

@@ -42,6 +42,8 @@ export interface ListRecurringParams {
   limit?: number
   clientId?: string
   isActive?: boolean
+  search?: string
+  interval?: RecurringInterval
 }
 
 export interface CreateRecurringPayload {

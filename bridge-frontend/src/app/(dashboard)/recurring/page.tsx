@@ -3,7 +3,7 @@
 import { useState, useId, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, RefreshCw, Play, Pause, Trash2, Eye, Zap, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
+import { Plus, RefreshCw, Play, Pause, Trash2, Eye, Zap, ChevronLeft, ChevronRight, AlertTriangle, Search, SlidersHorizontal, ChevronDown, X } from 'lucide-react'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
 import { useRecurringList, useActivateRecurring, useDeactivateRecurring, useDeleteRecurring, useGenerateRecurring } from '@/features/recurring/hooks'
 import { ActionMenu } from '@/components/ui/ActionMenu'
@@ -11,7 +11,7 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
 import { formatDate, formatXAF, getInitials } from '@/lib/utils'
 import { ROUTES } from '@/lib/constants'
-import type { RecurringTemplate, RecurringInterval } from '@/features/recurring/types'
+import type { RecurringTemplate, RecurringInterval, ListRecurringParams } from '@/features/recurring/types'
 
 const PAGE_SIZE = 20
 
@@ -197,22 +197,36 @@ function Pagination({ page, totalPages, onChange }: {
 // ─── Page ──────────────────────────────────────────────────────
 
 export default function RecurringPage() {
-  const [activeFilter,    setActiveFilter]    = useState<boolean | undefined>(undefined)
-  const [page,            setPage]            = useState(1)
-  const [deleteTarget,    setDeleteTarget]    = useState<RecurringTemplate | null>(null)
+  const [activeFilter,   setActiveFilter]   = useState<boolean | undefined>(undefined)
+  const [search,         setSearch]         = useState('')
+  const [interval,       setInterval]       = useState<RecurringInterval | ''>('')
+  const [filtersOpen,    setFiltersOpen]    = useState(false)
+  const [page,           setPage]           = useState(1)
+  const [deleteTarget,   setDeleteTarget]   = useState<RecurringTemplate | null>(null)
   const { can } = usePermission()
   const deleteM = useDeleteRecurring()
+
+  const hasActiveFilters = !!(interval)
 
   const handleFilterChange = (value: boolean | undefined) => {
     setActiveFilter(value)
     setPage(1)
   }
 
-  const { data, isLoading } = useRecurringList({
+  function resetFilters() {
+    setInterval('')
+    setPage(1)
+  }
+
+  const params: ListRecurringParams = {
     limit: PAGE_SIZE,
     page,
     ...(activeFilter !== undefined && { isActive: activeFilter }),
-  })
+    ...(search   && { search }),
+    ...(interval && { interval }),
+  }
+
+  const { data, isLoading } = useRecurringList(params)
 
   const templates = data?.data ?? []
 
@@ -255,27 +269,73 @@ export default function RecurringPage() {
 
       <div className="card" style={{ overflow: 'hidden', padding: 0 }}>
         {/* Toolbar */}
-        <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 8, alignItems: 'center' }}>
-          <div role="tablist" aria-label="Filtrer par statut">
-            {FILTERS.map(({ label, value }) => (
-              <button
-                key={label}
-                type="button"
-                role="tab"
-                aria-selected={activeFilter === value}
-                onClick={() => handleFilterChange(value)}
-                style={{
-                  padding: '0 13px', minHeight: 44, borderRadius: 'var(--radius-md)',
-                  border: activeFilter === value ? '1.5px solid var(--primary)' : '1.5px solid transparent',
-                  background: activeFilter === value ? 'rgba(45,125,210,0.08)' : 'transparent',
-                  color: activeFilter === value ? 'var(--primary)' : 'var(--text-3)',
-                  fontSize: 12.5, fontWeight: activeFilter === value ? 600 : 400,
-                  fontFamily: 'var(--font-display)', cursor: 'pointer', transition: 'all 0.15s',
-                }}
-              >
-                {label}
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+
+          {/* Ligne principale : recherche + onglets actif/inactif + toggle filtres */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Recherche */}
+            <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 160 }}>
+              <Search size={14} aria-hidden="true" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} />
+              <label htmlFor="rec-search" className="sr-only">Rechercher un gabarit</label>
+              <input id="rec-search" type="search" value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+                placeholder="Client, objet…"
+                style={{ width: '100%', paddingLeft: 32, paddingRight: 10, height: 44, borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13.5, color: 'var(--text-1)', fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            {/* Onglets Actif/Inactif */}
+            <div role="tablist" aria-label="Filtrer par statut" style={{ display: 'flex', gap: 4 }}>
+              {FILTERS.map(({ label, value }) => (
+                <button key={label} type="button" role="tab" aria-selected={activeFilter === value}
+                  onClick={() => handleFilterChange(value)}
+                  style={{ padding: '0 13px', minHeight: 44, borderRadius: 'var(--radius-md)', border: activeFilter === value ? '1.5px solid var(--primary)' : '1.5px solid transparent', background: activeFilter === value ? 'rgba(45,125,210,0.08)' : 'transparent', color: activeFilter === value ? 'var(--primary)' : 'var(--text-3)', fontSize: 12.5, fontWeight: activeFilter === value ? 600 : 400, fontFamily: 'var(--font-display)', cursor: 'pointer', transition: 'all 0.15s' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Toggle filtres avancés */}
+            <button type="button"
+              aria-expanded={filtersOpen}
+              aria-controls="rec-advanced-filters"
+              onClick={() => setFiltersOpen(o => !o)}
+              style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6, height: 44, padding: '0 14px', borderRadius: 'var(--radius-md)', border: `1.5px solid ${hasActiveFilters ? 'var(--primary)' : 'var(--border)'}`, background: hasActiveFilters ? 'rgba(45,125,210,0.06)' : 'transparent', color: hasActiveFilters ? 'var(--primary)' : 'var(--text-2)', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0 }}>
+              <SlidersHorizontal size={14} aria-hidden="true" />
+              Filtres
+              {hasActiveFilters && (
+                <span aria-label="Filtres actifs" style={{ position: 'absolute', top: 8, right: 8, width: 7, height: 7, borderRadius: '50%', background: 'var(--primary)' }} />
+              )}
+              <ChevronDown size={13} aria-hidden="true" style={{ transition: 'transform 0.2s', transform: filtersOpen ? 'rotate(180deg)' : 'none', marginLeft: 2 }} />
+            </button>
+
+            {/* Reset */}
+            {hasActiveFilters && (
+              <button type="button" onClick={resetFilters} aria-label="Réinitialiser les filtres"
+                style={{ display: 'flex', alignItems: 'center', gap: 5, height: 44, padding: '0 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-3)', fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                <X size={12} aria-hidden="true" />
+                Réinitialiser
               </button>
-            ))}
+            )}
+          </div>
+
+          {/* Filtres avancés — collapsibles */}
+          <div
+            id="rec-advanced-filters"
+            style={{ overflow: 'hidden', maxHeight: filtersOpen ? 100 : 0, opacity: filtersOpen ? 1 : 0, transition: 'max-height 0.25s ease, opacity 0.2s ease' }}
+          >
+            <div style={{ paddingTop: 10, marginTop: 10, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12.5, color: 'var(--text-3)', whiteSpace: 'nowrap' }} aria-hidden="true">Fréquence :</span>
+              <label htmlFor="rec-interval" className="sr-only">Filtrer par fréquence</label>
+              <select id="rec-interval" value={interval}
+                onChange={(e) => { setInterval(e.target.value as RecurringInterval | ''); setPage(1) }}
+                style={{ height: 44, padding: '0 12px', borderRadius: 'var(--radius-md)', border: `1.5px solid ${interval ? 'var(--primary)' : 'var(--border)'}`, background: 'var(--bg)', fontSize: 13.5, color: interval ? 'var(--primary)' : 'var(--text-2)', fontFamily: 'var(--font-body)', outline: 'none', cursor: 'pointer', fontWeight: interval ? 600 : 400 }}>
+                <option value="">Toutes les fréquences</option>
+                {Object.entries(INTERVAL_LABELS).map(([val, label]) => (
+                  <option key={val} value={val}>{label}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 

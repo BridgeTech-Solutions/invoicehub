@@ -1,4 +1,4 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -6,8 +6,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { usersController } from './users.controller';
 import { authenticate } from '../../core/middleware/auth';
 import { authorize } from '../../core/middleware/rbac';
-import { prisma } from '../../config/database';
-import { AppError } from '../../core/errors/AppError';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -31,53 +29,19 @@ const avatarUpload = multer({
 
 router.use(authenticate);
 
-router.get('/me', usersController.me.bind(usersController));
-router.put('/me', usersController.updateMe.bind(usersController));
+router.get('/me',          usersController.me.bind(usersController));
+router.put('/me',          usersController.updateMe.bind(usersController));
 router.put('/me/password', usersController.changePassword.bind(usersController));
+router.put('/me/avatar',   avatarUpload.single('file'), usersController.uploadAvatar.bind(usersController));
+router.delete('/me/avatar', usersController.deleteAvatar.bind(usersController));
 
-/** PUT /api/users/me/avatar — Upload ou remplacement de l'avatar */
-router.put('/me/avatar', avatarUpload.single('file'), async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    if (!req.file) throw AppError.badRequest('Aucun fichier reçu');
-
-    const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { avatarPath: true } });
-
-    // Supprimer l'ancien avatar si présent
-    if (user?.avatarPath && fs.existsSync(user.avatarPath)) {
-      fs.unlinkSync(user.avatarPath);
-    }
-
-    await prisma.user.update({
-      where: { id: req.user!.id },
-      data: { avatarPath: req.file.path },
-    });
-
-    res.json({ success: true });
-  } catch (err) {
-    if (req.file) fs.unlink(req.file.path, () => {});
-    next(err);
-  }
-});
-
-/** DELETE /api/users/me/avatar — Suppression de l'avatar */
-router.delete('/me/avatar', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { avatarPath: true } });
-
-    if (user?.avatarPath && fs.existsSync(user.avatarPath)) {
-      fs.unlinkSync(user.avatarPath);
-    }
-
-    await prisma.user.update({ where: { id: req.user!.id }, data: { avatarPath: null } });
-    res.json({ success: true, message: 'Avatar supprimé' });
-  } catch (err) { next(err); }
-});
-
-router.get('/', authorize('admin'), usersController.list.bind(usersController));
-router.post('/', authorize('admin'), usersController.create.bind(usersController));
-router.get('/:id', authorize('admin'), usersController.findById.bind(usersController));
-router.put('/:id', authorize('admin'), usersController.update.bind(usersController));
-router.delete('/:id', authorize('admin'), usersController.delete.bind(usersController));
-router.post('/:id/reactivate', authorize('admin'), usersController.reactivate.bind(usersController));
+router.get('/',                    authorize('admin'), usersController.list.bind(usersController));
+router.post('/',                   authorize('admin'), usersController.create.bind(usersController));
+router.get('/:id',                 authorize('admin'), usersController.findById.bind(usersController));
+router.put('/:id',                 authorize('admin'), usersController.update.bind(usersController));
+router.delete('/:id',              authorize('admin'), usersController.delete.bind(usersController));
+router.post('/:id/reactivate',     authorize('admin'), usersController.reactivate.bind(usersController));
+router.post('/:id/reset-password', authorize('admin'), usersController.resetPassword.bind(usersController));
+router.get('/:id/activity',        authorize('admin'), usersController.activity.bind(usersController));
 
 export { router as usersRouter };

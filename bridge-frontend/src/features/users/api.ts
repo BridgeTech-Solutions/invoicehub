@@ -4,6 +4,14 @@ import type {
   CreateUserPayload, UpdateUserPayload, UpdateMePayload, ChangePasswordPayload,
 } from './types'
 
+export interface AuditLogEntry {
+  id:         string
+  action:     string
+  entityType: string | null
+  entityId:   string | null
+  createdAt:  string
+}
+
 export const usersApi = {
   // ─── Admin CRUD ──────────────────────────────────────────────
 
@@ -34,6 +42,22 @@ export const usersApi = {
   /** DELETE /users/:id — soft-delete (admin) */
   async delete(id: string): Promise<void> {
     await apiClient.delete(`/users/${id}`)
+  },
+
+  /** POST /users/:id/reactivate — réactiver un compte suspendu/archivé (admin) */
+  async reactivate(id: string): Promise<void> {
+    await apiClient.post(`/users/${id}/reactivate`)
+  },
+
+  /** POST /users/:id/reset-password — réinitialiser le mot de passe (admin) */
+  async resetPassword(id: string, newPassword: string): Promise<void> {
+    await apiClient.post(`/users/${id}/reset-password`, { newPassword })
+  },
+
+  /** GET /users/:id/activity — 30 derniers audit logs de cet utilisateur (admin) */
+  async getActivity(id: string): Promise<AuditLogEntry[]> {
+    const { data } = await apiClient.get<{ success: boolean; data: AuditLogEntry[] }>(`/users/${id}/activity`)
+    return data.data
   },
 
   // ─── Me ──────────────────────────────────────────────────────

@@ -36,6 +36,15 @@ export class ProformasController {
     }
   }
 
+  async counts(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await proformasService.counts();
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async findById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await proformasService.findById(req.params['id'] as string);

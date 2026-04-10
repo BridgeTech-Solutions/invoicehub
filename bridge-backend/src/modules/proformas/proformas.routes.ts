@@ -10,6 +10,9 @@ router.use(authenticate);
 
 router.get('/', proformasController.list.bind(proformasController));
 router.post('/', auditMiddleware('proforma', 'CREATE'), proformasController.create.bind(proformasController));
+// GET /proformas/counts — compteurs par statut pour les onglets
+router.get('/counts', proformasController.counts.bind(proformasController));
+
 router.get('/:id', proformasController.findById.bind(proformasController));
 router.put('/:id', auditMiddleware('proforma', 'UPDATE'), proformasController.update.bind(proformasController));
 router.delete('/:id', auditMiddleware('proforma', 'SOFT_DELETE'), proformasController.delete.bind(proformasController));

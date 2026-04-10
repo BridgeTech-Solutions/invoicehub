@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { Request, Response, NextFunction } from 'express';
 import { usersService } from './users.service';
 import {
@@ -86,10 +87,56 @@ export class UsersController {
     }
   }
 
+  async resetPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { newPassword } = req.body as { newPassword?: string };
+      if (!newPassword || newPassword.length < 8) {
+        res.status(400).json({ success: false, error: 'Mot de passe trop court (min. 8 caractères)' });
+        return;
+      }
+      await usersService.resetPassword(req.params['id'] as string, newPassword);
+      res.json({ success: true, message: 'Mot de passe réinitialisé — l\'utilisateur devra le changer à sa prochaine connexion' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async reactivate(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       await usersService.reactivate(req.params['id'] as string);
       res.json({ success: true, message: 'Utilisateur réactivé' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async uploadAvatar(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.file) {
+        res.status(400).json({ success: false, error: 'Aucun fichier reçu' });
+        return;
+      }
+      await usersService.uploadAvatar(req.user!.id, req.file.path);
+      res.json({ success: true });
+    } catch (err) {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      next(err);
+    }
+  }
+
+  async deleteAvatar(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      await usersService.deleteAvatar(req.user!.id);
+      res.json({ success: true, message: 'Avatar supprimé' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async activity(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await usersService.getActivity(req.params['id'] as string);
+      res.json({ success: true, data });
     } catch (err) {
       next(err);
     }

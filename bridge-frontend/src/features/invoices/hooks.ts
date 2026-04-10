@@ -14,6 +14,7 @@ export const INVOICE_KEYS = {
   all:    ['invoices'] as const,
   list:   (p?: ListInvoicesParams) => ['invoices', 'list', p] as const,
   detail: (id: string)             => ['invoices', 'detail', id] as const,
+  counts: ['invoices', 'counts']   as const,
 }
 
 export const PAYMENT_KEYS = {
@@ -22,6 +23,14 @@ export const PAYMENT_KEYS = {
 }
 
 // ─── Invoice queries ────────────────────────────────────────────
+
+export function useInvoiceCounts() {
+  return useQuery({
+    queryKey: INVOICE_KEYS.counts,
+    queryFn:  () => invoicesApi.counts(),
+    staleTime: 60_000,
+  })
+}
 
 export function useInvoices(params?: ListInvoicesParams) {
   return useQuery({

@@ -71,6 +71,10 @@ export const invoicesApi = {
     URL.revokeObjectURL(url)
   },
 
+  // ─── Counts par statut ──────────────────────────────────────
+  counts: () =>
+    apiClient.get<Record<string, number>>('/invoices/counts').then(r => r.data),
+
   // ─── Audit history ──────────────────────────────────────────
   getHistory: (id: string) =>
     apiClient.get<AuditLogEntry[]>(`/invoices/${id}/history`).then(r => r.data),

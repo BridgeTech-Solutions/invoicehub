@@ -42,6 +42,15 @@ export class InvoicesController {
     }
   }
 
+  async counts(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await invoicesService.counts();
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async findById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await invoicesService.findById(req.params['id'] as string);
@@ -145,6 +154,20 @@ export class InvoicesController {
     } catch (err) {
       next(err);
     }
+  }
+
+  async history(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await invoicesService.getHistory(req.params['id'] as string);
+      res.json({ success: true, data });
+    } catch (err) { next(err); }
+  }
+
+  async quickConfirmPayment(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await invoicesService.quickConfirmPayment(req.params['id'] as string, req.user!.id);
+      res.status(201).json({ success: true, data, message: 'Facture marquée comme payée' });
+    } catch (err) { next(err); }
   }
 }
 
