@@ -73,6 +73,8 @@ services:
       APP_URL: ${APP_URL:-https://invoicehub.bridgetech-solutions}
       BACKEND_URL: ${BACKEND_URL:-https://api.invoicehub.bridgetech-solutions}
       CORS_ORIGINS: ${CORS_ORIGINS:-https://invoicehub.bridgetech-solutions}
+      # Force Chromium Linux — écrase le chemin Windows du .env dev
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
     volumes:
       - invoicehub_uploads:/app/uploads
     networks:
