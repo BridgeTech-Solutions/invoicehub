@@ -29,10 +29,10 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     const url = process.env.NEXT_PUBLIC_SOCKET_URL ?? 'http://localhost:3000'
     const socket = io(url, {
       auth: { token },
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
     })
 
     socketRef.current = socket
