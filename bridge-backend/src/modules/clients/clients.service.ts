@@ -9,7 +9,8 @@ export class ClientsService {
     const skip = (page - 1) * limit;
 
     const where: Prisma.ClientWhereInput = {
-      deletedAt: null,
+      // Clients archivés ont deletedAt non-null — on adapte le filtre selon le statut demandé
+      deletedAt: status === 'archived' ? { not: null } : null,
       ...(type && { type }),
       ...(status && { status }),
       ...(city && { city: { contains: city, mode: 'insensitive' } }),
