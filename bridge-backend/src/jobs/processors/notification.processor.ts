@@ -48,8 +48,8 @@ export async function processNotificationJob(job: Job<NotificationJobData>): Pro
   // Si l'utilisateur a désactivé ce type de notification, ne pas envoyer d'email
   if (setting?.enabled === false) return;
 
-  // Par défaut : in_app uniquement. Si channel = 'email' ou 'both', envoyer un email.
-  const channel = setting?.channel ?? 'in_app';
+  // Par défaut : both (aligné sur getSettings() et l'UI). Si channel = 'email' ou 'both', envoyer un email.
+  const channel = setting?.channel ?? 'both';
 
   if (channel === 'email' || channel === 'both') {
     const user = await prisma.user.findUnique({
