@@ -5,7 +5,10 @@ import { Providers } from '@/providers/Providers'
 export const metadata: Metadata = {
   title: { default: 'InvoiceHub — BTS', template: '%s | InvoiceHub BTS' },
   description: 'Plateforme de facturation Bridge Technologies Solutions — SYSCOHADA',
-  icons: { icon: '/logos/favicon.ico' },
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
