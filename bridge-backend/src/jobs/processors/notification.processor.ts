@@ -22,17 +22,13 @@ import type { NotificationJobData } from '../queues';
 export async function processNotificationJob(job: Job<NotificationJobData>): Promise<void> {
   const { userId, type, title, message, data } = job.data;
 
-  // Extraire l'entityId depuis data (invoiceId, proformaId ou userId selon le type)
-  const entityId = (data?.invoiceId ?? data?.proformaId ?? data?.userId) as string | undefined;
-
-  // 1. Créer la notification in-app
+  // 1. Créer la notification in-app (entityId stocké dans data JSON)
   await NotificationsService.create(
     userId,
     type as NotificationStatus,
     title,
     message,
     data ?? {},
-    entityId,
   );
 
   // 2. Émettre en temps réel via Socket.io

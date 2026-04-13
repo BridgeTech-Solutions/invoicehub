@@ -250,7 +250,7 @@ export class InvoicesService {
       ? acompteAmount
       : Number((totals.totalTtc - totalAcomptesDeducted).toFixed(2));
 
-    return prisma.invoice.create({
+    const created = await prisma.invoice.create({
       data: {
         number,
         officeId,
@@ -307,6 +307,20 @@ export class InvoicesService {
       },
       include: { lines: true, client: true },
     });
+
+    // Notifier tous les utilisateurs (sauf le créateur) de la nouvelle facture
+    const typeLabel = created.type === 'acompte' ? 'acompte'
+      : created.type === 'solde' ? 'solde'
+      : created.type === 'avoir' ? "note d'avoir"
+      : 'facture';
+    await broadcastNotification({
+      type: 'system',
+      title: `Nouvelle ${typeLabel} : ${created.number}`,
+      message: `La ${typeLabel} ${created.number} a été créée pour ${created.client.name}.`,
+      data: { invoiceId: created.id, invoiceNumber: created.number },
+    }, { excludeUserId: createdById });
+
+    return created;
   }
 
   /**

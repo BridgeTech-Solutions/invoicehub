@@ -119,11 +119,12 @@ export class NotificationsService {
     title: string,
     message: string,
     data: Record<string, unknown> = {},
-    entityId?: string,
   ): Promise<void> {
     await prisma.notification.create({
-      data: { userId, type, title, message, data: data as object, ...(entityId ? { entityId } : {}) },
-    }).catch(() => {/* Non critique */});
+      data: { userId, type, title, message, data: data as object },
+    }).catch((err) => {
+      console.error('[NotificationsService.create] Erreur silencieuse :', err?.message);
+    });
   }
 }
 

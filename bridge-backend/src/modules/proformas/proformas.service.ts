@@ -132,6 +132,15 @@ export class ProformasService {
       include: { lines: true, client: true },
     });
     await DashboardService.invalidateCache();
+
+    // Notifier tous les utilisateurs (sauf le créateur) de la nouvelle proforma
+    await broadcastNotification({
+      type: 'system',
+      title: `Nouvelle proforma : ${created.number}`,
+      message: `La proforma ${created.number} a été créée pour ${created.client.name}.`,
+      data: { proformaId: created.id, proformaNumber: created.number },
+    }, { excludeUserId: createdById });
+
     return created;
   }
 
