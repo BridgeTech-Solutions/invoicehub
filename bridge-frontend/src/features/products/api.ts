@@ -8,6 +8,8 @@ import type {
   CreateProductPayload,
   UpdateProductPayload,
   CreateCategoryPayload,
+  ImportProductRow,
+  ImportProductResult,
 } from './types'
 
 // ─── Catégories ────────────────────────────────────────────────
@@ -72,5 +74,11 @@ export async function getLineDefaults(
   const { data } = await apiClient.get(`/products/${productId}/line-defaults`, {
     params: clientId ? { clientId } : undefined,
   })
+  return data
+}
+
+/** POST /products/import — crée en masse depuis un tableau de lignes parsées */
+export async function importProducts(rows: ImportProductRow[]): Promise<ImportProductResult> {
+  const { data } = await apiClient.post<ImportProductResult>('/products/import', { rows })
   return data
 }

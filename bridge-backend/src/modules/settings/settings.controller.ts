@@ -14,6 +14,10 @@ export class SettingsController {
 
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      // Capture de l'état avant modification — transmis au auditMiddleware via req
+      const before = await settingsService.get();
+      (req as unknown as Record<string, unknown>)['auditPreviousData'] = before;
+
       const input = updateSettingsSchema.parse(req.body);
       const data  = await settingsService.update(input);
       res.json({ success: true, data });

@@ -100,8 +100,8 @@ export function use2FAVerify() {
   const { user, setAuth, accessToken, refreshToken } = useAuthStore()
 
   return useMutation({
-    mutationFn: ({ token, secret }: { token: string; secret: string }) =>
-      authApi.twoFAVerify(token, secret),
+    mutationFn: ({ token }: { token: string }) =>
+      authApi.twoFAVerify(token),
     onSuccess: () => {
       // Met à jour twoFactorEnabled dans le store
       if (user && accessToken && refreshToken) {
@@ -112,6 +112,19 @@ export function use2FAVerify() {
         )
       }
       toast.success('Authentification à deux facteurs activée')
+    },
+    onError: (error: AxiosError<{ error?: string }>) => {
+      toast.error(error.response?.data?.error ?? 'Code invalide')
+    },
+  })
+}
+
+// ─── use2FARegenerateBackupCodes ──────────────────────────────
+export function use2FARegenerateBackupCodes() {
+  return useMutation({
+    mutationFn: (token: string) => authApi.twoFARegenerateBackupCodes(token),
+    onSuccess: () => {
+      toast.success('Codes de secours régénérés')
     },
     onError: (error: AxiosError<{ error?: string }>) => {
       toast.error(error.response?.data?.error ?? 'Code invalide')
@@ -144,8 +157,9 @@ export function use2FADisable() {
 // ─── useSessions ──────────────────────────────────────────────
 export function useSessions() {
   return useQuery({
-    queryKey: ['auth', 'sessions'],
-    queryFn:  authApi.listSessions,
+    queryKey:  ['auth', 'sessions'],
+    queryFn:   authApi.listSessions,
+    staleTime: 30_000,
   })
 }
 

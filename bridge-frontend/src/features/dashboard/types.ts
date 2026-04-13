@@ -76,3 +76,12 @@ export interface ChartDataPoint {
 }
 
 export type PeriodToggle = 'month' | 'quarter' | 'year'
+
+// ─── Cashflow forecast ─────────────────────────────────────────
+
+export interface CashflowDay {
+  date:         string   // "2026-04-15"
+  expected:     number   // montant prévu ce jour (XAF)
+  invoiceCount: number
+  cumulative:   number   // cumulatif depuis J+0
+}

@@ -86,3 +86,39 @@ export interface CreateClientPayload {
 }
 
 export type UpdateClientPayload = Partial<CreateClientPayload>
+
+// ── Import en masse ───────────────────────────────────────────────────────────
+
+export interface ImportClientRow {
+  type?:                'company' | 'individual'
+  name:                 string
+  email?:               string
+  phone?:               string
+  phone2?:              string
+  address?:             string
+  city?:                string
+  country?:             string
+  postalBox?:           string
+  taxNumber?:           string
+  rccm?:                string
+  bankName?:            string
+  bankAccount?:         string
+  currency?:            string
+  defaultPaymentTerms?: string
+  internalNotes?:       string
+}
+
+export interface ImportClientResult {
+  created:    number
+  duplicates: { index: number; name: string; reason: string }[]
+  errors:     { index: number; name: string; message: string }[]
+}
+
+/** Statut d'une ligne dans la preview avant import */
+export type ImportRowStatus = 'valid' | 'error' | 'duplicate'
+
+export interface ImportPreviewRow extends ImportClientRow {
+  _rowIndex: number
+  _status:   ImportRowStatus
+  _message?: string
+}

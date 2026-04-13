@@ -82,6 +82,7 @@ async function getInvoiceDetail(params: { invoiceNumber?: string; clientName?: s
       lines:  {
         select: {
           sortOrder:      true,
+          designation:    true,
           description:    true,
           quantity:       true,
           unit:           true,
@@ -117,7 +118,7 @@ async function getInvoiceDetail(params: { invoiceNumber?: string; clientName?: s
     issueDate:       invoice.issueDate,
     dueDate:         invoice.dueDate,
     notes:           invoice.notes,
-    paymentTerms:    (inv['paymentTermsDays'] as number | null),
+    paymentTerms:    invoice.paymentConditions,
     remiseGlobaleType:  invoice.globalDiscountType,
     remiseGlobaleValeur: fmt(invoice.globalDiscountValue),
     remiseGlobaleMontant: fmt(invoice.globalDiscountAmount),
@@ -128,6 +129,7 @@ async function getInvoiceDetail(params: { invoiceNumber?: string; clientName?: s
     balanceDue:      fmt(invoice.balanceDue),
     lignes: (inv['lines'] as Array<Record<string, unknown>>).map(l => ({
       position:     l['sortOrder'],
+      designation:  l['designation'],
       description:  l['description'],
       quantite:     fmt(l['quantity']),
       unite:        l['unit'],
@@ -190,7 +192,7 @@ async function getProformaDetail(params: { proformaNumber?: string; clientName?:
       client: { select: { name: true } },
       lines: {
         select: {
-          sortOrder: true, description: true, quantity: true, unit: true,
+          sortOrder: true, designation: true, description: true, quantity: true, unit: true,
           unitPriceHt: true, discountType: true, discountValue: true,
           discountAmount: true, taxRate: true, taxAmount: true,
           subtotalHt: true, netHt: true, totalTtc: true,
@@ -210,14 +212,14 @@ async function getProformaDetail(params: { proformaNumber?: string; clientName?:
     status:      proforma.status,
     issueDate:   proforma.issueDate,
     expiryDate:  pf['validUntil'],
-    validityDays: pf['validityDays'],
-    paymentTerms: pf['paymentTermsDays'],
+    paymentTerms: proforma.paymentConditions,
     remiseGlobaleMontant: fmt(proforma.globalDiscountAmount),
     totalHt:     fmt(proforma.totalHt),
     totalTax:    fmt(proforma.totalTax),
     totalTtc:    fmt(proforma.totalTtc),
     lignes: (pf['lines'] as Array<Record<string, unknown>>).map(l => ({
       position:     l['sortOrder'],
+      designation:  l['designation'],
       description:  l['description'],
       quantite:     fmt(l['quantity']),
       unite:        l['unit'],
@@ -399,11 +401,12 @@ async function getClientSummary(params: { clientName: string }) {
 }
 
 /** Catalogue des produits/services */
-async function getProductCatalog(params: { name?: string; limit?: number }) {
+async function getProductCatalog(params: { search?: string; name?: string; limit?: number }) {
+  const keyword = params.search ?? params.name;
   const products = await prisma.product.findMany({
     where: {
       deletedAt: null,
-      ...(params.name ? { name: { contains: params.name, mode: 'insensitive' } } : {}),
+      ...(keyword ? { name: { contains: keyword, mode: 'insensitive' } } : {}),
     },
     include: { category: { select: { name: true } } },
     orderBy: { name: 'asc' },

@@ -19,9 +19,9 @@ const ROLE_CFG: Record<Role, { label: string; color: string; bg: string }> = {
   employee:   { label: 'Employé',        color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
 }
 const STATUS_CFG: Record<UserStatus, { label: string; color: string; bg: string }> = {
-  active:    { label: 'Actif',      color: '#10b981', bg: 'rgba(16,185,129,0.1)'  },
-  suspended: { label: 'Suspendu',   color: '#ef4444', bg: 'rgba(239,68,68,0.1)'   },
-  pending:   { label: 'En attente', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)'  },
+  active:             { label: 'Actif',      color: '#10b981', bg: 'rgba(16,185,129,0.1)'  },
+  suspended:          { label: 'Suspendu',   color: '#ef4444', bg: 'rgba(239,68,68,0.1)'   },
+  pending_activation: { label: 'En attente', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)'  },
 }
 
 function RoleBadge({ role }: { role: Role }) {
@@ -222,14 +222,18 @@ function UserFormModal({ onClose, editUser }: { onClose: () => void; editUser?: 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!validate()) return
-    if (editUser) {
-      const p: UpdateUserPayload = { firstName: form.firstName, lastName: form.lastName, phone: form.phone || undefined, role: form.role }
-      await updateMut.mutateAsync(p)
-    } else {
-      const p: CreateUserPayload = { firstName: form.firstName, lastName: form.lastName, email: form.email, phone: form.phone || undefined, role: form.role, password: form.password }
-      await createMut.mutateAsync(p)
+    try {
+      if (editUser) {
+        const p: UpdateUserPayload = { firstName: form.firstName, lastName: form.lastName, phone: form.phone || undefined, role: form.role }
+        await updateMut.mutateAsync(p)
+      } else {
+        const p: CreateUserPayload = { firstName: form.firstName, lastName: form.lastName, email: form.email, phone: form.phone || undefined, role: form.role, password: form.password }
+        await createMut.mutateAsync(p)
+      }
+      onClose()
+    } catch {
+      // L'erreur est affichée via mutError — on ne ferme pas la modale
     }
-    onClose()
   }
 
   // H8: erreur mutation serveur
@@ -539,7 +543,7 @@ export default function UsersPage() {
             <option value="">Tous les statuts</option>
             <option value="active">Actifs</option>
             <option value="suspended">Suspendus</option>
-            <option value="pending">En attente</option>
+            <option value="pending_activation">En attente</option>
           </select>
         </div>
       </div>

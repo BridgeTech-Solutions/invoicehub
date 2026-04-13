@@ -16,6 +16,7 @@ import { processOverdueJob }      from './processors/overdue.processor';
 import { processRecurringJob }    from './processors/recurring.processor';
 import { processReminderJob }     from './processors/reminder.processor';
 import { processBackupJob }      from './processors/backup.processor';
+import { processCleanupJob }     from './processors/cleanup.processor';
 
 let workers: Worker[] = [];
 
@@ -50,7 +51,12 @@ export function startWorkers(): void {
     concurrency: 1, // Un seul backup à la fois pour éviter la surcharge
   });
 
-  workers = [emailWorker, notificationWorker, overdueWorker, recurringWorker, reminderWorker, backupWorker];
+  const cleanupWorker = new Worker('cleanup', processCleanupJob, {
+    connection: redisConnection as unknown as ConnectionOptions,
+    concurrency: 1,
+  });
+
+  workers = [emailWorker, notificationWorker, overdueWorker, recurringWorker, reminderWorker, backupWorker, cleanupWorker];
 
   for (const worker of workers) {
     worker.on('completed', (job) => {

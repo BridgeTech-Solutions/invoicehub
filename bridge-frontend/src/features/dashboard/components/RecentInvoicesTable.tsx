@@ -71,7 +71,7 @@ export function RecentInvoicesTable() {
           <FileText size={32} strokeWidth={1.5} style={{ color: 'var(--text-3)' }} aria-hidden="true" />
           <p style={{ fontSize: 13, color: 'var(--text-3)' }}>Aucune facture pour le moment</p>
           <Link
-            href="/invoices/new"
+            href={`${ROUTES.INVOICES}/new`}
             style={{ fontSize: 13, color: 'var(--primary)', fontWeight: 500, textDecoration: 'none' }}
           >
             Créer une facture →

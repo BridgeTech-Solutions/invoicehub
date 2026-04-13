@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { productsController } from './products.controller';
 import { authenticate } from '../../core/middleware/auth';
 import { authorize } from '../../core/middleware/rbac';
+import { auditMiddleware } from '../../core/middleware/audit';
 
 const categoriesRouter: ReturnType<typeof Router> = Router();
 const productsRouter: ReturnType<typeof Router> = Router();
@@ -19,6 +20,7 @@ categoriesRouter.delete('/:id', authorize('admin'), productsController.deleteCat
 // Products
 productsRouter.get('/', productsController.list.bind(productsController));
 // ⚠️ Routes statiques AVANT /:id pour éviter les conflits
+productsRouter.post('/import', authorize('admin', 'commercial'), auditMiddleware('product', 'CREATE'), productsController.importProducts.bind(productsController));
 productsRouter.get('/:id/line-defaults', productsController.lineDefaults.bind(productsController));
 productsRouter.get('/:id', productsController.findById.bind(productsController));
 productsRouter.post('/', authorize('admin', 'commercial'), productsController.create.bind(productsController));

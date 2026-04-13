@@ -66,8 +66,7 @@ function ProformaDetailView({ id }: { id: string }) {
   )
 
   const formLines = proforma.lines.map(lineToFormLine)
-  const isExpired = proforma.status !== 'accepted' && proforma.status !== 'rejected' &&
-    new Date(proforma.validUntil) < new Date()
+  const isExpired = proforma.status === 'sent' && new Date(proforma.validUntil) < new Date()
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>

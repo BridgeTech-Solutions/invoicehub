@@ -14,18 +14,30 @@ RUN pnpm build
 # ─── Production ───────────────────────────────────────────────
 FROM node:20-slim AS production
 
-# Chromium (PDF Puppeteer) + pg_dump (backups)
+# Chromium (PDF Puppeteer) + polices + pg_dump (backups)
 RUN apt-get update && \
     apt-get install -o Acquire::http::Timeout=300 \
                     -o Acquire::https::Timeout=300 \
                     -o APT::Acquire::Retries=3 \
-                    -y chromium \
-    fonts-liberation \
-    libatk-bridge2.0-0 \
-    libgtk-3-0 \
-    libnss3 \
-    postgresql-client \
-    --no-install-recommends \
+                    -y --no-install-recommends \
+      chromium \
+      fonts-liberation \
+      fonts-noto \
+      fonts-noto-cjk \
+      libatk-bridge2.0-0 \
+      libatk1.0-0 \
+      libcups2 \
+      libdbus-1-3 \
+      libdrm2 \
+      libgbm1 \
+      libgtk-3-0 \
+      libnss3 \
+      libx11-xcb1 \
+      libxcomposite1 \
+      libxdamage1 \
+      libxrandr2 \
+      libxss1 \
+      postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Puppeteer utilise Chromium système
@@ -60,7 +72,7 @@ RUN mkdir -p /app/uploads/avatars /app/uploads/assets /app/uploads/backups /app/
 
 USER nodeapp
 
-EXPOSE 3000
+EXPOSE 3005
 
 # Lance les migrations, le seed (idempotent), puis démarre le serveur
 CMD ["sh", "-c", "mkdir -p uploads/avatars uploads/assets uploads/backups uploads/attachments && pnpm prisma migrate resolve --applied 0_init 2>/dev/null || true && pnpm prisma migrate deploy && pnpm prisma db seed && node dist/server.js"]

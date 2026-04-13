@@ -23,7 +23,7 @@ services:
       start_period: 20s
     networks:
       - bridge-net
-    mem_limit: 512m
+    mem_limit: 384m
 
   redis:
     image: redis:7-alpine
@@ -40,7 +40,7 @@ services:
       start_period: 10s
     networks:
       - bridge-net
-    mem_limit: 256m
+    mem_limit: 128m
 
   api:
     build:
@@ -54,8 +54,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      ollama:
-        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3005/api/health', r => process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
     ports:
       - "3005:3005"
     env_file: .env
@@ -65,25 +69,30 @@ services:
       DATABASE_URL: postgresql://postgres:${DB_PASSWORD}@db:5432/invoicehub
       REDIS_URL: redis://redis:6379
       OLLAMA_URL: http://ollama:11434
-      # URL publique via Nginx
-      APP_URL: https://invoicehub.bridgetech-solutions
-      BACKEND_URL: https://api.invoicehub.bridgetech-solutions
-      CORS_ORIGINS: https://invoicehub.bridgetech-solutions
+      # Configurable via .env — défaut = URLs de production
+      APP_URL: ${APP_URL:-https://invoicehub.bridgetech-solutions}
+      BACKEND_URL: ${BACKEND_URL:-https://api.invoicehub.bridgetech-solutions}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://invoicehub.bridgetech-solutions}
     volumes:
       - invoicehub_uploads:/app/uploads
     networks:
       - bridge-net
-    mem_limit: 1g
+    # Chromium (PDF) consomme 200-400 MB — 1.5g évite les OOMKill
+    mem_limit: 1536m
+    # /dev/shm étendu pour Chromium headless (alternative à --disable-dev-shm-usage)
+    shm_size: 256m
 
   ollama:
     image: ollama/ollama:latest
     container_name: invoicehub-ollama
     restart: unless-stopped
+    profiles:
+      - ai
     volumes:
       - invoicehub_ollama:/root/.ollama
     networks:
       - bridge-net
-    mem_limit: 4g
+    mem_limit: 3g
 
   frontend:
     build:
@@ -91,14 +100,16 @@ services:
       dockerfile: docker/Dockerfile
       args:
         # URLs publiques (utilisées par le navigateur du client)
-        NEXT_PUBLIC_API_URL: https://api.invoicehub.bridgetech-solutions/api
-        NEXT_PUBLIC_SOCKET_URL: https://api.invoicehub.bridgetech-solutions
+        # Configurable via .env — défaut = URLs de production
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.invoicehub.bridgetech-solutions/api}
+        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL:-https://api.invoicehub.bridgetech-solutions}
         NEXT_PUBLIC_APP_NAME: InvoiceHub
     image: invoicehub-frontend:latest
     container_name: invoicehub-frontend
     restart: unless-stopped
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     ports:
       - "3001:3001"
     environment:
@@ -106,7 +117,7 @@ services:
       PORT: 3001
     networks:
       - bridge-net
-    mem_limit: 512m
+    mem_limit: 256m
 
 volumes:
   invoicehub_postgres:

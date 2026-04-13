@@ -522,7 +522,7 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
       </div>
 
       {/* ── Body: 2-column grid ──────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[300px_1fr]" style={{ alignItems: 'start' }}>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_1fr]" style={{ alignItems: 'start' }}>
 
         {/* LEFT — Informations */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

@@ -2,17 +2,38 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { AppError } from '../../core/errors/AppError';
 import { generateDocumentNumber, getDefaultOfficeId } from '../../lib/documentNumber';
+import { computeLine, computeTotals } from '../../lib/document-math';
 import type { CreateRecurringInput, UpdateRecurringInput, ListRecurringInput } from './recurring.schema';
 
-/** Calcule la prochaine date de facturation selon l'intervalle */
+/**
+ * Calcule la prochaine date de facturation selon l'intervalle.
+ *
+ * Utilise setFullYear(year, month, day) avec clamping du jour pour éviter
+ * l'overflow JavaScript de setMonth() sur les fins de mois :
+ *   Jan 31 + 1 mois → Fév 28/29 (et non Mars 2/3)
+ *   Mars 31 + 1 mois → Avr 30   (et non Mai 1)
+ */
 function nextDate(from: Date, interval: string): Date {
-  const d = new Date(from);
+  const d   = new Date(from);
+  const day = d.getDate();
+  let year  = d.getFullYear();
+  let month = d.getMonth();
+
   switch (interval) {
-    case 'monthly':   d.setMonth(d.getMonth() + 1); break;
-    case 'quarterly': d.setMonth(d.getMonth() + 3); break;
-    case 'biannual':  d.setMonth(d.getMonth() + 6); break;
-    case 'annual':    d.setFullYear(d.getFullYear() + 1); break;
+    case 'monthly':   month += 1;  break;
+    case 'quarterly': month += 3;  break;
+    case 'biannual':  month += 6;  break;
+    case 'annual':    year  += 1;  break;
   }
+
+  // Normalise month overflow (ex: mois 13 → année+1, mois 1)
+  year  += Math.floor(month / 12);
+  month  = ((month % 12) + 12) % 12;
+
+  // Clamp : new Date(year, month+1, 0) = dernier jour du mois cible
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  d.setFullYear(year, month, Math.min(day, lastDay));
+
   return d;
 }
 
@@ -172,26 +193,20 @@ export class RecurringService {
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + dueDays);
 
-    // Calcul des totaux
-    let totalHt = 0;
-    let totalTax = 0;
-    const computedLines = template.lines.map(l => {
-      const subtotalHt = Number((Number(l.quantity) * Number(l.unitPriceHt)).toFixed(2));
-      let discountAmount = 0;
-      if (l.discountType === 'percentage') {
-        discountAmount = Number((subtotalHt * Number(l.discountValue) / 100).toFixed(2));
-      } else if (l.discountType === 'fixed') {
-        discountAmount = Math.min(Number(l.discountValue), subtotalHt);
-      }
-      const netHt = Number((subtotalHt - discountAmount).toFixed(2));
-      const taxAmount = Number((netHt * Number(l.taxRate) / 100).toFixed(2));
-      const totalTtc = Number((netHt + taxAmount).toFixed(2));
-      totalHt += netHt;
-      totalTax += taxAmount;
-      return { ...l, subtotalHt, discountAmount, netHt, taxAmount, totalTtc };
-    });
+    // Calcul des totaux via les fonctions partagées (document-math.ts)
+    const computedLines = template.lines.map(l => ({
+      ...l,
+      ...computeLine({
+        quantity:      Number(l.quantity),
+        unitPriceHt:   Number(l.unitPriceHt),
+        discountType:  l.discountType as 'none' | 'percentage' | 'fixed',
+        discountValue: Number(l.discountValue),
+        taxRate:       Number(l.taxRate),
+      }),
+    }));
 
-    const totalTtc = Number((totalHt + totalTax).toFixed(2));
+    const { totalHt, totalTax, totalTtc, subtotalHt: subtotalHtDoc } =
+      computeTotals(computedLines, 'none', 0);
 
     const invoice = await prisma.$transaction(async (tx) => {
       const inv = await tx.invoice.create({
@@ -208,7 +223,7 @@ export class RecurringService {
           notes: template.notes,
           paymentConditions: template.paymentConditions,
           currency: template.currency,
-          subtotalHt: totalHt,
+          subtotalHt: subtotalHtDoc,
           totalHt,
           totalTax,
           totalTtc,

@@ -1,6 +1,6 @@
 import type { Role } from '@/lib/constants'
 
-export type UserStatus = 'active' | 'suspended' | 'pending'
+export type UserStatus = 'active' | 'suspended' | 'pending_activation'
 
 export interface User {
   id:                 string

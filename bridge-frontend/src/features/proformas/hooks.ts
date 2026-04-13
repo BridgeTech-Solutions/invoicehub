@@ -92,7 +92,7 @@ export function useSendProforma() {
     onSuccess: (_, id) => {
       qc.invalidateQueries({ queryKey: PROFORMA_KEYS.detail(id) })
       qc.invalidateQueries({ queryKey: PROFORMA_KEYS.all })
-      toast.success('Proforma envoyée au client ✓')
+      toast.success('Proforma marquée comme envoyée ✓')
     },
     onError: () => toast.error('Erreur lors de l\'envoi'),
   })
@@ -107,7 +107,7 @@ export function useAcceptProforma() {
       qc.invalidateQueries({ queryKey: PROFORMA_KEYS.all })
       toast.success('Proforma acceptée ✓')
     },
-    onError: () => toast.error('Erreur'),
+    onError: () => toast.error('Acceptation impossible'),
   })
 }
 
@@ -121,7 +121,7 @@ export function useRejectProforma() {
       qc.invalidateQueries({ queryKey: PROFORMA_KEYS.all })
       toast.success('Proforma rejetée')
     },
-    onError: () => toast.error('Erreur'),
+    onError: () => toast.error('Rejet impossible'),
   })
 }
 

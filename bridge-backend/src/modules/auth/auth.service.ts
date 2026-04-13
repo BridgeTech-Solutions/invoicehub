@@ -278,8 +278,9 @@ export class AuthService {
    * @returns Les 8 backup codes en clair (à afficher une seule fois)
    * @throws `400` - Code TOTP invalide
    */
-  async verifyAndActivateTwoFactor(userId: string, token: string, secret: string): Promise<{ backupCodes: string[] }> {
-    if (!verifyTotpToken(token, secret)) {
+  async verifyAndActivateTwoFactor(userId: string, token: string): Promise<{ backupCodes: string[] }> {
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (!user.twoFactorSecret || !verifyTotpToken(token, user.twoFactorSecret)) {
       throw AppError.badRequest('Code TOTP invalide');
     }
 
@@ -289,7 +290,6 @@ export class AuthService {
       where: { id: userId },
       data: {
         twoFactorEnabled: true,
-        twoFactorSecret: secret,
         twoFactorEnabledAt: new Date(),
         twoFactorBackupCodes: hashed,
       },

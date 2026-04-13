@@ -207,7 +207,7 @@ function InvoiceDetailView({ id }: { id: string }) {
   )
 
   const formLines   = invoice.lines.map(lineToFormLine)
-  const isOverdue   = invoice.status !== 'paid' && invoice.status !== 'cancelled' && new Date(invoice.dueDate) < new Date()
+  const isOverdue   = !['draft', 'paid', 'cancelled'].includes(invoice.status) && new Date(invoice.dueDate) < new Date()
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>

@@ -88,3 +88,33 @@ export interface CreateCategoryPayload {
   icon?:  string
   color?: string
 }
+
+// ── Import en masse ───────────────────────────────────────────────────────────
+
+export type ProductUnit = 'heure' | 'jour' | 'forfait' | 'piece' | 'licence' | 'mois' | 'annee'
+
+export interface ImportProductRow {
+  name:          string
+  reference?:    string
+  type?:         'product' | 'service'
+  categoryName?: string
+  unitPriceHt?:  number
+  taxRateValue?: number
+  unit?:         ProductUnit
+  description?:  string
+  isActive?:     boolean
+}
+
+export interface ImportProductResult {
+  created:    number
+  duplicates: { index: number; name: string; reason: string }[]
+  errors:     { index: number; name: string; message: string }[]
+}
+
+export type ImportRowStatus = 'valid' | 'error' | 'duplicate'
+
+export interface ImportPreviewProductRow extends ImportProductRow {
+  _rowIndex: number
+  _status:   ImportRowStatus
+  _message?: string
+}

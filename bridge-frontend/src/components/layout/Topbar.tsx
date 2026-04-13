@@ -238,7 +238,8 @@ export function Topbar() {
   const [searchValue,   setSearchValue]   = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
   const [showDropdown,  setShowDropdown]  = useState(false)
-  const searchRef = useRef<HTMLDivElement>(null)
+  const searchRef      = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   const hasQuery = searchValue.trim().length >= 2
 
@@ -252,6 +253,16 @@ export function Topbar() {
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  // Raccourci / → focus sur la barre de recherche
+  useEffect(() => {
+    function handler() {
+      searchInputRef.current?.focus()
+      setSearchFocused(true)
+    }
+    document.addEventListener('shortcuts:open-search', handler)
+    return () => document.removeEventListener('shortcuts:open-search', handler)
   }, [])
 
   function handleSearchFocus() {
@@ -342,6 +353,7 @@ export function Topbar() {
         >
           <Search size={14} strokeWidth={2} style={{ color: searchFocused ? 'var(--primary)' : 'var(--text-3)', flexShrink: 0, transition: 'color 0.2s' }} />
           <input
+            ref={searchInputRef}
             value={searchValue}
             onChange={(e) => handleSearchChange(e.target.value)}
             onFocus={handleSearchFocus}

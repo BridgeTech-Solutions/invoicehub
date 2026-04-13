@@ -3,10 +3,11 @@
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useState, useRef, useEffect, useId } from 'react'
 import {
   ChevronLeft, Pencil, Archive, FileText, AlertTriangle,
   Mail, Phone, MapPin, Building2, User, Clock, TrendingUp,
-  Hash, Landmark, CreditCard, FileCheck, StickyNote,
+  Hash, Landmark, CreditCard, FileCheck, StickyNote, Loader2,
 } from 'lucide-react'
 import { useClient, useClientSummary, useArchiveClient } from '@/features/clients/hooks'
 import { useInvoices } from '@/features/invoices/hooks'
@@ -17,6 +18,57 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
 import { formatDate, formatXAF, getInitials } from '@/lib/utils'
 import { ROUTES } from '@/lib/constants'
+
+// ─── Confirm archive modal ─────────────────────────────────────
+
+function ConfirmArchiveModal({
+  name, isPending, onConfirm, onCancel,
+}: { name: string; isPending: boolean; onConfirm: () => void; onCancel: () => void }) {
+  const titleId    = useId()
+  const confirmRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => { confirmRef.current?.focus() }, [])
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onCancel])
+
+  return (
+    <div
+      role="dialog" aria-modal="true" aria-labelledby={titleId}
+      style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel() }}
+    >
+      <div className="card" style={{ width: '100%', maxWidth: 420, padding: '28px 28px 24px' }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 20 }}>
+          <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(217,119,6,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <AlertTriangle size={18} aria-hidden style={{ color: '#d97706' }} />
+          </div>
+          <div>
+            <h3 id={titleId} style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: '0 0 6px' }}>
+              Archiver ce client
+            </h3>
+            <p style={{ fontSize: 13.5, color: 'var(--text-2)', lineHeight: 1.5, margin: 0 }}>
+              Voulez-vous archiver <strong>{name}</strong> ? Le client ne sera plus actif mais son historique sera conservé.
+            </p>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onCancel}
+            style={{ padding: '8px 18px', minHeight: 44, borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 500, cursor: 'pointer' }}>
+            Annuler
+          </button>
+          <button ref={confirmRef} type="button" onClick={onConfirm} disabled={isPending}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', minHeight: 44, borderRadius: 'var(--radius-md)', background: '#d97706', color: '#fff', border: 'none', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.65 : 1 }}>
+            {isPending && <Loader2 size={13} className="animate-spin" aria-hidden />}
+            {isPending ? 'Archivage…' : 'Archiver'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ─── Info row helper ───────────────────────────────────────────
 function InfoRow({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
@@ -31,6 +83,8 @@ function InfoRow({ icon, children }: { icon: React.ReactNode; children: React.Re
 export default function ClientDetailPage() {
   const { id }   = useParams<{ id: string }>()
   const router   = useRouter()
+
+  const [showArchive, setShowArchive] = useState(false)
 
   const { data: client, isLoading }    = useClient(id)
   const { data: invoicesData, isLoading: invoicesLoading } = useInvoices({ clientId: id, limit: 10, page: 1 })
@@ -274,7 +328,7 @@ export default function ClientDetailPage() {
               </Link>
               {can('client', 'update') && isActive && (
                 <button
-                  onClick={() => { if (confirm(`Archiver "${client.name}" ?`)) archiveMutation.mutate(id) }}
+                  onClick={() => setShowArchive(true)}
                   disabled={archiveMutation.isPending}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px',
@@ -303,6 +357,14 @@ export default function ClientDetailPage() {
         </div>
       </div>
 
+      {showArchive && (
+        <ConfirmArchiveModal
+          name={client.name}
+          isPending={archiveMutation.isPending}
+          onConfirm={() => archiveMutation.mutate(id)}
+          onCancel={() => setShowArchive(false)}
+        />
+      )}
     </div>
   )
 }

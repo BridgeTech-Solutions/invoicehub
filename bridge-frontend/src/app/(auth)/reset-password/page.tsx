@@ -129,6 +129,8 @@ function ResetForm({ token }: { token: string }) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (pwd.length < 8) { setValidErr('Le mot de passe doit contenir au moins 8 caractères'); return }
+    if (!/[A-Z]/.test(pwd)) { setValidErr('Le mot de passe doit contenir au moins une majuscule'); return }
+    if (!/[0-9]/.test(pwd)) { setValidErr('Le mot de passe doit contenir au moins un chiffre'); return }
     if (pwd !== confirm) { setValidErr('Les mots de passe ne correspondent pas'); return }
     setValidErr('')
     mutation.mutate({ token, newPassword: pwd })

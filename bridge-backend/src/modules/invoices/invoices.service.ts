@@ -49,14 +49,15 @@ export class InvoicesService {
       deletedAt: null,
       ...(clientId && { clientId }),
       ...(type     && { type }),
-      ...(status   && { status }),
       ...(dateFrom && { issueDate: { gte: dateFrom } }),
       ...(dateTo   && { issueDate: { lte: dateTo } }),
-      // Filtre "en retard" : émises ou partiellement payées avec échéance dépassée
-      ...(overdue && {
-        status: { in: ['issued', 'partially_paid'] },
-        dueDate: { lt: now },
-      }),
+      // Filtre de statut — `overdue` et `status` sont mutuellement exclusifs :
+      // si les deux arrivent (appel API direct), overdue prend la priorité.
+      ...(overdue
+        ? { status: { in: ['issued', 'partially_paid'] as const }, dueDate: { lt: now } }
+        : status
+          ? { status }
+          : {}),
       ...(search && {
         OR: [
           { number: { contains: search, mode: 'insensitive' } },
@@ -157,6 +158,23 @@ export class InvoicesService {
   async create(input: CreateInvoiceInput, createdById: string) {
     const officeId = input.officeId ?? await getDefaultOfficeId();
     const number   = await generateDocumentNumber(officeId, 'invoice');
+
+    // Validation parentInvoice : doit exister, ne pas être brouillon ni annulée
+    if (input.parentInvoiceId) {
+      const parentInvoice = await prisma.invoice.findFirst({
+        where: { id: input.parentInvoiceId, deletedAt: null },
+        select: { id: true, number: true, status: true },
+      });
+      if (!parentInvoice) {
+        throw AppError.notFound(`La facture parente introuvable (id: ${input.parentInvoiceId})`);
+      }
+      if (parentInvoice.status === 'draft') {
+        throw AppError.badRequest(`La facture parente ${parentInvoice.number} est en brouillon. Elle doit être émise avant de créer un acompte ou un solde.`);
+      }
+      if (parentInvoice.status === 'cancelled') {
+        throw AppError.badRequest(`La facture parente ${parentInvoice.number} est annulée. Impossible de créer un acompte ou un solde sur une facture annulée.`);
+      }
+    }
 
     const computedLines = input.lines.map(l => ({ ...l, ...computeLine(l) }));
     const totals = computeTotals(computedLines, input.globalDiscountType ?? 'none', input.globalDiscountValue ?? 0);
@@ -1073,9 +1091,12 @@ export class InvoicesService {
         totalHt: original.totalHt,
         totalTax: original.totalTax,
         totalTtc: original.totalTtc,
-        amountDue: original.totalTtc,
-        balanceDue: original.totalTtc,
+        // Pour un solde, amountDue = totalTtc − acomptes déjà déduits (original.amountDue).
+        // Pour les autres types, amountDue = totalTtc complet (nouveau brouillon indépendant).
+        amountDue: original.type === 'solde' ? original.amountDue : original.totalTtc,
+        balanceDue: original.type === 'solde' ? original.amountDue : original.totalTtc,
         acomptePercentage: original.acomptePercentage,
+        totalAcomptesDeducted: original.type === 'solde' ? original.totalAcomptesDeducted : 0,
         lines: {
           create: original.lines.map(l => ({
             sortOrder: l.sortOrder,
@@ -1121,6 +1142,73 @@ export class InvoicesService {
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
+  }
+
+  /**
+   * Prédit la date probable de paiement d'une facture à partir du comportement
+   * historique du client (retard moyen par rapport à l'échéance).
+   *
+   * - `predictedDate` = dueDate + avgDaysLate du client
+   * - `confidence`    : 'low' (<5 paiements), 'medium' (5-20), 'high' (>20)
+   * - `basis`         : 'historical' si données dispo, 'due-date' si client nouveau
+   */
+  async getPaymentPrediction(invoiceId: string) {
+    const invoice = await prisma.invoice.findFirst({
+      where:  { id: invoiceId, deletedAt: null },
+      select: { id: true, number: true, dueDate: true, clientId: true, status: true, balanceDue: true },
+    });
+    if (!invoice) throw AppError.notFound('Facture introuvable');
+
+    if (['paid', 'cancelled'].includes(invoice.status)) {
+      return { predictedDate: null, basis: invoice.status, avgDaysLate: null, confidence: null };
+    }
+
+    type BehaviorRow = {
+      avg_days_late: number | null;
+      sample_count:  bigint;
+    };
+
+    const [behaviorRaw] = await prisma.$queryRaw<BehaviorRow[]>`
+      SELECT
+        AVG(EXTRACT(EPOCH FROM (pay.payment_date - inv.due_date)) / 86400) AS avg_days_late,
+        COUNT(*) AS sample_count
+      FROM payments pay
+      JOIN invoices inv ON inv.id = pay.invoice_id
+      WHERE inv.client_id = ${invoice.clientId}::uuid
+        AND inv.deleted_at IS NULL
+        AND pay.deleted_at IS NULL
+    `;
+
+    const sampleCount = Number(behaviorRaw?.sample_count ?? 0);
+    const avgDaysLate = behaviorRaw?.avg_days_late !== null && sampleCount > 0
+      ? Math.round(Number(behaviorRaw.avg_days_late))
+      : null;
+
+    const dueDate = new Date(invoice.dueDate);
+
+    if (avgDaysLate === null) {
+      return {
+        predictedDate: dueDate.toISOString().split('T')[0],
+        basis: 'due-date',
+        avgDaysLate: null,
+        confidence: null,
+        sampleCount: 0,
+      };
+    }
+
+    const predicted = new Date(dueDate);
+    predicted.setDate(predicted.getDate() + avgDaysLate);
+
+    const confidence = sampleCount >= 20 ? 'high' : sampleCount >= 5 ? 'medium' : 'low';
+
+    return {
+      predictedDate: predicted.toISOString().split('T')[0],
+      basis: 'historical',
+      avgDaysLate,
+      confidence,
+      sampleCount,
+      dueDate: dueDate.toISOString().split('T')[0],
+    };
   }
 
   async quickConfirmPayment(invoiceId: string, userId: string) {

@@ -61,9 +61,12 @@ export async function ollamaHealthCheck(): Promise<{ available: boolean; model: 
 
 /**
  * Envoie un prompt à Ollama et retourne la réponse complète (mode non-streaming).
- * Timeout : 60 secondes.
+ * @param maxTokens Nombre max de tokens à générer (défaut : 2048).
+ * @param numCtx    Taille de la fenêtre de contexte (défaut : 8192).
+ *                  Ajuster selon le contenu : 2048 pour les appels d'intention,
+ *                  6144 pour les réponses sans guide, 8192 avec guide.
  */
-export async function ollamaGenerate(prompt: string, system?: string): Promise<string> {
+export async function ollamaGenerate(prompt: string, system?: string, maxTokens = 2048, numCtx = 8192): Promise<string> {
   assertEnabled();
 
   let res: Response;
@@ -76,7 +79,7 @@ export async function ollamaGenerate(prompt: string, system?: string): Promise<s
         prompt,
         system,
         stream: false,
-        options: { temperature: 0.3, num_ctx: 8192 },
+        options: { temperature: 0.3, num_ctx: numCtx, num_predict: maxTokens },
       } satisfies OllamaGenerateRequest),
       signal: AbortSignal.timeout(120_000),
     });
@@ -96,10 +99,12 @@ export async function ollamaGenerate(prompt: string, system?: string): Promise<s
 /**
  * Envoie un prompt à Ollama et retourne les tokens un par un (streaming).
  * Utiliser avec Server-Sent Events ou Response streaming.
+ * @param numCtx Taille de la fenêtre de contexte (défaut : 8192).
  */
 export async function* ollamaStream(
   prompt: string,
   system?: string,
+  numCtx = 8192,
 ): AsyncGenerator<string, void, unknown> {
   assertEnabled();
 
@@ -113,7 +118,7 @@ export async function* ollamaStream(
         prompt,
         system,
         stream: true,
-        options: { temperature: 0.3, num_ctx: 8192 },
+        options: { temperature: 0.3, num_ctx: numCtx, num_predict: 2048 },
       } satisfies OllamaGenerateRequest),
       signal: AbortSignal.timeout(120_000),
     });

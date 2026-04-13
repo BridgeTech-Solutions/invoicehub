@@ -19,9 +19,10 @@ export class InvoicesController {
         const filters = listInvoicesSchema.parse({ ...req.query, limit: '20', page: '1' });
         const { data } = await invoicesService.list({ ...filters, page: 1, limit: 10_000 });
         return sendCsvResponse(res, 'factures.csv',
-          ['Numéro', 'Client', 'Type', 'Statut', 'Date émission', 'Échéance', 'Total TTC', 'Payé', 'Solde'],
+          ['Numéro', 'Réf. client', 'Client', 'Type', 'Statut', 'Date émission', 'Échéance', 'Total TTC', 'Payé', 'Solde'],
           data.map(i => [
             i.number,
+            (i as any).clientReference ?? '',
             (i.client as { name: string }).name,
             i.type,
             i.status,
@@ -167,6 +168,13 @@ export class InvoicesController {
     try {
       const data = await invoicesService.quickConfirmPayment(req.params['id'] as string, req.user!.id);
       res.status(201).json({ success: true, data, message: 'Facture marquée comme payée' });
+    } catch (err) { next(err); }
+  }
+
+  async getPaymentPrediction(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await invoicesService.getPaymentPrediction(req.params['id'] as string);
+      res.json({ success: true, data });
     } catch (err) { next(err); }
   }
 }

@@ -51,7 +51,7 @@ export async function downloadCsv(endpoint: string, filename: string, range: Rep
   const url = URL.createObjectURL(new Blob([res.data]))
   const a   = document.createElement('a')
   a.href = url; a.download = filename; a.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 export async function downloadPdf(endpoint: string, filename: string, range: ReportRange) {
@@ -62,5 +62,5 @@ export async function downloadPdf(endpoint: string, filename: string, range: Rep
   const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
   const a   = document.createElement('a')
   a.href = url; a.download = filename; a.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }

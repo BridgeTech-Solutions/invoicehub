@@ -4,7 +4,7 @@
 /* ─── BTS Design Tokens ─────────────────────────────────────── */
 :root {
   /* Sidebar */
-  --sidebar-w:          190px;
+  --sidebar-w:          220px;
   --sidebar-w-collapsed: 56px;
   --sidebar-bg:         #0c2340;
   --sidebar-bg-light:   #0f2d4a;

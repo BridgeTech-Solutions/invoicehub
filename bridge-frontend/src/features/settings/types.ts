@@ -26,6 +26,7 @@ export interface CompanySettings {
   phone:                        string
   email:                        string
   website:                      string | null
+  companyCode:                  string
   defaultCurrency:              string
   defaultTaxRate:               number
   defaultProformaValidityDays:  number

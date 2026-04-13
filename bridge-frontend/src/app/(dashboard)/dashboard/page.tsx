@@ -6,12 +6,16 @@ import { InvoiceStatusDonut }     from '@/features/dashboard/components/InvoiceS
 import { RecentInvoicesTable }    from '@/features/dashboard/components/RecentInvoicesTable'
 import { TopClientsTable }        from '@/features/dashboard/components/TopClientsTable'
 import { AgingWidget }            from '@/features/dashboard/components/AgingWidget'
+import { DashboardSocketSync }    from '@/features/dashboard/components/DashboardSocketSync'
 
 export const metadata: Metadata = { title: 'Tableau de bord — InvoiceHub' }
 
 export default function DashboardPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+
+      {/* Sync temps réel via Socket.io — invisible, aria-live pour screen readers */}
+      <DashboardSocketSync />
 
       {/* ── En-tête ──────────────────────────────────────── */}
       <PageHeader

@@ -25,7 +25,6 @@ export const resetPasswordSchema = z.object({
 
 export const verifyTotpSchema = z.object({
   token: z.string().length(6, 'Code TOTP à 6 chiffres'),
-  secret: z.string().min(1, 'Secret requis'),
 });
 
 export const disableTotpSchema = z.object({

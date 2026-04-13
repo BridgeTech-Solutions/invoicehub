@@ -113,6 +113,7 @@ CREATE TABLE company_settings (
     -- Sécurité
     session_timeout_minutes SMALLINT    NOT NULL DEFAULT 30,
     max_login_attempts      SMALLINT    NOT NULL DEFAULT 5,
+    require_2fa             BOOLEAN     NOT NULL DEFAULT false,
 
     -- Relances automatiques (jours après échéance)
     auto_reminder_days      SMALLINT[]           DEFAULT ARRAY[7, 14, 30],

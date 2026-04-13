@@ -12,7 +12,7 @@
  *  - reminder     : 08:00 UTC (09:00 WAT) — vérification active + rappels internes
  *  - backup       : 16:30 UTC             — pg_dump automatique
  */
-import { overdueQueue, recurringQueue, reminderQueue, backupQueue } from './queues';
+import { overdueQueue, recurringQueue, reminderQueue, backupQueue, cleanupQueue } from './queues';
 import { env } from '../config/env';
 import { logger } from '../core/middleware/requestLogger';
 
@@ -61,5 +61,16 @@ export async function scheduleJobs(): Promise<void> {
     },
   );
 
-  logger.info(`Crons BullMQ planifiés (overdue 07:45, recurring 07:50, reminder 08:00 UTC / backup 16:30 UTC)`);
+  // Cleanup — tous les vendredis à 15:00 UTC (16:00 WAT Cameroun) — purge notifications lues > 90 jours
+  await cleanupQueue.upsertJobScheduler(
+    'cleanup-weekly',
+    { pattern: '0 15 * * 5' },
+    {
+      name: 'cleanup',
+      data: { triggeredAt: '' },
+      opts: { removeOnComplete: true, removeOnFail: { count: 5 } },
+    },
+  );
+
+  logger.info(`Crons BullMQ planifiés (overdue 07:45, recurring 07:50, reminder 08:00 UTC / backup 16:30 UTC / cleanup ven. 15:00 UTC = 16:00 WAT)`);
 }

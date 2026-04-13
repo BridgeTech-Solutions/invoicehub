@@ -77,3 +77,29 @@ export function useUpdateNotificationSettings() {
     onError: () => toast.error('Erreur lors de la sauvegarde'),
   })
 }
+
+// ─── useDisableAllNotifications ───────────────────────────────
+export function useDisableAllNotifications() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => notificationsApi.disableAll(),
+    onSuccess:  () => {
+      qc.invalidateQueries({ queryKey: KEYS.settings })
+      toast.success('Toutes les notifications ont été désactivées')
+    },
+    onError: () => toast.error('Erreur lors de la désactivation'),
+  })
+}
+
+// ─── useEnableAllNotifications ────────────────────────────────
+export function useEnableAllNotifications() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => notificationsApi.enableAll(),
+    onSuccess:  () => {
+      qc.invalidateQueries({ queryKey: KEYS.settings })
+      toast.success('Toutes les notifications ont été réactivées')
+    },
+    onError: () => toast.error('Erreur lors de la réactivation'),
+  })
+}

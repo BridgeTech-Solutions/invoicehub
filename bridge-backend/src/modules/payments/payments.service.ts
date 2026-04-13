@@ -89,10 +89,17 @@ export class PaymentsService {
       throw AppError.badRequest('Impossible d\'enregistrer un paiement sur cette facture');
     }
 
+    if (input.amount <= 0) {
+      throw AppError.badRequest('Le montant du paiement doit être supérieur à zéro');
+    }
+
     const balanceDue = Number(invoice.balanceDue);
+    if (balanceDue <= 0) {
+      throw AppError.badRequest('Cette facture est déjà entièrement réglée');
+    }
     if (input.amount > balanceDue) {
       throw AppError.badRequest(
-        `Le paiement (${input.amount}) dépasse le solde dû (${balanceDue})`,
+        `Le paiement (${input.amount.toLocaleString('fr-FR')} XAF) dépasse le solde dû (${balanceDue.toLocaleString('fr-FR')} XAF)`,
       );
     }
 

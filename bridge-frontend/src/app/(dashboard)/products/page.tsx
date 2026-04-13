@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useMemo, useId, useCallback, useRef, useEffect } from 'react'
-import { Plus, Search, Settings2, Package, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Search, Settings2, Package, X, ChevronLeft, ChevronRight, Upload, FileSpreadsheet } from 'lucide-react'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
 import { useProducts, useProductCategories } from '@/features/products/hooks'
 import { ProductCard } from '@/features/products/components/ProductCard'
 import { ProductForm } from '@/features/products/components/ProductForm'
 import { CategoryManager } from '@/features/products/components/CategoryManager'
+import { ImportProductsModal, downloadProductTemplate } from '@/features/products/ImportProductsModal'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
 import { ROUTES } from '@/lib/constants'
@@ -68,6 +69,7 @@ export default function ProductsPage() {
   const [formOpen,       setFormOpen]       = useState(false)
   const [editProduct,    setEditProduct]    = useState<Product | null>(null)
   const [catMgrOpen,     setCatMgrOpen]     = useState(false)
+  const [importOpen,     setImportOpen]     = useState(false)
 
   const { can } = usePermission()
   const { data: categories = [] } = useProductCategories()
@@ -139,36 +141,66 @@ export default function ProductsPage() {
         actions={
           <>
             {can('product', 'create') && (
-              <button
-                type="button"
-                onClick={() => setCatMgrOpen(true)}
-                aria-label="Gérer les catégories de produits"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 7,
-                  padding: '8px 14px', borderRadius: 'var(--radius-md)',
-                  border: '1.5px solid var(--border)', background: 'var(--surface)',
-                  color: 'var(--text-2)', fontSize: 13.5, cursor: 'pointer',
-                  fontFamily: 'var(--font-display)', fontWeight: 500,
-                }}
-              >
-                <Settings2 size={14} aria-hidden /> Catégories
-              </button>
-            )}
-            {can('product', 'create') && (
-              <button
-                type="button"
-                onClick={() => { setEditProduct(null); setFormOpen(true) }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 7,
-                  padding: '8px 16px', borderRadius: 'var(--radius-md)',
-                  background: 'var(--primary)', color: '#fff', border: 'none',
-                  cursor: 'pointer', fontSize: 13.5,
-                  fontFamily: 'var(--font-display)', fontWeight: 600,
-                  boxShadow: '0 4px 12px rgba(45,125,210,0.3)',
-                }}
-              >
-                <Plus size={15} strokeWidth={2.5} aria-hidden /> Nouveau produit
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setCatMgrOpen(true)}
+                  aria-label="Gérer les catégories de produits"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 7,
+                    padding: '8px 14px', borderRadius: 'var(--radius-md)',
+                    border: '1.5px solid var(--border)', background: 'var(--surface)',
+                    color: 'var(--text-2)', fontSize: 13.5, cursor: 'pointer',
+                    fontFamily: 'var(--font-display)', fontWeight: 500,
+                  }}
+                >
+                  <Settings2 size={14} aria-hidden /> Catégories
+                </button>
+                <button
+                  type="button"
+                  onClick={downloadProductTemplate}
+                  aria-label="Télécharger le modèle Excel pour l'import de produits"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 7,
+                    padding: '8px 14px', borderRadius: 'var(--radius-md)',
+                    border: '1.5px solid var(--border)', background: 'var(--surface)',
+                    color: 'var(--text-2)', fontSize: 13.5, cursor: 'pointer',
+                    fontFamily: 'var(--font-display)', fontWeight: 500,
+                    transition: 'opacity 0.15s',
+                  }}
+                >
+                  <FileSpreadsheet size={14} aria-hidden /> Modèle
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImportOpen(true)}
+                  aria-label="Importer des produits depuis un fichier Excel"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 7,
+                    padding: '8px 14px', borderRadius: 'var(--radius-md)',
+                    border: '1.5px solid var(--primary)', background: 'rgba(45,125,210,0.07)',
+                    color: 'var(--primary)', fontSize: 13.5, cursor: 'pointer',
+                    fontFamily: 'var(--font-display)', fontWeight: 500,
+                    transition: 'opacity 0.15s',
+                  }}
+                >
+                  <Upload size={14} aria-hidden /> Importer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setEditProduct(null); setFormOpen(true) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 7,
+                    padding: '8px 16px', borderRadius: 'var(--radius-md)',
+                    background: 'var(--primary)', color: '#fff', border: 'none',
+                    cursor: 'pointer', fontSize: 13.5,
+                    fontFamily: 'var(--font-display)', fontWeight: 600,
+                    boxShadow: '0 4px 12px rgba(45,125,210,0.3)',
+                  }}
+                >
+                  <Plus size={15} strokeWidth={2.5} aria-hidden /> Nouveau produit
+                </button>
+              </>
             )}
           </>
         }
@@ -372,6 +404,13 @@ export default function ProductsPage() {
 
       {/* ── Category manager modal ────────────────────────── */}
       {catMgrOpen && <CategoryManager onClose={() => setCatMgrOpen(false)} />}
+
+      {/* ── Import products modal ─────────────────────────── */}
+      <ImportProductsModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        categories={categories}
+      />
     </div>
   )
 }

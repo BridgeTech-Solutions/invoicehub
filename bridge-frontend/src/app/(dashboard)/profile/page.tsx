@@ -3,15 +3,20 @@
 import { useState, useRef, useId } from 'react'
 import {
   User, Lock, Shield, Monitor, Camera, Trash2, Loader2,
-  Eye, EyeOff, Smartphone, LogOut, X, Copy, Check, AlertCircle, Key,
+  Eye, EyeOff, Smartphone, LogOut, X, Copy, Check, AlertCircle, Key, Bell,
 } from 'lucide-react'
 import {
   useMe, useUpdateMe, useChangePassword, useUploadAvatar, useDeleteAvatar,
 } from '@/features/users/hooks'
 import {
-  use2FAEnable, use2FAVerify, use2FADisable,
+  use2FAEnable, use2FAVerify, use2FADisable, use2FARegenerateBackupCodes,
   useSessions, useRevokeSession, useRevokeAllSessions,
 } from '@/features/auth/hooks'
+import {
+  useNotificationSettings, useUpdateNotificationSettings,
+  useDisableAllNotifications, useEnableAllNotifications,
+} from '@/features/notifications/hooks'
+import type { NotificationType, NotificationChannel } from '@/features/notifications/types'
 import { useAuthStore } from '@/store/auth'
 import { getInitials, formatDate } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/useMediaQuery'
@@ -311,8 +316,9 @@ function TwoFASection() {
   const enableMut  = use2FAEnable()
   const verifyMut  = use2FAVerify()
   const disableMut = use2FADisable()
+  const regenMut   = use2FARegenerateBackupCodes()
 
-  const [step, setStep]               = useState<'idle' | 'setup' | 'disable'>('idle')
+  const [step, setStep]               = useState<'idle' | 'setup' | 'disable' | 'regen'>('idle')
   const [qrCode, setQrCode]           = useState('')
   const [secret, setSecret]           = useState('')
   const [token, setToken]             = useState('')
@@ -322,6 +328,7 @@ function TwoFASection() {
 
   const idTokenSetup   = useId()
   const idTokenDisable = useId()
+  const idTokenRegen   = useId()
 
   async function handleEnable() {
     const res = await enableMut.mutateAsync()
@@ -332,7 +339,15 @@ function TwoFASection() {
 
   async function handleVerify(e: React.FormEvent) {
     e.preventDefault()
-    const res = await verifyMut.mutateAsync({ token, secret })
+    const res = await verifyMut.mutateAsync({ token })
+    setBackupCodes(res.backupCodes)
+    setStep('idle')
+    setToken('')
+  }
+
+  async function handleRegen(e: React.FormEvent) {
+    e.preventDefault()
+    const res = await regenMut.mutateAsync(token)
     setBackupCodes(res.backupCodes)
     setStep('idle')
     setToken('')
@@ -445,6 +460,38 @@ function TwoFASection() {
     )
   }
 
+  // ── Regen step ───────────────────────────────────────────────
+  if (step === 'regen') {
+    return (
+      <form onSubmit={handleRegen} aria-busy={regenMut.isPending} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 360 }}>
+        <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0 }}>Saisissez votre code TOTP actuel pour régénérer vos codes de secours. Les anciens codes seront invalidés.</p>
+        <Field label="Code TOTP (6 chiffres)" htmlFor={idTokenRegen}>
+          <input
+            id={idTokenRegen}
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            maxLength={6}
+            placeholder="123456"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            style={{ ...inputCss, fontFamily: 'var(--font-mono)', letterSpacing: '0.25em', fontSize: 16 }}
+            required
+            aria-required
+            onFocus={focusOn} onBlur={focusOff}
+          />
+        </Field>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={() => { setStep('idle'); setToken('') }} style={{ padding: '9px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>Annuler</button>
+          <button type="submit" disabled={regenMut.isPending || token.length !== 6} aria-disabled={regenMut.isPending || token.length !== 6}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: '#fff', cursor: (regenMut.isPending || token.length !== 6) ? 'not-allowed' : 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: token.length !== 6 ? 0.6 : 1, transition: 'opacity 0.15s' }}>
+            {regenMut.isPending ? <Loader2 size={13} className="animate-spin" aria-hidden /> : <Key size={13} aria-hidden />}
+            Régénérer
+          </button>
+        </div>
+      </form>
+    )
+  }
+
   // ── Disable step ─────────────────────────────────────────────
   if (step === 'disable') {
     return (
@@ -490,10 +537,16 @@ function TwoFASection() {
         </div>
       </div>
       {enabled ? (
-        <button type="button" onClick={() => setStep('disable')}
-          style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.05)', color: '#ef4444', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-          <X size={13} aria-hidden /> Désactiver la 2FA
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" onClick={() => { setStep('regen'); setToken('') }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+            <Key size={13} aria-hidden /> Régénérer les codes de secours
+          </button>
+          <button type="button" onClick={() => setStep('disable')}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.05)', color: '#ef4444', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+            <X size={13} aria-hidden /> Désactiver la 2FA
+          </button>
+        </div>
       ) : (
         <button type="button" onClick={handleEnable} disabled={enableMut.isPending} aria-disabled={enableMut.isPending}
           style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: '#fff', cursor: enableMut.isPending ? 'not-allowed' : 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: enableMut.isPending ? 0.65 : 1, boxShadow: '0 4px 12px rgba(45,125,210,0.25)', transition: 'opacity 0.15s' }}>
@@ -574,6 +627,188 @@ function SessionsSection() {
   )
 }
 
+// ─── Notifications section ────────────────────────────────────
+const NOTIF_LABELS: Record<NotificationType, string> = {
+  proforma_sent:          'Proforma envoyée',
+  proforma_accepted:      'Proforma acceptée',
+  proforma_rejected:      'Proforma rejetée',
+  proforma_expired:       'Proforma expirée',
+  invoice_issued:         'Facture émise',
+  invoice_paid:           'Facture soldée',
+  invoice_partially_paid: 'Paiement partiel reçu',
+  invoice_overdue:        'Facture en retard',
+  payment_registered:     'Paiement enregistré',
+  reminder_sent:          'Relance envoyée',
+  user_created:           'Nouveau utilisateur',
+  system:                 'Événement système',
+}
+
+const NOTIF_GROUPS: { label: string; types: NotificationType[] }[] = [
+  { label: 'Proformas',  types: ['proforma_sent', 'proforma_accepted', 'proforma_rejected', 'proforma_expired'] },
+  { label: 'Factures',   types: ['invoice_issued', 'invoice_paid', 'invoice_partially_paid', 'invoice_overdue'] },
+  { label: 'Paiements',  types: ['payment_registered'] },
+  { label: 'Alertes',    types: ['reminder_sent', 'user_created', 'system'] },
+]
+
+const CHANNELS: { value: NotificationChannel; label: string }[] = [
+  { value: 'in_app', label: 'App' },
+  { value: 'email',  label: 'Email' },
+  { value: 'both',   label: 'Les deux' },
+]
+
+function NotificationsSection() {
+  const { data: settings = [], isLoading } = useNotificationSettings()
+  const updateMut    = useUpdateNotificationSettings()
+  const disableAllMut = useDisableAllNotifications()
+  const enableAllMut  = useEnableAllNotifications()
+
+  const [local, setLocal] = useState<Record<string, { channel: NotificationChannel; enabled: boolean }>>({})
+  const [dirty, setDirty] = useState(false)
+
+  const effective = (type: NotificationType) => {
+    const server = settings.find((s) => s.type === type)
+    return local[type] ?? { channel: (server?.channel ?? 'both') as NotificationChannel, enabled: server?.enabled ?? true }
+  }
+
+  function toggleEnabled(type: NotificationType) {
+    const cur = effective(type)
+    setLocal((prev) => ({ ...prev, [type]: { ...cur, enabled: !cur.enabled } }))
+    setDirty(true)
+  }
+
+  function setChannel(type: NotificationType, channel: NotificationChannel) {
+    const cur = effective(type)
+    setLocal((prev) => ({ ...prev, [type]: { ...cur, channel } }))
+    setDirty(true)
+  }
+
+  async function handleSave() {
+    const allTypes = NOTIF_GROUPS.flatMap((g) => g.types)
+    await updateMut.mutateAsync(allTypes.map((type) => ({ type, ...effective(type) })))
+    setLocal({})
+    setDirty(false)
+  }
+
+  async function handleDisableAll() {
+    await disableAllMut.mutateAsync()
+    setLocal({})
+    setDirty(false)
+  }
+
+  async function handleEnableAll() {
+    await enableAllMut.mutateAsync()
+    setLocal({})
+    setDirty(false)
+  }
+
+  const isBusy = updateMut.isPending || disableAllMut.isPending || enableAllMut.isPending
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {/* Toolbar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <p style={{ fontSize: 12.5, color: 'var(--text-3)', margin: 0 }}>
+          Choisissez pour quels événements et sur quel canal vous souhaitez être notifié.
+        </p>
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          <button type="button" onClick={handleDisableAll} disabled={isBusy}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: isBusy ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: isBusy ? 0.5 : 1 }}>
+            {disableAllMut.isPending ? <Loader2 size={11} className="animate-spin" aria-hidden /> : <X size={11} aria-hidden />}
+            Tout désactiver
+          </button>
+          <button type="button" onClick={handleEnableAll} disabled={isBusy}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: isBusy ? 'not-allowed' : 'pointer', fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: isBusy ? 0.5 : 1 }}>
+            {enableAllMut.isPending ? <Loader2 size={11} className="animate-spin" aria-hidden /> : <Check size={11} aria-hidden />}
+            Tout activer
+          </button>
+        </div>
+      </div>
+
+      {/* Column headers */}
+      <div aria-hidden="true" style={{ display: 'grid', gridTemplateColumns: '1fr 56px 188px', gap: 8, padding: '0 4px', marginBottom: 6 }}>
+        {[
+          { label: 'Événement', align: 'left'   as const },
+          { label: 'Actif',     align: 'center' as const },
+          { label: 'Canal',     align: 'left'   as const },
+        ].map((h) => (
+          <span key={h.label} style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: h.align }}>
+            {h.label}
+          </span>
+        ))}
+      </div>
+
+      {/* Groups */}
+      {isLoading
+        ? Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} aria-hidden="true" style={{ height: 38, background: 'var(--border)', borderRadius: 'var(--radius-md)', marginBottom: 4 }} className="animate-pulse" />
+          ))
+        : NOTIF_GROUPS.map((group) => (
+            <div key={group.label}>
+              <div style={{ padding: '8px 4px 4px', fontSize: 10.5, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                {group.label}
+              </div>
+              {group.types.map((type) => {
+                const s = effective(type)
+                return (
+                  <div key={type}
+                    style={{ display: 'grid', gridTemplateColumns: '1fr 56px 188px', gap: 8, padding: '8px 4px', borderRadius: 'var(--radius-md)', transition: 'background 0.1s', alignItems: 'center' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                  >
+                    {/* Event label */}
+                    <span style={{ fontSize: 13, color: s.enabled ? 'var(--text-1)' : 'var(--text-3)', transition: 'color 0.15s' }}>
+                      {NOTIF_LABELS[type]}
+                    </span>
+
+                    {/* Enabled toggle */}
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                      <label style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          checked={s.enabled}
+                          onChange={() => toggleEnabled(type)}
+                          aria-label={`Activer ${NOTIF_LABELS[type]}`}
+                        />
+                        <div aria-hidden="true" style={{ width: 32, height: 18, borderRadius: 9, background: s.enabled ? 'var(--primary)' : 'var(--border)', transition: 'background 0.2s', position: 'relative', flexShrink: 0 }}>
+                          <div style={{ position: 'absolute', top: 2, left: s.enabled ? 14 : 2, width: 14, height: 14, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s' }} />
+                        </div>
+                      </label>
+                    </div>
+
+                    {/* Channel chips */}
+                    <div style={{ display: 'flex', gap: 4, opacity: s.enabled ? 1 : 0.3, pointerEvents: s.enabled ? 'auto' : 'none', transition: 'opacity 0.2s' }}>
+                      {CHANNELS.map((ch) => {
+                        const active = s.channel === ch.value
+                        return (
+                          <button key={ch.value} type="button" onClick={() => setChannel(type, ch.value)}
+                            style={{ padding: '3px 9px', borderRadius: 'var(--radius-md)', border: `1.5px solid ${active ? 'var(--primary)' : 'var(--border)'}`, background: active ? 'var(--primary-light)' : 'transparent', color: active ? 'var(--primary)' : 'var(--text-3)', fontSize: 11.5, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap' }}>
+                            {ch.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ))
+      }
+
+      {/* Save bar */}
+      {dirty && (
+        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+          <button type="button" onClick={handleSave} disabled={isBusy}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: '#fff', cursor: isBusy ? 'not-allowed' : 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: isBusy ? 0.65 : 1 }}>
+            {updateMut.isPending ? <Loader2 size={13} className="animate-spin" aria-hidden /> : <Check size={13} aria-hidden />}
+            Sauvegarder les préférences
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────
 export default function ProfilePage() {
   return (
@@ -597,6 +832,10 @@ export default function ProfilePage() {
 
       <Section icon={<Monitor size={16} />} title="Sessions actives">
         <SessionsSection />
+      </Section>
+
+      <Section icon={<Bell size={16} />} title="Préférences de notifications">
+        <NotificationsSection />
       </Section>
     </div>
   )

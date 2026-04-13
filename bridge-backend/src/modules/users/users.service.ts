@@ -222,11 +222,20 @@ export class UsersService {
   }
 
   async reactivate(id: string): Promise<void> {
+    // Gère deux cas :
+    // 1. Archivé via softDelete (deletedAt != null, status = suspended)
+    // 2. Suspendu via PUT /:id (deletedAt = null, status = suspended)
     const user = await prisma.user.findFirst({
-      where: { id, deletedAt: { not: null } },
+      where: {
+        id,
+        OR: [
+          { deletedAt: { not: null } },
+          { status: 'suspended' },
+        ],
+      },
       select: { email: true },
     });
-    if (!user) throw AppError.notFound('Utilisateur archivé introuvable');
+    if (!user) throw AppError.notFound('Utilisateur suspendu ou archivé introuvable');
 
     await prisma.user.update({
       where: { id },

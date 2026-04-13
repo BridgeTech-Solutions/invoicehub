@@ -21,6 +21,7 @@ export const updateSettingsSchema = z.object({
   website:   z.string().url().optional().or(z.literal('')),
 
   // ── Paramètres métier ────────────────────────────────────────────────────────
+  companyCode:                 z.string().min(2).max(10).regex(/^[A-Z0-9]+$/, 'Lettres majuscules et chiffres uniquement').optional(),
   defaultCurrency:             z.string().length(3).optional(),
   defaultTaxRate:              z.number().min(0).max(100).optional(),
   defaultProformaValidityDays: z.number().int().positive().optional(),
@@ -29,6 +30,7 @@ export const updateSettingsSchema = z.object({
   // ── Paramètres de sécurité ───────────────────────────────────────────────────
   sessionTimeoutMinutes: z.number().int().min(5).max(1440).optional(),
   maxLoginAttempts:      z.number().int().min(1).max(20).optional(),
+  require2FA:            z.boolean().optional(),
 
   // ── Rappels automatiques ────────────────────────────────────────────────────
   /** Jours avant/après échéance pour déclencher les rappels (ex : [7, 14, 30]) */

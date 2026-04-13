@@ -73,6 +73,45 @@ export class NotificationsService {
     return this.getSettings(userId);
   }
 
+  /**
+   * Désactive toutes les notifications pour un utilisateur en un seul appel.
+   * Conserve les préférences de canal existantes (email, in-app, both).
+   */
+  async disableAll(userId: string) {
+    const allTypes = Object.values(NotificationStatus);
+    const saved = await prisma.notificationSetting.findMany({ where: { userId } });
+    const savedMap = new Map(saved.map(s => [s.type, s]));
+
+    await prisma.$transaction(
+      allTypes.map(type =>
+        prisma.notificationSetting.upsert({
+          where: { userId_type: { userId, type } },
+          create:  { userId, type, channel: 'both', enabled: false },
+          update:  { enabled: false, channel: savedMap.get(type)?.channel ?? 'both' },
+        }),
+      ),
+    );
+    return this.getSettings(userId);
+  }
+
+  /** Réactive toutes les notifications pour un utilisateur en un seul appel. */
+  async enableAll(userId: string) {
+    const allTypes = Object.values(NotificationStatus);
+    const saved = await prisma.notificationSetting.findMany({ where: { userId } });
+    const savedMap = new Map(saved.map(s => [s.type, s]));
+
+    await prisma.$transaction(
+      allTypes.map(type =>
+        prisma.notificationSetting.upsert({
+          where: { userId_type: { userId, type } },
+          create:  { userId, type, channel: 'both', enabled: true },
+          update:  { enabled: true, channel: savedMap.get(type)?.channel ?? 'both' },
+        }),
+      ),
+    );
+    return this.getSettings(userId);
+  }
+
   /** Crée une notification in-app pour un utilisateur */
   static async create(
     userId: string,
@@ -80,9 +119,10 @@ export class NotificationsService {
     title: string,
     message: string,
     data: Record<string, unknown> = {},
+    entityId?: string,
   ): Promise<void> {
     await prisma.notification.create({
-      data: { userId, type, title, message, data: data as object },
+      data: { userId, type, title, message, data: data as object, ...(entityId ? { entityId } : {}) },
     }).catch(() => {/* Non critique */});
   }
 }

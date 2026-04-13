@@ -50,7 +50,10 @@ export function auditMiddleware(tableName: string, action?: AuditAction) {
     let oldData: Record<string, unknown> | null = null;
     const recordId = (req.params['id'] as string | undefined) ?? null;
 
-    if (recordId && ['PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    // Priorité 1 : état avant attaché explicitement par le controller (ressources singleton sans :id)
+    if ((req as unknown as Record<string, unknown>)['auditPreviousData']) {
+      oldData = (req as unknown as Record<string, unknown>)['auditPreviousData'] as Record<string, unknown>;
+    } else if (recordId && ['PUT', 'PATCH', 'DELETE'].includes(req.method)) {
       try {
         // Lecture générique via Prisma — le tableName est le nom du modèle Prisma en camelCase
         const model = (prisma as unknown as Record<string, { findUnique?: (args: unknown) => Promise<unknown> }>)[tableName];

@@ -142,6 +142,9 @@ export class ProformasService {
     }
 
     const updateData: Prisma.ProformaUncheckedUpdateInput = {
+      ...(input.clientId    !== undefined && { clientId:    input.clientId }),
+      ...(input.issueDate   !== undefined && { issueDate:   input.issueDate }),
+      ...(input.currency    !== undefined && { currency:    input.currency }),
       assignedToId: input.assignedToId,
       validUntil: input.validUntil,
       subject: input.subject,

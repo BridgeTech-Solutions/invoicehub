@@ -12,9 +12,8 @@ export const notificationsApi = {
   },
 
   /** PUT /notifications/:id/read */
-  async markRead(id: string): Promise<Notification> {
-    const { data } = await apiClient.put<Notification>(`/notifications/${id}/read`)
-    return data
+  async markRead(id: string): Promise<void> {
+    await apiClient.put(`/notifications/${id}/read`)
   },
 
   /** PUT /notifications/read-all */
@@ -31,6 +30,18 @@ export const notificationsApi = {
   /** PUT /notifications/settings */
   async updateSettings(settings: NotificationSetting[]): Promise<NotificationSetting[]> {
     const { data } = await apiClient.put<NotificationSetting[]>('/notifications/settings', { settings })
+    return data
+  },
+
+  /** PUT /notifications/settings/disable-all */
+  async disableAll(): Promise<NotificationSetting[]> {
+    const { data } = await apiClient.put<NotificationSetting[]>('/notifications/settings/disable-all')
+    return data
+  },
+
+  /** PUT /notifications/settings/enable-all */
+  async enableAll(): Promise<NotificationSetting[]> {
+    const { data } = await apiClient.put<NotificationSetting[]>('/notifications/settings/enable-all')
     return data
   },
 

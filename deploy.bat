@@ -16,9 +16,11 @@ set "RESET="
 
 set SKIP_TESTS=0
 set NO_MIGRATE=0
+set WITH_OLLAMA=0
 for %%i in (%*) do (
   if "%%i"=="--skip-tests" set SKIP_TESTS=1
   if "%%i"=="--no-migrate" set NO_MIGRATE=1
+  if "%%i"=="--with-ollama" set WITH_OLLAMA=1
 )
 
 set "ROOT=%~dp0"
@@ -52,25 +54,40 @@ call :ok "Code mis a jour"
 call :step "3" "Installation des dependances"
 cd /d "%BACKEND%"
 call pnpm install --frozen-lockfile || (call :fail "pnpm install backend a echoue" & exit /b 1)
+call pnpm exec prisma generate || (call :fail "prisma generate a echoue" & exit /b 1)
 cd /d "%FRONTEND%"
 call pnpm install --frozen-lockfile || (call :fail "pnpm install frontend a echoue" & exit /b 1)
 call :ok "Dependances installees"
 
 if "%SKIP_TESTS%"=="1" goto :docker_build
 
-@REM call :step "4" "Tests"
-@REM cd /d "%BACKEND%"
-@REM call pnpm exec tsc --noEmit || (call :fail "TypeScript Backend echec" & exit /b 1)
-@REM cd /d "%FRONTEND%"
-@REM call pnpm exec tsc --noEmit || (call :fail "TypeScript Frontend echec" & exit /b 1)
-@REM call :ok "Tests passes"
+call :step "4" "Tests"
+cd /d "%BACKEND%"
+call pnpm exec tsc --noEmit || (call :fail "TypeScript Backend echec" & exit /b 1)
+cd /d "%FRONTEND%"
+call pnpm exec tsc --noEmit || (call :fail "TypeScript Frontend echec" & exit /b 1)
+call :ok "Tests passes"
 
 :docker_build
 call :step "5" "Arret et construction Docker"
+
+if "%WITH_OLLAMA%"=="0" (
+  echo.
+  set /p CONFIRM_OLLAMA="  Inclure Ollama (IA locale, ~3.7 GiB a telecharger) ? [O/N] : "
+  if /i "!CONFIRM_OLLAMA!"=="O" set WITH_OLLAMA=1
+)
+
 cd /d "%BACKEND%"
 docker-compose down
-docker-compose build --no-cache || (call :fail "docker-compose build echec" & exit /b 1)
-docker-compose up -d || (call :fail "docker-compose up echec" & exit /b 1)
+
+if "%WITH_OLLAMA%"=="1" (
+  set "COMPOSE_PROFILES=ai"
+  docker-compose --profile ai build --no-cache || (call :fail "docker-compose build echec" & exit /b 1)
+  docker-compose --profile ai up -d || (call :fail "docker-compose up echec" & exit /b 1)
+) else (
+  docker-compose build --no-cache || (call :fail "docker-compose build echec" & exit /b 1)
+  docker-compose up -d || (call :fail "docker-compose up echec" & exit /b 1)
+)
 call :ok "Services demarres"
 
 call :step "6" "Attente de l'API"
@@ -86,13 +103,19 @@ docker-compose exec -T api npx prisma migrate deploy || (call :fail "Migration e
 call :ok "Migrations appliquees"
 
 call :step "8" "Verification Ollama (phi3:mini)"
-docker-compose exec -T ollama ollama list 2>nul | findstr /i /c:"phi3:mini" >nul
+if "%WITH_OLLAMA%"=="0" (
+  echo  Ollama non active - etape ignoree.
+  goto :summary
+)
+docker-compose --profile ai exec ollama ollama list 2>nul | findstr /i /c:"phi3:mini" >nul
 if %errorlevel% neq 0 (
   echo  Le modele phi3:mini n'est pas present.
-  set /p CONFIRM_OLLAMA="Telecharger phi3:mini maintenant ? (~2.3 GiB) [O/N] : "
-  if /i "!CONFIRM_OLLAMA!"=="O" (
-    docker-compose exec -T ollama ollama pull phi3:mini
+  set /p CONFIRM_MODEL="Telecharger phi3:mini maintenant ? (~2.3 GiB) [O/N] : "
+  if /i "!CONFIRM_MODEL!"=="O" (
+    docker-compose --profile ai exec ollama ollama pull phi3:mini
     call :ok "Modele phi3:mini telecharge"
+  ) else (
+    echo  Telechargement ignore.
   )
 ) else (
   call :ok "Modele phi3:mini deja present"

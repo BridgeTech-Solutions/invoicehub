@@ -24,4 +24,13 @@ router.get('/aging', async (_req: Request, res: Response, next: NextFunction) =>
   }
 });
 
+router.get('/cashflow', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = await dashboardService.getCashflowForecast();
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export { router as dashboardRouter };

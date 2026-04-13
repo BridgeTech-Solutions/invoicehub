@@ -80,7 +80,15 @@ export async function generatePdf(html: string, footerSafeZonePx?: number): Prom
   const browser = await puppeteer.launch({
     headless: true,
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',   // évite les crashs sur /dev/shm limité à 64 MB dans Docker
+      '--disable-gpu',              // pas de GPU dans Docker — force le software rendering
+      '--no-first-run',
+      '--no-zygote',
+      '--disable-extensions',
+    ],
   });
   try {
     const page = await browser.newPage();

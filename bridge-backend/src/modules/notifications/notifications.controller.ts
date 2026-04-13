@@ -64,6 +64,24 @@ export class NotificationsController {
       next(err);
     }
   }
+
+  async disableAll(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await notificationsService.disableAll(req.user!.id);
+      res.json({ success: true, data, message: 'Toutes les notifications ont été désactivées' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async enableAll(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await notificationsService.enableAll(req.user!.id);
+      res.json({ success: true, data, message: 'Toutes les notifications ont été réactivées' });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export const notificationsController = new NotificationsController();

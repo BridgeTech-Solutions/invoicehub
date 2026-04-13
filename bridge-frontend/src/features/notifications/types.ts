@@ -32,10 +32,12 @@ export interface NotificationsListResponse {
   unreadCount: number
 }
 
+export type NotificationChannel = 'in_app' | 'email' | 'both'
+
 export interface NotificationSetting {
-  type:   NotificationType
-  inApp:  boolean
-  email:  boolean
+  type:    NotificationType
+  channel: NotificationChannel
+  enabled: boolean
 }
 
 export interface ListNotificationsParams {

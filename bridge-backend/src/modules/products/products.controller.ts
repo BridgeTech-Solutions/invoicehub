@@ -7,6 +7,7 @@ import {
   createProductSchema,
   updateProductSchema,
   listProductsSchema,
+  importProductsSchema,
 } from './products.schema';
 
 export class ProductsController {
@@ -137,6 +138,16 @@ export class ProductsController {
     try {
       await productsService.softDelete(req.params['id'] as string);
       res.json({ success: true, message: 'Produit désactivé' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async importProducts(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { rows } = importProductsSchema.parse(req.body);
+      const result   = await productsService.importProducts(rows, req.user!.id);
+      res.status(201).json({ success: true, ...result });
     } catch (err) {
       next(err);
     }

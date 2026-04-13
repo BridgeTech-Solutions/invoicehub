@@ -57,8 +57,9 @@ export default function TwoFAPage() {
 
     const totpToken = useBackup ? backupCode.trim().toUpperCase() : code.join('')
 
-    if (!totpToken || totpToken.length < 6) {
-      setError('Veuillez saisir le code complet')
+    const minLen = useBackup ? 8 : 6
+    if (!totpToken || totpToken.length < minLen) {
+      setError(useBackup ? 'Le code de secours doit contenir 8 caractères' : 'Veuillez saisir le code complet')
       setLoading(false)
       return
     }

@@ -342,7 +342,7 @@ export default function ProformasPage() {
                   />
           ) : (
             proformas.map((p) => {
-              const isExpired = p.status !== 'accepted' && p.status !== 'rejected' && new Date(p.validUntil) < new Date()
+              const isExpired = p.status === 'sent' && new Date(p.validUntil) < new Date()
               const isAlertBg = isExpired || p.status === 'rejected'
               return (
                 <DocListItem

@@ -10,8 +10,10 @@ import { ActionMenu } from '@/components/ui/ActionMenu'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
 import { formatDate, formatXAF, getInitials } from '@/lib/utils'
+import { computeLineValues } from '@/lib/document-math'
 import { ROUTES } from '@/lib/constants'
 import type { RecurringTemplate, RecurringInterval, ListRecurringParams } from '@/features/recurring/types'
+import type { DiscountType } from '@/features/proformas/types'
 
 const PAGE_SIZE = 20
 
@@ -231,7 +233,10 @@ export default function RecurringPage() {
   const templates = data?.data ?? []
 
   const totalHt = templates.reduce((sum, t) =>
-    sum + t.lines.reduce((s, l) => s + Number(l.unitPriceHt) * Number(l.quantity), 0), 0)
+    sum + t.lines.reduce((s, l) => s + computeLineValues(
+      Number(l.quantity), Number(l.unitPriceHt),
+      l.discountType as DiscountType, Number(l.discountValue), Number(l.taxRate),
+    ).netHt, 0), 0)
 
   const FILTERS = [
     { label: 'Tous',     value: undefined as boolean | undefined },

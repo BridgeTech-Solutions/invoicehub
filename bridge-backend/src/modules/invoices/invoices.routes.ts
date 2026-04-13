@@ -22,10 +22,11 @@ router.get('/:id/history',       invoicesController.history.bind(invoicesControl
 router.put('/:id',               auditMiddleware('invoice', 'UPDATE'), invoicesController.update.bind(invoicesController));
 router.post('/:id/issue',        auditMiddleware('invoice', 'STATUS_CHANGE'), invoicesController.issue.bind(invoicesController));
 router.post('/:id/cancel',       authorize('admin', 'commercial'), auditMiddleware('invoice', 'STATUS_CHANGE'), invoicesController.cancel.bind(invoicesController));
-router.post('/:id/duplicate',    invoicesController.duplicate.bind(invoicesController));
+router.post('/:id/duplicate',    auditMiddleware('invoice', 'CREATE'), invoicesController.duplicate.bind(invoicesController));
 router.delete('/:id',            authorize('admin', 'commercial'), auditMiddleware('invoice', 'SOFT_DELETE'), invoicesController.delete.bind(invoicesController));
 router.post('/:id/avoir',        authorize('admin', 'commercial'), auditMiddleware('invoice', 'CREATE'), invoicesController.createAvoir.bind(invoicesController));
-router.get('/:id/pdf',           rateLimitByUser({ max: 10, windowMs: 60_000 }), invoicesController.getPdf.bind(invoicesController));
+router.get('/:id/pdf',                rateLimitByUser({ max: 10, windowMs: 60_000 }), invoicesController.getPdf.bind(invoicesController));
+router.get('/:id/payment-prediction', invoicesController.getPaymentPrediction.bind(invoicesController));
 
 // Paiements d'une facture
 router.post('/:id/payment', auditMiddleware('payment', 'PAYMENT_REGISTERED'), paymentsController.create.bind(paymentsController));

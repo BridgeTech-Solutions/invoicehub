@@ -55,6 +55,15 @@ export const listUsersSchema = z.object({
   search: z.string().optional(),
 });
 
+export const resetPasswordSchema = z.object({
+  newPassword: z
+    .string()
+    .min(8)
+    .regex(/[A-Z]/, 'Doit contenir une majuscule')
+    .regex(/[0-9]/, 'Doit contenir un chiffre'),
+});
+
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type CreateUserInput    = z.infer<typeof createUserSchema>;
 export type UpdateUserInput    = z.infer<typeof updateUserSchema>;
 export type UpdateMeInput      = z.infer<typeof updateMeSchema>;

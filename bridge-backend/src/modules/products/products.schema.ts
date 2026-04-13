@@ -38,8 +38,26 @@ export const listProductsSchema = z.object({
   clientId: z.string().uuid().optional(),
 });
 
+export const importProductRowSchema = z.object({
+  name:         z.string().min(1).max(255),
+  reference:    z.string().max(100).optional(),
+  type:         z.enum(['product', 'service']).default('product'),
+  categoryName: z.string().max(100).optional(),
+  unitPriceHt:  z.coerce.number().min(0).default(0),
+  taxRateValue: z.coerce.number().min(0).max(100).default(19.25),
+  unit:         z.enum(['heure', 'jour', 'forfait', 'piece', 'licence', 'mois', 'annee']).default('piece'),
+  description:  z.string().optional(),
+  isActive:     z.boolean().default(true),
+});
+
+export const importProductsSchema = z.object({
+  rows: z.array(importProductRowSchema).min(1).max(500),
+});
+
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
 export type ListProductsInput = z.infer<typeof listProductsSchema>;
+export type ImportProductRow = z.infer<typeof importProductRowSchema>;
+export type ImportProductsInput = z.infer<typeof importProductsSchema>;

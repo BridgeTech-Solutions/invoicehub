@@ -34,9 +34,9 @@ export default function LoginPage() {
 
   const loginError = (() => {
     if (!loginMutation.isError) return null
-    const axiosError = loginMutation.error as AxiosError<{ code?: string; message?: string }>
+    const axiosError = loginMutation.error as AxiosError<{ code?: string; error?: string }>
     if (axiosError.response?.data?.code === 'TOTP_REQUIRED') return null
-    return axiosError.response?.data?.message ?? 'Identifiants incorrects. Veuillez réessayer.'
+    return axiosError.response?.data?.error ?? 'Identifiants incorrects. Veuillez réessayer.'
   })()
 
   return (

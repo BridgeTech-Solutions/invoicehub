@@ -20,6 +20,7 @@ import { env } from '../../config/env';
 import { AppError } from '../../core/errors/AppError';
 import { getStorageAdapter } from './storage';
 import { backupQueue } from '../../jobs/queues';
+import { logger } from '../../core/middleware/requestLogger';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -48,6 +49,16 @@ export class BackupsService {
 
   /** Crée un enregistrement Backup pending et enqueue le job BullMQ. */
   async trigger(userId: string) {
+    // Empêche de lancer plusieurs backups simultanément
+    const inProgress = await prisma.backup.findFirst({
+      where: { status: { in: ['pending', 'running'] } },
+    });
+    if (inProgress) {
+      throw AppError.conflict(
+        `Un backup est déjà en cours (statut : ${inProgress.status}). Attendez sa fin avant d'en lancer un nouveau.`,
+      );
+    }
+
     const filename = `invoicehub_${format(new Date(), 'yyyyMMdd_HHmmss')}.sql.gz`;
 
     const backup = await prisma.backup.create({
@@ -106,16 +117,33 @@ export class BackupsService {
    * Retourne un URL de téléchargement.
    * - local  : null  (le controller streame le fichier directement)
    * - s3/gcs : URL signé (expire 5min)
+   *
+   * Pour le stockage local, vérifie l'intégrité SHA-256 avant de servir le fichier.
    */
   async getDownloadInfo(id: string): Promise<{ url: string | null; localPath: string | null; filename: string }> {
     const backup = await prisma.backup.findUnique({ where: { id } });
     if (!backup) throw AppError.notFound('Backup introuvable');
     if (backup.status !== 'success') throw AppError.badRequest('Le backup n\'est pas encore disponible');
 
-    const adapter = getStorageAdapter();
+    const adapter     = getStorageAdapter();
     const storagePath = backup.storagePath ?? '';
-    const url       = await adapter.getDownloadUrl(storagePath);
-    const localPath = adapter.getLocalPath(storagePath);
+    const url         = await adapter.getDownloadUrl(storagePath);
+    const localPath   = adapter.getLocalPath(storagePath);
+
+    // Vérification d'intégrité SHA-256 pour le stockage local uniquement
+    if (localPath && backup.checksum && fs.existsSync(localPath)) {
+      const computed = await this.computeSha256(localPath);
+      if (computed !== backup.checksum) {
+        logger.error(`[Backup] Intégrité corrompue pour ${backup.filename}`, {
+          backupId:         backup.id,
+          storedChecksum:   backup.checksum,
+          computedChecksum: computed,
+        });
+        throw AppError.internal(
+          `Le fichier de backup ${backup.filename} est corrompu (checksum invalide). Veuillez créer un nouveau backup.`,
+        );
+      }
+    }
 
     return { url, localPath, filename: backup.filename };
   }

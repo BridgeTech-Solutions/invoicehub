@@ -86,4 +86,60 @@ export async function processOverdueJob(_job: Job<OverdueJobData>): Promise<void
       data: { proformaId: pf.id, proformaNumber: pf.number },
     });
   }
+
+  // ── 3. Alerte J-3 avant expiration des proformas ──────────────────────────
+  // Proformas `sent` dont la validité expire dans les 3 prochains jours
+  const in3Days = new Date(now);
+  in3Days.setDate(in3Days.getDate() + 3);
+  in3Days.setHours(23, 59, 59, 999);
+
+  const expiringProformas = await prisma.proforma.findMany({
+    where: {
+      deletedAt: null,
+      status: 'sent',
+      validUntil: { gte: now, lte: in3Days },
+    },
+    select: {
+      id: true, number: true, validUntil: true, createdById: true,
+      client: { select: { name: true } },
+    },
+  });
+
+  // Déduplication : récupère les proformas déjà alertées dans les 4 derniers jours
+  const alreadyAlerted = expiringProformas.length > 0
+    ? await prisma.notification.findMany({
+        where: {
+          type: 'proforma_expired',
+          createdAt: { gte: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000) },
+        },
+        select: { data: true },
+      })
+    : [];
+
+  const alreadyAlertedIds = new Set(
+    alreadyAlerted
+      .map(n => (n.data as Record<string, unknown> | null)?.['proformaId'])
+      .filter(Boolean),
+  );
+
+  for (const pf of expiringProformas) {
+    if (alreadyAlertedIds.has(pf.id)) continue; // alerte déjà envoyée
+
+    const daysLeft = Math.ceil((new Date(pf.validUntil).getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+    const expiryLabel = daysLeft <= 1 ? 'demain' : `dans ${daysLeft} jours`;
+
+    await notificationQueue.add('notification' as string, {
+      userId: pf.createdById,
+      type: 'proforma_expired',
+      title: `Proforma expire ${expiryLabel} : ${pf.number}`,
+      message: `La proforma ${pf.number} pour ${pf.client.name} expire ${expiryLabel} (${new Date(pf.validUntil).toLocaleDateString('fr-FR')}). Relancez le client si nécessaire.`,
+      data: {
+        proformaId:     pf.id,
+        proformaNumber: pf.number,
+        clientName:     pf.client.name,
+        validUntil:     pf.validUntil,
+        daysLeft,
+      },
+    });
+  }
 }

@@ -11,6 +11,7 @@
  *  - tax-summary    : Récapitulatif TVA par trimestre
  */
 import { prisma } from '../../config/database';
+import { imgToBase64 } from '../../lib/pdf';
 
 export interface DateRangeInput {
   dateFrom?: Date;
@@ -32,7 +33,9 @@ export class ReportsService {
         SUM(CASE WHEN type = 'acompte' AND acompte_percentage > 0
               THEN total_tax * acompte_percentage / 100
               ELSE total_tax END)::numeric AS tax,
-        SUM(total_ttc)::numeric AS ttc,
+        SUM(CASE WHEN type = 'acompte' AND acompte_percentage > 0
+              THEN total_ttc * acompte_percentage / 100
+              ELSE total_ttc END)::numeric AS ttc,
         COUNT(*)                AS count
       FROM invoices
       WHERE deleted_at IS NULL
@@ -69,7 +72,9 @@ export class ReportsService {
         SUM(CASE WHEN i.type = 'acompte' AND i.acompte_percentage > 0
               THEN i.total_tax * i.acompte_percentage / 100
               ELSE i.total_tax END)::numeric AS tax,
-        SUM(i.total_ttc)::numeric    AS ttc,
+        SUM(CASE WHEN i.type = 'acompte' AND i.acompte_percentage > 0
+              THEN i.total_ttc * i.acompte_percentage / 100
+              ELSE i.total_ttc END)::numeric AS ttc,
         SUM(i.amount_paid)::numeric  AS amount_paid,
         SUM(i.balance_due)::numeric  AS balance_due,
         COUNT(*)                     AS cnt
@@ -123,13 +128,21 @@ export class ReportsService {
     }));
   }
 
-  async getUnpaid() {
+  async getUnpaid(input?: DateRangeInput) {
+    const { dateFrom, dateTo } = input ? this._resolveDateRange(input) : { dateFrom: undefined, dateTo: undefined };
+
     return prisma.invoice.findMany({
       where: {
         deletedAt: null,
         status: { in: ['issued', 'partially_paid', 'overdue'] },
+        ...(dateFrom && dateTo ? { issueDate: { gte: dateFrom, lte: dateTo } } : {}),
       },
-      include: { client: { select: { name: true, email: true, phone: true } } },
+      select: {
+        id: true, number: true, clientReference: true,
+        issueDate: true, dueDate: true, status: true,
+        totalTtc: true, amountPaid: true, balanceDue: true,
+        client: { select: { name: true, email: true, phone: true } },
+      },
       orderBy: { dueDate: 'asc' },
     });
   }
@@ -166,7 +179,9 @@ export class ReportsService {
         SUM(CASE WHEN type = 'acompte' AND acompte_percentage > 0
               THEN total_tax * acompte_percentage / 100
               ELSE total_tax END)::numeric AS tax,
-        SUM(total_ttc)::numeric AS ttc,
+        SUM(CASE WHEN type = 'acompte' AND acompte_percentage > 0
+              THEN total_ttc * acompte_percentage / 100
+              ELSE total_ttc END)::numeric AS ttc,
         COUNT(*)                AS count
       FROM invoices
       WHERE deleted_at IS NULL
@@ -183,6 +198,112 @@ export class ReportsService {
       totalTax: Number(r.tax),
       totalTtc: Number(r.ttc),
       count:    Number(r.count),
+    }));
+  }
+
+  /**
+   * Rapport de vieillissement des impayés (aging report).
+   *
+   * Classe chaque facture impayée dans un bucket selon son retard :
+   *  - Courant  : échéance non encore atteinte
+   *  - 1-30j    : 1 à 30 jours de retard
+   *  - 31-60j   : 31 à 60 jours
+   *  - 61-90j   : 61 à 90 jours
+   *  - > 90j    : plus de 90 jours (risque critique)
+   *
+   * Retourne le détail par facture + le récapitulatif par bucket.
+   */
+  async getAgingReport() {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        deletedAt: null,
+        status: { in: ['issued', 'partially_paid', 'overdue'] },
+      },
+      select: {
+        id: true, number: true, clientReference: true,
+        issueDate: true, dueDate: true, status: true,
+        totalTtc: true, amountPaid: true, balanceDue: true,
+        client: { select: { id: true, name: true, email: true, phone: true } },
+      },
+      orderBy: { dueDate: 'asc' },
+    });
+
+    const buckets = {
+      current:    { label: 'Courant',  amount: 0, count: 0 },
+      days_1_30:  { label: '1-30j',    amount: 0, count: 0 },
+      days_31_60: { label: '31-60j',   amount: 0, count: 0 },
+      days_61_90: { label: '61-90j',   amount: 0, count: 0 },
+      over_90:    { label: '> 90j',    amount: 0, count: 0 },
+    };
+
+    const rows = invoices.map(inv => {
+      const daysLate = Math.floor((now.getTime() - new Date(inv.dueDate).getTime()) / 86_400_000);
+      const amount   = Number(inv.balanceDue);
+
+      let bucket: keyof typeof buckets;
+      if      (daysLate <= 0)  bucket = 'current';
+      else if (daysLate <= 30) bucket = 'days_1_30';
+      else if (daysLate <= 60) bucket = 'days_31_60';
+      else if (daysLate <= 90) bucket = 'days_61_90';
+      else                     bucket = 'over_90';
+
+      buckets[bucket].amount += amount;
+      buckets[bucket].count  += 1;
+
+      return {
+        id:         inv.id,
+        number:     inv.number,
+        client:     inv.client,
+        issueDate:  inv.issueDate,
+        dueDate:    inv.dueDate,
+        status:     inv.status,
+        totalTtc:   Number(inv.totalTtc),
+        balanceDue: amount,
+        daysLate:   Math.max(0, daysLate),
+        bucket,
+      };
+    });
+
+    const total = Object.values(buckets).reduce(
+      (acc, b) => ({ amount: acc.amount + b.amount, count: acc.count + b.count }),
+      { amount: 0, count: 0 },
+    );
+
+    return { rows, buckets, total };
+  }
+
+  /**
+   * Agrège les paiements par méthode de règlement sur une période.
+   * Retourne total encaissé, nombre de paiements et part relative pour chaque méthode.
+   */
+  async getPaymentsByMethod(input: DateRangeInput) {
+    const { dateFrom, dateTo } = this._resolveDateRange(input);
+
+    const rows = await prisma.$queryRaw<Array<{
+      method: string; total: number; count: bigint;
+    }>>`
+      SELECT
+        p.method,
+        SUM(p.amount)::numeric AS total,
+        COUNT(*)               AS count
+      FROM payments p
+      WHERE p.deleted_at IS NULL
+        AND p.payment_date >= ${dateFrom}
+        AND p.payment_date <= ${dateTo}
+      GROUP BY p.method
+      ORDER BY total DESC
+    `;
+
+    const grandTotal = rows.reduce((s, r) => s + Number(r.total), 0);
+
+    return rows.map(r => ({
+      method:     r.method,
+      total:      Number(r.total),
+      count:      Number(r.count),
+      percentage: grandTotal > 0 ? Math.round((Number(r.total) / grandTotal) * 100) : 0,
     }));
   }
 
@@ -204,6 +325,17 @@ export class ReportsService {
     return {
       dateFrom: new Date(year, 0, 1),
       dateTo:   new Date(year, 11, 31, 23, 59, 59),
+    };
+  }
+
+  async getReportAssets() {
+    const settings = await prisma.companySettings.findFirst({
+      select: { companyName: true, headerImagePath: true, footerImagePath: true },
+    });
+    return {
+      companyName:    settings?.companyName    ?? 'Bridge Technologies Solutions',
+      headerImageB64: settings?.headerImagePath ? imgToBase64(settings.headerImagePath) : undefined,
+      footerImageB64: settings?.footerImagePath ? imgToBase64(settings.footerImagePath) : undefined,
     };
   }
 }

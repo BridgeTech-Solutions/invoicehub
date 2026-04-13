@@ -18,6 +18,7 @@ export interface RecurringTemplate {
   interval: RecurringInterval
   nextInvoiceDate: string
   endDate?: string | null
+  lastGeneratedAt?: string | null
   subject?: string | null
   notes?: string | null
   paymentConditions?: string | null

@@ -48,6 +48,10 @@ export interface BackupJobData {
   backupId: string;
 }
 
+export interface CleanupJobData {
+  triggeredAt: string;
+}
+
 // ---------------------------------------------------------------------------
 // Instances de queues
 // ---------------------------------------------------------------------------
@@ -77,17 +81,29 @@ export const notificationQueue = new Queue<NotificationJobData>('notification', 
 
 export const overdueQueue = new Queue<OverdueJobData>('overdue', {
   connection: redisConnection as unknown as ConnectionOptions,
-  defaultJobOptions,
+  defaultJobOptions: {
+    ...defaultJobOptions,
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5 * 60_000 }, // 5min → 10min entre chaque tentative
+  },
 });
 
 export const recurringQueue = new Queue<RecurringJobData>('recurring', {
   connection: redisConnection as unknown as ConnectionOptions,
-  defaultJobOptions,
+  defaultJobOptions: {
+    ...defaultJobOptions,
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5 * 60_000 },
+  },
 });
 
 export const reminderQueue = new Queue<ReminderJobData>('reminder', {
   connection: redisConnection as unknown as ConnectionOptions,
-  defaultJobOptions,
+  defaultJobOptions: {
+    ...defaultJobOptions,
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5 * 60_000 },
+  },
 });
 
 export const backupQueue = new Queue<BackupJobData>('backup', {
@@ -96,4 +112,9 @@ export const backupQueue = new Queue<BackupJobData>('backup', {
     ...defaultJobOptions,
     attempts: 1, // Pas de retry automatique pour les backups (risque de doublons)
   },
+});
+
+export const cleanupQueue = new Queue<CleanupJobData>('cleanup', {
+  connection: redisConnection as unknown as ConnectionOptions,
+  defaultJobOptions,
 });

@@ -13,6 +13,7 @@
  */
 
 import React from 'react'
+import { useRouter } from 'next/navigation'
 import { getInitials } from '@/lib/utils'
 
 // ─── Squelette de chargement ──────────────────────────────────
@@ -108,7 +109,8 @@ export function DocListItem({
   alertBg = false,
 }: DocListItemProps) {
 
-  const handleNav = () => { window.location.href = href }
+  const router = useRouter()
+  const handleNav = () => router.push(href)
   const handleKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNav() }
   }

@@ -14,8 +14,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { reportsService } from './reports.service';
 import { sendCsvResponse } from '../../lib/csv';
-import { generatePdf, imgToBase64 } from '../../lib/pdf';
-import { prisma } from '../../config/database';
+import { generatePdf } from '../../lib/pdf';
 import { authenticate } from '../../core/middleware/auth';
 import { authorize } from '../../core/middleware/rbac';
 
@@ -30,19 +29,6 @@ const rangeSchema = z.object({
   quarter:   z.coerce.number().int().min(1).max(4).optional(),
   format:    z.enum(['json', 'csv', 'pdf']).default('json'),
 });
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-async function getReportAssets() {
-  const settings = await prisma.companySettings.findFirst({
-    select: { companyName: true, headerImagePath: true, footerImagePath: true },
-  });
-  return {
-    companyName:    settings?.companyName    ?? 'Bridge Technologies Solutions',
-    headerImageB64: settings?.headerImagePath ? imgToBase64(settings.headerImagePath) : undefined,
-    footerImageB64: settings?.footerImagePath ? imgToBase64(settings.footerImagePath) : undefined,
-  };
-}
 
 /** Formate un montant XAF sans décimales */
 function fmt(n: number) {
@@ -457,7 +443,7 @@ reportsRouter.get('/revenue', async (req: Request, res: Response, next: NextFunc
     }
 
     if (format === 'pdf') {
-      const assets   = await getReportAssets();
+      const assets   = await reportsService.getReportAssets();
       const totalHt  = data.reduce((s, r) => s + r.totalHt,  0);
       const totalTax = data.reduce((s, r) => s + r.totalTax, 0);
       const totalTtc = data.reduce((s, r) => s + r.totalTtc, 0);
@@ -547,7 +533,7 @@ reportsRouter.get('/by-client', async (req: Request, res: Response, next: NextFu
     }
 
     if (format === 'pdf') {
-      const assets    = await getReportAssets();
+      const assets    = await reportsService.getReportAssets();
       const totalHt   = data.reduce((s, r) => s + r.totalHt,    0);
       const totalTtc  = data.reduce((s, r) => s + r.totalTtc,   0);
       const totalPaid = data.reduce((s, r) => s + r.amountPaid, 0);
@@ -640,7 +626,7 @@ reportsRouter.get('/by-category', async (req: Request, res: Response, next: Next
     }
 
     if (format === 'pdf') {
-      const assets   = await getReportAssets();
+      const assets   = await reportsService.getReportAssets();
       const totalHt  = data.reduce((s, r) => s + r.totalHt,      0);
       const totalTtc = data.reduce((s, r) => s + r.totalTtc,     0);
       const totalCnt = data.reduce((s, r) => s + r.invoiceCount, 0);
@@ -719,16 +705,16 @@ reportsRouter.get('/by-category', async (req: Request, res: Response, next: Next
 
 reportsRouter.get('/unpaid', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { format } = rangeSchema.parse(req.query);
-    const data = await reportsService.getUnpaid();
+    const { format, ...range } = rangeSchema.parse(req.query);
+    const data = await reportsService.getUnpaid(range);
 
     if (format === 'csv') {
       return sendCsvResponse(res, 'rapport-impayes.csv',
-        ['Numéro', 'Client', 'Email', 'Date émission', 'Échéance', 'Retard (jours)', 'Total TTC', 'Solde dû', 'Statut'],
+        ['Numéro', 'Réf. client', 'Client', 'Email', 'Date émission', 'Échéance', 'Retard (jours)', 'Total TTC', 'Solde dû', 'Statut'],
         data.map(r => {
           const late = new Date(r.dueDate) < new Date();
           return [
-            r.number, r.client.name, r.client.email,
+            r.number, (r as any).clientReference ?? '', r.client.name, r.client.email,
             r.issueDate.toISOString().slice(0, 10),
             r.dueDate.toISOString().slice(0, 10),
             late ? daysLate(r.dueDate) : 0,
@@ -739,7 +725,7 @@ reportsRouter.get('/unpaid', async (req: Request, res: Response, next: NextFunct
     }
 
     if (format === 'pdf') {
-      const assets   = await getReportAssets();
+      const assets   = await reportsService.getReportAssets();
       const totalDue = data.reduce((s, r) => s + Number(r.balanceDue), 0);
       const now      = new Date();
 
@@ -840,7 +826,7 @@ reportsRouter.get('/payments', async (req: Request, res: Response, next: NextFun
     }
 
     if (format === 'pdf') {
-      const assets = await getReportAssets();
+      const assets = await reportsService.getReportAssets();
       const total  = data.reduce((s, r) => s + Number(r.amount), 0);
 
       const METHOD_FR: Record<string, string> = {
@@ -916,6 +902,96 @@ reportsRouter.get('/payments', async (req: Request, res: Response, next: NextFun
   } catch (err) { next(err); }
 });
 
+// ─── Route : Paiements par méthode ───────────────────────────────────────────
+
+reportsRouter.get('/by-method', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { format, ...range } = rangeSchema.parse(req.query);
+    const data = await reportsService.getPaymentsByMethod(range);
+
+    if (format === 'csv') {
+      return sendCsvResponse(res, 'rapport-paiements-methodes.csv',
+        ['Méthode', 'Total encaissé', 'Nb paiements', 'Part (%)'],
+        data.map(r => [r.method, r.total, r.count, r.percentage]),
+      );
+    }
+
+    if (format === 'pdf') {
+      const assets      = await reportsService.getReportAssets();
+      const grandTotal  = data.reduce((s, r) => s + r.total, 0);
+      const grandCount  = data.reduce((s, r) => s + r.count, 0);
+
+      const METHOD_FR: Record<string, string> = {
+        virement:     'Virement bancaire',
+        especes:      'Espèces',
+        cheque:       'Chèque',
+        mobile_money: 'Mobile Money',
+        autre:        'Autre',
+      };
+
+      const body = `
+        <div class="kpis">
+          <div class="kpi accent-green">
+            <div class="kpi-label">Total encaissé</div>
+            <div class="kpi-value green">${fmt(grandTotal)}</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Nb paiements</div>
+            <div class="kpi-value">${grandCount}</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Méthodes utilisées</div>
+            <div class="kpi-value">${data.length}</div>
+          </div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-label">Répartition par méthode de règlement</div>
+          <table>
+            <thead><tr>
+              <th>Méthode</th>
+              <th class="r">Total encaissé</th>
+              <th class="r">Nb paiements</th>
+              <th class="r">Part du total</th>
+            </tr></thead>
+            <tbody>
+              ${data.length === 0 ? emptyRow(4) : data.map(r => `<tr>
+                <td><strong>${METHOD_FR[r.method] ?? r.method}</strong></td>
+                <td class="r green bold">${fmt(r.total)}</td>
+                <td class="r">${r.count}</td>
+                <td class="r">
+                  <div class="progress-wrap">
+                    <div class="progress-bg">
+                      <div class="progress-fill" style="width:${Math.max(1, r.percentage)}%"></div>
+                    </div>
+                    <span class="progress-pct">${r.percentage}%</span>
+                  </div>
+                </td>
+              </tr>`).join('')}
+            </tbody>
+            <tfoot><tr>
+              <td>Total</td>
+              <td class="r">${fmt(grandTotal)}</td>
+              <td class="r">${grandCount}</td>
+              <td class="r">100%</td>
+            </tr></tfoot>
+          </table>
+        </div>`;
+
+      const html = reportHtml({
+        reportType: 'Rapport de trésorerie',
+        title:      'Encaissements par méthode de règlement',
+        subtitle:   periodLabel(range),
+        body,
+        ...assets,
+      });
+      return sendPdfResponse(res, 'rapport-paiements-methodes.pdf', await generatePdf(html));
+    }
+
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+});
+
 // ─── Route : Récapitulatif TVA ────────────────────────────────────────────────
 
 reportsRouter.get('/tax-summary', async (req: Request, res: Response, next: NextFunction) => {
@@ -931,7 +1007,7 @@ reportsRouter.get('/tax-summary', async (req: Request, res: Response, next: Next
     }
 
     if (format === 'pdf') {
-      const assets   = await getReportAssets();
+      const assets   = await reportsService.getReportAssets();
       const totalHt  = data.reduce((s, r) => s + r.totalHt,  0);
       const totalTax = data.reduce((s, r) => s + r.totalTax, 0);
       const totalTtc = data.reduce((s, r) => s + r.totalTtc, 0);
@@ -1012,5 +1088,120 @@ reportsRouter.get('/tax-summary', async (req: Request, res: Response, next: Next
     }
 
     res.json({ success: true, data });
+  } catch (err) { next(err); }
+});
+
+// ─── Route : Aging report (vieillissement des impayés) ────────────────────────
+
+reportsRouter.get('/aging', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { format } = rangeSchema.parse(req.query);
+    const { rows, buckets, total } = await reportsService.getAgingReport();
+    const now = new Date();
+
+    if (format === 'csv') {
+      return sendCsvResponse(res, 'rapport-aging.csv',
+        ['Numéro', 'Réf. client', 'Client', 'Email', 'Date émission', 'Échéance', 'Retard (j)', 'Total TTC', 'Solde dû', 'Statut', 'Tranche'],
+        rows.map(r => [
+          r.number,
+          (r as any).clientReference ?? '',
+          r.client.name,
+          r.client.email ?? '',
+          new Date(r.issueDate).toLocaleDateString('fr-FR'),
+          new Date(r.dueDate).toLocaleDateString('fr-FR'),
+          r.daysLate,
+          r.totalTtc,
+          r.balanceDue,
+          r.status,
+          buckets[r.bucket].label,
+        ]),
+      );
+    }
+
+    if (format === 'pdf') {
+      const assets = await reportsService.getReportAssets();
+
+      const BUCKET_COLOR: Record<string, string> = {
+        current:    '#16a34a',
+        days_1_30:  '#ca8a04',
+        days_31_60: '#ea580c',
+        days_61_90: '#dc2626',
+        over_90:    '#7f1d1d',
+      };
+
+      const STATUS_FR: Record<string, string> = {
+        issued:         'Émise',
+        partially_paid: 'Part. payée',
+        overdue:        'En retard',
+      };
+
+      const bucketSummary = Object.entries(buckets).map(([key, b]) => `
+        <div class="kpi ${b.amount > 0 && key !== 'current' ? 'accent-red' : ''}">
+          <div class="kpi-label">${b.label} <span class="muted">(${b.count})</span></div>
+          <div class="kpi-value" style="color:${BUCKET_COLOR[key]}">${fmt(b.amount)}</div>
+        </div>`).join('');
+
+      const body = `
+        <div class="kpis">
+          ${bucketSummary}
+        </div>
+
+        ${total.amount > 0 ? `
+        <div class="alert-banner">
+          <div class="alert-left">
+            <span class="alert-icon">!</span>
+            <span class="alert-text">${total.count} facture${total.count > 1 ? 's' : ''} impayée${total.count > 1 ? 's' : ''} au ${now.toLocaleDateString('fr-FR')}</span>
+          </div>
+          <span class="alert-amount">${fmt(total.amount)}</span>
+        </div>` : ''}
+
+        <div class="section-block">
+          <div class="section-label">Détail par facture — trié par retard décroissant</div>
+          <table>
+            <thead><tr>
+              <th>Numéro</th>
+              <th>Client</th>
+              <th>Échéance</th>
+              <th class="r">Retard</th>
+              <th>Tranche</th>
+              <th class="r">Total TTC</th>
+              <th class="r">Solde dû</th>
+              <th>Statut</th>
+            </tr></thead>
+            <tbody>
+              ${rows.length === 0
+                ? emptyRow(8, 'Aucune facture impayée — situation saine')
+                : rows.map(r => `<tr>
+                  <td class="mono blue">${r.number}</td>
+                  <td><strong>${r.client.name}</strong></td>
+                  <td style="${r.daysLate > 0 ? 'color:#b91c1c;font-weight:600' : ''}">${new Date(r.dueDate).toLocaleDateString('fr-FR')}</td>
+                  <td class="r">${r.daysLate > 0 ? `<span class="late-pill">J+${r.daysLate}</span>` : '<span class="muted">—</span>'}</td>
+                  <td><span style="color:${BUCKET_COLOR[r.bucket]};font-weight:600">${buckets[r.bucket].label}</span></td>
+                  <td class="r">${fmt(r.totalTtc)}</td>
+                  <td class="r red bold">${fmt(r.balanceDue)}</td>
+                  <td><span class="badge ${r.status === 'overdue' ? 'badge-error' : 'badge-warning'}">${STATUS_FR[r.status] ?? r.status}</span></td>
+                </tr>`).join('')}
+            </tbody>
+            <tfoot><tr>
+              <td colspan="6">Total impayé</td>
+              <td class="r">${fmt(total.amount)}</td>
+              <td></td>
+            </tr></tfoot>
+          </table>
+        </div>`;
+
+      const html = reportHtml({
+        reportType: 'Rapport de recouvrement',
+        title:      'Vieillissement des impayés (Aging Report)',
+        subtitle:   `Situation au ${now.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}`,
+        body,
+        footerNote: 'Ce rapport classe les factures impayées par tranche de retard. ' +
+                    'À utiliser pour prioriser les actions de recouvrement — SYSCOHADA révisé.',
+        ...assets,
+      });
+      return sendPdfResponse(res, 'rapport-aging.pdf', await generatePdf(html));
+    }
+
+    res.json({ success: true, data: { rows, buckets, total } });
   } catch (err) { next(err); }
 });

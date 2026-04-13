@@ -36,14 +36,20 @@ export class AiController {
         res.setHeader('X-Accel-Buffering', 'no');
         res.flushHeaders();
 
+        let clientDisconnected = false;
+        req.on('close', () => { clientDisconnected = true; });
+
         try {
           for await (const token of chatStream(messages, context, userName, userRole)) {
+            if (clientDisconnected) break;
             res.write(`data: ${JSON.stringify({ token })}\n\n`);
           }
-          res.write('data: [DONE]\n\n');
+          if (!clientDisconnected) res.write('data: [DONE]\n\n');
         } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : 'Erreur interne';
-          res.write(`data: ${JSON.stringify({ error: msg })}\n\n`);
+          if (!clientDisconnected) {
+            const msg = err instanceof Error ? err.message : 'Erreur interne';
+            res.write(`data: ${JSON.stringify({ error: msg })}\n\n`);
+          }
         } finally {
           res.end();
         }

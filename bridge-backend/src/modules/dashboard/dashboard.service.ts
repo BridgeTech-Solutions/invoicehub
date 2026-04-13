@@ -24,7 +24,8 @@ export class DashboardService {
   private async _computeKpis() {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    // Fenêtre glissante de 12 mois (début du mois M-11)
+    const startOf12Months = new Date(now.getFullYear(), now.getMonth() - 11, 1);
 
     const [
       invoicesTotal,
@@ -128,7 +129,7 @@ export class DashboardService {
         take: 5,
       }),
 
-      // CA mensuel (12 derniers mois)
+      // CA mensuel (12 derniers mois glissants)
       prisma.$queryRaw<Array<{ month: string; total: number }>>`
         SELECT
           TO_CHAR(issue_date, 'YYYY-MM') AS month,
@@ -136,7 +137,7 @@ export class DashboardService {
         FROM invoices
         WHERE deleted_at IS NULL
           AND status NOT IN ('draft', 'cancelled')
-          AND issue_date >= ${startOfYear}   
+          AND issue_date >= ${startOf12Months}
         GROUP BY month
         ORDER BY month ASC
       `,
@@ -188,6 +189,86 @@ export class DashboardService {
         total: Number(r.total),
       })),
     };
+  }
+
+  /**
+   * Projection de cashflow pour les 30 prochains jours.
+   *
+   * Pour chaque facture impayée (issued, partially_paid, overdue) :
+   *  - Date prévue = dueDate + avgDaysLate du client (ou dueDate si pas d'historique)
+   *  - Les entrées sont groupées par jour dans la fenêtre [aujourd'hui, +30 jours]
+   *
+   * Retourne : tableau de 30 jours avec { date, expected, invoiceCount, cumulative }
+   */
+  async getCashflowForecast() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const horizon = new Date(today);
+    horizon.setDate(horizon.getDate() + 30);
+
+    type BehaviorRow = { client_id: string; avg_days_late: number | null };
+
+    const [pendingInvoices, clientBehaviorRaw] = await Promise.all([
+      prisma.invoice.findMany({
+        where: {
+          deletedAt: null,
+          status: { in: ['issued', 'partially_paid', 'overdue'] },
+        },
+        select: { id: true, clientId: true, dueDate: true, balanceDue: true },
+      }),
+      prisma.$queryRaw<BehaviorRow[]>`
+        SELECT
+          inv.client_id,
+          AVG(EXTRACT(EPOCH FROM (pay.payment_date - inv.due_date)) / 86400) AS avg_days_late
+        FROM payments pay
+        JOIN invoices inv ON inv.id = pay.invoice_id
+        WHERE inv.deleted_at IS NULL
+          AND pay.deleted_at IS NULL
+        GROUP BY inv.client_id
+      `,
+    ]);
+
+    // Map clientId → avgDaysLate
+    const avgDelayMap = new Map<string, number>();
+    for (const row of clientBehaviorRaw) {
+      if (row.avg_days_late !== null) {
+        avgDelayMap.set(row.client_id, Math.round(Number(row.avg_days_late)));
+      }
+    }
+
+    // Initialise les 30 jours à zéro
+    const dayMap = new Map<string, { expected: number; invoiceCount: number }>();
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() + i);
+      dayMap.set(d.toISOString().split('T')[0], { expected: 0, invoiceCount: 0 });
+    }
+
+    // Projette chaque facture sur son jour prévu
+    for (const inv of pendingInvoices) {
+      const avgDelay = avgDelayMap.get(inv.clientId) ?? 0;
+      const predicted = new Date(inv.dueDate);
+      predicted.setDate(predicted.getDate() + avgDelay);
+      predicted.setHours(0, 0, 0, 0);
+      // Un client qui paie en avance peut produire une date dans le passé :
+      // on ramène au jour courant pour ne pas perdre la facture du forecast.
+      if (predicted < today) predicted.setTime(today.getTime());
+
+      const key = predicted.toISOString().split('T')[0];
+      const existing = dayMap.get(key);
+      if (existing) {
+        existing.expected    += Number(inv.balanceDue);
+        existing.invoiceCount += 1;
+      }
+    }
+
+    // Construit le tableau final avec cumulatif
+    const days = Array.from(dayMap.entries()).sort(([a], [b]) => a.localeCompare(b));
+    let cumulative = 0;
+    return days.map(([date, { expected, invoiceCount }]) => {
+      cumulative += expected;
+      return { date, expected: Math.round(expected), invoiceCount, cumulative: Math.round(cumulative) };
+    });
   }
 
   async getAging() {

@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { usersController } from './users.controller';
 import { authenticate } from '../../core/middleware/auth';
 import { authorize } from '../../core/middleware/rbac';
+import { auditMiddleware } from '../../core/middleware/audit';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -36,12 +37,12 @@ router.put('/me/avatar',   avatarUpload.single('file'), usersController.uploadAv
 router.delete('/me/avatar', usersController.deleteAvatar.bind(usersController));
 
 router.get('/',                    authorize('admin'), usersController.list.bind(usersController));
-router.post('/',                   authorize('admin'), usersController.create.bind(usersController));
+router.post('/',                   authorize('admin'), auditMiddleware('user', 'CREATE'),        usersController.create.bind(usersController));
 router.get('/:id',                 authorize('admin'), usersController.findById.bind(usersController));
-router.put('/:id',                 authorize('admin'), usersController.update.bind(usersController));
-router.delete('/:id',              authorize('admin'), usersController.delete.bind(usersController));
-router.post('/:id/reactivate',     authorize('admin'), usersController.reactivate.bind(usersController));
-router.post('/:id/reset-password', authorize('admin'), usersController.resetPassword.bind(usersController));
+router.put('/:id',                 authorize('admin'), auditMiddleware('user', 'UPDATE'),        usersController.update.bind(usersController));
+router.delete('/:id',              authorize('admin'), auditMiddleware('user', 'SOFT_DELETE'),   usersController.delete.bind(usersController));
+router.post('/:id/reactivate',     authorize('admin'), auditMiddleware('user', 'STATUS_CHANGE'), usersController.reactivate.bind(usersController));
+router.post('/:id/reset-password', authorize('admin'), auditMiddleware('user', 'UPDATE'),        usersController.resetPassword.bind(usersController));
 router.get('/:id/activity',        authorize('admin'), usersController.activity.bind(usersController));
 
 export { router as usersRouter };

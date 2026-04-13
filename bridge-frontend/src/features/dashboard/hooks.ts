@@ -3,8 +3,9 @@ import { useSocket } from '@/hooks/useSocket'
 import * as dashboardApi from './api'
 
 export const DASHBOARD_KEYS = {
-  kpis:  ['dashboard', 'kpis']  as const,
-  aging: ['dashboard', 'aging'] as const,
+  kpis:     ['dashboard', 'kpis']     as const,
+  aging:    ['dashboard', 'aging']    as const,
+  cashflow: ['dashboard', 'cashflow'] as const,
 }
 
 // ─── KPI data ──────────────────────────────────────────────────
@@ -24,6 +25,16 @@ export function useDashboardAging() {
   return useQuery({
     queryKey: DASHBOARD_KEYS.aging,
     queryFn:  dashboardApi.getAging,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  })
+}
+
+// ─── Cashflow forecast (30 jours) ──────────────────────────────
+export function useCashflowForecast() {
+  return useQuery({
+    queryKey: DASHBOARD_KEYS.cashflow,
+    queryFn:  dashboardApi.getCashflowForecast,
     staleTime: 0,
     refetchOnWindowFocus: true,
   })

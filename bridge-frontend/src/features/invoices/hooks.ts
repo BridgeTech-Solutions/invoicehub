@@ -95,7 +95,7 @@ export function useIssueInvoice() {
     onSuccess: (_, id) => {
       qc.invalidateQueries({ queryKey: INVOICE_KEYS.detail(id) })
       qc.invalidateQueries({ queryKey: INVOICE_KEYS.all })
-      toast.success('Facture émise — email envoyé au client ✓')
+      toast.success('Facture émise avec succès')
     },
     onError: () => toast.error('Erreur lors de l\'émission'),
   })

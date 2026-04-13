@@ -20,8 +20,12 @@ export class AuditService {
       ...(userId     && { userId }),
       ...(entityType && { entityType }),
       ...(action     && { action }),
-      ...(dateFrom   && { createdAt: { gte: dateFrom } }),
-      ...(dateTo     && { createdAt: { lte: dateTo } }),
+      ...((dateFrom || dateTo) && {
+        createdAt: {
+          ...(dateFrom && { gte: dateFrom }),
+          ...(dateTo   && { lte: dateTo }),
+        },
+      }),
     };
 
     const [total, data] = await Promise.all([
@@ -44,8 +48,12 @@ export class AuditService {
       ...(userId     && { userId }),
       ...(entityType && { entityType }),
       ...(action     && { action }),
-      ...(dateFrom   && { createdAt: { gte: dateFrom } }),
-      ...(dateTo     && { createdAt: { lte: dateTo } }),
+      ...((dateFrom || dateTo) && {
+        createdAt: {
+          ...(dateFrom && { gte: dateFrom }),
+          ...(dateTo   && { lte: dateTo }),
+        },
+      }),
     };
     return prisma.auditLog.findMany({
       where,
@@ -65,6 +73,7 @@ export class AuditService {
       }),
       prisma.auditLog.groupBy({
         by: ['entityType'],
+        where:   { entityType: { not: null } },
         _count:  true,
         orderBy: { _count: { entityType: 'desc' } },
         take:    10,

@@ -57,8 +57,8 @@ export class AuthController {
 
   async verifyTwoFactor(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { token, secret } = verifyTotpSchema.parse(req.body);
-      const result = await authService.verifyAndActivateTwoFactor(req.user!.id, token, secret);
+      const { token } = verifyTotpSchema.parse(req.body);
+      const result = await authService.verifyAndActivateTwoFactor(req.user!.id, token);
       res.json({
         success: true,
         message: '2FA activé avec succès',
@@ -120,10 +120,10 @@ export class AuthController {
 
   async listSessions(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      // Extraire le hash du refresh token courant depuis le body si fourni
-      const body = z.object({ refreshToken: z.string().optional() }).safeParse(req.body);
-      const currentHash = body.success && body.data.refreshToken
-        ? crypto.createHash('sha256').update(body.data.refreshToken).digest('hex')
+      // Le refresh token est transmis via l'en-tête X-Refresh-Token (GET n'a pas de body)
+      const rawToken = req.headers['x-refresh-token'] as string | undefined;
+      const currentHash = rawToken
+        ? crypto.createHash('sha256').update(rawToken).digest('hex')
         : undefined;
       const data = await authService.listSessions(req.user!.id, currentHash);
       res.json({ success: true, data });

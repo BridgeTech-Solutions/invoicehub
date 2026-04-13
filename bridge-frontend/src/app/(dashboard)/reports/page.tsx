@@ -310,10 +310,11 @@ function ByClientTab({ range }: { range: ReportRange }) {
 
 function ByCategoryTab({ range }: { range: ReportRange }) {
   const { data, isLoading } = useRevenueByCategory(range)
-  const rows  = data ?? []
-  const total = rows.reduce((s, r) => s + r.totalHt,  0)
-  const totalTtc = rows.reduce((s, r) => s + r.totalTtc, 0)
-  const totalCnt = rows.reduce((s, r) => s + r.invoiceCount, 0)
+  const rows     = data ?? []
+  const total    = rows.reduce((s, r) => s + r.totalHt,       0)
+  const totalTtc = rows.reduce((s, r) => s + r.totalTtc,      0)
+  const totalCnt = rows.reduce((s, r) => s + r.invoiceCount,  0)
+  const totalPct = rows.reduce((s, r) => s + (total > 0 ? Math.round(r.totalHt / total * 100) : 0), 0)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -362,7 +363,7 @@ function ByCategoryTab({ range }: { range: ReportRange }) {
                 <TotalTD>Total</TotalTD>
                 <TotalTD right mono>{fmt(total)} XAF</TotalTD>
                 <TotalTD right mono>{fmt(totalTtc)} XAF</TotalTD>
-                <TotalTD right mono>100%</TotalTD>
+                <TotalTD right mono>{totalPct}%</TotalTD>
                 <TotalTD right>{totalCnt}</TotalTD>
               </TotalRow>
             </tfoot>

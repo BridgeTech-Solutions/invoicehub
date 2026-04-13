@@ -216,6 +216,7 @@ model CompanySettings {
   defaultInvoiceDueDays        Int      @default(30) @map("default_invoice_due_days") @db.SmallInt
   sessionTimeoutMinutes        Int      @default(30) @map("session_timeout_minutes") @db.SmallInt
   maxLoginAttempts             Int      @default(5) @map("max_login_attempts") @db.SmallInt
+  require2FA                   Boolean  @default(false) @map("require_2fa")
   autoReminderDays             Int[]    @default([7, 14, 30]) @map("auto_reminder_days")
   reminderEscalation           Json     @default("{}") @map("reminder_escalation")
   metadata                     Json     @default("{}")

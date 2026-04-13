@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -70,6 +70,15 @@ function ConfirmDeleteModal({
   onConfirm: () => void
   onCancel: () => void
 }) {
+  const confirmRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => { confirmRef.current?.focus() }, [])
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onCancel])
+
   return (
     <div
       role="dialog" aria-modal="true"
@@ -97,7 +106,7 @@ function ConfirmDeleteModal({
             style={{ padding: '10px 18px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', minHeight: 44 }}>
             Annuler
           </button>
-          <button type="button" onClick={onConfirm}
+          <button ref={confirmRef} type="button" onClick={onConfirm}
             style={{ padding: '10px 18px', borderRadius: 'var(--radius-md)', border: 'none', background: '#ef4444', color: '#fff', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', minHeight: 44 }}>
             Supprimer
           </button>

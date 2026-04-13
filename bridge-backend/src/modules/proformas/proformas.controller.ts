@@ -16,9 +16,10 @@ export class ProformasController {
         const filters = listProformasSchema.parse({ ...req.query, limit: '20', page: '1' });
         const { data } = await proformasService.list({ ...filters, page: 1, limit: 10_000 });
         return sendCsvResponse(res, 'proformas.csv',
-          ['Numéro', 'Client', 'Statut', 'Date émission', 'Valide jusqu\'au', 'Total TTC'],
+          ['Numéro', 'Réf. client', 'Client', 'Statut', 'Date émission', 'Valide jusqu\'au', 'Total TTC'],
           data.map(p => [
             p.number,
+            (p as any).clientReference ?? '',
             (p.client as { name: string }).name,
             p.status,
             new Date(p.issueDate).toLocaleDateString('fr-FR'),

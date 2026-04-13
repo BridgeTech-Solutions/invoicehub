@@ -3,16 +3,18 @@
 import { useState, useMemo, useId, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, Download, Building2, User, Users, Eye, Pencil, Archive, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
+import { Plus, Search, Download, Building2, User, Users, Eye, Pencil, Archive, ChevronLeft, ChevronRight, Loader2, Upload, FileSpreadsheet } from 'lucide-react'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
 import { toast } from 'sonner'
 import { useClients, useArchiveClient } from '@/features/clients/hooks'
+import { exportClientsCsv } from '@/features/clients/api'
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
 import { formatDate, getInitials } from '@/lib/utils'
 import { ROUTES } from '@/lib/constants'
 import type { Client } from '@/features/clients/types'
+import { ImportClientsModal, downloadTemplate } from '@/features/clients/ImportClientsModal'
 
 const PAGE_SIZE = 20
 
@@ -106,6 +108,7 @@ export default function ClientsPage() {
   const [statusFilter, setStatus] = useState<StatusFilter>('')
   const [page, setPage]           = useState(1)
   const [isExporting, setIsExporting] = useState(false)
+  const [importOpen, setImportOpen]   = useState(false)
   const { can } = usePermission()
 
   const searchId = useId()
@@ -127,22 +130,16 @@ export default function ClientsPage() {
   const clients = data?.data ?? []
 
   const handleExport = async () => {
-    if (clients.length === 0) return
     setIsExporting(true)
     try {
-      const rows = [
-        ['Nom', 'Type', 'Email', 'Téléphone', 'Ville', 'N° Fiscal', 'Statut'].join(';'),
-        ...clients.map((c) => [
-          c.name, c.type === 'company' ? 'Entreprise' : 'Particulier',
-          c.email ?? '', c.phone ?? '', c.city ?? '', c.taxNumber ?? '',
-          c.status === 'active' ? 'Actif' : 'Archivé',
-        ].join(';')),
-      ].join('\n')
-      const blob = new Blob(['\uFEFF' + rows], { type: 'text/csv;charset=utf-8;' })
-      const url  = URL.createObjectURL(blob)
-      const a    = document.createElement('a'); a.href = url; a.download = 'clients.csv'; a.click()
-      URL.revokeObjectURL(url)
+      await exportClientsCsv({
+        ...(tab !== 'all'  && { type:   tab as 'company' | 'individual' }),
+        ...(statusFilter   && { status: statusFilter as 'active' | 'archived' }),
+        ...(search         && { search }),
+      })
       toast.success('Export CSV téléchargé')
+    } catch {
+      toast.error("Erreur lors de l'export")
     } finally {
       setIsExporting(false)
     }
@@ -168,7 +165,7 @@ export default function ClientsPage() {
             <button
               type="button"
               onClick={handleExport}
-              disabled={isExporting || clients.length === 0}
+              disabled={isExporting}
               aria-label="Exporter la liste des clients au format CSV"
               style={{
                 display: 'flex', alignItems: 'center', gap: 7,
@@ -176,7 +173,6 @@ export default function ClientsPage() {
                 border: '1.5px solid var(--border)', background: 'var(--surface)',
                 color: 'var(--text-2)', fontSize: 13.5, cursor: isExporting ? 'wait' : 'pointer',
                 fontFamily: 'var(--font-display)', fontWeight: 500,
-                opacity: clients.length === 0 ? 0.5 : 1,
                 transition: 'opacity 0.15s',
               }}
             >
@@ -185,6 +181,40 @@ export default function ClientsPage() {
                 : <Download size={14} aria-hidden />}
               Exporter
             </button>
+            {can('client', 'create') && (
+              <>
+                <button
+                  type="button"
+                  onClick={downloadTemplate}
+                  aria-label="Télécharger le modèle Excel pour l'import de clients"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 7,
+                    padding: '8px 14px', borderRadius: 'var(--radius-md)',
+                    border: '1.5px solid var(--border)', background: 'var(--surface)',
+                    color: 'var(--text-2)', fontSize: 13.5, cursor: 'pointer',
+                    fontFamily: 'var(--font-display)', fontWeight: 500,
+                    transition: 'opacity 0.15s',
+                  }}
+                >
+                  <FileSpreadsheet size={14} aria-hidden /> Modèle
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImportOpen(true)}
+                  aria-label="Importer des clients depuis un fichier Excel"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 7,
+                    padding: '8px 14px', borderRadius: 'var(--radius-md)',
+                    border: '1.5px solid var(--primary)', background: 'rgba(45,125,210,0.07)',
+                    color: 'var(--primary)', fontSize: 13.5, cursor: 'pointer',
+                    fontFamily: 'var(--font-display)', fontWeight: 500,
+                    transition: 'opacity 0.15s',
+                  }}
+                >
+                  <Upload size={14} aria-hidden /> Importer
+                </button>
+              </>
+            )}
             {can('client', 'create') && (
               <Link
                 href={ROUTES.CLIENTS + '/new'}
@@ -379,6 +409,8 @@ export default function ClientsPage() {
           </div>
         )}
       </div>
+
+      <ImportClientsModal open={importOpen} onClose={() => setImportOpen(false)} />
     </div>
   )
 }

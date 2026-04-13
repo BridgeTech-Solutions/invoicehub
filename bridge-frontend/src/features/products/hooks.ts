@@ -6,6 +6,7 @@ import type {
   CreateProductPayload,
   UpdateProductPayload,
   CreateCategoryPayload,
+  ImportProductRow,
 } from './types'
 import type { AxiosError } from 'axios'
 
@@ -132,5 +133,17 @@ export function useDeleteProduct() {
       toast.success('Produit archivé')
     },
     onError: () => toast.error('Erreur lors de la suppression'),
+  })
+}
+
+export function useImportProducts() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (rows: ImportProductRow[]) => productsApi.importProducts(rows),
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ['products'] })
+      toast.success(`${result.created} produit${result.created > 1 ? 's' : ''} importé${result.created > 1 ? 's' : ''}`)
+    },
+    onError: () => toast.error("Erreur lors de l'import"),
   })
 }

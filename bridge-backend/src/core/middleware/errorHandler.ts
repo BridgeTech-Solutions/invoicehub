@@ -101,12 +101,14 @@ export function errorHandler(
   // ------------------------------------------------------------------
   // 4. Erreur inconnue — ne jamais exposer la stack en production
   // ------------------------------------------------------------------
-  logger.error('Unhandled error', {
-    error: err.message,
-    stack: err.stack,
-    path: req.path,
-    method: req.method,
-  });
+  if (process.env.NODE_ENV !== 'test') {
+    logger.error('Unhandled error', {
+      error: err.message,
+      stack: err.stack,
+      path: req.path,
+      method: req.method,
+    });
+  }
 
   res.status(500).json({
     success: false,

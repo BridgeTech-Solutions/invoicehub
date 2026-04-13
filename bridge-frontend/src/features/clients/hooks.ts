@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import * as clientsApi from './api'
 import { ROUTES } from '@/lib/constants'
-import type { ListClientsParams, CreateClientPayload, UpdateClientPayload } from './types'
+import type { ListClientsParams, CreateClientPayload, UpdateClientPayload, ImportClientRow } from './types'
 
 export const CLIENTS_KEYS = {
   list:      (params?: ListClientsParams) => ['clients', 'list', params] as const,
@@ -16,6 +16,7 @@ export function useClients(params?: ListClientsParams) {
   return useQuery({
     queryKey: CLIENTS_KEYS.list(params),
     queryFn:  () => clientsApi.listClients(params),
+    staleTime: 30_000,
   })
 }
 
@@ -24,6 +25,7 @@ export function useClient(id: string) {
     queryKey: CLIENTS_KEYS.detail(id),
     queryFn:  () => clientsApi.getClient(id),
     enabled:  !!id,
+    staleTime: 30_000,
   })
 }
 
@@ -87,5 +89,20 @@ export function useArchiveClient() {
       router.push(ROUTES.CLIENTS)
     },
     onError: () => toast.error('Erreur lors de l\'archivage'),
+  })
+}
+
+
+export function useImportClients() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (rows: ImportClientRow[]) => clientsApi.importClients(rows),
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ['clients'] })
+      if (result.created > 0) {
+        toast.success(`${result.created} client${result.created > 1 ? 's' : ''} importé${result.created > 1 ? 's' : ''}`)
+      }
+    },
+    onError: () => toast.error("Erreur lors de l'import"),
   })
 }

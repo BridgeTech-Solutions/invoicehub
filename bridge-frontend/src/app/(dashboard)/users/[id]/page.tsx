@@ -23,9 +23,9 @@ const ROLE_CFG: Record<Role, { label: string; color: string; bg: string }> = {
 }
 
 const STATUS_CFG = {
-  active:    { label: 'Actif',      color: '#10b981', bg: 'rgba(16,185,129,0.1)'  },
-  suspended: { label: 'Suspendu',   color: '#ef4444', bg: 'rgba(239,68,68,0.1)'   },
-  pending:   { label: 'En attente', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)'  },
+  active:             { label: 'Actif',      color: '#10b981', bg: 'rgba(16,185,129,0.1)'  },
+  suspended:          { label: 'Suspendu',   color: '#ef4444', bg: 'rgba(239,68,68,0.1)'   },
+  pending_activation: { label: 'En attente', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)'  },
 }
 
 const ACTION_LABELS: Record<string, string> = {

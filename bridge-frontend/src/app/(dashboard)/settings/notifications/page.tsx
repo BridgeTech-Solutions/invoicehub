@@ -10,7 +10,7 @@ import {
 } from '@/features/notifications/hooks'
 import { useSettings, useUpdateSettings } from '@/features/settings/hooks'
 import { TEMPLATE_VARIABLES } from '@/features/email-templates/types'
-import type { NotificationType } from '@/features/notifications/types'
+import type { NotificationType, NotificationChannel } from '@/features/notifications/types'
 import type { EmailTemplate } from '@/features/email-templates/types'
 import type { UpdateSettingsPayload, ReminderEscalationLevel, CheckLevel } from '@/features/settings/types'
 
@@ -70,17 +70,23 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: () =
 function NotifSettingsSection() {
   const { data: settings = [], isLoading } = useNotificationSettings()
   const updateMut = useUpdateNotificationSettings()
-  const [local, setLocal] = useState<Record<string, { inApp: boolean; email: boolean }>>({})
+  const [local, setLocal] = useState<Record<string, { channel: NotificationChannel; enabled: boolean }>>({})
   const [dirty, setDirty] = useState(false)
 
   const effective = (type: NotificationType) => {
     const server = settings.find((s) => s.type === type)
-    return local[type] ?? { inApp: server?.inApp ?? true, email: server?.email ?? false }
+    return local[type] ?? { channel: server?.channel ?? 'both' as NotificationChannel, enabled: server?.enabled ?? true }
   }
 
-  function toggle(type: NotificationType, key: 'inApp' | 'email') {
+  function toggleEnabled(type: NotificationType) {
     const cur = effective(type)
-    setLocal((prev) => ({ ...prev, [type]: { ...cur, [key]: !cur[key] } }))
+    setLocal((prev) => ({ ...prev, [type]: { ...cur, enabled: !cur.enabled } }))
+    setDirty(true)
+  }
+
+  function setChannel(type: NotificationType, channel: NotificationChannel) {
+    const cur = effective(type)
+    setLocal((prev) => ({ ...prev, [type]: { ...cur, channel } }))
     setDirty(true)
   }
 
@@ -92,6 +98,12 @@ function NotifSettingsSection() {
     await updateMut.mutateAsync(merged)
     setDirty(false)
   }
+
+  const CHANNELS: { value: NotificationChannel; label: string }[] = [
+    { value: 'in_app', label: 'App' },
+    { value: 'email',  label: 'Email' },
+    { value: 'both',   label: 'Les deux' },
+  ]
 
   return (
     <div className="card">
@@ -108,9 +120,9 @@ function NotifSettingsSection() {
         )}
       </div>
       {/* Header */}
-      <div aria-hidden="true" style={{ display: 'grid', gridTemplateColumns: '1fr 100px 100px', gap: 12, padding: '0 8px', marginBottom: 8 }}>
-        {['Événement', 'Dans l\'app', 'Email'].map((h) => (
-          <span key={h} style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: h === 'Événement' ? 'left' : 'center' }}>{h}</span>
+      <div aria-hidden="true" style={{ display: 'grid', gridTemplateColumns: '1fr 70px 196px', gap: 12, padding: '0 8px', marginBottom: 8 }}>
+        {[{ label: 'Événement', align: 'left' }, { label: 'Actif', align: 'center' }, { label: 'Canal', align: 'left' }].map((h) => (
+          <span key={h.label} style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: h.align as React.CSSProperties['textAlign'] }}>{h.label}</span>
         ))}
       </div>
       {isLoading
@@ -118,24 +130,21 @@ function NotifSettingsSection() {
         : (Object.keys(NOTIF_LABELS) as NotificationType[]).map((type) => {
           const s = effective(type)
           return (
-            <div key={type} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 100px', gap: 12, padding: '10px 8px', borderRadius: 'var(--radius-md)', transition: 'background 0.1s' }}
+            <div key={type} style={{ display: 'grid', gridTemplateColumns: '1fr 70px 196px', gap: 12, padding: '10px 8px', borderRadius: 'var(--radius-md)', transition: 'background 0.1s', alignItems: 'center' }}
               onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface)' }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
             >
-              <span style={{ fontSize: 13.5, color: 'var(--text-1)' }}>{NOTIF_LABELS[type]}</span>
+              <span style={{ fontSize: 13.5, color: s.enabled ? 'var(--text-1)' : 'var(--text-3)' }}>{NOTIF_LABELS[type]}</span>
               <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <Toggle
-                  checked={s.inApp}
-                  onChange={() => toggle(type, 'inApp')}
-                  label={`${NOTIF_LABELS[type]} — dans l'application`}
-                />
+                <Toggle checked={s.enabled} onChange={() => toggleEnabled(type)} label={`Activer ${NOTIF_LABELS[type]}`} />
               </div>
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <Toggle
-                  checked={s.email}
-                  onChange={() => toggle(type, 'email')}
-                  label={`${NOTIF_LABELS[type]} — par email`}
-                />
+              <div style={{ display: 'flex', gap: 4, opacity: s.enabled ? 1 : 0.35, pointerEvents: s.enabled ? 'auto' : 'none', transition: 'opacity 0.2s' }}>
+                {CHANNELS.map((ch) => (
+                  <button key={ch.value} type="button" onClick={() => setChannel(type, ch.value)}
+                    style={{ padding: '3px 8px', borderRadius: 'var(--radius-md)', border: `1.5px solid ${s.channel === ch.value ? 'var(--primary)' : 'var(--border)'}`, background: s.channel === ch.value ? 'var(--primary-light)' : 'transparent', color: s.channel === ch.value ? 'var(--primary)' : 'var(--text-3)', fontSize: 11.5, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s' }}>
+                    {ch.label}
+                  </button>
+                ))}
               </div>
             </div>
           )

@@ -20,6 +20,7 @@
 import { Job } from 'bullmq';
 import { prisma } from '../../config/database';
 import { notificationQueue, emailQueue } from '../queues';
+import { logger } from '../../core/middleware/requestLogger';
 import type { ReminderJobData } from '../queues';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -604,6 +605,21 @@ export async function processReminderJob(_job: Job<ReminderJobData>): Promise<vo
     where: { role: 'admin', status: 'active', deletedAt: null },
     select: { id: true, email: true, firstName: true },
   });
+
+  // Avertissement si aucun manager disponible — les escalades Urgente/Critique
+  // n'atteindront que le créateur/assigné sans notifier le management
+  const needsManagers =
+    config.levels.some(l => l.notifyManagers) ||
+    checkLevels.some(l => l.notifyManagers)   ||
+    draftCheckLevels.some(l => l.notifyManagers);
+
+  if (managers.length === 0 && needsManagers) {
+    logger.warn(
+      '[Reminder] Aucun administrateur actif trouvé — les escalades de niveau Urgente/Critique ' +
+      'ne seront notifiées qu\'au créateur/assigné. Vérifiez qu\'au moins un utilisateur avec ' +
+      'le rôle "admin" est actif dans le système.',
+    );
+  }
 
   // Exécuter les 4 modules en séquence
   await processOverdueEscalation(config, managers, today);

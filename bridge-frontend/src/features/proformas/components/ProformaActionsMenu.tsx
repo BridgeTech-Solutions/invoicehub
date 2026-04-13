@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect, useId } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Send, CheckCircle2, XCircle, ArrowRightLeft, Copy,
-  Trash2, FileDown, Loader2, ChevronDown, Pencil,
+  Trash2, FileDown, Loader2, Pencil, AlertTriangle,
 } from 'lucide-react'
 import {
   useSendProforma, useAcceptProforma, useRejectProforma,
@@ -17,17 +17,31 @@ import { ROUTES } from '@/lib/constants'
 // ─── Reject modal ───────────────────────────────────────────────
 
 function RejectModal({ proformaId, onClose }: { proformaId: string; onClose: () => void }) {
+  const titleId   = useId()
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [reason, setReason] = useState('')
   const mutation = useRejectProforma()
 
+  useEffect(() => { textareaRef.current?.focus() }, [])
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onClose])
+
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div className="card" style={{ width: '100%', maxWidth: 420, padding: '24px' }}>
-        <h3 className="font-display" style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-1)', marginBottom: 12 }}>
+    <div
+      role="dialog" aria-modal="true" aria-labelledby={titleId}
+      style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="card" style={{ width: '100%', maxWidth: 420, padding: '24px' }} onClick={(e) => e.stopPropagation()}>
+        <h3 id={titleId} className="font-display" style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-1)', margin: '0 0 12px' }}>
           Rejeter la proforma
         </h3>
         <p style={{ fontSize: 13, color: 'var(--text-3)', marginBottom: 14 }}>Motif du rejet (optionnel)</p>
         <textarea
+          ref={textareaRef}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="Ex: Prix trop élevé, délai non compatible…"
@@ -37,23 +51,24 @@ function RejectModal({ proformaId, onClose }: { proformaId: string; onClose: () 
             border: '1.5px solid var(--border)', background: 'var(--bg)',
             fontSize: 13.5, color: 'var(--text-1)', fontFamily: 'var(--font-body)',
             outline: 'none', resize: 'vertical', lineHeight: 1.5, marginBottom: 16,
+            boxSizing: 'border-box',
           }}
           onFocus={(e) => { e.target.style.borderColor = 'var(--primary)' }}
           onBlur={(e)  => { e.target.style.borderColor = 'var(--border)' }}
         />
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
           <button type="button" onClick={onClose}
-            style={{ padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)', fontSize: 13.5, cursor: 'pointer', fontFamily: 'var(--font-display)', fontWeight: 500 }}>
+            style={{ padding: '8px 16px', minHeight: 44, borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)', fontSize: 13.5, cursor: 'pointer', fontFamily: 'var(--font-display)', fontWeight: 500 }}>
             Annuler
           </button>
           <button
             type="button"
             disabled={mutation.isPending}
             onClick={() => mutation.mutate({ id: proformaId, reason: reason || undefined }, { onSuccess: onClose })}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius-md)', background: '#f43f5e', color: '#fff', border: 'none', cursor: mutation.isPending ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13.5 }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', minHeight: 44, borderRadius: 'var(--radius-md)', background: '#f43f5e', color: '#fff', border: 'none', cursor: mutation.isPending ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13.5, opacity: mutation.isPending ? 0.65 : 1 }}
           >
-            {mutation.isPending && <Loader2 size={13} className="animate-spin" />}
-            <XCircle size={14} /> Rejeter
+            {mutation.isPending && <Loader2 size={13} className="animate-spin" aria-hidden />}
+            <XCircle size={14} aria-hidden /> Rejeter
           </button>
         </div>
       </div>
@@ -64,9 +79,18 @@ function RejectModal({ proformaId, onClose }: { proformaId: string; onClose: () 
 // ─── Convert modal ──────────────────────────────────────────────
 
 function ConvertModal({ proforma, onClose }: { proforma: Proforma; onClose: () => void }) {
+  const titleId = useId()
+  const cancelRef = useRef<HTMLButtonElement>(null)
   const [invoiceType, setInvoiceType] = useState<'standard' | 'acompte'>('standard')
   const [pct, setPct] = useState(30)
   const mutation = useConvertProforma()
+
+  useEffect(() => { cancelRef.current?.focus() }, [])
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onClose])
 
   const handleConvert = () => {
     mutation.mutate({
@@ -79,9 +103,13 @@ function ConvertModal({ proforma, onClose }: { proforma: Proforma; onClose: () =
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div className="card" style={{ width: '100%', maxWidth: 440, padding: '24px' }}>
-        <h3 className="font-display" style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-1)', marginBottom: 6 }}>
+    <div
+      role="dialog" aria-modal="true" aria-labelledby={titleId}
+      style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="card" style={{ width: '100%', maxWidth: 440, padding: '24px' }} onClick={(e) => e.stopPropagation()}>
+        <h3 id={titleId} className="font-display" style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-1)', margin: '0 0 6px' }}>
           Convertir en facture
         </h3>
         <p style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 18 }}>
@@ -144,18 +172,68 @@ function ConvertModal({ proforma, onClose }: { proforma: Proforma; onClose: () =
         )}
 
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button type="button" onClick={onClose}
-            style={{ padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)', fontSize: 13.5, cursor: 'pointer', fontFamily: 'var(--font-display)', fontWeight: 500 }}>
+          <button ref={cancelRef} type="button" onClick={onClose}
+            style={{ padding: '8px 16px', minHeight: 44, borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)', fontSize: 13.5, cursor: 'pointer', fontFamily: 'var(--font-display)', fontWeight: 500 }}>
             Annuler
           </button>
           <button
             type="button"
             disabled={mutation.isPending}
             onClick={handleConvert}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', cursor: mutation.isPending ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13.5, boxShadow: '0 4px 12px rgba(45,125,210,0.3)' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', minHeight: 44, borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', cursor: mutation.isPending ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13.5, boxShadow: '0 4px 12px rgba(45,125,210,0.3)', opacity: mutation.isPending ? 0.65 : 1 }}
           >
-            {mutation.isPending && <Loader2 size={13} className="animate-spin" />}
-            <ArrowRightLeft size={14} /> Convertir
+            {mutation.isPending && <Loader2 size={13} className="animate-spin" aria-hidden />}
+            <ArrowRightLeft size={14} aria-hidden /> Convertir
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Confirm delete modal ───────────────────────────────────────
+
+function ConfirmDeleteModal({
+  number, isPending, onConfirm, onCancel,
+}: { number: string; isPending: boolean; onConfirm: () => void; onCancel: () => void }) {
+  const titleId    = useId()
+  const confirmRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => { confirmRef.current?.focus() }, [])
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onCancel])
+
+  return (
+    <div
+      role="dialog" aria-modal="true" aria-labelledby={titleId}
+      style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel() }}
+    >
+      <div className="card" style={{ width: '100%', maxWidth: 420, padding: '28px 28px 24px' }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 20 }}>
+          <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <AlertTriangle size={18} aria-hidden style={{ color: '#ef4444' }} />
+          </div>
+          <div>
+            <h3 id={titleId} style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: '0 0 6px' }}>
+              Supprimer la proforma
+            </h3>
+            <p style={{ fontSize: 13.5, color: 'var(--text-2)', lineHeight: 1.5, margin: 0 }}>
+              Voulez-vous supprimer définitivement <strong>{number}</strong> ? Cette action est irréversible.
+            </p>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onCancel}
+            style={{ padding: '8px 18px', minHeight: 44, borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 500, cursor: 'pointer' }}>
+            Annuler
+          </button>
+          <button ref={confirmRef} type="button" onClick={onConfirm} disabled={isPending}
+            style={{ padding: '8px 18px', minHeight: 44, borderRadius: 'var(--radius-md)', background: '#ef4444', color: '#fff', border: 'none', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.65 : 1 }}>
+            {isPending ? 'Suppression…' : 'Supprimer'}
           </button>
         </div>
       </div>
@@ -173,6 +251,7 @@ export function ProformaActionsMenu({ proforma }: ProformaActionsMenuProps) {
   const router   = useRouter()
   const [showReject,  setShowReject]  = useState(false)
   const [showConvert, setShowConvert] = useState(false)
+  const [showDelete,  setShowDelete]  = useState(false)
 
   const sendMutation      = useSendProforma()
   const acceptMutation    = useAcceptProforma()
@@ -267,10 +346,7 @@ export function ProformaActionsMenu({ proforma }: ProformaActionsMenuProps) {
 
         {/* Reject — sent */}
         {status === 'sent' && (
-          <button
-            style={{ ...btnDanger }}
-            onClick={() => setShowReject(true)}
-          >
+          <button style={btnDanger} onClick={() => setShowReject(true)}>
             <XCircle size={14} /> Rejeter
           </button>
         )}
@@ -290,9 +366,7 @@ export function ProformaActionsMenu({ proforma }: ProformaActionsMenuProps) {
           <button
             style={btnDanger}
             disabled={isLoading}
-            onClick={() => {
-              if (confirm(`Supprimer la proforma ${number} ?`)) deleteMutation.mutate(id)
-            }}
+            onClick={() => setShowDelete(true)}
           >
             {deleteMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
             Supprimer
@@ -303,6 +377,14 @@ export function ProformaActionsMenu({ proforma }: ProformaActionsMenuProps) {
       {/* Modals */}
       {showReject  && <RejectModal  proformaId={id} onClose={() => setShowReject(false)} />}
       {showConvert && <ConvertModal proforma={proforma} onClose={() => setShowConvert(false)} />}
+      {showDelete  && (
+        <ConfirmDeleteModal
+          number={number}
+          isPending={deleteMutation.isPending}
+          onConfirm={() => deleteMutation.mutate(id)}
+          onCancel={() => setShowDelete(false)}
+        />
+      )}
     </>
   )
 }

@@ -1,4 +1,4 @@
-import apiClient from '@/lib/api-client'
+import apiClient, { tokenStorage } from '@/lib/api-client'
 import type {
   LoginPayload, LoginResponse, RefreshResponse,
   TwoFAEnableResponse, Session,
@@ -42,8 +42,8 @@ export async function twoFAEnable(): Promise<TwoFAEnableResponse> {
 }
 
 /** POST /auth/2fa/verify — active le 2FA après vérification du code TOTP */
-export async function twoFAVerify(token: string, secret: string): Promise<{ backupCodes: string[] }> {
-  const { data } = await apiClient.post<{ backupCodes: string[] }>('/auth/2fa/verify', { token, secret })
+export async function twoFAVerify(token: string): Promise<{ backupCodes: string[] }> {
+  const { data } = await apiClient.post<{ backupCodes: string[] }>('/auth/2fa/verify', { token })
   return data
 }
 
@@ -62,7 +62,10 @@ export async function twoFARegenerateBackupCodes(totpToken: string): Promise<{ b
 
 /** GET /auth/sessions — liste les sessions actives */
 export async function listSessions(): Promise<Session[]> {
-  const { data } = await apiClient.get<Session[]>('/auth/sessions')
+  const refreshToken = tokenStorage.getRefresh()
+  const { data } = await apiClient.get<Session[]>('/auth/sessions', {
+    headers: refreshToken ? { 'X-Refresh-Token': refreshToken } : {},
+  })
   return data
 }
 
@@ -73,5 +76,6 @@ export async function revokeSession(id: string): Promise<void> {
 
 /** DELETE /auth/sessions — révoque toutes les sessions sauf la courante */
 export async function revokeAllSessions(): Promise<void> {
-  await apiClient.delete('/auth/sessions')
+  const refreshToken = tokenStorage.getRefresh()
+  await apiClient.delete('/auth/sessions', { data: { refreshToken } })
 }

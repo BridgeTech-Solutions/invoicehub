@@ -13,7 +13,7 @@ import { useSidebarStore } from '@/store/sidebar'
 import {
   LayoutDashboard, Users, Package, FileText, Receipt, CreditCard,
   RefreshCw, BarChart3, Bell, UserCog, ClipboardList, Settings,
-  ChevronLeft, ChevronRight, LogOut, User, KeyRound, ChevronUp,
+  PanelLeftClose, PanelLeftOpen, LogOut, User, KeyRound, ChevronUp,
   ChevronDown, Plus, Tag, Building2, ShieldCheck, BellRing, HardDrive, Sparkles, BookOpen,
 } from 'lucide-react'
 
@@ -257,23 +257,45 @@ export function Sidebar() {
         className="sidebar-scroll flex-1 overflow-y-auto overflow-x-hidden py-2"
         style={{ scrollbarWidth: 'thin' }}
       >
-        {NAV.map((section) => (
-          <div key={section.title} className="mb-0.5">
+        {NAV.map((section, sectionIdx) => (
+          <div
+            key={section.title}
+            style={{
+              marginTop: sectionIdx === 0 ? 4 : 0,
+            }}
+          >
             {!collapsed && (
-              <button
-                onClick={() => setOpenSections(prev => ({ ...prev, [section.title]: !prev[section.title] }))}
-                className="nav-section-title px-3 py-1 flex items-center justify-between w-full"
-                style={{
-                  fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700,
-                  letterSpacing: '0.12em', textTransform: 'uppercase',
-                  color: 'var(--sidebar-section)', border: 'none', background: 'transparent', cursor: 'pointer',
-                }}
-              >
-                <span>{section.title}</span>
-                {openSections[section.title] ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-              </button>
+              <>
+                {sectionIdx > 0 && (
+                  <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '6px 12px' }} />
+                )}
+                <button
+                  onClick={() => setOpenSections(prev => ({ ...prev, [section.title]: !prev[section.title] }))}
+                  className="nav-section-title flex items-center justify-between w-full"
+                  style={{
+                    padding: '5px 12px 3px',
+                    fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700,
+                    letterSpacing: '0.06em', textTransform: 'uppercase',
+                    color: 'rgba(120,170,210,0.85)', border: 'none', background: 'transparent', cursor: 'pointer',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
+                    <span style={{
+                      width: 3, height: 12, borderRadius: 2,
+                      background: 'rgba(45,125,210,0.5)',
+                      flexShrink: 0,
+                    }} />
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {section.title}
+                    </span>
+                  </span>
+                  <span style={{ flexShrink: 0, marginLeft: 4, color: 'rgba(120,170,210,0.5)' }}>
+                    {openSections[section.title] ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                  </span>
+                </button>
+              </>
             )}
-            {collapsed && <div style={{ height: 6 }} />}
+            {collapsed && <div style={{ height: sectionIdx > 0 ? 8 : 2, borderTop: sectionIdx > 0 ? '1px solid rgba(255,255,255,0.06)' : 'none', margin: sectionIdx > 0 ? '0 8px' : 0 }} />}
 
             {(!collapsed ? openSections[section.title] : true) && section.items
               .filter((item) => !item.roles || item.roles.includes(user?.role ?? ''))
@@ -288,7 +310,7 @@ export function Sidebar() {
                 const isOpen          = !collapsed && (openItems[item.href] || childActive)
 
                 return (
-                  <div key={item.href} className="nav-item px-1.5">
+                  <div key={item.href} className="nav-item px-2">
                     <div style={{ display: 'flex', alignItems: 'center' }}>
                       <Link
                         href={item.href}
@@ -301,7 +323,7 @@ export function Sidebar() {
                         aria-current={active ? 'page' : undefined}
                         className={cn(
                           'relative flex items-center gap-2 rounded-lg transition-all duration-150',
-                          collapsed ? 'justify-center px-0 py-1.5' : 'px-2.5 py-1.5',
+                          collapsed ? 'justify-center px-0 py-1' : 'px-2.5 py-1',
                         )}
                         style={{
                           flex: 1,
@@ -313,8 +335,7 @@ export function Sidebar() {
                           textDecoration: 'none',
                           letterSpacing:  '0.01em',
                           minWidth:       0,
-                          // H4: touch target ≥ 44px
-                          minHeight:      44,
+                          minHeight:      36,
                           display:        'flex',
                           alignItems:     'center',
                         }}
@@ -333,8 +354,8 @@ export function Sidebar() {
                       >
                         {active && (
                           <span
-                            className="absolute left-0 top-1.5 bottom-1.5 rounded-r-full"
-                            style={{ width: 4, background: 'var(--primary)' }}
+                            className="absolute top-1 bottom-1 rounded-r-full"
+                            style={{ left: -8, width: 3, background: 'var(--primary)' }}
                             aria-hidden="true"
                           />
                         )}
@@ -422,9 +443,15 @@ export function Sidebar() {
                       )}
                     </div>
 
-                    {/* Sous-items (H3: minHeight 44) */}
+                    {/* Sous-items */}
                     {hasChildren && isOpen && (
-                      <div style={{ marginLeft: 20, marginTop: 2, marginBottom: 4, borderLeft: '1px solid rgba(255,255,255,0.15)', paddingLeft: 8 }}>
+                      <div style={{
+                        marginLeft: 27,
+                        marginTop: 2,
+                        marginBottom: 6,
+                        borderLeft: '1.5px solid rgba(45,125,210,0.35)',
+                        paddingLeft: 0,
+                      }}>
                         {item.children!
                           .filter((child) => !child.roles || child.roles.includes(user?.role ?? ''))
                           .map((child) => {
@@ -434,41 +461,47 @@ export function Sidebar() {
                               <Link
                                 key={child.href}
                                 href={child.href}
-                                // H2: aria-current sur sous-item actif
                                 aria-current={childIsActive ? 'page' : undefined}
                                 className="flex items-center gap-2 rounded-md transition-all duration-150"
                                 style={{
-                                  padding:        '4px 8px',
-                                  fontSize:       12,
-                                  color:          childIsActive ? 'var(--sidebar-active-text)' : 'rgba(255,255,255,0.72)',
-                                  background:     childIsActive ? 'rgba(45,125,210,0.15)' : 'transparent',
+                                  padding:        '4px 8px 4px 14px',
+                                  fontSize:       12.5,
+                                  color:          childIsActive ? '#fff' : 'rgba(255,255,255,0.6)',
+                                  background:     childIsActive ? 'rgba(45,125,210,0.18)' : 'transparent',
                                   fontFamily:     'var(--font-body)',
-                                  fontWeight:     childIsActive ? 500 : 400,
+                                  fontWeight:     childIsActive ? 600 : 400,
                                   textDecoration: 'none',
                                   display:        'flex',
                                   alignItems:     'center',
-                                  // H3: touch target ≥ 44px
-                                  minHeight:      44,
+                                  minHeight:      30,
+                                  position:       'relative',
                                 }}
                                 onMouseEnter={(e) => {
                                   if (!childIsActive) {
-                                    e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
+                                    e.currentTarget.style.background = 'rgba(255,255,255,0.07)'
                                     e.currentTarget.style.color      = 'rgba(255,255,255,0.9)'
                                   }
                                 }}
                                 onMouseLeave={(e) => {
                                   if (!childIsActive) {
                                     e.currentTarget.style.background = 'transparent'
-                                    e.currentTarget.style.color      = 'rgba(255,255,255,0.72)'
+                                    e.currentTarget.style.color      = 'rgba(255,255,255,0.6)'
                                   }
                                 }}
                               >
-                                {/* C3: aria-hidden */}
+                                {/* Connecteur horizontal */}
+                                <span aria-hidden="true" style={{
+                                  position: 'absolute', left: 0, top: '50%',
+                                  width: 10, height: 1.5,
+                                  background: childIsActive ? 'rgba(45,125,210,0.8)' : 'rgba(255,255,255,0.2)',
+                                  transform: 'translateY(-50%)',
+                                  flexShrink: 0,
+                                }} />
                                 <ChildIcon
                                   size={12}
                                   strokeWidth={childIsActive ? 2.2 : 1.8}
                                   aria-hidden="true"
-                                  style={{ flexShrink: 0, color: childIsActive ? 'var(--primary)' : 'inherit' }}
+                                  style={{ flexShrink: 0, color: childIsActive ? 'var(--primary)' : 'rgba(255,255,255,0.45)' }}
                                 />
                                 <span style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
                                   {child.label}
@@ -660,8 +693,8 @@ export function Sidebar() {
         >
           {/* C3: aria-hidden */}
           {collapsed
-            ? <ChevronRight size={13} strokeWidth={2.5} aria-hidden="true" />
-            : <ChevronLeft  size={13} strokeWidth={2.5} aria-hidden="true" />
+            ? <PanelLeftOpen  size={15} strokeWidth={2} aria-hidden="true" />
+            : <PanelLeftClose size={15} strokeWidth={2} aria-hidden="true" />
           }
         </button>
       </div>

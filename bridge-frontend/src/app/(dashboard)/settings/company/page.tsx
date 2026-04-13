@@ -133,6 +133,7 @@ export default function CompanySettingsPage() {
       phone:        settings.phone,
       email:        settings.email,
       website:      settings.website     ?? '',
+      companyCode:             settings.companyCode,
       defaultCurrency:             settings.defaultCurrency,
       defaultTaxRate:              settings.defaultTaxRate,
       defaultProformaValidityDays: settings.defaultProformaValidityDays,
@@ -275,15 +276,23 @@ export default function CompanySettingsPage() {
               <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '3px 0 0' }}>SYSCOHADA — TVA Cameroun : 19,25%</p>
             </div>
             <div>
-              <Label htmlFor={id('btsCode')}>Code entreprise (numérotation)</Label>
+              <Label htmlFor={id('companyCode')}>Code entreprise (numérotation)</Label>
               <input
-                id={id('btsCode')}
-                value="BTS"
-                readOnly
-                aria-readonly="true"
-                style={{ ...inputCss, opacity: 0.6, cursor: 'not-allowed' }}
+                id={id('companyCode')}
+                value={form.companyCode ?? 'BTS'}
+                onChange={(e) => set('companyCode', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                maxLength={10}
+                style={inputCss}
+                placeholder="BTS"
               />
-              <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '3px 0 0' }}>Utilisé dans la numérotation BTS/DC/…</p>
+              <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '3px 0 0' }}>
+                Utilisé dans la numérotation {form.companyCode ?? 'BTS'}/DC/… — lettres majuscules et chiffres uniquement.
+              </p>
+              {(form.companyCode ?? '') !== (settings?.companyCode ?? 'BTS') && (
+                <p style={{ fontSize: 11, color: '#f59e0b', margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  ⚠ Modifier ce code change la numérotation des futurs documents uniquement.
+                </p>
+              )}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
               <div>

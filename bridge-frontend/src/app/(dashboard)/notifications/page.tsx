@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   BellOff, CheckCheck, Loader2, RefreshCw,
@@ -213,6 +214,7 @@ function NotifItem({
   isRead: boolean; createdAt: string; data: Record<string, unknown> | null
   entityId?: string; onMarkRead: (id: string) => void; onRefresh: () => void
 }) {
+  const router      = useRouter()
   const cfg         = TYPE_CONFIG[type] ?? { label: type, color: '#6b7280', bg: 'rgba(107,114,128,0.1)', Icon: Bell }
   const href        = cfg.href?.(entityId)
   const hasActions  = !!data?.action
@@ -221,7 +223,7 @@ function NotifItem({
 
   const handleClick = () => {
     if (!isRead) onMarkRead(id)
-    if (href) window.location.href = href
+    if (href) router.push(href)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

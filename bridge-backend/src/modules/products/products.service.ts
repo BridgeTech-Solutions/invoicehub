@@ -7,6 +7,7 @@ import type {
   CreateProductInput,
   UpdateProductInput,
   ListProductsInput,
+  ImportProductRow,
 } from './products.schema';
 
 export class ProductsService {
@@ -227,6 +228,88 @@ export class ProductsService {
       where: { id },
       data: { deletedAt: new Date(), isActive: false },
     });
+  }
+
+  async importProducts(rows: ImportProductRow[], createdById: string): Promise<{
+    created: number;
+    duplicates: { index: number; name: string; reason: string }[];
+    errors:     { index: number; name: string; message: string }[];
+  }> {
+    // 1. Résoudre les noms de catégories en IDs (1 seule requête)
+    const categoryNames = [...new Set(
+      rows.map(r => r.categoryName).filter((n): n is string => !!n)
+    )];
+    const categoryMap = new Map<string, string>(); // name.toLowerCase() → id
+    if (categoryNames.length > 0) {
+      const cats = await prisma.productCategory.findMany({
+        where: { name: { in: categoryNames, mode: 'insensitive' }, deletedAt: null },
+        select: { id: true, name: true },
+      });
+      cats.forEach(c => categoryMap.set(c.name.toLowerCase(), c.id));
+    }
+
+    // 2. Dédup contre la base : noms + références existants (1 seule requête)
+    const names      = rows.map(r => r.name).filter(Boolean);
+    const references = rows.map(r => r.reference).filter((r): r is string => !!r);
+
+    const existing = await prisma.product.findMany({
+      where: {
+        deletedAt: null,
+        OR: [
+          { name:      { in: names,      mode: Prisma.QueryMode.insensitive } },
+          ...(references.length > 0 ? [{ reference: { in: references, mode: Prisma.QueryMode.insensitive } }] : []),
+        ],
+      },
+      select: { name: true, reference: true },
+    });
+    const existingNames = new Set(existing.map(p => p.name.toLowerCase()));
+    const existingRefs  = new Set(existing.map(p => p.reference?.toLowerCase()).filter(Boolean) as string[]);
+
+    // 3. Traiter chaque ligne
+    const toCreate: Prisma.ProductCreateManyInput[] = [];
+    const duplicates: { index: number; name: string; reason: string }[] = [];
+    const errors:     { index: number; name: string; message: string }[] = [];
+
+    rows.forEach((row, i) => {
+      // Dédup par référence
+      if (row.reference && existingRefs.has(row.reference.toLowerCase())) {
+        duplicates.push({ index: i, name: row.name, reason: `Référence déjà existante : ${row.reference}` });
+        return;
+      }
+      // Dédup par nom
+      if (existingNames.has(row.name.toLowerCase())) {
+        duplicates.push({ index: i, name: row.name, reason: `Nom déjà existant : ${row.name}` });
+        return;
+      }
+
+      const categoryId = row.categoryName
+        ? categoryMap.get(row.categoryName.toLowerCase()) ?? null
+        : null;
+
+      toCreate.push({
+        name:         row.name,
+        reference:    row.reference ?? null,
+        type:         row.type,
+        description:  row.description ?? null,
+        unit:         row.unit,
+        unitPriceHt:  row.unitPriceHt,
+        taxRateValue: row.taxRateValue,
+        isActive:     row.isActive,
+        categoryId,
+        createdById,
+        metadata:     {},
+      });
+
+      // Marquer comme connu pour éviter les doublons intra-batch
+      existingNames.add(row.name.toLowerCase());
+      if (row.reference) existingRefs.add(row.reference.toLowerCase());
+    });
+
+    if (toCreate.length > 0) {
+      await prisma.product.createMany({ data: toCreate });
+    }
+
+    return { created: toCreate.length, duplicates, errors };
   }
 }
 
