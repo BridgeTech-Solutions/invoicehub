@@ -981,13 +981,14 @@ CREATE INDEX idx_notifs_entity     ON notifications(entity_type, entity_id);
 CREATE TABLE notification_settings (
     id                  UUID                PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id             UUID                NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    notification_type   notification_status NOT NULL,
+    type                notification_status NOT NULL,
     -- Canal préféré : utilise l'ENUM notification_channel (in_app | email | both)
     channel             notification_channel NOT NULL DEFAULT 'both',
+    enabled             BOOLEAN             NOT NULL DEFAULT TRUE,
     created_at          TIMESTAMPTZ         NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ         NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT uq_notif_settings UNIQUE (user_id, notification_type)
+    CONSTRAINT uq_notif_settings UNIQUE (user_id, type)
 );
 CREATE TRIGGER tg_notif_settings_updated_at
     BEFORE UPDATE ON notification_settings

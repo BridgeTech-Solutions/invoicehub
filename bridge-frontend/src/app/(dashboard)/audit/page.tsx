@@ -342,7 +342,7 @@ export default function AuditPage() {
       </div>
 
       {/* ── KPI cards ──────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14 }}>
         <KpiCard
           icon={<TrendingUp size={16} />}
           label="Événements (30 j)"

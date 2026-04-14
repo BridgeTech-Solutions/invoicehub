@@ -73,6 +73,11 @@ export class AuthService {
       throw AppError.unauthorized('Compte suspendu. Contactez l\'administrateur');
     }
 
+    if (user.status === 'pending_activation') {
+      await logAttempt(false, 'account_pending_activation');
+      throw AppError.unauthorized('Compte non activé. Veuillez utiliser le lien reçu par email pour définir votre mot de passe');
+    }
+
     if (user.lockedAt) {
       await logAttempt(false, 'account_locked');
       throw AppError.unauthorized('Compte verrouillé suite à trop de tentatives. Réinitialisez votre mot de passe');
@@ -447,6 +452,7 @@ export class AuthService {
         where: { id: resetToken.userId },
         data: {
           passwordHash,
+          status: 'active',
           mustChangePassword: false,
           failedLoginAttempts: 0,
           lockedAt: null,

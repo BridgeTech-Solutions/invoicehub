@@ -154,7 +154,7 @@ export class ClientsService {
       // Comportement de paiement : retard moyen + taux de ponctualité
       prisma.$queryRaw<BehaviorRow[]>`
         SELECT
-          AVG(EXTRACT(EPOCH FROM (pay.payment_date - inv.due_date)) / 86400) AS avg_days_late,
+          AVG((pay.payment_date::date - inv.due_date::date)) AS avg_days_late,
           COUNT(CASE WHEN pay.payment_date <= inv.due_date THEN 1 END)       AS on_time_count,
           COUNT(*)                                                             AS total_paid
         FROM payments pay
@@ -235,7 +235,7 @@ export class ClientsService {
       }),
       prisma.$queryRaw<BehaviorRow[]>`
         SELECT
-          AVG(EXTRACT(EPOCH FROM (pay.payment_date - inv.due_date)) / 86400) AS avg_days_late,
+          AVG((pay.payment_date::date - inv.due_date::date)) AS avg_days_late,
           COUNT(CASE WHEN pay.payment_date <= inv.due_date THEN 1 END)       AS on_time_count,
           COUNT(*)                                                             AS total_paid
         FROM payments pay

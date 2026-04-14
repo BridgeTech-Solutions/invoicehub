@@ -1184,7 +1184,7 @@ export class InvoicesService {
 
     const [behaviorRaw] = await prisma.$queryRaw<BehaviorRow[]>`
       SELECT
-        AVG(EXTRACT(EPOCH FROM (pay.payment_date - inv.due_date)) / 86400) AS avg_days_late,
+        AVG((pay.payment_date::date - inv.due_date::date)) AS avg_days_late,
         COUNT(*) AS sample_count
       FROM payments pay
       JOIN invoices inv ON inv.id = pay.invoice_id

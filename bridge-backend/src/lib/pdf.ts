@@ -57,41 +57,51 @@ const getSeal   = () => (_seal   ??= firstImageIn('seals'));
 
 // ─── Génération PDF ───────────────────────────────────────────────────────────
 
-/**
- * Génère un document PDF A4 à partir d'un HTML complet.
- *
- * Lance Chromium headless, injecte le HTML, attend la fin des ressources réseau
- * puis exporte en PDF. Le browser est toujours fermé même en cas d'erreur.
- *
- * @param html - HTML complet avec styles inlinés (images en base64)
- * @returns Buffer binaire du PDF
- */
+// Singleton Chromium — lancé une seule fois, réutilisé pour toutes les générations.
+// Évite le coût de démarrage (~1-3s) à chaque requête PDF.
+import type { Browser } from 'puppeteer';
+
+let _browser: Browser | null = null;
+
+const LAUNCH_ARGS = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-dev-shm-usage',
+  '--disable-gpu',
+  '--no-first-run',
+  '--no-zygote',
+  '--disable-extensions',
+];
+
+async function getBrowser(): Promise<Browser> {
+  if (_browser) {
+    try {
+      // Vérifie que le browser est toujours vivant
+      await _browser.version();
+      return _browser;
+    } catch {
+      _browser = null;
+    }
+  }
+  _browser = await puppeteer.launch({
+    headless: true,
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+    args: LAUNCH_ARGS,
+  });
+  return _browser;
+}
+
 /**
  * Génère un PDF A4 à partir d'un HTML complet.
  *
  * @param html              - HTML complet (images en base64)
  * @param footerSafeZonePx  - Hauteur en px de la zone protégée en bas du footer
- *                            (la zone contenant les infos entreprise que le contenu
- *                            ne doit jamais couvrir). Le contenu peut chevaucher
- *                            la partie décorative haute du footer, mais pas cette zone.
- *                            Si omis, toute la hauteur du footer est protégée.
  */
 export async function generatePdf(html: string, footerSafeZonePx?: number): Promise<Buffer> {
-  const browser = await puppeteer.launch({
-    headless: true,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',   // évite les crashs sur /dev/shm limité à 64 MB dans Docker
-      '--disable-gpu',              // pas de GPU dans Docker — force le software rendering
-      '--no-first-run',
-      '--no-zygote',
-      '--disable-extensions',
-    ],
-  });
+  const browser = await getBrowser();
+  let page: Awaited<ReturnType<typeof browser.newPage>> | null = null;
   try {
-    const page = await browser.newPage();
+    page = await browser.newPage();
 
     // Viewport calé sur A4 à 96 DPI pour des mesures cohérentes
     await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 1 });
@@ -289,7 +299,8 @@ export async function generatePdf(html: string, footerSafeZonePx?: number): Prom
     logger.debug('PDF final (with footer background)', { size: finalPdf.length });
     return Buffer.from(finalPdf);
   } finally {
-    await browser.close();
+    // On ferme uniquement la page, pas le browser singleton
+    await page?.close().catch(() => {});
   }
 }
 

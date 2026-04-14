@@ -10,7 +10,8 @@ export const createUserSchema = z.object({
     .string()
     .min(8)
     .regex(/[A-Z]/, 'Doit contenir une majuscule')
-    .regex(/[0-9]/, 'Doit contenir un chiffre'),
+    .regex(/[0-9]/, 'Doit contenir un chiffre')
+    .optional(),
 });
 
 export const updateUserSchema = z.object({

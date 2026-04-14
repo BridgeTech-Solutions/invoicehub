@@ -213,8 +213,6 @@ function UserFormModal({ onClose, editUser }: { onClose: () => void; editUser?: 
     if (!form.firstName.trim()) e.firstName = 'Requis'
     if (!form.lastName.trim())  e.lastName  = 'Requis'
     if (!editUser && !form.email.trim())   e.email    = 'Requis'
-    if (!editUser && !form.password)       e.password = 'Requis'
-    if (!editUser && form.password.length > 0 && form.password.length < 8) e.password = 'Minimum 8 caractères'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -227,7 +225,7 @@ function UserFormModal({ onClose, editUser }: { onClose: () => void; editUser?: 
         const p: UpdateUserPayload = { firstName: form.firstName, lastName: form.lastName, phone: form.phone || undefined, role: form.role }
         await updateMut.mutateAsync(p)
       } else {
-        const p: CreateUserPayload = { firstName: form.firstName, lastName: form.lastName, email: form.email, phone: form.phone || undefined, role: form.role, password: form.password }
+        const p: CreateUserPayload = { firstName: form.firstName, lastName: form.lastName, email: form.email, phone: form.phone || undefined, role: form.role }
         await createMut.mutateAsync(p)
       }
       onClose()
@@ -375,29 +373,6 @@ function UserFormModal({ onClose, editUser }: { onClose: () => void; editUser?: 
               <option value="admin">Administrateur</option>
             </select>
           </div>
-
-          {/* Mot de passe */}
-          {!editUser && (
-            <div>
-              <label htmlFor={fid('password')} style={labelCss}>
-                Mot de passe temporaire <span aria-hidden="true" style={{ color: '#ef4444' }}>*</span>
-                <span className="sr-only">(obligatoire)</span>
-              </label>
-              <input
-                id={fid('password')}
-                type="password"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder="Min. 8 caractères"
-                autoComplete="new-password"
-                style={{ ...inputCss, borderColor: errors.password ? '#ef4444' : 'var(--border)' }}
-              />
-              {errors.password
-                ? <p role="alert" style={{ fontSize: 11, color: '#ef4444', margin: '3px 0 0' }}>{errors.password}</p>
-                : <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '3px 0 0' }}>L&apos;utilisateur devra le changer à la première connexion.</p>
-              }
-            </div>
-          )}
 
           {/* H8: erreur mutation serveur */}
           {mutError && (

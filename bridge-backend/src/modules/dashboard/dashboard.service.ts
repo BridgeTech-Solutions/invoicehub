@@ -219,7 +219,7 @@ export class DashboardService {
       prisma.$queryRaw<BehaviorRow[]>`
         SELECT
           inv.client_id,
-          AVG(EXTRACT(EPOCH FROM (pay.payment_date - inv.due_date)) / 86400) AS avg_days_late
+          AVG((pay.payment_date::date - inv.due_date::date)) AS avg_days_late
         FROM payments pay
         JOIN invoices inv ON inv.id = pay.invoice_id
         WHERE inv.deleted_at IS NULL

@@ -1,11 +1,12 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { hashPassword, comparePassword } from '../../lib/bcrypt';
 import { AppError } from '../../core/errors/AppError';
 import { env } from '../../config/env';
-import { notificationQueue } from '../../jobs/queues';
+import { notificationQueue, emailQueue } from '../../jobs/queues';
 import { logger } from '../../core/middleware/requestLogger';
 import type { CreateUserInput, UpdateUserInput, UpdateMeInput, ChangePasswordInput, ListUsersInput } from './users.schema';
 
@@ -90,7 +91,9 @@ export class UsersService {
     const exists = await prisma.user.findUnique({ where: { email: input.email } });
     if (exists) throw AppError.conflict('Un utilisateur avec cet email existe déjà');
 
-    const passwordHash = await hashPassword(input.password);
+    // Génère un mot de passe aléatoire temporaire (ne sera pas communiqué car l'activation forcera le reset)
+    const tempPassword = crypto.randomBytes(16).toString('hex');
+    const passwordHash = await hashPassword(tempPassword);
 
     const user = await prisma.user.create({
       data: {
@@ -100,7 +103,7 @@ export class UsersService {
         phone: input.phone,
         role: input.role,
         passwordHash,
-        status: 'active',
+        status: 'pending_activation',
         mustChangePassword: true,
         createdById,
       },
@@ -108,6 +111,59 @@ export class UsersService {
     });
 
     logger.info(`Utilisateur créé : ${user.email} (${user.role}) par ${createdById}`);
+
+    // Génération du token d'activation (réutilise la logique de PasswordResetToken)
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 24 * 3600 * 1000); // 24 heures pour l'activation
+
+    await prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+      },
+    });
+
+    const activationUrl = `${env.APP_URL}/reset-password?token=${rawToken}`;
+
+    // Email de bienvenue avec lien d'activation
+    void emailQueue.add('email', {
+      to: user.email,
+      subject: 'Bienvenue sur InvoiceHub — Activez votre compte',
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">
+          <h2 style="color:#0f2d4a">Bienvenue sur InvoiceHub</h2>
+          <p>Bonjour <strong>${user.firstName} ${user.lastName}</strong>,</p>
+          <p>Votre compte a été créé sur la plateforme InvoiceHub de Bridge Technologies Solutions.</p>
+          <p>Pour commencer à utiliser votre compte, vous devez d'abord l'activer en choisissant votre mot de passe.</p>
+          
+          <p style="margin:24px 0">
+            <a href="${activationUrl}" style="display:inline-block;padding:12px 24px;background:#2D7DD2;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold">
+              Activer mon compte
+            </a>
+          </p>
+          
+          <p style="font-size:13px;color:#718096">
+            Ce lien est valable pendant 24 heures. Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet email.
+          </p>
+          
+          <table style="border-collapse:collapse;width:100%;margin:16px 0;font-size:13px">
+            <tr>
+              <td style="padding:8px 12px;background:#f5f7fa;border:1px solid #e2e8f0;font-weight:bold;width:120px">Email</td>
+              <td style="padding:8px 12px;border:1px solid #e2e8f0">${user.email}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 12px;background:#f5f7fa;border:1px solid #e2e8f0;font-weight:bold">Rôle</td>
+              <td style="padding:8px 12px;border:1px solid #e2e8f0;text-transform:capitalize">${user.role}</td>
+            </tr>
+          </table>
+
+          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0"/>
+          <p style="font-size:12px;color:#718096">InvoiceHub — Bridge Technologies Solutions</p>
+        </div>
+      `,
+    });
 
     // Notifier les admins qu'un nouveau compte a été créé
     const admins = await prisma.user.findMany({
