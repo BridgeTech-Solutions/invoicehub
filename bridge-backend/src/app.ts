@@ -42,7 +42,18 @@ app.set('trust proxy', 1);
 // ----------------------------------------------------------------
 // Sécurité
 // ----------------------------------------------------------------
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      // Désactivé : on est en HTTP derrière nginx — cette directive force le navigateur
+      // à convertir toutes les requêtes HTTP→HTTPS, ce qui bloque les appels API.
+      'upgrade-insecure-requests': null,
+    },
+  },
+  // Désactiver HSTS : inutile en HTTP, causerait des problèmes si activé
+  strictTransportSecurity: false,
+}));
 
 // Origines autorisées : APP_URL + CORS_ORIGINS (liste séparée par virgules)
 // Normalise chaque URL en supprimant le slash final pour éviter les faux rejets
