@@ -42,7 +42,7 @@ export interface CreateUserPayload {
   email:       string
   phone?:      string
   role:        Role
-  password:    string
+  password?:   string
 }
 
 export interface UpdateUserPayload {
