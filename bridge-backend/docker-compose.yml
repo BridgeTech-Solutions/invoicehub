@@ -103,8 +103,8 @@ services:
       args:
         # URLs publiques (utilisées par le navigateur du client)
         # Configurable via .env — défaut = URLs de production
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.invoicehub.bridgetech-solutions/api}
-        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL:-https://api.invoicehub.bridgetech-solutions}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://api.invoicehub.bridgetech-solutions/api}
+        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL:-http://api.invoicehub.bridgetech-solutions}
         NEXT_PUBLIC_APP_NAME: InvoiceHub
     image: invoicehub-frontend:latest
     container_name: invoicehub-frontend
