@@ -46,15 +46,17 @@ interface NavSection {
 }
 
 // ─── Navigation config ────────────────────────────────────────
-const NAV: NavSection[] = [
+const NAV: { title: string; sectionIcon: React.ElementType; items: NavItem[] }[] = [
   {
     title: 'VUE D\'ENSEMBLE',
+    sectionIcon: LayoutDashboard,
     items: [
       { label: 'Tableau de bord', href: ROUTES.DASHBOARD, icon: LayoutDashboard },
     ],
   },
   {
     title: 'TIERS',
+    sectionIcon: Users,
     items: [
       { label: 'Clients',      href: ROUTES.CLIENTS,    icon: Users },
       { label: 'Fournisseurs', href: ROUTES.SUPPLIERS,  icon: Building2 },
@@ -62,6 +64,7 @@ const NAV: NavSection[] = [
   },
   {
     title: 'VENTES',
+    sectionIcon: Receipt,
     items: [
       {
         label: 'Proformas', href: ROUTES.PROFORMAS, icon: FileText,
@@ -77,6 +80,7 @@ const NAV: NavSection[] = [
   },
   {
     title: 'ACHATS',
+    sectionIcon: ShoppingCart,
     items: [
       { label: 'Bons de commande',      href: ROUTES.PURCHASE_ORDERS,   icon: ShoppingCart },
       { label: 'Factures fournisseurs', href: ROUTES.SUPPLIER_INVOICES, icon: FileInput },
@@ -92,6 +96,7 @@ const NAV: NavSection[] = [
   },
   {
     title: 'STOCKS & PRODUITS',
+    sectionIcon: Warehouse,
     items: [
       {
         label: 'Produits', href: ROUTES.PRODUCTS, icon: Package,
@@ -111,6 +116,7 @@ const NAV: NavSection[] = [
   },
   {
     title: 'FINANCES',
+    sectionIcon: Landmark,
     items: [
       { label: 'Rapports',        href: ROUTES.REPORTS,    icon: BarChart3 },
       { label: 'Banque',          href: ROUTES.BANK,       icon: Landmark,  overlay: 'bank' },
@@ -119,6 +125,7 @@ const NAV: NavSection[] = [
   },
   {
     title: 'ADMINISTRATION',
+    sectionIcon: ShieldCheck,
     items: [
       { label: 'Utilisateurs',        href: ROUTES.USERS,         icon: UserCog,     roles: ['admin'] },
       { label: 'Rôles & Permissions', href: ROUTES.ROLES,         icon: ShieldCheck, overlay: 'roles', roles: ['admin'] },
@@ -131,7 +138,6 @@ const NAV: NavSection[] = [
 
 // Footer items (shown below nav, above the settings button)
 const FOOTER_NAV: Pick<NavItem, 'label' | 'href' | 'icon' | 'external'>[] = [
-  { label: 'BTS Assistant', href: ROUTES.ASSISTANT, icon: Sparkles },
   { label: 'Guide',         href: ROUTES.GUIDE,     icon: BookOpen, external: true },
 ]
 
@@ -160,7 +166,7 @@ export function Sidebar() {
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {}
-    NAV.forEach((s) => { initial[s.title] = true })
+    NAV.forEach((s) => { initial[s.title] = false })
     return initial
   })
 
@@ -269,14 +275,14 @@ export function Sidebar() {
                   onClick={() => setOpenSections((prev) => ({ ...prev, [section.title]: !prev[section.title] }))}
                   className="nav-section-title flex items-center justify-between w-full"
                   style={{
-                    padding: '5px 12px 3px',
-                    fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700,
+                    padding: '8px 12px 6px',
+                    fontSize: 10, fontFamily: 'var(--font-display)', fontWeight: 800,
                     letterSpacing: '0.06em', textTransform: 'uppercase',
-                    color: 'rgba(120,170,210,0.85)', border: 'none', background: 'transparent', cursor: 'pointer',
+                    color: 'rgba(150,190,230,0.9)', border: 'none', background: 'transparent', cursor: 'pointer',
                   }}
                 >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
-                    <span style={{ width: 3, height: 12, borderRadius: 2, background: 'rgba(45,125,210,0.5)', flexShrink: 0 }} />
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+                    <section.sectionIcon size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
                     <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {section.title}
                     </span>

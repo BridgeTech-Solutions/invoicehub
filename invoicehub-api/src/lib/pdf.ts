@@ -62,13 +62,10 @@ const getSeal   = () => (_seal   ??= firstImageIn('seals'));
 function getHeaderImage(companySettings?: any): string {
   // Si une image est uploadée en base, l'utiliser
   if (companySettings?.headerImagePath) {
-    try {
-      const filePath = path.join(process.cwd(), companySettings.headerImagePath.replace(/^\/uploads\//, 'uploads/'));
-      if (fs.existsSync(filePath)) {
-        return imgToBase64(filePath);
-      }
-    } catch (e) {
-      console.warn(`Erreur chargement header: ${e}`);
+    const filePath = companySettings.headerImagePath.replace(/^\//, '');
+    const absolutePath = path.join(process.cwd(), filePath);
+    if (fs.existsSync(absolutePath)) {
+      return imgToBase64(absolutePath);
     }
   }
   // Sinon, fallback sur dossier assets
@@ -78,13 +75,10 @@ function getHeaderImage(companySettings?: any): string {
 function getFooterImage(companySettings?: any): string {
   // Si une image est uploadée en base, l'utiliser
   if (companySettings?.footerImagePath) {
-    try {
-      const filePath = path.join(process.cwd(), companySettings.footerImagePath.replace(/^\/uploads\//, 'uploads/'));
-      if (fs.existsSync(filePath)) {
-        return imgToBase64(filePath);
-      }
-    } catch (e) {
-      console.warn(`Erreur chargement footer: ${e}`);
+    const filePath = companySettings.footerImagePath.replace(/^\//, '');
+    const absolutePath = path.join(process.cwd(), filePath);
+    if (fs.existsSync(absolutePath)) {
+      return imgToBase64(absolutePath);
     }
   }
   // Sinon, fallback sur dossier assets
