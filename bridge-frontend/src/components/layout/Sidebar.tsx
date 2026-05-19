@@ -48,6 +48,12 @@ interface NavSection {
 // ─── Navigation config ────────────────────────────────────────
 const NAV: NavSection[] = [
   {
+    title: 'VUE D\'ENSEMBLE',
+    items: [
+      { label: 'Tableau de bord', href: ROUTES.DASHBOARD, icon: LayoutDashboard },
+    ],
+  },
+  {
     title: 'TIERS',
     items: [
       { label: 'Clients',      href: ROUTES.CLIENTS,    icon: Users },
@@ -106,7 +112,6 @@ const NAV: NavSection[] = [
   {
     title: 'FINANCES',
     items: [
-      { label: 'Tableau de bord', href: ROUTES.DASHBOARD,  icon: LayoutDashboard },
       { label: 'Rapports',        href: ROUTES.REPORTS,    icon: BarChart3 },
       { label: 'Banque',          href: ROUTES.BANK,       icon: Landmark,  overlay: 'bank' },
       { label: 'Comptabilité',    href: ROUTES.ACCOUNTING, icon: BookCheck, overlay: 'accounting' },
