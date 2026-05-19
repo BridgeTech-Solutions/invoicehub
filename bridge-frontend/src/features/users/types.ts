@@ -1,5 +1,3 @@
-import type { Role } from '@/lib/constants'
-
 export type UserStatus = 'active' | 'suspended' | 'pending_activation'
 
 export interface User {
@@ -7,7 +5,7 @@ export interface User {
   email:              string
   firstName:          string
   lastName:           string
-  role:               Role
+  role:               string
   status:             UserStatus
   phone:              string | null
   avatarUrl:          string | null
@@ -23,7 +21,7 @@ export interface User {
 export interface ListUsersParams {
   page?:   number
   limit?:  number
-  role?:   Role
+  role?:   string
   status?: UserStatus
   search?: string
 }
@@ -41,7 +39,7 @@ export interface CreateUserPayload {
   lastName:    string
   email:       string
   phone?:      string
-  role:        Role
+  role:        string
   password?:   string
 }
 
@@ -49,7 +47,7 @@ export interface UpdateUserPayload {
   firstName?:            string
   lastName?:             string
   phone?:                string
-  role?:                 Role
+  role?:                 string
   language?:             string
   timezone?:             string
   theme?:                'light' | 'dark' | 'system'

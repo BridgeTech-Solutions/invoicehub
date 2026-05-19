@@ -5,7 +5,20 @@ import { MoreHorizontal, Pencil, Trash2, Wrench, Package, AlertTriangle } from '
 import { useDeleteProduct } from '../hooks'
 import { usePermission } from '@/hooks/usePermission'
 import { formatXAF } from '@/lib/utils'
+import { StockStatusBadge } from '@/features/stock/components/StockStatusBadge'
 import type { Product } from '../types'
+import type { StockStatus } from '@/features/stock/types'
+
+function computeStockStatus(p: Product): StockStatus | null {
+  if (!p.trackStock) return null
+  const qty = Number(p.stockQuantity ?? 0)
+  const min = Number(p.stockMinLevel ?? 0)
+  const max = Number(p.stockMaxLevel ?? 0)
+  if (qty <= 0)              return 'rupture'
+  if (min > 0 && qty < min) return 'bas'
+  if (max > 0 && qty > max) return 'surstock'
+  return 'normal'
+}
 
 interface ProductCardProps {
   product:  Product
@@ -105,6 +118,7 @@ export function ProductCard({ product, onEdit }: ProductCardProps) {
 
   const categoryColor = product.category?.color ?? '#2D7DD2'
   const Icon = TYPE_ICON[product.type] ?? Package
+  const stockStatus = computeStockStatus(product)
 
   // Close menu on Escape / outside click
   useEffect(() => {
@@ -285,6 +299,19 @@ export function ProductCard({ product, onEdit }: ProductCardProps) {
           <p style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>
             {product.reference}
           </p>
+        )}
+
+        {/* Stock info */}
+        {stockStatus && (
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div>
+              <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-display)', color: stockStatus === 'rupture' ? '#dc2626' : 'var(--text-1)' }}>
+                {Number(product.stockQuantity ?? 0)}
+              </span>
+              {product.stockUnit && <span style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 3 }}>{product.stockUnit}</span>}
+            </div>
+            <StockStatusBadge status={stockStatus} />
+          </div>
         )}
 
         {/* Usage count */}

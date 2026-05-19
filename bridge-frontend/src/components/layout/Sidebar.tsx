@@ -2,20 +2,23 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { ROUTES } from '@/lib/constants'
 import { useAuthStore } from '@/features/auth/store'
-import { useLogout } from '@/features/auth/hooks'
-import { useMe } from '@/features/users/hooks'
 import { useUnreadCount } from '@/features/notifications/hooks'
+import { useApprovalPendingCount } from '@/features/approvals/hooks'
 import { useSidebarStore } from '@/store/sidebar'
 import {
   LayoutDashboard, Users, Package, FileText, Receipt, CreditCard,
   RefreshCw, BarChart3, Bell, UserCog, ClipboardList, Settings,
-  PanelLeftClose, PanelLeftOpen, LogOut, User, KeyRound, ChevronUp,
-  ChevronDown, Plus, Tag, Building2, ShieldCheck, BellRing, HardDrive, Sparkles, BookOpen,
+  PanelLeftClose, PanelLeftOpen,
+  ChevronDown, Plus, Tag, ShieldCheck, Sparkles, BookOpen,
+  ShoppingCart, FileInput, Wallet, ReceiptText, PieChart,
+  Warehouse, ArrowLeftRight, BarChart2, AlertTriangle,
+  Landmark, BookCheck, CheckSquare, Building2,
 } from 'lucide-react'
+import { OverlaySubNav } from './OverlaySubNav'
 
 // ─── Types ────────────────────────────────────────────────────
 interface SubItem {
@@ -26,13 +29,15 @@ interface SubItem {
 }
 
 interface NavItem {
-  label:     string
-  href:      string
-  icon:      React.ElementType
-  bell?:     boolean
-  roles?:    string[]
-  children?: SubItem[]
-  external?: boolean
+  label:          string
+  href:           string
+  icon:           React.ElementType
+  bell?:          boolean
+  approvalBadge?: boolean
+  roles?:         string[]
+  children?:      SubItem[]
+  external?:      boolean
+  overlay?:       string  // 'bank' | 'accounting' | 'roles' | 'settings'
 }
 
 interface NavSection {
@@ -43,11 +48,18 @@ interface NavSection {
 // ─── Navigation config ────────────────────────────────────────
 const NAV: NavSection[] = [
   {
-    title: 'Ventes & Facturation',
+    title: 'TIERS',
+    items: [
+      { label: 'Clients',      href: ROUTES.CLIENTS,    icon: Users },
+      { label: 'Fournisseurs', href: ROUTES.SUPPLIERS,  icon: Building2 },
+    ],
+  },
+  {
+    title: 'VENTES',
     items: [
       {
         label: 'Proformas', href: ROUTES.PROFORMAS, icon: FileText,
-        children: [{ label: 'Nouvelle proforma', href: '/proformas/new', icon: Plus }],
+        children: [{ label: 'Nouveau proforma', href: '/proformas/new', icon: Plus }],
       },
       {
         label: 'Factures', href: ROUTES.INVOICES, icon: Receipt,
@@ -58,64 +70,75 @@ const NAV: NavSection[] = [
     ],
   },
   {
-    title: 'Tiers & Stocks',
+    title: 'ACHATS',
     items: [
-      { label: 'Clients', href: ROUTES.CLIENTS, icon: Users },
+      { label: 'Bons de commande',      href: ROUTES.PURCHASE_ORDERS,   icon: ShoppingCart },
+      { label: 'Factures fournisseurs', href: ROUTES.SUPPLIER_INVOICES, icon: FileInput },
       {
-        label: 'Produits & Services', href: ROUTES.PRODUCTS, icon: Package,
-        children: [{ label: 'Catégories', href: ROUTES.PRODUCT_CATEGORIES, icon: Tag }],
-      },
-    ],
-  },
-  {
-    title: 'Gestion & Reporting',
-    items: [
-      { label: 'Tableau de bord', href: ROUTES.DASHBOARD, icon: LayoutDashboard },
-      { label: 'Rapports',        href: ROUTES.REPORTS,   icon: BarChart3 },
-      { label: 'BTS Assistant',   href: ROUTES.ASSISTANT, icon: Sparkles },
-      { label: 'Guide',           href: ROUTES.GUIDE,     icon: BookOpen, external: true },
-    ],
-  },
-  {
-    title: 'Système',
-    items: [
-      { label: 'Notifications', href: ROUTES.NOTIFICATIONS, icon: Bell, bell: true },
-      { label: 'Utilisateurs',  href: ROUTES.USERS,         icon: UserCog, roles: ['admin'] },
-      { label: "Audit",         href: ROUTES.AUDIT,         icon: ClipboardList, roles: ['admin'] },
-      {
-        label: 'Paramètres', href: ROUTES.SETTINGS, icon: Settings,
+        label: 'Dépenses & Frais', href: ROUTES.EXPENSES, icon: Wallet,
         children: [
-          { label: 'Entreprise',    href: ROUTES.SETTINGS_COMPANY,       icon: Building2,   roles: ['admin'] },
-          { label: 'Sécurité',      href: ROUTES.SETTINGS_SECURITY,      icon: ShieldCheck },
-          { label: 'Notifications', href: ROUTES.SETTINGS_NOTIFICATIONS, icon: BellRing },
-          { label: 'Sauvegardes',   href: ROUTES.SETTINGS_BACKUPS,       icon: HardDrive,   roles: ['admin'] },
+          { label: 'Notes de frais', href: ROUTES.EXPENSES,           icon: ReceiptText },
+          { label: 'Catégories',     href: ROUTES.EXPENSE_CATEGORIES, icon: Tag },
+          { label: 'Budgets',        href: ROUTES.EXPENSE_BUDGETS,    icon: PieChart },
         ],
       },
     ],
   },
+  {
+    title: 'STOCKS & PRODUITS',
+    items: [
+      {
+        label: 'Produits', href: ROUTES.PRODUCTS, icon: Package,
+        children: [
+          { label: 'Catégories', href: ROUTES.PRODUCT_CATEGORIES, icon: Tag },
+        ],
+      },
+      {
+        label: 'Stock', href: ROUTES.STOCK, icon: Warehouse,
+        children: [
+          { label: 'Mouvements', href: ROUTES.STOCK_MOVEMENTS, icon: ArrowLeftRight },
+          { label: 'Niveaux',    href: ROUTES.STOCK_LEVELS,    icon: BarChart2 },
+          { label: 'Alertes',    href: ROUTES.STOCK_ALERTS,    icon: AlertTriangle },
+        ],
+      },
+    ],
+  },
+  {
+    title: 'FINANCES',
+    items: [
+      { label: 'Tableau de bord', href: ROUTES.DASHBOARD,  icon: LayoutDashboard },
+      { label: 'Rapports',        href: ROUTES.REPORTS,    icon: BarChart3 },
+      { label: 'Banque',          href: ROUTES.BANK,       icon: Landmark,  overlay: 'bank' },
+      { label: 'Comptabilité',    href: ROUTES.ACCOUNTING, icon: BookCheck, overlay: 'accounting' },
+    ],
+  },
+  {
+    title: 'ADMINISTRATION',
+    items: [
+      { label: 'Utilisateurs',        href: ROUTES.USERS,         icon: UserCog,     roles: ['admin'] },
+      { label: 'Rôles & Permissions', href: ROUTES.ROLES,         icon: ShieldCheck, overlay: 'roles', roles: ['admin'] },
+      { label: 'Approbations',        href: ROUTES.APPROVALS,     icon: CheckSquare, approvalBadge: true, roles: ['admin'] },
+      { label: 'Notifications',       href: ROUTES.NOTIFICATIONS, icon: Bell, bell: true },
+      { label: "Journal d'audit",     href: ROUTES.AUDIT,         icon: ClipboardList, roles: ['admin'] },
+    ],
+  },
 ]
 
-// ─── Shared styles ────────────────────────────────────────────
-const ASIDE_STYLE = (collapsed: boolean): React.CSSProperties => ({
-  width:      collapsed ? 'var(--sidebar-w-collapsed)' : 'var(--sidebar-w)',
-  background: 'var(--sidebar-bg)',
-  transition: 'width 0.25s cubic-bezier(0.4,0,0.2,1)',
-})
+// Footer items (shown below nav, above the settings button)
+const FOOTER_NAV: Pick<NavItem, 'label' | 'href' | 'icon' | 'external'>[] = [
+  { label: 'BTS Assistant', href: ROUTES.ASSISTANT, icon: Sparkles },
+  { label: 'Guide',         href: ROUTES.GUIDE,     icon: BookOpen, external: true },
+]
 
 // ─── Sidebar component ────────────────────────────────────────
 export function Sidebar() {
   const pathname   = usePathname()
   const user       = useAuthStore((s) => s.user)
-  const { data: me } = useMe()
-  const logoutMut  = useLogout()
-  const notifCount = useUnreadCount()
+  const notifCount    = useUnreadCount()
+  const { data: approvalCountData } = useApprovalPendingCount()
+  const approvalCount = approvalCountData?.count ?? 0
 
-  const { collapsed, mobileOpen, setCollapsed, setMobileOpen, toggle } = useSidebarStore()
-  const [userMenuOpen, setUserMenuOpen] = useState(false)
-
-  // Refs for user menu focus management (C5)
-  const userTriggerRef = useRef<HTMLButtonElement>(null)
-  const userMenuRef    = useRef<HTMLDivElement>(null)
+  const { collapsed, mobileOpen, overlayPanel, setCollapsed, setMobileOpen, setOverlayPanel, toggle } = useSidebarStore()
 
   const isChildActive = (item: NavItem) =>
     item.children?.some((c) => pathname === c.href || pathname.startsWith(c.href)) ?? false
@@ -130,7 +153,13 @@ export function Sidebar() {
     return initial
   })
 
-  // Auto-expand parent when navigating to a child route
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {}
+    NAV.forEach((s) => { initial[s.title] = true })
+    return initial
+  })
+
+  // Auto-expand parent items when navigating to a child route
   useEffect(() => {
     setOpenItems((prev) => {
       const next = { ...prev }
@@ -144,12 +173,18 @@ export function Sidebar() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
 
-  // État pour gérer les pôles (sections) dépliables
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {}
-    NAV.forEach(section => initial[section.title] = true)
-    return initial
-  })
+  // Auto-open overlay panel when navigating to a sub-route of an overlay item
+  useEffect(() => {
+    for (const section of NAV) {
+      for (const item of section.items) {
+        if (item.overlay && pathname.startsWith(item.href)) {
+          setOverlayPanel(item.overlay)
+          return
+        }
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname])
 
   // Auto-collapse on ≤ 1024px screens
   useEffect(() => {
@@ -163,57 +198,18 @@ export function Sidebar() {
   // Close mobile sidebar on route change
   useEffect(() => { setMobileOpen(false) }, [pathname, setMobileOpen])
 
-  // C5 + C6: Escape closes user menu OR mobile sidebar
+  // ESC closes mobile sidebar
   const handleGlobalKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key !== 'Escape') return
-    if (userMenuOpen) {
-      setUserMenuOpen(false)
-      userTriggerRef.current?.focus()
-    } else if (mobileOpen) {
-      setMobileOpen(false)
-    }
-  }, [userMenuOpen, mobileOpen, setMobileOpen])
+    if (mobileOpen) setMobileOpen(false)
+  }, [mobileOpen, setMobileOpen])
 
   useEffect(() => {
     document.addEventListener('keydown', handleGlobalKeyDown)
     return () => document.removeEventListener('keydown', handleGlobalKeyDown)
   }, [handleGlobalKeyDown])
 
-  // C5: focus first menu item when user menu opens
-  useEffect(() => {
-    if (userMenuOpen) {
-      const first = userMenuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')
-      first?.focus()
-    }
-  }, [userMenuOpen])
-
-  // C5: focus trap within user menu (Tab cycles through items)
-  const handleMenuKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (!userMenuRef.current) return
-    const items = Array.from(userMenuRef.current.querySelectorAll<HTMLElement>('[role="menuitem"]'))
-    if (!items.length) return
-    const idx = items.indexOf(document.activeElement as HTMLElement)
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      items[(idx + 1) % items.length]?.focus()
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      items[(idx - 1 + items.length) % items.length]?.focus()
-    } else if (e.key === 'Tab') {
-      // Trap Tab within the menu
-      if (e.shiftKey && idx === 0) { e.preventDefault(); items[items.length - 1]?.focus() }
-      else if (!e.shiftKey && idx === items.length - 1) { e.preventDefault(); items[0]?.focus() }
-    }
-  }
-
-  const closeUserMenu = () => {
-    setUserMenuOpen(false)
-    userTriggerRef.current?.focus()
-  }
-
-  const displayName = user ? `${user.firstName} ${user.lastName}` : '—'
-  const initials    = user ? `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase() : '?'
-  const isActive    = (href: string) =>
+  const isActive = (href: string) =>
     href === ROUTES.DASHBOARD ? pathname === href : pathname.startsWith(href)
 
   // ─── Shared inner content ──────────────────────────────────
@@ -251,26 +247,21 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* C1: aria-label sur <nav> */}
+      {/* Main nav */}
       <nav
         aria-label="Navigation principale"
         className="sidebar-scroll flex-1 overflow-y-auto overflow-x-hidden py-2"
         style={{ scrollbarWidth: 'thin' }}
       >
         {NAV.map((section, sectionIdx) => (
-          <div
-            key={section.title}
-            style={{
-              marginTop: sectionIdx === 0 ? 4 : 0,
-            }}
-          >
+          <div key={section.title} style={{ marginTop: sectionIdx === 0 ? 4 : 0 }}>
             {!collapsed && (
               <>
                 {sectionIdx > 0 && (
-                  <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '6px 12px' }} />
+                  <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '8px 12px' }} />
                 )}
                 <button
-                  onClick={() => setOpenSections(prev => ({ ...prev, [section.title]: !prev[section.title] }))}
+                  onClick={() => setOpenSections((prev) => ({ ...prev, [section.title]: !prev[section.title] }))}
                   className="nav-section-title flex items-center justify-between w-full"
                   style={{
                     padding: '5px 12px 3px',
@@ -280,139 +271,178 @@ export function Sidebar() {
                   }}
                 >
                   <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
-                    <span style={{
-                      width: 3, height: 12, borderRadius: 2,
-                      background: 'rgba(45,125,210,0.5)',
-                      flexShrink: 0,
-                    }} />
+                    <span style={{ width: 3, height: 12, borderRadius: 2, background: 'rgba(45,125,210,0.5)', flexShrink: 0 }} />
                     <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {section.title}
                     </span>
                   </span>
                   <span style={{ flexShrink: 0, marginLeft: 4, color: 'rgba(120,170,210,0.5)' }}>
-                    {openSections[section.title] ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                    <ChevronDown
+                      size={10}
+                      aria-hidden="true"
+                      style={{ transition: 'transform 0.2s', transform: openSections[section.title] ? 'rotate(180deg)' : 'none' }}
+                    />
                   </span>
                 </button>
               </>
             )}
-            {collapsed && <div style={{ height: sectionIdx > 0 ? 8 : 2, borderTop: sectionIdx > 0 ? '1px solid rgba(255,255,255,0.06)' : 'none', margin: sectionIdx > 0 ? '0 8px' : 0 }} />}
+
+            {collapsed && (
+              <div style={{
+                height: sectionIdx > 0 ? 8 : 2,
+                borderTop: sectionIdx > 0 ? '1px solid rgba(255,255,255,0.06)' : 'none',
+                margin: sectionIdx > 0 ? '0 8px' : 0,
+              }} />
+            )}
 
             {(!collapsed ? openSections[section.title] : true) && section.items
               .filter((item) => !item.roles || item.roles.includes(user?.role ?? ''))
               .map((item) => {
-                const active      = isActive(item.href)
-                const childActive = isChildActive(item)
-                const Icon        = item.icon
-                const hasBadge    = item.bell && notifCount > 0
-                const badgeLabel  = hasBadge ? ` — ${notifCount} notification${notifCount > 1 ? 's' : ''} non lue${notifCount > 1 ? 's' : ''}` : ''
+                const isOverlayItem  = !!item.overlay
+                const isOverlayActive = item.overlay ? overlayPanel === item.overlay : false
+                const isPathActive    = isActive(item.href)
+                const active          = isPathActive || isOverlayActive
+                const childActive     = isChildActive(item)
+                const Icon            = item.icon
+                const badgeNum        = item.bell ? notifCount : item.approvalBadge ? approvalCount : 0
+                const hasBadge        = badgeNum > 0
+                const badgeLabel      = hasBadge ? ` — ${badgeNum}` : ''
                 const visibleChildren = item.children?.filter((c) => !c.roles || c.roles.includes(user?.role ?? ''))
                 const hasChildren     = !collapsed && !!visibleChildren && visibleChildren.length > 0
                 const isOpen          = !collapsed && (openItems[item.href] || childActive)
 
+                const itemStyles: React.CSSProperties = {
+                  flex: 1,
+                  color:          (active || childActive) ? 'var(--sidebar-active-text)' : 'var(--sidebar-text)',
+                  background:     active ? 'var(--sidebar-active-bg)' : 'transparent',
+                  fontFamily:     'var(--font-body)',
+                  fontSize:       13,
+                  fontWeight:     (active || childActive) ? 600 : 400,
+                  textDecoration: 'none',
+                  letterSpacing:  '0.01em',
+                  minWidth:       0,
+                  minHeight:      36,
+                  display:        'flex',
+                  alignItems:     'center',
+                  gap:            8,
+                  borderRadius:   8,
+                  padding:        collapsed ? '0' : '0 10px',
+                  justifyContent: collapsed ? 'center' : 'flex-start',
+                  position:       'relative',
+                  border:         'none',
+                  cursor:         'pointer',
+                  width:          '100%',
+                }
+
+                const innerContent = (
+                  <>
+                    {active && !isOverlayItem && (
+                      <span
+                        className="absolute top-1 bottom-1 rounded-r-full"
+                        style={{ left: -8, width: 3, background: 'var(--primary)' }}
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span className="relative flex-shrink-0">
+                      <Icon
+                        size={15}
+                        strokeWidth={(active || childActive) ? 2.2 : 1.8}
+                        aria-hidden="true"
+                        style={{ color: (active || childActive) ? 'var(--primary)' : 'inherit' }}
+                      />
+                      {hasBadge && (
+                        <span
+                          aria-hidden="true"
+                          className="badge-pulse absolute flex items-center justify-center rounded-full text-white"
+                          style={{ top: -5, right: -5, width: 15, height: 15, background: '#ef4444', fontSize: 9, fontWeight: 700 }}
+                        >
+                          {badgeNum > 9 ? '9+' : badgeNum}
+                        </span>
+                      )}
+                    </span>
+                    <span
+                      className="sidebar-label flex-1 truncate"
+                      aria-hidden={collapsed}
+                      style={{ opacity: collapsed ? 0 : 1, width: collapsed ? 0 : 'auto', overflow: 'hidden', whiteSpace: 'nowrap', transition: 'opacity 0.2s, width 0.2s' }}
+                    >
+                      {item.label}
+                    </span>
+                    {!collapsed && hasBadge && (
+                      <>
+                        <span
+                          aria-hidden="true"
+                          className="rounded-full text-white flex items-center justify-center"
+                          style={{ background: '#ef4444', fontSize: 10, fontWeight: 700, minWidth: 18, height: 18, padding: '0 5px' }}
+                        >
+                          {badgeNum}
+                        </span>
+                        <span className="sr-only">{badgeNum}</span>
+                      </>
+                    )}
+                  </>
+                )
+
+                const handleMouseEnter = (e: React.MouseEvent<HTMLElement>) => {
+                  if (!active) {
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
+                    e.currentTarget.style.color      = 'var(--sidebar-text-hover)'
+                  }
+                }
+                const handleMouseLeave = (e: React.MouseEvent<HTMLElement>) => {
+                  if (!active) {
+                    e.currentTarget.style.background = 'transparent'
+                    e.currentTarget.style.color      = (active || childActive) ? 'var(--sidebar-active-text)' : 'var(--sidebar-text)'
+                  }
+                }
+
                 return (
                   <div key={item.href} className="nav-item px-2">
                     <div style={{ display: 'flex', alignItems: 'center' }}>
-                      <Link
-                        href={item.href}
-                        target={item.external ? '_blank' : undefined}
-                        rel={item.external ? 'noopener noreferrer' : undefined}
-                        // H1: aria-label au lieu de title (collapsed)
-                        // H2: aria-current sur le lien actif
-                        // C4: badge inclus dans aria-label en mode collapsed
-                        aria-label={collapsed ? `${item.label}${badgeLabel}` : undefined}
-                        aria-current={active ? 'page' : undefined}
-                        className={cn(
-                          'relative flex items-center gap-2 rounded-lg transition-all duration-150',
-                          collapsed ? 'justify-center px-0 py-1' : 'px-2.5 py-1',
-                        )}
-                        style={{
-                          flex: 1,
-                          color:          (active || childActive) ? 'var(--sidebar-active-text)' : 'var(--sidebar-text)',
-                          background:     active ? 'var(--sidebar-active-bg)' : 'transparent',
-                          fontFamily:     'var(--font-body)',
-                          fontSize:       13,
-                          fontWeight:     (active || childActive) ? 600 : 400,
-                          textDecoration: 'none',
-                          letterSpacing:  '0.01em',
-                          minWidth:       0,
-                          minHeight:      36,
-                          display:        'flex',
-                          alignItems:     'center',
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!active) {
-                            e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
-                            e.currentTarget.style.color      = 'var(--sidebar-text-hover)'
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!active) {
-                            e.currentTarget.style.background = 'transparent'
-                            e.currentTarget.style.color      = (active || childActive) ? 'var(--sidebar-active-text)' : 'var(--sidebar-text)'
-                          }
-                        }}
-                      >
-                        {active && (
-                          <span
-                            className="absolute top-1 bottom-1 rounded-r-full"
-                            style={{ left: -8, width: 3, background: 'var(--primary)' }}
-                            aria-hidden="true"
-                          />
-                        )}
-
-                        {/* C3: aria-hidden sur toutes les icônes de nav */}
-                        <span className="relative flex-shrink-0">
-                          <Icon
-                            size={15}
-                            strokeWidth={(active || childActive) ? 2.2 : 1.8}
-                            aria-hidden="true"
-                            style={{ color: (active || childActive) ? 'var(--primary)' : 'inherit' }}
-                          />
-                          {/* C4: badge icône → aria-hidden (visuel seulement) */}
-                          {hasBadge && (
-                            <span
-                              aria-hidden="true"
-                              className="badge-pulse absolute flex items-center justify-center rounded-full text-white"
-                              style={{ top: -5, right: -5, width: 15, height: 15, background: '#ef4444', fontSize: 9, fontWeight: 700 }}
-                            >
-                              {notifCount > 9 ? '9+' : notifCount}
-                            </span>
-                          )}
-                        </span>
-
-                        {/* M5: aria-hidden quand collapsed (label masqué visuellement et AT) */}
-                        <span
-                          className="sidebar-label flex-1 truncate"
-                          aria-hidden={collapsed}
-                          style={{
-                            opacity:    collapsed ? 0 : 1,
-                            width:      collapsed ? 0 : 'auto',
-                            overflow:   'hidden',
-                            whiteSpace: 'nowrap',
-                            transition: 'opacity 0.2s, width 0.2s',
-                          }}
+                      {isOverlayItem ? (
+                        <button
+                          type="button"
+                          aria-label={collapsed ? `${item.label}${badgeLabel}` : undefined}
+                          aria-expanded={isOverlayActive}
+                          aria-haspopup="true"
+                          onClick={() => setOverlayPanel(overlayPanel === item.overlay ? null : item.overlay!)}
+                          style={itemStyles}
+                          onMouseEnter={handleMouseEnter}
+                          onMouseLeave={handleMouseLeave}
                         >
-                          {item.label}
-                        </span>
+                          {innerContent}
+                        </button>
+                      ) : (
+                        <Link
+                          href={item.href}
+                          target={item.external ? '_blank' : undefined}
+                          rel={item.external ? 'noopener noreferrer' : undefined}
+                          aria-label={collapsed ? `${item.label}${badgeLabel}` : undefined}
+                          aria-current={isPathActive ? 'page' : undefined}
+                          className={cn(
+                            'relative flex items-center gap-2 rounded-lg transition-all duration-150',
+                            collapsed ? 'justify-center px-0 py-1' : 'px-2.5 py-1',
+                          )}
+                          style={{
+                            flex: 1,
+                            color:          (active || childActive) ? 'var(--sidebar-active-text)' : 'var(--sidebar-text)',
+                            background:     active ? 'var(--sidebar-active-bg)' : 'transparent',
+                            fontFamily:     'var(--font-body)',
+                            fontSize:       13,
+                            fontWeight:     (active || childActive) ? 600 : 400,
+                            textDecoration: 'none',
+                            letterSpacing:  '0.01em',
+                            minWidth:       0,
+                            minHeight:      36,
+                            display:        'flex',
+                            alignItems:     'center',
+                          }}
+                          onMouseEnter={handleMouseEnter}
+                          onMouseLeave={handleMouseLeave}
+                        >
+                          {innerContent}
+                        </Link>
+                      )}
 
-                        {/* C4: badge inline en mode expanded — aria-hidden visuel + sr-only pour AT */}
-                        {!collapsed && hasBadge && (
-                          <>
-                            <span
-                              aria-hidden="true"
-                              className="rounded-full text-white flex items-center justify-center"
-                              style={{ background: '#ef4444', fontSize: 10, fontWeight: 700, minWidth: 18, height: 18, padding: '0 5px' }}
-                            >
-                              {notifCount}
-                            </span>
-                            <span className="sr-only">
-                              {notifCount} notification{notifCount > 1 ? 's' : ''} non lue{notifCount > 1 ? 's' : ''}
-                            </span>
-                          </>
-                        )}
-                      </Link>
-
-                      {/* Chevron toggle sous-items */}
                       {hasChildren && (
                         <button
                           type="button"
@@ -428,7 +458,6 @@ export function Sidebar() {
                           onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.07)' }}
                           onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
                         >
-                          {/* C3: aria-hidden */}
                           <ChevronDown
                             size={11}
                             strokeWidth={2.5}
@@ -443,14 +472,10 @@ export function Sidebar() {
                       )}
                     </div>
 
-                    {/* Sous-items */}
                     {hasChildren && isOpen && (
                       <div style={{
-                        marginLeft: 27,
-                        marginTop: 2,
-                        marginBottom: 6,
+                        marginLeft: 27, marginTop: 2, marginBottom: 6,
                         borderLeft: '1.5px solid rgba(45,125,210,0.35)',
-                        paddingLeft: 0,
                       }}>
                         {item.children!
                           .filter((child) => !child.roles || child.roles.includes(user?.role ?? ''))
@@ -464,17 +489,13 @@ export function Sidebar() {
                                 aria-current={childIsActive ? 'page' : undefined}
                                 className="flex items-center gap-2 rounded-md transition-all duration-150"
                                 style={{
-                                  padding:        '4px 8px 4px 14px',
-                                  fontSize:       12.5,
+                                  padding: '4px 8px 4px 14px', fontSize: 12.5,
                                   color:          childIsActive ? '#fff' : 'rgba(255,255,255,0.6)',
                                   background:     childIsActive ? 'rgba(45,125,210,0.18)' : 'transparent',
                                   fontFamily:     'var(--font-body)',
                                   fontWeight:     childIsActive ? 600 : 400,
-                                  textDecoration: 'none',
-                                  display:        'flex',
-                                  alignItems:     'center',
-                                  minHeight:      30,
-                                  position:       'relative',
+                                  textDecoration: 'none', display: 'flex', alignItems: 'center',
+                                  minHeight: 30, position: 'relative',
                                 }}
                                 onMouseEnter={(e) => {
                                   if (!childIsActive) {
@@ -489,17 +510,14 @@ export function Sidebar() {
                                   }
                                 }}
                               >
-                                {/* Connecteur horizontal */}
                                 <span aria-hidden="true" style={{
                                   position: 'absolute', left: 0, top: '50%',
                                   width: 10, height: 1.5,
                                   background: childIsActive ? 'rgba(45,125,210,0.8)' : 'rgba(255,255,255,0.2)',
-                                  transform: 'translateY(-50%)',
-                                  flexShrink: 0,
+                                  transform: 'translateY(-50%)', flexShrink: 0,
                                 }} />
                                 <ChildIcon
-                                  size={12}
-                                  strokeWidth={childIsActive ? 2.2 : 1.8}
+                                  size={12} strokeWidth={childIsActive ? 2.2 : 1.8}
                                   aria-hidden="true"
                                   style={{ flexShrink: 0, color: childIsActive ? 'var(--primary)' : 'rgba(255,255,255,0.45)' }}
                                 />
@@ -518,127 +536,114 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* Zone utilisateur */}
-      <div className="relative flex-shrink-0" style={{ borderTop: '1px solid var(--sidebar-border)' }}>
-        <button
-          ref={userTriggerRef}
-          className="w-full flex items-center gap-3 transition-colors duration-150"
-          style={{
-            padding:        collapsed ? '10px 0' : '10px 14px',
-            justifyContent: collapsed ? 'center' : 'flex-start',
-            background:     'transparent', border: 'none', cursor: 'pointer',
-            // H5: touch target ≥ 44px
-            minHeight:      44,
-          }}
-          aria-label={`Menu utilisateur — ${displayName}`}
-          aria-expanded={userMenuOpen}
-          aria-haspopup="menu"
-          onClick={() => !collapsed && setUserMenuOpen((o) => !o)}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
-        >
-          {/* M1: avatar avec role="img" et aria-label */}
-          <span
-            role="img"
-            aria-label={`Avatar de ${displayName}`}
-            className="flex-shrink-0 flex items-center justify-center rounded-full text-white font-bold"
-            style={{
-              width: 32, height: 32,
-              background: 'linear-gradient(135deg, var(--primary) 0%, #1a5fa8 100%)',
-              fontSize: 11, fontFamily: 'var(--font-display)',
-              boxShadow: '0 2px 8px rgba(45,125,210,0.4)', overflow: 'hidden', padding: 0,
-            }}
-          >
-            {me?.avatarUrl
-              // M2: aria-hidden sur l'img (le role="img" parent porte le label)
-              ? <img src={me.avatarUrl} alt="" aria-hidden="true" style={{ width: 32, height: 32, objectFit: 'cover', display: 'block' }} />
-              : <span aria-hidden="true">{initials}</span>
-            }
-          </span>
+      {/* Footer nav — BTS Assistant, Guide, Paramètres */}
+      <div
+        style={{
+          padding:   '4px 8px 8px',
+          borderTop: '1px solid var(--sidebar-border)',
+          flexShrink: 0,
+        }}
+      >
+        {FOOTER_NAV.map((item) => {
+          const active = isActive(item.href)
+          const Icon   = item.icon
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              target={item.external ? '_blank' : undefined}
+              rel={item.external ? 'noopener noreferrer' : undefined}
+              aria-label={collapsed ? item.label : undefined}
+              aria-current={active ? 'page' : undefined}
+              className={cn(
+                'relative flex items-center gap-2 rounded-lg transition-all duration-150',
+                collapsed ? 'justify-center px-0 py-1' : 'px-2.5 py-1',
+              )}
+              style={{
+                color:          active ? 'var(--sidebar-active-text)' : 'var(--sidebar-text)',
+                background:     active ? 'var(--sidebar-active-bg)' : 'transparent',
+                fontFamily:     'var(--font-body)',
+                fontSize:       13,
+                fontWeight:     active ? 600 : 400,
+                textDecoration: 'none',
+                minHeight:      36,
+                display:        'flex',
+                alignItems:     'center',
+              }}
+              onMouseEnter={(e) => {
+                if (!active) {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
+                  e.currentTarget.style.color      = 'var(--sidebar-text-hover)'
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!active) {
+                  e.currentTarget.style.background = 'transparent'
+                  e.currentTarget.style.color      = 'var(--sidebar-text)'
+                }
+              }}
+            >
+              <Icon size={15} strokeWidth={active ? 2.2 : 1.8} aria-hidden="true"
+                style={{ color: active ? 'var(--primary)' : 'inherit', flexShrink: 0 }} />
+              <span
+                className="sidebar-label flex-1 truncate"
+                aria-hidden={collapsed}
+                style={{ opacity: collapsed ? 0 : 1, width: collapsed ? 0 : 'auto', overflow: 'hidden', whiteSpace: 'nowrap', transition: 'opacity 0.2s, width 0.2s' }}
+              >
+                {item.label}
+              </span>
+            </Link>
+          )
+        })}
 
-          <div
-            className="sidebar-label flex flex-col text-left leading-tight min-w-0"
+        {/* Paramètres → overlay */}
+        <button
+          type="button"
+          onClick={() => setOverlayPanel(overlayPanel === 'settings' ? null : 'settings')}
+          aria-expanded={overlayPanel === 'settings'}
+          aria-haspopup="true"
+          aria-label={collapsed ? 'Paramètres' : undefined}
+          className={cn(
+            'relative flex items-center gap-2 rounded-lg transition-all duration-150 w-full',
+            collapsed ? 'justify-center px-0 py-1' : 'px-2.5 py-1',
+          )}
+          style={{
+            color:          overlayPanel === 'settings' ? 'var(--sidebar-active-text)' : 'var(--sidebar-text)',
+            background:     overlayPanel === 'settings' ? 'var(--sidebar-active-bg)' : 'transparent',
+            fontFamily:     'var(--font-body)',
+            fontSize:       13,
+            fontWeight:     overlayPanel === 'settings' ? 600 : 400,
+            border:         'none',
+            cursor:         'pointer',
+            minHeight:      36,
+          }}
+          onMouseEnter={(e) => {
+            if (overlayPanel !== 'settings') {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
+              e.currentTarget.style.color      = 'var(--sidebar-text-hover)'
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (overlayPanel !== 'settings') {
+              e.currentTarget.style.background = 'transparent'
+              e.currentTarget.style.color      = 'var(--sidebar-text)'
+            }
+          }}
+        >
+          <Settings
+            size={15}
+            strokeWidth={overlayPanel === 'settings' ? 2.2 : 1.8}
+            aria-hidden="true"
+            style={{ color: overlayPanel === 'settings' ? 'var(--primary)' : 'inherit', flexShrink: 0 }}
+          />
+          <span
+            className="sidebar-label flex-1 truncate text-left"
             aria-hidden={collapsed}
             style={{ opacity: collapsed ? 0 : 1, width: collapsed ? 0 : 'auto', overflow: 'hidden', whiteSpace: 'nowrap', transition: 'opacity 0.2s, width 0.2s' }}
           >
-            <span className="user-name truncate" style={{ fontSize: 13, fontWeight: 600, color: '#ffffff', fontFamily: 'var(--font-display)' }}>
-              {displayName}
-            </span>
-            <span style={{ fontSize: 11, color: 'var(--sidebar-text)', textTransform: 'capitalize' }}>
-              {user?.role ?? ''}
-            </span>
-          </div>
-
-          {/* H8: ChevronUp décoratif → aria-hidden */}
-          {!collapsed && (
-            <ChevronUp
-              size={14}
-              aria-hidden="true"
-              style={{
-                color: 'var(--sidebar-text)', marginLeft: 'auto',
-                transform:  userMenuOpen ? 'rotate(180deg)' : 'none',
-                transition: 'transform 0.2s ease', flexShrink: 0,
-              }}
-            />
-          )}
+            Paramètres
+          </span>
         </button>
-
-        {/* C5: role="menu" + focus trap + Escape (géré dans handleGlobalKeyDown) */}
-        {userMenuOpen && !collapsed && (
-          <div
-            ref={userMenuRef}
-            role="menu"
-            aria-label={`Menu de ${displayName}`}
-            onKeyDown={handleMenuKeyDown}
-            className="absolute bottom-full left-2 right-2 mb-1 rounded-xl overflow-hidden"
-            style={{ background: '#0f2d4a', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 -8px 24px rgba(0,0,0,0.3)' }}
-          >
-            {[
-              { icon: User,     label: 'Mon profil',           href: ROUTES.PROFILE },
-              { icon: KeyRound, label: 'Changer mot de passe', href: `${ROUTES.PROFILE}#password` },
-            ].map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                role="menuitem"
-                className="flex items-center gap-3 px-4 transition-colors duration-100"
-                style={{
-                  fontSize: 14, color: 'var(--sidebar-text-hover)', textDecoration: 'none',
-                  fontFamily: 'var(--font-body)',
-                  // H5: touch target ≥ 44px
-                  minHeight: 44, display: 'flex', alignItems: 'center',
-                }}
-                onClick={closeUserMenu}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
-              >
-                {/* C3: aria-hidden */}
-                <item.icon size={14} strokeWidth={1.8} aria-hidden="true" />
-                {item.label}
-              </Link>
-            ))}
-
-            <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '2px 0' }} />
-
-            <button
-              role="menuitem"
-              className="w-full flex items-center gap-3 px-4 transition-colors duration-100"
-              style={{
-                fontSize: 14, color: '#f87171', background: 'transparent',
-                border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)',
-                // H5: touch target ≥ 44px
-                minHeight: 44, display: 'flex', alignItems: 'center',
-              }}
-              onClick={() => { logoutMut.mutate(); closeUserMenu() }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(248,113,113,0.08)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
-            >
-              {/* C3: aria-hidden */}
-              <LogOut size={14} strokeWidth={1.8} aria-hidden="true" />
-              Déconnexion
-            </button>
-          </div>
-        )}
       </div>
     </>
   )
@@ -655,7 +660,6 @@ export function Sidebar() {
           height:     '100vh',
         }}
       >
-        {/* C2: aria-label sur <aside> desktop */}
         <aside
           aria-label="Barre latérale"
           className={cn('relative flex flex-col overflow-hidden', collapsed && 'sidebar-collapsed')}
@@ -664,7 +668,7 @@ export function Sidebar() {
           {sidebarInner}
         </aside>
 
-        {/* C7: bouton collapse — zone de toucher 44×44px autour de l'icône 24px */}
+        {/* Collapse toggle button */}
         <button
           onClick={toggle}
           className="absolute z-50 flex items-center justify-center rounded-full text-white"
@@ -676,7 +680,6 @@ export function Sidebar() {
             boxShadow:  '0 2px 8px rgba(45,125,210,0.5)',
             border:     'none', cursor: 'pointer',
             transition: 'box-shadow 0.15s, transform 0.15s',
-            // C7: zone de toucher 44×44 autour du cercle visuel 24×24
             width:      44,
             height:     44,
           }}
@@ -691,7 +694,6 @@ export function Sidebar() {
           aria-label={collapsed ? 'Étendre la barre latérale' : 'Réduire la barre latérale'}
           aria-expanded={!collapsed}
         >
-          {/* C3: aria-hidden */}
           {collapsed
             ? <PanelLeftOpen  size={15} strokeWidth={2} aria-hidden="true" />
             : <PanelLeftClose size={15} strokeWidth={2} aria-hidden="true" />
@@ -702,24 +704,30 @@ export function Sidebar() {
       {/* ── Mobile sidebar — overlay fixe ─────────────────────── */}
       {mobileOpen && (
         <>
-          {/* Backdrop — H7: Escape géré dans handleGlobalKeyDown */}
           <div
             className="fixed inset-0 z-40 lg:hidden"
             style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)' }}
             onClick={() => setMobileOpen(false)}
             aria-hidden="true"
           />
-          {/* C2 + C6: role="dialog" + aria-modal + aria-label */}
           <aside
             role="dialog"
             aria-modal="true"
             aria-label="Menu de navigation"
-            style={{ ...ASIDE_STYLE(false), width: 'var(--sidebar-w)' }}
+            style={{ background: 'var(--sidebar-bg)', width: 'var(--sidebar-w)' }}
             className="fixed left-0 top-0 h-screen flex flex-col overflow-hidden z-50 lg:hidden"
           >
             {sidebarInner}
           </aside>
         </>
+      )}
+
+      {/* ── Overlay panel (Bank, Accounting, Roles, Settings) ─── */}
+      {overlayPanel && (
+        <OverlaySubNav
+          panelId={overlayPanel}
+          onClose={() => setOverlayPanel(null)}
+        />
       )}
     </>
   )

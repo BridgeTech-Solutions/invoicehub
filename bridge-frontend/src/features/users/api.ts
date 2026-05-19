@@ -4,12 +4,28 @@ import type {
   CreateUserPayload, UpdateUserPayload, UpdateMePayload, ChangePasswordPayload,
 } from './types'
 
+export interface RoleEntry {
+  id:          string
+  name:        string
+  displayName: string
+  isSystem:    boolean
+  permissions: string[]
+  _count?:     { users: number }
+}
+
 export interface AuditLogEntry {
   id:         string
   action:     string
   entityType: string | null
   entityId:   string | null
   createdAt:  string
+}
+
+export const rolesApi = {
+  async list(): Promise<RoleEntry[]> {
+    const { data } = await apiClient.get<RoleEntry[]>('/roles')
+    return data
+  },
 }
 
 export const usersApi = {

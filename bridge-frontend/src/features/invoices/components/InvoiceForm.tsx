@@ -9,7 +9,7 @@ import {
 import { format, parseISO } from 'date-fns'
 import { useClients } from '@/features/clients/hooks'
 import { useClientQuickFill } from '@/features/clients/hooks'
-import { useInvoices, useInvoice } from '../hooks'
+import { useInvoices, useInvoice, useBankAccounts } from '../hooks'
 import { LineItemsEditor } from '@/components/document/LineItemsEditor'
 import { TotalsPanel } from '@/components/document/TotalsPanel'
 import {
@@ -47,6 +47,10 @@ interface FormState {
   globalDiscountValue: number
   acomptePercentage: number
   parentInvoiceId: string
+  bankAccountId: string
+  escompteEnabled: boolean
+  escompteRate: number
+  escompteDeadline: string
   lines: FormLine[]
 }
 
@@ -72,6 +76,10 @@ function initForm(invoice?: Invoice, opts?: Omit<InvoiceFormProps, 'invoice'>): 
       globalDiscountValue: Number(invoice.globalDiscountValue),
       acomptePercentage:   invoice.acomptePercentage ?? 30,
       parentInvoiceId:     invoice.parentInvoiceId  ?? '',
+      bankAccountId:       invoice.bankAccountId    ?? '',
+      escompteEnabled:     invoice.escompteRate != null,
+      escompteRate:        invoice.escompteRate != null ? Number(invoice.escompteRate) : 2,
+      escompteDeadline:    invoice.escompteDeadline ? format(parseISO(invoice.escompteDeadline), 'yyyy-MM-dd') : in30days(),
       lines:               invoice.lines.map(lineToFormLine),
     }
   }
@@ -88,6 +96,10 @@ function initForm(invoice?: Invoice, opts?: Omit<InvoiceFormProps, 'invoice'>): 
     globalDiscountValue: 0,
     acomptePercentage:   30,
     parentInvoiceId:     opts?.defaultParentInvoiceId ?? '',
+    bankAccountId:       '',
+    escompteEnabled:     false,
+    escompteRate:        2,
+    escompteDeadline:    in30days(),
     lines:               [makeBlankLine(0)],
   }
 }
@@ -270,6 +282,14 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
 
   const { data: clientsData } = useClients({ limit: 200, status: 'active' })
   const clients = clientsData?.data ?? []
+  const { data: bankAccounts = [] } = useBankAccounts()
+
+  // Pré-sélectionner le compte par défaut si aucun compte sélectionné
+  useEffect(() => {
+    if (form.bankAccountId || bankAccounts.length === 0) return
+    const def = bankAccounts.find(a => (a as any).isDefault) ?? bankAccounts[0]
+    if (def) setF('bankAccountId', def.id)
+  }, [bankAccounts]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load acompte invoices for the client — needed for "solde" (deduction) and "acompte" (multi-versement link)
   const { data: acompteInvoicesData } = useInvoices(
@@ -391,6 +411,11 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
     ...(form.type === 'acompte' && form.parentInvoiceId && { parentInvoiceId: form.parentInvoiceId }),
     ...(form.type === 'solde'   && form.parentInvoiceId && { parentInvoiceId: form.parentInvoiceId }),
     ...(defaultProformaId && !isEdit && { proformaId: defaultProformaId }),
+    ...(form.bankAccountId && { bankAccountId: form.bankAccountId }),
+    ...(form.escompteEnabled && form.escompteRate > 0 && {
+      escompteRate:     form.escompteRate,
+      escompteDeadline: form.escompteDeadline,
+    }),
     lines: form.lines.map((l, i) => ({
       productId:     l.productId,
       sortOrder:     i,
@@ -898,6 +923,63 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
             )
           })()}
 
+          {/* Escompte de règlement */}
+          {form.type !== 'avoir' && (
+            <div className="card" style={{ padding: '18px 20px' }}>
+              {sectionTitle('Escompte de règlement')}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: form.escompteEnabled ? 14 : 0 }}>
+                <input
+                  type="checkbox"
+                  checked={form.escompteEnabled}
+                  onChange={(e) => setF('escompteEnabled', e.target.checked)}
+                  style={{ width: 15, height: 15, accentColor: 'var(--primary)', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: 13.5, color: 'var(--text-1)' }}>Proposer un escompte pour paiement anticipé</span>
+              </label>
+              {form.escompteEnabled && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <FL label="Taux d'escompte (%)" htmlFor="inv-escompteRate" />
+                      <input
+                        id="inv-escompteRate"
+                        type="number"
+                        min={0.01}
+                        max={100}
+                        step={0.01}
+                        value={form.escompteRate}
+                        onChange={(e) => setF('escompteRate', Number(e.target.value))}
+                        style={{ ...inputCss }}
+                        onFocus={focusOn} onBlur={focusOff}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <FL label="Valable jusqu'au" htmlFor="inv-escompteDeadline" />
+                      <input
+                        id="inv-escompteDeadline"
+                        type="date"
+                        value={form.escompteDeadline}
+                        onChange={(e) => setF('escompteDeadline', e.target.value)}
+                        style={{ ...inputCss }}
+                        onFocus={focusOn} onBlur={focusOff}
+                      />
+                    </div>
+                  </div>
+                  {docTotals.totalTtc > 0 && form.escompteRate > 0 && (
+                    <div style={{ background: '#fffbeb', border: '1px solid #d97706', borderRadius: 6, padding: '8px 12px', fontSize: 12.5, color: '#92400e' }}>
+                      Montant de l'escompte : <strong>
+                        {new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(Math.round(docTotals.totalTtc * form.escompteRate / 100))} XAF
+                      </strong>
+                      {' '}— Net à payer avec escompte : <strong>
+                        {new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(Math.round(docTotals.totalTtc * (1 - form.escompteRate / 100)))} XAF
+                      </strong>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Conditions */}
           <div className="card" style={{ padding: '18px 20px' }}>
             {sectionTitle('Conditions & Notes')}
@@ -914,6 +996,25 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                   onFocus={focusOn} onBlur={focusOff}
                 />
               </div>
+              {bankAccounts.length > 0 && (
+                <div>
+                  <FL label="Compte bancaire de réception" htmlFor="inv-bankAccount" />
+                  <select
+                    id="inv-bankAccount"
+                    value={form.bankAccountId}
+                    onChange={(e) => setF('bankAccountId', e.target.value)}
+                    style={{ ...inputCss, cursor: 'pointer' }}
+                    onFocus={focusOn} onBlur={focusOff}
+                  >
+                    <option value="">— Sélectionner un compte —</option>
+                    {bankAccounts.map(acc => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name}{acc.bankName ? ` · ${acc.bankName}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <FL label="Notes internes" htmlFor="inv-notes" />
                 <textarea

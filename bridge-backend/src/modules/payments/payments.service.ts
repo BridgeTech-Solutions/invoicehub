@@ -12,6 +12,8 @@
  * Les paiements ne sont jamais supprimés physiquement (soft-delete sur `deleted_at`)
  * pour la conformité comptable SYSCOHADA.
  */
+import path from 'path';
+import fs from 'fs';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { AppError } from '../../core/errors/AppError';
@@ -19,6 +21,8 @@ import { notificationQueue } from '../../jobs/queues';
 import { broadcastNotification } from '../../lib/broadcast';
 import { DashboardService } from '../dashboard/dashboard.service';
 import { generatePdf, buildReceiptHtml, imgToBase64 } from '../../lib/pdf';
+import { eventBus } from '../../lib/eventBus';
+import * as accountingEngine from '../../lib/accountingEngine';
 import type { CreatePaymentInput, ListPaymentsInput } from './payments.schema';
 
 export class PaymentsService {
@@ -29,15 +33,17 @@ export class PaymentsService {
    * @returns Page de résultats enrichie avec numéro de facture et nom du client
    */
   async list(input: ListPaymentsInput) {
-    const { page, limit, invoiceId, method, dateFrom, dateTo } = input;
+    const { page, limit, invoiceId, method, dateFrom, dateTo, reconciled } = input;
     const skip = (page - 1) * limit;
 
     const where: Prisma.PaymentWhereInput = {
       deletedAt: null,
       ...(invoiceId && { invoiceId }),
-      ...(method   && { method }),
-      ...(dateFrom && { paymentDate: { gte: dateFrom } }),
-      ...(dateTo   && { paymentDate: { lte: dateTo } }),
+      ...(method    && { method }),
+      ...(dateFrom  && { paymentDate: { gte: dateFrom } }),
+      ...(dateTo    && { paymentDate: { lte: dateTo } }),
+      ...(reconciled === 'true'  && { reconciledAt: { not: null } }),
+      ...(reconciled === 'false' && { reconciledAt: null }),
     };
 
     const [total, data] = await Promise.all([
@@ -45,8 +51,10 @@ export class PaymentsService {
       prisma.payment.findMany({
         where,
         include: {
-          invoice: { select: { id: true, number: true, client: { select: { name: true } } } },
-          createdBy: { select: { id: true, firstName: true, lastName: true } },
+          invoice:         { select: { id: true, number: true, client: { select: { name: true } } } },
+          createdBy:       { select: { id: true, firstName: true, lastName: true } },
+          bankAccount:     { select: { id: true, name: true, accountingAccount: true } },
+          reconciledBy:    { select: { id: true, firstName: true, lastName: true } },
         },
         orderBy: { paymentDate: 'desc' },
         skip,
@@ -108,11 +116,13 @@ export class PaymentsService {
       const payment = await tx.payment.create({
         data: {
           invoiceId,
-          paymentDate: input.paymentDate,
-          amount: input.amount,
-          method: input.method,
-          reference: input.reference,
-          notes: input.notes,
+          paymentDate:    input.paymentDate,
+          amount:         input.amount,
+          method:         input.method,
+          reference:      input.reference,
+          notes:          input.notes,
+          bankAccountId:  input.bankAccountId,
+          attachmentPath: input.attachmentPath,
           createdById,
         },
       });
@@ -167,6 +177,10 @@ export class PaymentsService {
         data: { invoiceId: invoice.id, invoiceNumber: invoice.number, amount: input.amount },
       });
 
+      void prisma.$transaction((tx) => accountingEngine.onPaymentReceived(payment.id, tx));
+      if (fullyPaid) {
+        void eventBus.emit('invoice.paid', { invoiceId: invoice.id, paymentId: payment.id });
+      }
       await DashboardService.invalidateCache();
       return payment;
     });
@@ -207,8 +221,8 @@ export class PaymentsService {
 
       // Détermine le statut cible selon les paiements restants
       let newStatus = payment.invoice.status;
-      if (newAmountPaid === 0)      newStatus = 'issued';           // Plus aucun paiement
-      else if (newBalanceDue > 0)   newStatus = 'partially_paid';   // Toujours un reliquat
+      if (newAmountPaid === 0)    newStatus = 'issued';
+      else if (newBalanceDue > 0) newStatus = 'partially_paid';
 
       await tx.invoice.update({
         where: { id: payment.invoiceId },
@@ -218,6 +232,9 @@ export class PaymentsService {
           status: newStatus,
         },
       });
+
+      // 3. Extourne comptable — annule l'écriture de règlement
+      await accountingEngine.onPaymentDeleted(id, tx);
     });
 
     await DashboardService.invalidateCache();
@@ -230,6 +247,48 @@ export class PaymentsService {
    * @returns Buffer PDF et nom de fichier suggéré pour le téléchargement
    * @throws `404` - Paiement introuvable ou supprimé
    */
+  async uploadAttachment(id: string, filePath: string): Promise<void> {
+    const payment = await prisma.payment.findFirst({
+      where: { id, deletedAt: null },
+      select: { attachmentPath: true },
+    });
+    if (!payment) throw AppError.notFound('Paiement introuvable');
+
+    if (payment.attachmentPath && fs.existsSync(payment.attachmentPath)) {
+      fs.unlinkSync(payment.attachmentPath);
+    }
+
+    await prisma.payment.update({ where: { id }, data: { attachmentPath: filePath } });
+  }
+
+  async getAttachment(id: string): Promise<{ filePath: string; filename: string }> {
+    const payment = await prisma.payment.findFirst({
+      where: { id, deletedAt: null },
+      select: { attachmentPath: true, reference: true },
+    });
+    if (!payment) throw AppError.notFound('Paiement introuvable');
+    if (!payment.attachmentPath) throw AppError.notFound('Aucun justificatif attaché à ce paiement');
+    if (!fs.existsSync(payment.attachmentPath)) throw AppError.notFound('Fichier introuvable sur le serveur');
+
+    const ext = path.extname(payment.attachmentPath);
+    const ref = payment.reference ?? id.slice(0, 8).toUpperCase();
+    return { filePath: payment.attachmentPath, filename: `justificatif-${ref}${ext}` };
+  }
+
+  async deleteAttachment(id: string): Promise<void> {
+    const payment = await prisma.payment.findFirst({
+      where: { id, deletedAt: null },
+      select: { attachmentPath: true },
+    });
+    if (!payment) throw AppError.notFound('Paiement introuvable');
+    if (!payment.attachmentPath) throw AppError.notFound('Aucun justificatif à supprimer');
+
+    if (fs.existsSync(payment.attachmentPath)) {
+      fs.unlinkSync(payment.attachmentPath);
+    }
+    await prisma.payment.update({ where: { id }, data: { attachmentPath: null } });
+  }
+
   async generateReceipt(id: string) {
     const payment = await prisma.payment.findFirst({
       where: { id, deletedAt: null },

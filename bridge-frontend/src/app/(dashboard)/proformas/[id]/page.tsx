@@ -232,6 +232,20 @@ function ProformaDetailView({ id }: { id: string }) {
         {/* Sidebar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
+          {/* Compte bancaire de réception */}
+          {proforma.bankAccount && (
+            <div className="card" style={{ padding: '16px 18px' }}>
+              <p style={{ fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 10 }}>Compte de réception</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-1)' }}>{proforma.bankAccount.name}</p>
+                <p style={{ fontSize: 12, color: 'var(--text-2)' }}>{proforma.bankAccount.bankName}</p>
+                {proforma.bankAccount.accountNumber && <p style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{proforma.bankAccount.accountNumber}</p>}
+                {proforma.bankAccount.iban && <p style={{ fontSize: 11.5, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>IBAN : {proforma.bankAccount.iban}</p>}
+                {proforma.bankAccount.swiftBic && <p style={{ fontSize: 11.5, color: 'var(--text-3)' }}>SWIFT : {proforma.bankAccount.swiftBic}</p>}
+              </div>
+            </div>
+          )}
+
           {/* Client card */}
           <div className="card" style={{ padding: '16px 18px' }}>
             <p style={{ fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 12 }}>

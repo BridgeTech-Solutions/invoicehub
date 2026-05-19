@@ -12,7 +12,7 @@ import { AppError } from '../../../core/errors/AppError';
 
 function makeReq(role?: string): Partial<Request> {
   return role
-    ? { user: { id: 'test-id', email: 'test@bts.cm', role: role as 'admin' | 'commercial' | 'employee', firstName: 'Test', lastName: 'User' } }
+    ? { user: { id: 'test-id', email: 'test@bts.cm', roleId: 'role-id', roleName: role, permissions: [], firstName: 'Test', lastName: 'User' } }
     : {};
 }
 

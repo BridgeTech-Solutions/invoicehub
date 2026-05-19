@@ -10,11 +10,12 @@ import {
   useIssueInvoice, useCancelInvoice, useDuplicateInvoice,
   useDownloadInvoicePdf, useCreateAvoir, useDeleteInvoice,
 } from '../hooks'
-import { PaymentModal }  from './PaymentModal'
+import { PaymentDrawer } from './PaymentDrawer'
 import { CancelModal }   from './CancelModal'
 import { AvoirModal }    from './AvoirModal'
 import type { Invoice }  from '../types'
 import { ROUTES }        from '@/lib/constants'
+import { ApprovalStatusBadge } from '@/features/approvals/components/ApprovalStatusBadge'
 
 // ─── Modal de confirmation de suppression ─────────────────────────
 
@@ -128,6 +129,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
   const canCancel = ['issued', 'partially_paid', 'overdue'].includes(status)
   const canEdit   = status === 'draft'
   const canIssue  = status === 'draft'
+  const isPendingApproval = invoice.approvalRequest?.status === 'pending'
   // Avoir : tous les statuts acceptés par le backend (hors draft/cancelled/avoir)
   const canAvoir  = ['issued', 'partially_paid', 'paid', 'overdue'].includes(status)
 
@@ -164,15 +166,21 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
           </button>
         )}
 
+        {/* Approval badge — shown when requiresApproval */}
+        {invoice.requiresApproval && invoice.approvalRequest && (
+          <ApprovalStatusBadge request={invoice.approvalRequest} />
+        )}
+
         {/* Issue — draft only */}
         {canIssue && (
           <button
-            style={btnPrimary}
-            disabled={isLoading || issueMutation.isPending}
+            style={{ ...btnPrimary, ...(isPendingApproval ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
+            disabled={isLoading || issueMutation.isPending || !!isPendingApproval}
             onClick={() => issueMutation.mutate(id)}
+            title={isPendingApproval ? "En attente d'approbation" : undefined}
           >
             {issueMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
-            Émettre la facture
+            {isPendingApproval ? "En attente d'approbation..." : 'Émettre la facture'}
           </button>
         )}
 
@@ -228,7 +236,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
       )}
 
       {/* Modals */}
-      {showPayment && <PaymentModal  invoice={invoice}        onClose={() => setShowPayment(false)} />}
+      {showPayment && <PaymentDrawer invoice={invoice}        onClose={() => setShowPayment(false)} />}
       {showCancel  && <CancelModal   invoiceId={id} invoiceNumber={number} onClose={() => setShowCancel(false)} />}
       {showAvoir   && <AvoirModal    invoice={invoice}        onClose={() => setShowAvoir(false)} />}
       {showDelete  && (

@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   ChevronLeft, Calendar, Clock, FileText, Link2, Trash2, FileDown, Loader2,
-  User, Shield, CreditCard, PenLine, XCircle, CheckCircle, History, AlertTriangle,
+  User, Shield, CreditCard, PenLine, XCircle, CheckCircle, History, AlertTriangle, Tag,
 } from 'lucide-react'
 import { useInvoice, useDeletePayment, useDownloadReceipt, useInvoiceHistory } from '@/features/invoices/hooks'
 import type { AuditLogEntry } from '@/features/invoices/api'
@@ -436,6 +436,76 @@ function InvoiceDetailView({ id }: { id: string }) {
               amountPaid={Number(invoice.amountPaid)}
               balanceDue={Number(invoice.balanceDue)}
             />
+          )}
+
+          {/* Escompte de règlement */}
+          {invoice.escompteRate != null && invoice.type !== 'avoir' && (
+            (() => {
+              const escompteApplied = invoice.payments?.some(p => p.escompteApplied) ?? false
+              const now = new Date().toISOString().slice(0, 10)
+              const deadline = invoice.escompteDeadline?.slice(0, 10)
+              const expired = deadline != null && now > deadline
+              const status = escompteApplied ? 'applied' : expired ? 'expired' : 'eligible'
+              const badgeStyle: React.CSSProperties =
+                status === 'applied'  ? { background: 'rgba(16,185,129,0.1)',  color: '#059669' } :
+                status === 'expired'  ? { background: 'rgba(148,163,184,0.15)', color: '#64748b' } :
+                                        { background: 'rgba(245,158,11,0.1)',   color: '#d97706' }
+              const badgeLabel =
+                status === 'applied' ? 'Appliqué' :
+                status === 'expired' ? 'Expiré' : 'Applicable'
+              return (
+                <div className="card" style={{ padding: '16px 18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Tag size={12} style={{ color: 'var(--text-3)' }} />
+                      <p style={{ fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', margin: 0 }}>
+                        Escompte de règlement
+                      </p>
+                    </div>
+                    <span style={{
+                      fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 99,
+                      fontFamily: 'var(--font-display)', ...badgeStyle,
+                    }}>
+                      {badgeLabel}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>Taux</span>
+                      <span style={{ fontSize: 12.5, color: 'var(--text-2)', fontWeight: 600 }}>{Number(invoice.escompteRate)}%</span>
+                    </div>
+                    {invoice.escompteDeadline && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>Échéance</span>
+                        <span style={{ fontSize: 12.5, color: 'var(--text-2)', fontWeight: 500 }}>
+                          {new Date(invoice.escompteDeadline).toLocaleDateString('fr-FR')}
+                        </span>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>Montant</span>
+                      <span style={{ fontSize: 12.5, color: '#d97706', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                        {formatXAF(Number(invoice.escompteAmount))}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()
+          )}
+
+          {/* Compte bancaire de réception */}
+          {invoice.bankAccount && (
+            <div className="card" style={{ padding: '16px 18px' }}>
+              <p style={{ fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 10 }}>Compte de réception</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-1)' }}>{invoice.bankAccount.name}</p>
+                <p style={{ fontSize: 12, color: 'var(--text-2)' }}>{invoice.bankAccount.bankName}</p>
+                {invoice.bankAccount.accountNumber && <p style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{invoice.bankAccount.accountNumber}</p>}
+                {invoice.bankAccount.iban && <p style={{ fontSize: 11.5, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>IBAN : {invoice.bankAccount.iban}</p>}
+                {invoice.bankAccount.swiftBic && <p style={{ fontSize: 11.5, color: 'var(--text-3)' }}>SWIFT : {invoice.bankAccount.swiftBic}</p>}
+              </div>
+            </div>
           )}
 
           {/* Client */}

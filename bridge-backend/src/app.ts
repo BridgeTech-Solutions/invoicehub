@@ -29,8 +29,21 @@ import { officesRouter } from './modules/offices/offices.routes';
 import { emailTemplatesRouter } from './modules/email-templates/email-templates.routes';
 import { backupsRouter } from './modules/backups/backups.routes';
 import { aiRouter } from './modules/ai/ai.routes';
+import rolesRouter from './modules/roles/roles.routes';
+import suppliersRouter from './modules/suppliers/suppliers.routes';
+import purchaseOrdersRouter from './modules/purchase-orders/purchase-orders.routes';
+import supplierInvoicesRouter from './modules/supplier-invoices/supplier-invoices.routes';
+import { expensesRouter, expenseCategoriesRouter, expenseBudgetsRouter } from './modules/expenses/expenses.routes';
+import stockRouter from './modules/stock/stock.routes';
+import bankRouter from './modules/bank/bank.routes';
+import accountingRouter from './modules/accounting/accounting.routes';
+import {
+  webhooksRouter, apiKeysRouter, customFieldsRouter,
+  workflowRulesRouter, ipWhitelistRouter, exportsRouter,
+} from './modules/settings-advanced/settings-advanced.routes';
 import { healthRouter } from './modules/health/health.routes';
 import { guideRouter } from './modules/guide/guide.routes';
+import { approvalsRouter } from './modules/approvals/approvals.routes';
 
 const app: Express = express();
 
@@ -109,10 +122,16 @@ app.use(`${env.API_PREFIX}/auth/refresh`, rateLimit({
 // ----------------------------------------------------------------
 // Fichiers statiques (assets uploadés)
 // ----------------------------------------------------------------
-app.use('/uploads', (_req, res, next) => {
+// Seuls les avatars et les assets company (logo, tampon, signature) sont servis
+// publiquement — ils sont affichés dans les <img> du frontend.
+// Les justificatifs de paiement et les backups sont servis UNIQUEMENT via les
+// routes API protégées (/api/payments/:id/attachment) — jamais en static public.
+const setCrossOrigin: express.RequestHandler = (_req, res, next) => {
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   next();
-}, express.static('uploads')); // avatars, assets company, pièces jointes
+};
+app.use('/uploads/avatars', setCrossOrigin, express.static('uploads/avatars'));
+app.use('/uploads/company', setCrossOrigin, express.static('uploads/company'));
 
 // ----------------------------------------------------------------
 // Parsers
@@ -178,6 +197,23 @@ app.use(`${prefix}/ai`, aiRouter);
 app.use(`${prefix}/guide`, guideRouter);
 app.use(`${prefix}/email-templates`, emailTemplatesRouter);
 app.use(`${prefix}/backups`, backupsRouter);
+app.use(`${prefix}/roles`, rolesRouter);
+app.use(`${prefix}/suppliers`, suppliersRouter);
+app.use(`${prefix}/purchase-orders`, purchaseOrdersRouter);
+app.use(`${prefix}/supplier-invoices`, supplierInvoicesRouter);
+app.use(`${prefix}/expense-categories`, expenseCategoriesRouter);
+app.use(`${prefix}/expenses`, expensesRouter);
+app.use(`${prefix}/expense-budgets`, expenseBudgetsRouter);
+app.use(`${prefix}/stock`, stockRouter);
+app.use(`${prefix}/bank`, bankRouter);
+app.use(`${prefix}/accounting`, accountingRouter);
+app.use(`${prefix}/webhooks`, webhooksRouter);
+app.use(`${prefix}/api-keys`, apiKeysRouter);
+app.use(`${prefix}/settings/custom-fields`, customFieldsRouter);
+app.use(`${prefix}/settings/workflow-rules`, workflowRulesRouter);
+app.use(`${prefix}/settings/ip-whitelist`, ipWhitelistRouter);
+app.use(`${prefix}/exports`, exportsRouter);
+app.use(`${prefix}/approvals`, approvalsRouter);
 
 // 404
 app.use((_req, res) => {

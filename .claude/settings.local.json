@@ -1,8 +1,22 @@
 {
-      "mcpServers": {
+  "permissions": {
+    "allow": [
+      "Bash(npx prisma *)",
+      "Bash(pnpm run *)",
+      "Bash(npx tsc *)",
+      "Bash(git stash *)",
+      "Bash(xargs grep *)",
+      "Bash(pnpm build *)"
+    ]
+  },
+  "mcpServers": {
     "ui-ux-pro-max": {
       "command": "C:\\Users\\cruzj\\AppData\\Roaming\\npm\\uipro.cmd",
-      "args": ["init", "--ai", "claude"]
+      "args": [
+        "init",
+        "--ai",
+        "claude"
+      ]
     }
   }
 }

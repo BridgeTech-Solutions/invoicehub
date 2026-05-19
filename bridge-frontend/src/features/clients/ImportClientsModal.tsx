@@ -46,11 +46,6 @@ const COLUMN_MAP: Record<string, keyof ImportClientRow> = {
   'niu':                    'taxNumber',
   'taxnumber':              'taxNumber',
   'rccm':                   'rccm',
-  'banque':                 'bankName',
-  'bankname':               'bankName',
-  'numéro de compte':       'bankAccount',
-  'numero de compte':       'bankAccount',
-  'bankaccount':            'bankAccount',
   'devise':                 'currency',
   'currency':               'currency',
   'conditions de paiement': 'defaultPaymentTerms',
@@ -81,13 +76,13 @@ export function downloadTemplate() {
   const headers = [
     'Nom*', 'Type', 'Email', 'Téléphone', 'Téléphone 2',
     'Adresse', 'Ville', 'Pays', 'Boîte postale',
-    'NIF', 'RCCM', 'Banque', 'Numéro de compte',
+    'NIF', 'RCCM',
     'Devise', 'Conditions de paiement', 'Notes internes',
   ]
   const example = [
     'Société Exemple SA', 'company', 'contact@exemple.cm', '699 000 001', '',
     'Rue de la Paix, Akwa', 'Douala', 'Cameroun', 'BP 1234',
-    'M012345678901Z', 'RC/DLA/2020/B/1234', 'Afriland First Bank', '10001000010000001',
+    'M012345678901Z', 'RC/DLA/2020/B/1234',
     'XAF', 'Paiement à 30 jours', '',
   ]
   const ws = utils.aoa_to_sheet([headers, example])
@@ -280,7 +275,7 @@ export function ImportClientsModal({ open, onClose }: ImportClientsModalProps) {
               <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', background: 'var(--surface)', border: '1px solid var(--border)' }}>
                 <p style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 8px' }}>Colonnes reconnues</p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {['Nom*', 'Type', 'Email', 'Téléphone', 'Adresse', 'Ville', 'Pays', 'NIF', 'RCCM', 'Banque', 'Devise', 'Notes internes'].map(col => (
+                  {['Nom*', 'Type', 'Email', 'Téléphone', 'Adresse', 'Ville', 'Pays', 'NIF', 'RCCM', 'Devise', 'Notes internes'].map(col => (
                     <span key={col} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: col.endsWith('*') ? 'rgba(45,125,210,0.1)' : 'var(--surface-2)', color: col.endsWith('*') ? 'var(--primary)' : 'var(--text-2)', border: `1px solid ${col.endsWith('*') ? 'rgba(45,125,210,0.2)' : 'var(--border)'}`, fontFamily: 'var(--font-mono)' }}>
                       {col}
                     </span>

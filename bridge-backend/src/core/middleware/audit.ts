@@ -75,7 +75,7 @@ export function auditMiddleware(tableName: string, action?: AuditAction) {
           data: {
             userId,
             userEmail:     req.user?.email ?? null,
-            userRole:      req.user?.role ?? null,
+            userRole:      req.user?.roleName ?? null,
             action:        resolvedAction,
             entityType:    tableName,
             entityId:      recordId,

@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { invoicesApi, paymentsApi } from './api'
+import { invoicesApi, paymentsApi, bankAccountsApi } from './api'
 import type {
   ListInvoicesParams, UpdateInvoicePayload, CancelInvoicePayload,
   CreateAvoirPayload, ComputeInvoicePayload, CreatePaymentPayload, ListPaymentsParams,
@@ -224,5 +224,13 @@ export function usePayments(params?: ListPaymentsParams) {
     queryKey: PAYMENT_KEYS.list(params),
     queryFn:  () => paymentsApi.list(params),
     staleTime: 30_000,
+  })
+}
+
+export function useBankAccounts() {
+  return useQuery({
+    queryKey: ['bank-accounts', 'list'],
+    queryFn:  () => bankAccountsApi.list(),
+    staleTime: 5 * 60_000,
   })
 }

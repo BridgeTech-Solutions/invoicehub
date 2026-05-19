@@ -8,6 +8,7 @@ import { generatePdf, buildDocumentHtml, imgToBase64 } from '../../lib/pdf';
 import { DashboardService } from '../dashboard/dashboard.service';
 import { computeLine, computeTotals } from '../../lib/document-math';
 import type { CreateProformaInput, UpdateProformaInput, ListProformasInput, LineInput, ConvertProformaInput } from './proformas.schema';
+import { approvalsService } from '../approvals/approvals.service';
 
 export class ProformasService {
   async list(input: ListProformasInput) {
@@ -215,6 +216,29 @@ export class ProformasService {
       throw AppError.badRequest('La proforma doit être en brouillon ou rejetée pour être envoyée');
     }
 
+    // ── Vérification workflow d'approbation ───────────────────────
+    const pendingRequest = await approvalsService.getDocumentPendingRequest('proforma', id);
+    if (pendingRequest) {
+      throw AppError.forbidden(`Cette proforma est en attente d'approbation (étape ${pendingRequest.currentStep}/${pendingRequest.totalSteps})`);
+    }
+    const approvedRequest = await prisma.approvalRequest.findFirst({
+      where: { documentId: id, documentType: 'proforma', status: 'approved' },
+    });
+    if (!approvedRequest) {
+      const request = await approvalsService.requestApproval({
+        documentType:   'proforma',
+        documentId:     id,
+        documentNumber: String(proforma.number ?? `PFM-${id.slice(0, 8)}`),
+        document:       proforma as unknown as Record<string, unknown>,
+        requestedById:  userId,
+      });
+      if (request) {
+        await prisma.proforma.update({ where: { id }, data: { requiresApproval: true } });
+        throw AppError.badRequest('Cette proforma a été soumise pour approbation. Elle sera envoyée après validation.');
+      }
+    }
+    // ─────────────────────────────────────────────────────────────
+
     const updated = await prisma.proforma.update({
       where: { id },
       data: {
@@ -239,19 +263,8 @@ export class ProformasService {
       data: { proformaId: proforma.id, proformaNumber: proforma.number },
     });
 
-    // Email au client — désactivé (envoi manuel hors application)
-    // if (proforma.client.email) {
-    //   await emailQueue.add('email', {
-    //     to: proforma.client.email,
-    //     subject: `Devis ${proforma.number} — Bridge Technologies Solutions`,
-    //     html: `
-    //       <p>Bonjour ${proforma.client.name},</p>
-    //       <p>Veuillez trouver ci-joint votre devis N° <strong>${proforma.number}</strong>.</p>
-    //       <p>Ce devis est valable jusqu'au ${new Date(proforma.validUntil).toLocaleDateString('fr-FR')}.</p>
-    //       <p>Cordialement,<br>Bridge Technologies Solutions</p>
-    //     `,
-    //   });
-    // }
+    // Email au client — désactivé intentionnellement (envoi manuel hors application)
+    // Les proformas sont envoyées manuellement, pas par email automatique.
 
     await DashboardService.invalidateCache();
     return updated;

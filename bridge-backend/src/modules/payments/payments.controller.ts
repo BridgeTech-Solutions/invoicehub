@@ -64,6 +64,28 @@ export class PaymentsController {
       res.send(buffer);
     } catch (err) { next(err); }
   }
+
+  async uploadAttachment(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.file) return next(new Error('Aucun fichier fourni'));
+      await paymentsService.uploadAttachment(req.params['id'] as string, req.file.path);
+      res.json({ success: true, message: 'Justificatif uploadé avec succès' });
+    } catch (err) { next(err); }
+  }
+
+  async getAttachment(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { filePath, filename } = await paymentsService.getAttachment(req.params['id'] as string);
+      res.download(filePath, filename);
+    } catch (err) { next(err); }
+  }
+
+  async deleteAttachment(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      await paymentsService.deleteAttachment(req.params['id'] as string);
+      res.json({ success: true, message: 'Justificatif supprimé' });
+    } catch (err) { next(err); }
+  }
 }
 
 export const paymentsController = new PaymentsController();

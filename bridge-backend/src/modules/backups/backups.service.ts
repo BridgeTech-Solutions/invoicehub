@@ -9,7 +9,6 @@ import { spawn } from 'child_process';
 import { createGzip } from 'zlib';
 import { createWriteStream, createReadStream } from 'fs';
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
 import { pipeline } from 'stream/promises';
@@ -26,10 +25,6 @@ import { logger } from '../../core/middleware/requestLogger';
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Parse DATABASE_URL en paramètres pg_dump.
- * Format attendu : postgresql://user:password@host:port/dbname[?...]
- */
 function parseDatabaseUrl() {
   const url = new URL(env.DATABASE_URL);
   return {
@@ -40,6 +35,16 @@ function parseDatabaseUrl() {
     dbName:   url.pathname.replace(/^\//, ''),
   };
 }
+
+/** Génère le nom de fichier selon le type de backup. */
+function generateFilename(): string {
+  const ts = format(new Date(), 'yyyyMMdd_HHmmss');
+  return env.BACKUP_INCLUDE_FILES
+    ? `invoicehub_full_${ts}.tar.gz`
+    : `invoicehub_db_${ts}.sql.gz`;
+}
+
+export { generateFilename };
 
 // ---------------------------------------------------------------------------
 // Service
@@ -59,7 +64,7 @@ export class BackupsService {
       );
     }
 
-    const filename = `invoicehub_${format(new Date(), 'yyyyMMdd_HHmmss')}.sql.gz`;
+    const filename = generateFilename();
 
     const backup = await prisma.backup.create({
       data: {
@@ -167,60 +172,56 @@ export class BackupsService {
   async runBackup(backupId: string): Promise<void> {
     await prisma.backup.update({ where: { id: backupId }, data: { status: 'running', startedAt: new Date() } });
 
-    let tempPath: string | undefined;
+    const backupDir = path.resolve(process.cwd(), env.BACKUP_DIR);
+    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+
+    // Dossier temporaire isolé pour ce job
+    const tempDir = path.join(backupDir, `tmp_${backupId}`);
+    fs.mkdirSync(tempDir, { recursive: true });
 
     try {
-      const backup   = await prisma.backup.findUniqueOrThrow({ where: { id: backupId } });
-      const db       = parseDatabaseUrl();
-      const adapter  = getStorageAdapter();
+      const backup  = await prisma.backup.findUniqueOrThrow({ where: { id: backupId } });
+      const db      = parseDatabaseUrl();
+      const adapter = getStorageAdapter();
 
-      // Fichier temporaire dans le dossier de backup (évite EXDEV cross-device rename)
-      const backupDir = path.resolve(process.cwd(), env.BACKUP_DIR);
-      if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
-      tempPath = path.join(backupDir, `${backup.filename}.tmp`);
+      const archivePath = path.join(backupDir, `${backup.filename}.tmp`);
 
-      // Exécuter pg_dump | gzip → tempPath
-      await this.dumpDatabase(db, tempPath);
+      if (env.BACKUP_INCLUDE_FILES) {
+        // ── Backup complet : BD + uploads ────────────────────────────────
+        const sqlPath    = path.join(tempDir, 'database.sql');
+        const uploadsDir = path.resolve(process.cwd(), env.UPLOADS_DIR);
 
-      // Taille + checksum SHA-256
-      const stat     = fs.statSync(tempPath);
-      const checksum = await this.computeSha256(tempPath);
+        // 1. Dump SQL brut (sans gzip — sera compressé dans le tar)
+        await this.dumpDatabase(db, sqlPath, false);
 
-      // Upload vers le disque configuré (renomme le .tmp en nom final)
-      const storagePath = await adapter.upload(tempPath, backup.filename);
-      tempPath = undefined;
+        // 2. Archive tar.gz : database.sql + uploads/
+        await this.createTarGz(archivePath, tempDir, 'database.sql', uploadsDir);
+
+      } else {
+        // ── Backup BD uniquement ──────────────────────────────────────────
+        await this.dumpDatabase(db, archivePath, true);
+      }
+
+      const stat        = fs.statSync(archivePath);
+      const checksum    = await this.computeSha256(archivePath);
+      const storagePath = await adapter.upload(archivePath, backup.filename);
 
       await prisma.backup.update({
         where: { id: backupId },
-        data: {
-          status:      'success',
-          storagePath,
-          sizeBytes:   stat.size,
-          checksum,
-          completedAt: new Date(),
-        },
+        data:  { status: 'success', storagePath, sizeBytes: stat.size, checksum, completedAt: new Date() },
       });
 
     } catch (err: any) {
-      // Nettoyer le fichier temporaire si erreur
-      if (tempPath && fs.existsSync(tempPath)) {
-        fs.unlinkSync(tempPath);
-      }
-
       await prisma.backup.update({
         where: { id: backupId },
-        data: {
-          status:       'failed',
-          errorMessage: err?.message ?? 'Erreur inconnue',
-          completedAt:  new Date(),
-        },
+        data:  { status: 'failed', errorMessage: err?.message ?? 'Erreur inconnue', completedAt: new Date() },
       });
-
       throw err;
+    } finally {
+      // Nettoyage du dossier temporaire dans tous les cas
+      if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
+      await this.purgeOldBackups();
     }
-
-    // Nettoyage des backups expirés
-    await this.purgeOldBackups();
   }
 
   // ── Checksum SHA-256 ─────────────────────────────────────────────────────
@@ -240,56 +241,66 @@ export class BackupsService {
   private async dumpDatabase(
     db: { host: string; port: string; user: string; password: string; dbName: string },
     outputPath: string,
+    gzipOutput: boolean = true,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
-      const pgdumpArgs = [
-        '-h', db.host,
-        '-p', db.port,
-        '-U', db.user,
-        '-d', db.dbName,
-        '--no-password',
-        '-F', 'p',   // Format plain SQL
-        '-v',
-      ];
+      const baseArgs = ['-U', db.user, '-d', db.dbName, '--no-password', '-F', 'p', '-v'];
 
-      // En dev avec BD dans Docker, utiliser `docker exec` pour accéder à pg_dump
       let pgdump: ReturnType<typeof spawn>;
       if (env.PGDUMP_DOCKER_CONTAINER) {
-        const dockerArgs = [
+        pgdump = spawn('docker', [
           'exec', '-i',
           '-e', `PGPASSWORD=${db.password}`,
           env.PGDUMP_DOCKER_CONTAINER,
-          'pg_dump',
-          // Dans le container, la BD est accessible via socket local (pas besoin de host/port)
-          '-U', db.user,
-          '-d', db.dbName,
-          '--no-password',
-          '-F', 'p',
-          '-v',
-        ];
-        pgdump = spawn('docker', dockerArgs, { env: process.env });
+          'pg_dump', ...baseArgs,
+        ], { env: process.env });
       } else {
-        pgdump = spawn(env.PGDUMP_PATH, pgdumpArgs, {
+        pgdump = spawn(env.PGDUMP_PATH, ['-h', db.host, '-p', db.port, ...baseArgs], {
           env: { ...process.env, PGPASSWORD: db.password },
         });
       }
 
-      const gzip   = createGzip({ level: 6 });
-      const output = createWriteStream(outputPath);
-
       if (!pgdump.stdout) { reject(new Error('pg_dump stdout is null')); return; }
-      pipeline(pgdump.stdout, gzip, output)
-        .then(resolve)
-        .catch(reject);
 
-      if (pgdump.stderr) pgdump.stderr.on('data', (_data: Buffer) => {
-        // pg_dump écrit sa progression sur stderr — pas une erreur
-      });
+      const output = createWriteStream(outputPath);
+      const p = gzipOutput
+        ? pipeline(pgdump.stdout, createGzip({ level: 6 }), output)
+        : pipeline(pgdump.stdout, output);
+
+      p.then(resolve).catch(reject);
 
       pgdump.on('error', reject);
-
       pgdump.on('close', (code) => {
         if (code !== 0) reject(new Error(`pg_dump a terminé avec le code ${code}`));
+      });
+    });
+  }
+
+  // ── Archive tar.gz : BD + uploads ────────────────────────────────────────
+
+  private createTarGz(
+    outputPath: string,
+    sqlDir: string,
+    sqlFilename: string,
+    uploadsDir: string,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const args: string[] = ['-czf', outputPath, '-C', sqlDir, sqlFilename];
+
+      // Inclure uploads/ seulement s'il existe et n'est pas vide
+      if (fs.existsSync(uploadsDir)) {
+        const uploadsParent = path.dirname(uploadsDir);
+        const uploadsDirName = path.basename(uploadsDir);
+        args.push('-C', uploadsParent, uploadsDirName);
+      }
+
+      const tar = spawn('tar', args);
+
+      tar.on('error', reject);
+      tar.stderr?.on('data', () => {}); // progression tar → ignorée
+      tar.on('close', (code) => {
+        if (code !== 0) reject(new Error(`tar a terminé avec le code ${code}`));
+        else resolve();
       });
     });
   }

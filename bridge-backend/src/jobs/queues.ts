@@ -52,6 +52,21 @@ export interface CleanupJobData {
   triggeredAt: string;
 }
 
+export interface ExportJobData {
+  exportJobId: string;
+}
+
+export interface BankImportJobData {
+  importId:      string;
+  bankAccountId: string;
+  lines:         unknown[];
+}
+
+export interface ApprovalJobData {
+  type: 'check-expired' | 'notify-approvers'
+  requestId?: string
+}
+
 // ---------------------------------------------------------------------------
 // Instances de queues
 // ---------------------------------------------------------------------------
@@ -117,4 +132,31 @@ export const backupQueue = new Queue<BackupJobData>('backup', {
 export const cleanupQueue = new Queue<CleanupJobData>('cleanup', {
   connection: redisConnection as unknown as ConnectionOptions,
   defaultJobOptions,
+});
+
+export const exportQueue = new Queue<ExportJobData>('export', {
+  connection: redisConnection as unknown as ConnectionOptions,
+  defaultJobOptions: {
+    removeOnComplete: { age: 86_400 }, // 24h
+    removeOnFail: { count: 100 },
+    attempts: 1,
+  },
+});
+
+export const bankImportQueue = new Queue<BankImportJobData>('bank-import', {
+  connection: redisConnection as unknown as ConnectionOptions,
+  defaultJobOptions: {
+    removeOnComplete: { age: 86_400 },
+    removeOnFail: { count: 100 },
+    attempts: 1,
+  },
+});
+
+export const approvalQueue = new Queue<ApprovalJobData>('approval', {
+  connection: redisConnection as unknown as ConnectionOptions,
+  defaultJobOptions: {
+    ...defaultJobOptions,
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5_000 },
+  },
 });

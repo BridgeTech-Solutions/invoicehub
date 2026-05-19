@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { usersApi, type AuditLogEntry } from './api'
+import { usersApi, rolesApi, type AuditLogEntry } from './api'
 import { useAuthStore } from '@/features/auth/store'
 import type {
   ListUsersParams, CreateUserPayload,
@@ -8,10 +8,20 @@ import type {
 } from './types'
 
 const KEYS = {
-  all:  ['users'] as const,
-  list: (p: ListUsersParams) => ['users', 'list', p] as const,
-  one:  (id: string) => ['users', id] as const,
-  me:   ['users', 'me'] as const,
+  all:   ['users'] as const,
+  list:  (p: ListUsersParams) => ['users', 'list', p] as const,
+  one:   (id: string) => ['users', id] as const,
+  me:    ['users', 'me'] as const,
+  roles: ['roles'] as const,
+}
+
+// ─── Roles ────────────────────────────────────────────────────
+export function useRoles() {
+  return useQuery({
+    queryKey:  KEYS.roles,
+    queryFn:   rolesApi.list,
+    staleTime: 5 * 60_000,
+  })
 }
 
 // ─── List (admin) ─────────────────────────────────────────────

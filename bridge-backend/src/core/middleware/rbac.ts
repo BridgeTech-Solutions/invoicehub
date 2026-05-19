@@ -1,45 +1,54 @@
-/**
- * @module core/middleware/rbac
- * Contrôle d'accès basé sur les rôles (Role-Based Access Control).
- *
- * Doit être utilisé **après** le middleware `authenticate` qui injecte `req.user`.
- *
- * Rôles disponibles (du plus au moins privilégié) :
- *  - `admin`      : accès complet à toutes les ressources
- *  - `commercial` : gestion des clients, devis et factures
- *  - `employee`   : lecture seule + saisie des paiements
- */
 import { Request, Response, NextFunction } from 'express';
-import { UserRole } from '@prisma/client';
 import { AppError } from '../errors/AppError';
 
+function hasPermission(userPerms: string[], required: string[]): boolean {
+  if (userPerms.includes('*')) return true;
+  return required.some((perm) => {
+    if (userPerms.includes(perm)) return true;
+    const [module] = perm.split(':');
+    return userPerms.includes(`${module}:*`);
+  });
+}
+
 /**
- * Fabrique de middleware RBAC : vérifie que l'utilisateur authentifié
- * possède l'un des rôles autorisés.
- *
- * Appelé sans argument (`authorize()`), il vérifie uniquement que l'utilisateur
- * est authentifié (utile si `authenticate` est séparé).
- *
- * @param roles - Liste des rôles autorisés (au moins l'un doit correspondre)
- * @returns Middleware Express
- *
- * @example
- * // Accès réservé aux admins et commerciaux
- * router.post('/invoices', authenticate, authorize('admin', 'commercial'), handler)
- *
- * @throws `401 UNAUTHORIZED` - Utilisateur non authentifié (`req.user` absent)
- * @throws `403 FORBIDDEN`    - Rôle insuffisant
+ * Vérifie que l'utilisateur possède au moins une des permissions granulaires requises.
+ * Format: 'module:action' — ex: 'invoices:create', 'suppliers:read'
+ * '*' dans les permissions de l'utilisateur = accès total (admin).
  */
-export function authorize(...roles: UserRole[]) {
+export function authorizePermission(...permissions: string[]) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     if (!req.user) {
       return next(AppError.unauthorized());
     }
 
-    if (roles.length > 0 && !roles.includes(req.user.role)) {
+    if (permissions.length === 0 || hasPermission(req.user.permissions, permissions)) {
+      return next();
+    }
+
+    return next(
+      AppError.forbidden(
+        `Permission requise : ${permissions.join(' ou ')}. Votre rôle (${req.user.roleName}) ne l'inclut pas.`,
+      ),
+    );
+  };
+}
+
+/**
+ * Compatibilité ascendante — vérifie par nom de rôle.
+ * Préférer authorizePermission() pour les nouveaux modules.
+ */
+export function authorize(...roleNames: string[]) {
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    if (!req.user) {
+      return next(AppError.unauthorized());
+    }
+
+    if (roleNames.length === 0) return next();
+
+    if (!roleNames.includes(req.user.roleName)) {
       return next(
         AppError.forbidden(
-          `Rôle requis : ${roles.join(' ou ')}. Votre rôle : ${req.user.role}`,
+          `Rôle requis : ${roleNames.join(' ou ')}. Votre rôle : ${req.user.roleName}`,
         ),
       );
     }

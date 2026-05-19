@@ -27,7 +27,10 @@ import { broadcastNotification } from '../../lib/broadcast';
 import { DashboardService } from '../dashboard/dashboard.service';
 import { computeLine, computeTotals } from '../../lib/document-math';
 import { paymentsService } from '../payments/payments.service';
+import { eventBus } from '../../lib/eventBus';
+import * as accountingEngine from '../../lib/accountingEngine';
 import type { CreateInvoiceInput, UpdateInvoiceInput, ListInvoicesInput, LineInput, CreateAvoirInput } from './invoices.schema';
+import { approvalsService } from '../approvals/approvals.service';
 
 // ---------------------------------------------------------------------------
 // Service
@@ -436,16 +439,85 @@ export class InvoicesService {
       throw AppError.badRequest('Seules les factures en brouillon peuvent être émises');
     }
 
-    const updated = await prisma.invoice.update({
+    // ── Vérification workflow d'approbation ───────────────────────
+    const pendingRequest = await approvalsService.getDocumentPendingRequest('invoice', id);
+    if (pendingRequest) {
+      throw AppError.forbidden(`Cette facture est en attente d'approbation (étape ${pendingRequest.currentStep}/${pendingRequest.totalSteps})`);
+    }
+    const approvedRequest = await prisma.approvalRequest.findFirst({
+      where: { documentId: id, documentType: 'invoice', status: 'approved' },
+    });
+    if (!approvedRequest) {
+      const request = await approvalsService.requestApproval({
+        documentType:   'invoice',
+        documentId:     id,
+        documentNumber: String(invoice.number ?? `FAC-${id.slice(0, 8)}`),
+        document:       invoice as unknown as Record<string, unknown>,
+        requestedById:  userId,
+      });
+      if (request) {
+        await prisma.invoice.update({ where: { id }, data: { requiresApproval: true } });
+        throw AppError.badRequest('Cette facture a été soumise pour approbation. Elle sera émise après validation.');
+      }
+    }
+    // ─────────────────────────────────────────────────────────────
+
+    // Charger les lignes avec info stock pour les produits tracés
+    const invoiceWithLines = await prisma.invoice.findUnique({
       where: { id },
-      data: {
-        status: 'issued',
-        lastSentAt: new Date(),
-        draftReminderLevel: 0,
-        statusHistory: {
-          create: { changedById: userId, previousStatus: 'draft', newStatus: 'issued' },
+      include: {
+        lines: {
+          include: { product: { select: { id: true, trackStock: true, stockQuantity: true, stockMinLevel: true } } },
         },
       },
+    });
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const inv = await tx.invoice.update({
+        where: { id },
+        data: {
+          status: 'issued',
+          lastSentAt: new Date(),
+          draftReminderLevel: 0,
+          statusHistory: {
+            create: { changedById: userId, previousStatus: 'draft', newStatus: 'issued' },
+          },
+        },
+      });
+
+      // Mouvements de stock pour les produits tracés (vente = sortie)
+      for (const line of invoiceWithLines?.lines ?? []) {
+        if (!line.product?.trackStock || !line.productId) continue;
+        const qty       = -Number(line.quantity);
+        const qtyBefore = Number(line.product.stockQuantity ?? 0);
+        const qtyAfter  = qtyBefore + qty;
+
+        await tx.stockMovement.create({
+          data: {
+            productId:      line.productId,
+            type:           'sale' as any,
+            quantity:       qty,
+            unitCostHt:     Number(line.unitPriceHt),
+            quantityBefore: qtyBefore,
+            quantityAfter:  qtyAfter,
+            sourceType:     'invoice',
+            sourceId:       id,
+            createdById:    userId,
+          },
+        });
+
+        await tx.product.update({
+          where: { id: line.productId },
+          data:  { stockQuantity: qtyAfter },
+        });
+
+        const minLevel = Number(line.product.stockMinLevel ?? 0);
+        if (minLevel > 0 && qtyAfter < minLevel) {
+          void eventBus.emit('stock.low', { productId: line.productId, currentQty: qtyAfter, minLevel });
+        }
+      }
+
+      return inv;
     });
 
     // Notification in-app à tous les utilisateurs actifs
@@ -456,21 +528,8 @@ export class InvoicesService {
       data: { invoiceId: invoice.id, invoiceNumber: invoice.number },
     });
 
-    // Email au client — désactivé (envoi manuel hors application)
-    // if (invoice.client.email) {
-    //   await emailQueue.add('email', {
-    //     to: invoice.client.email,
-    //     subject: `Facture ${invoice.number} — Bridge Technologies Solutions`,
-    //     html: `
-    //       <p>Bonjour ${invoice.client.name},</p>
-    //       <p>Veuillez trouver ci-joint votre facture N° <strong>${invoice.number}</strong>.</p>
-    //       <p>Montant total : <strong>${Number(invoice.totalTtc).toLocaleString('fr-FR')} ${invoice.currency}</strong></p>
-    //       <p>Date d'échéance : ${new Date(invoice.dueDate).toLocaleDateString('fr-FR')}</p>
-    //       <p>Cordialement,<br>Bridge Technologies Solutions</p>
-    //     `,
-    //   });
-    // }
-
+    void prisma.$transaction((tx) => accountingEngine.onInvoiceIssued(id, tx));
+    void eventBus.emit('invoice.issued', { invoiceId: id, amount: Number(invoice.totalTtc), clientId: invoice.clientId, userId });
     await DashboardService.invalidateCache();
     return updated;
   }
@@ -514,7 +573,7 @@ export class InvoicesService {
       // 2. Créer automatiquement l'avoir (note de crédit) lié à la facture annulée
       const avoirNumber = await generateDocumentNumber(invoice.officeId, 'invoice');
 
-      await tx.invoice.create({
+      const avoirCreated = await tx.invoice.create({
         data: {
           number: avoirNumber,
           officeId: invoice.officeId,
@@ -563,16 +622,18 @@ export class InvoicesService {
         },
       });
 
-      return cancelled;
-    }).then(async (cancelled) => {
+      return { cancelled, avoirId: avoirCreated.id, avoirNumber: avoirCreated.number };
+    }).then(async ({ cancelled, avoirId, avoirNumber }) => {
       await broadcastNotification({
         type: 'system',
         title: `Facture annulée : ${invoice.number}`,
-        message: `La facture ${invoice.number} pour ${invoice.client.name} a été annulée. Un avoir a été généré automatiquement.`,
-        data: { invoiceId: invoice.id, invoiceNumber: invoice.number, reason },
+        message: `La facture ${invoice.number} pour ${invoice.client.name} a été annulée. Avoir ${avoirNumber} généré automatiquement.`,
+        data: { invoiceId: invoice.id, invoiceNumber: invoice.number, avoirId, avoirNumber, reason },
       });
+      void eventBus.emit('invoice.cancelled', { invoiceId: invoice.id, userId });
+      void prisma.$transaction((tx) => accountingEngine.onInvoiceCancelled(id, tx));
       await DashboardService.invalidateCache();
-      return cancelled;
+      return { ...cancelled, avoirId, avoirNumber };
     });
   }
 
@@ -673,7 +734,7 @@ export class InvoicesService {
       const totalTax        = Number(avoirLines.reduce((s, l) => s + l.taxAmount,  0).toFixed(2));
       const totalTtc        = Number(avoirLines.reduce((s, l) => s + l.totalTtc,   0).toFixed(2));
 
-      return tx.invoice.create({
+      const created = await tx.invoice.create({
         data: {
           number: avoirNumber,
           officeId: invoice.officeId,
@@ -690,10 +751,10 @@ export class InvoicesService {
           globalDiscountType: 'none',
           globalDiscountValue: 0,
           globalDiscountAmount: 0,
-          totalHt: avoirSubtotalHt,  // pas de remise globale → totalHt = subtotalHt
+          totalHt: avoirSubtotalHt,
           totalTax,
           totalTtc,
-          amountDue: 0,    // Un avoir solde la créance — montant dû = 0
+          amountDue: 0,
           balanceDue: 0,
           status: 'issued',
           lines: {
@@ -705,6 +766,26 @@ export class InvoicesService {
         },
         include: { lines: true, client: true },
       });
+
+      // Réduire le balanceDue de la facture originale du montant de l'avoir
+      const newBalanceDue = Math.max(0, Number(invoice.balanceDue) - totalTtc);
+      const newStatus = newBalanceDue <= 0 && invoice.status !== 'paid'
+        ? 'paid'
+        : invoice.status;
+      await tx.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          balanceDue: newBalanceDue,
+          ...(newStatus !== invoice.status && {
+            status: newStatus,
+            statusHistory: {
+              create: { changedById: userId, previousStatus: invoice.status, newStatus },
+            },
+          }),
+        },
+      });
+
+      return created;
     });
 
     // Notification in-app après la transaction
@@ -715,6 +796,8 @@ export class InvoicesService {
       data: { invoiceId: invoice.id, avoirId: avoir.id, avoirNumber: avoir.number },
     });
 
+    // Écriture comptable de contre-passation (même logique que l'annulation)
+    void prisma.$transaction((tx) => accountingEngine.onInvoiceCancelled(avoir.id, tx));
     await DashboardService.invalidateCache();
     return avoir;
   }

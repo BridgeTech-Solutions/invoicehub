@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useMemo, useId, useCallback, useRef, useEffect } from 'react'
-import { Plus, Search, Settings2, Package, X, ChevronLeft, ChevronRight, Upload, FileSpreadsheet } from 'lucide-react'
+import { useState, useMemo, useCallback, useId } from 'react'
+import { Plus, Search, Settings2, ChevronLeft, ChevronRight, Upload, FileSpreadsheet, Package } from 'lucide-react'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
 import { useProducts, useProductCategories } from '@/features/products/hooks'
 import { ProductCard } from '@/features/products/components/ProductCard'
-import { ProductForm } from '@/features/products/components/ProductForm'
+import { ProductDrawer } from '@/features/products/components/ProductDrawer'
 import { CategoryManager } from '@/features/products/components/CategoryManager'
 import { ImportProductsModal, downloadProductTemplate } from '@/features/products/ImportProductsModal'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -74,12 +74,7 @@ export default function ProductsPage() {
   const { can } = usePermission()
   const { data: categories = [] } = useProductCategories()
 
-  const searchId   = useId()
-  const dialogId   = useId()
-  const dialogTitleId = useId()
-
-  // Focus trap ref for modal
-  const closeModalRef = useRef<HTMLButtonElement>(null)
+  const searchId = useId()
 
   // Reset page on filter change
   const handleTypeFilter    = useCallback((v: typeof typeFilter)    => { setTypeFilter(v);    setPage(1) }, [])
@@ -107,21 +102,6 @@ export default function ProductsPage() {
     setFormOpen(false)
     setEditProduct(null)
   }, [])
-
-  // Focus close button when modal opens
-  useEffect(() => {
-    if (formOpen) {
-      setTimeout(() => closeModalRef.current?.focus(), 50)
-    }
-  }, [formOpen])
-
-  // Close modal on Escape
-  useEffect(() => {
-    if (!formOpen) return
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') handleCloseForm() }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [formOpen, handleCloseForm])
 
   const TYPE_FILTERS = [
     { key: null,       label: 'Tous les types' },
@@ -366,40 +346,12 @@ export default function ProductsPage() {
         </>
       )}
 
-      {/* ── Product form modal ────────────────────────────── */}
+      {/* ── Product drawer ────────────────────────────────── */}
       {formOpen && (
-        <div
-          role="dialog"
-          id={dialogId}
-          aria-modal="true"
-          aria-labelledby={dialogTitleId}
-          style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
-          onClick={(e) => { if (e.target === e.currentTarget) handleCloseForm() }}
-        >
-          <div
-            className="card"
-            style={{ width: '100%', maxWidth: 600, maxHeight: '92vh', overflowY: 'auto', padding: '28px' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
-              <h2 id={dialogTitleId} className="font-display" style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)' }}>
-                {editProduct ? 'Modifier le produit' : 'Nouveau produit'}
-              </h2>
-              <button
-                ref={closeModalRef}
-                type="button"
-                onClick={handleCloseForm}
-                aria-label="Fermer"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 'var(--radius-md)', transition: 'background 0.15s' }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'none' }}
-              >
-                <X size={18} aria-hidden />
-              </button>
-            </div>
-            <ProductForm product={editProduct ?? undefined} onClose={handleCloseForm} />
-          </div>
-        </div>
+        <ProductDrawer
+          product={editProduct}
+          onClose={handleCloseForm}
+        />
       )}
 
       {/* ── Category manager modal ────────────────────────── */}

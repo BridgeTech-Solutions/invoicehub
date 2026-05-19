@@ -66,14 +66,22 @@ const envSchema = z.object({
   TOTP_ISSUER: z.string().default('InvoiceHub BTS'),
 
   // --- Backups ---
-  /** Disque de stockage des backups : local | s3 | google | azure */
-  BACKUP_STORAGE_DISK: z.enum(['local', 's3', 'google', 'azure']).default('local'),
+  /** Disque de stockage des backups : local | s3 | google | azure | onedrive */
+  BACKUP_STORAGE_DISK: z.enum(['local', 's3', 'google', 'azure', 'onedrive']).default('local'),
   /** Dossier local pour les backups (utilisé si BACKUP_STORAGE_DISK=local) */
   BACKUP_DIR: z.string().default('./uploads/backups'),
   /** Rétention des backups en jours (suppression automatique) */
   BACKUP_RETENTION_DAYS: z.coerce.number().default(30),
-  /** Expression cron du backup automatique quotidien */
-  BACKUP_CRON: z.string().default('0 0 * * *'),
+  /** Expression cron du backup automatique (UTC). Défaut : 15h30 UTC = 16h30 WAT (Cameroun) */
+  BACKUP_CRON: z.string().default('30 15 * * *'),
+  /**
+   * Si true : le backup inclut la base de données ET le dossier uploads/
+   * (logos, avatars, PDFs générés). Produit une archive .tar.gz complète.
+   * Si false (défaut) : backup BD uniquement (.sql.gz).
+   */
+  BACKUP_INCLUDE_FILES: z.string().transform(v => v === 'true').default('false'),
+  /** Dossier des fichiers uploadés à inclure dans le backup complet */
+  UPLOADS_DIR: z.string().default('./uploads'),
   /** Chemin vers l'exécutable pg_dump */
   PGDUMP_PATH: z.string().default('pg_dump'),
   /**
@@ -101,6 +109,24 @@ const envSchema = z.object({
   AZURE_STORAGE_CONNECTION_STRING: z.string().optional(),
   /** Nom du conteneur Azure Blob (ex: invoicehub-backups) */
   AZURE_STORAGE_CONTAINER: z.string().optional(),
+
+  // Microsoft OneDrive for Business (Microsoft Graph API)
+  // Prérequis : App Registration Azure AD avec permission Files.ReadWrite.All (Application)
+  /** ID du tenant Azure AD (portail Azure → Azure Active Directory → Propriétés → ID du tenant) */
+  ONEDRIVE_TENANT_ID: z.string().optional(),
+  /** Client ID de l'application Azure AD enregistrée */
+  ONEDRIVE_CLIENT_ID: z.string().optional(),
+  /** Secret client de l'application Azure AD (Certificats & secrets) */
+  ONEDRIVE_CLIENT_SECRET: z.string().optional(),
+  /**
+   * ID du drive OneDrive de l'entreprise.
+   * Laisser vide pour utiliser le OneDrive de l'utilisateur de service (me/drive).
+   * Pour le OneDrive d'un utilisateur spécifique : GET /users/{userId}/drive → id
+   * Pour SharePoint : GET /sites/{siteId}/drive → id
+   */
+  ONEDRIVE_DRIVE_ID: z.string().optional(),
+  /** Dossier de destination dans OneDrive (ex: InvoiceHub/Backups) */
+  ONEDRIVE_FOLDER_PATH: z.string().default('InvoiceHub/Backups'),
 
   // --- BTS Assistant (Ollama) ---
   /** URL de l'API Ollama (ex: http://localhost:11434) */

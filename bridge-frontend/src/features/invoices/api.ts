@@ -3,7 +3,7 @@ import type {
   Invoice, InvoiceListItem, PaginatedInvoices, PaginatedPayments,
   CreateInvoicePayload, UpdateInvoicePayload, ListInvoicesParams,
   CancelInvoicePayload, CreateAvoirPayload, ComputeInvoicePayload, ComputeResult,
-  CreatePaymentPayload, ListPaymentsParams, Payment,
+  CreatePaymentPayload, ListPaymentsParams, Payment, BankAccountOption,
 } from './types'
 
 export interface AuditLogEntry {
@@ -98,4 +98,11 @@ export const paymentsApi = {
     a.href = url; a.download = filename; a.click()
     URL.revokeObjectURL(url)
   },
+}
+
+export const bankAccountsApi = {
+  list: () =>
+    apiClient.get<{ data: BankAccountOption[] }>('/bank/accounts', {
+      params: { limit: 100, isActive: true },
+    }).then(r => r.data.data ?? []),
 }

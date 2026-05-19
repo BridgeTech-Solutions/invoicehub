@@ -1,32 +1,57 @@
-/**
- * @module core/middleware/auth
- * Middleware d'authentification JWT.
- *
- * Vérifie la présence et la validité de l'access token dans l'en-tête
- * `Authorization: Bearer <token>`, puis injecte les informations de
- * l'utilisateur dans `req.user` pour les middlewares et contrôleurs suivants.
- *
- * Utilisation : appliquer **avant** tout middleware RBAC ou logique métier.
- * ```ts
- * router.get('/protected', authenticate, authorize('admin'), handler)
- * ```
- */
 import { Request, Response, NextFunction } from 'express';
 import { verifyAccessToken } from '../../lib/jwt';
 import { prisma } from '../../config/database';
+import { redisConnection } from '../../config/redis';
 import { AppError } from '../errors/AppError';
 
-/**
- * Middleware Express d'authentification par Bearer token.
- *
- * Flux d'exécution :
- * 1. Extrait le token de l'en-tête `Authorization`
- * 2. Vérifie la signature et l'expiration via `verifyAccessToken()`
- * 3. Confirme que le compte existe en base et est actif (statut `active`, non supprimé)
- * 4. Attache `req.user` avec les champs nécessaires au RBAC
- *
- * @throws `401 UNAUTHORIZED` - Token absent, invalide, expiré ou compte inactif
- */
+const RBAC_TTL = 300; // 5 minutes
+
+interface CachedRbac {
+  id: string;
+  email: string;
+  roleId: string;
+  roleName: string;
+  permissions: string[];
+  firstName: string;
+  lastName: string;
+}
+
+async function loadUserRbac(userId: string): Promise<CachedRbac | null> {
+  const cacheKey = `rbac:user:${userId}`;
+
+  const cached = await redisConnection.get(cacheKey);
+  if (cached) {
+    return JSON.parse(cached) as CachedRbac;
+  }
+
+  const user = await prisma.user.findFirst({
+    where: { id: userId, deletedAt: null, status: 'active' },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      roleId: true,
+      role: { select: { name: true, permissions: true } },
+    },
+  });
+
+  if (!user || !user.role) return null;
+
+  const data: CachedRbac = {
+    id: user.id,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    roleId: user.roleId,
+    roleName: user.role.name,
+    permissions: user.role.permissions,
+  };
+
+  await redisConnection.setex(cacheKey, RBAC_TTL, JSON.stringify(data));
+  return data;
+}
+
 export async function authenticate(
   req: Request,
   _res: Response,
@@ -38,27 +63,11 @@ export async function authenticate(
     return next(AppError.unauthorized('Token d\'authentification manquant'));
   }
 
-  const token = authHeader.slice(7); // Retire le préfixe "Bearer "
+  const token = authHeader.slice(7);
 
   try {
     const payload = verifyAccessToken(token);
-
-    // Double vérification en base : le token peut être valide cryptographiquement
-    // mais le compte peut avoir été suspendu ou supprimé entre-temps.
-    const user = await prisma.user.findFirst({
-      where: {
-        id: payload.sub,
-        deletedAt: null,
-        status: 'active',
-      },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        firstName: true,
-        lastName: true,
-      },
-    });
+    const user = await loadUserRbac(payload.sub);
 
     if (!user) {
       return next(AppError.unauthorized('Compte introuvable ou suspendu'));
@@ -67,7 +76,6 @@ export async function authenticate(
     req.user = user;
     next();
   } catch {
-    // Couvre : JsonWebTokenError (signature invalide) et TokenExpiredError
     next(AppError.unauthorized('Token invalide ou expiré'));
   }
 }

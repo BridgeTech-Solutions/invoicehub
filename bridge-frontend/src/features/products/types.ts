@@ -21,6 +21,16 @@ export interface Product {
   categoryId?:  string | null
   category?:    { id: string; name: string; icon?: string | null; color?: string | null } | null
   createdAt:    string
+  // Stock fields
+  trackStock?:      boolean
+  stockQuantity?:   number | null
+  stockMinLevel?:   number | null
+  stockMaxLevel?:   number | null
+  stockUnit?:       string | null
+  purchasePriceHt?: number | null  // prix d'achat catalogue (défini sur le produit)
+  costPriceHt?:     number | null  // CMUP calculé par les mouvements de stock (read-only)
+  stockValue?:      number | null
+  imageUrl?:        string | null
   // When fetched with ?clientId= (smart list mode):
   usageCount?:          number
   lastPriceForClient?:  number | null
@@ -79,6 +89,12 @@ export interface CreateProductPayload {
   categoryId?:  string
   taxRateId?:   string
   isActive?:    boolean
+  // Stock (ignoré si type='service', filtré côté API)
+  trackStock?:      boolean
+  purchasePriceHt?: number
+  stockUnit?:       string
+  stockMinLevel?:   number
+  stockMaxLevel?:   number
 }
 
 export type UpdateProductPayload = Partial<CreateProductPayload>

@@ -6,6 +6,8 @@ import { logger } from './core/middleware/requestLogger';
 import { startWorkers, closeWorkers } from './jobs/workers';
 import { scheduleJobs } from './jobs/scheduler';
 import { initSocket } from './lib/socket';
+import { seedRoles } from './config/seedRoles';
+import { registerEventListeners } from './lib/eventListeners';
 
 const httpServer = http.createServer(app);
 initSocket(httpServer);
@@ -17,6 +19,8 @@ const server = httpServer.listen(env.PORT, async () => {
     prefix: env.API_PREFIX,
   });
 
+  await seedRoles();
+  registerEventListeners();
   startWorkers();
   await scheduleJobs();
 });

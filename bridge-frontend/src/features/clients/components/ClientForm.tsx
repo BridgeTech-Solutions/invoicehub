@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useId } from 'react'
-import { Loader2, Building2, User, ChevronDown, ChevronUp, Lock, AlertCircle } from 'lucide-react'
+import { Loader2, Building2, User, Lock, AlertCircle } from 'lucide-react'
 import { useCreateClient, useUpdateClient } from '../hooks'
 import { useAuthStore } from '@/features/auth/store'
 import { useIsMobile } from '@/hooks/useMediaQuery'
@@ -76,11 +76,8 @@ export function ClientForm({ client, onClose, wide = false }: ClientFormProps) {
   const idAddress         = useId()
   const idTaxNumber       = useId()
   const idRccm            = useId()
-  const idBankName        = useId()
-  const idBankAccount     = useId()
   const idPaymentTerms    = useId()
   const idInternalNotes   = useId()
-  const bankContentId     = useId()
   const typeGroupId       = useId()
 
   const [form, setForm] = useState<CreateClientPayload>({
@@ -95,13 +92,9 @@ export function ClientForm({ client, onClose, wide = false }: ClientFormProps) {
     postalBox:           client?.postalBox           ?? '',
     taxNumber:           client?.taxNumber           ?? '',
     rccm:                client?.rccm                ?? '',
-    bankName:            client?.bankName            ?? '',
-    bankAccount:         client?.bankAccount         ?? '',
     defaultPaymentTerms: client?.defaultPaymentTerms ?? '',
     internalNotes:       client?.internalNotes       ?? '',
   })
-
-  const [bankOpen, setBankOpen] = useState(!!(client?.bankName || client?.bankAccount))
 
   const createMutation = useCreateClient()
   const updateMutation = useUpdateClient(client?.id ?? '')
@@ -259,50 +252,6 @@ export function ClientForm({ client, onClose, wide = false }: ClientFormProps) {
     </div>
   ) : null
 
-  // ─── Bank section ────────────────────────────────────────────
-  const sectionBanque = (
-    <div style={{ borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', overflow: 'hidden' }}>
-      <button
-        type="button"
-        aria-expanded={bankOpen}
-        aria-controls={bankContentId}
-        onClick={() => setBankOpen((o) => !o)}
-        style={{
-          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '10px 14px', background: bankOpen ? 'var(--surface-2)' : 'transparent',
-          border: 'none', cursor: 'pointer', transition: 'background 0.15s',
-        }}
-        onFocus={(e)  => { if (!bankOpen) e.currentTarget.style.background = 'var(--surface-2)' }}
-        onBlur={(e)   => { if (!bankOpen) e.currentTarget.style.background = 'transparent' }}
-        onMouseEnter={(e) => { if (!bankOpen) e.currentTarget.style.background = 'var(--surface-2)' }}
-        onMouseLeave={(e) => { if (!bankOpen) e.currentTarget.style.background = 'transparent' }}
-      >
-        <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-3)', fontFamily: 'var(--font-display)' }}>
-          Coordonnées bancaires
-        </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {(form.bankName || form.bankAccount) && (
-            <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 10, background: 'rgba(45,125,210,0.1)', color: 'var(--primary)', fontFamily: 'var(--font-display)' }}>
-              Renseigné
-            </span>
-          )}
-          {bankOpen
-            ? <ChevronUp size={14} aria-hidden style={{ color: 'var(--text-3)' }} />
-            : <ChevronDown size={14} aria-hidden style={{ color: 'var(--text-3)' }} />}
-        </span>
-      </button>
-      {bankOpen && (
-        <div
-          id={bankContentId}
-          style={{ padding: '14px', borderTop: '1px solid var(--border)', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, background: 'var(--surface)' }}
-        >
-          <Field label="Établissement bancaire" htmlFor={idBankName}>{inp('bankName', { id: idBankName, placeholder: 'BICEC, SCB Cameroun…' })}</Field>
-          <Field label="Numéro de compte" htmlFor={idBankAccount}>{inp('bankAccount', { id: idBankAccount, placeholder: '01234-56789-00000-00' })}</Field>
-        </div>
-      )}
-    </div>
-  )
-
   // ─── Conditions section ──────────────────────────────────────
   const sectionConditions = (
     <Field label="Conditions de paiement par défaut" htmlFor={idPaymentTerms}>
@@ -404,7 +353,6 @@ export function ClientForm({ client, onClose, wide = false }: ClientFormProps) {
         {sectionIdentite}
         {sectionLocalisation}
         {sectionLegal}
-        {sectionBanque}
         {sectionConditions}
         {sectionNotes}
         {actions}
@@ -440,15 +388,8 @@ export function ClientForm({ client, onClose, wide = false }: ClientFormProps) {
         {sectionLocalisation}
       </div>
 
-      {/* Légal + Banque côte à côte si company */}
-      {form.type === 'company' ? (
-        <div style={col2}>
-          {sectionLegal}
-          {sectionBanque}
-        </div>
-      ) : (
-        sectionBanque
-      )}
+      {/* Légal */}
+      {form.type === 'company' && sectionLegal}
 
       {/* Conditions + Notes côte à côte */}
       {canSeeInternalNotes ? (

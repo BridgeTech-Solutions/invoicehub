@@ -1,0 +1,41 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  InvoiceHub v2.0 — Docker Compose DÉVELOPPEMENT (DB + Redis only)
+#  Bridge Technologies Solutions — Douala, Cameroun
+#
+#  Usage :
+#    docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+#  En dev :
+#    - DB et Redis tournent dans Docker (exposés sur l'hôte)
+#    - L'API tourne localement en hot-reload : cd invoicehub-api && pnpm start:dev
+#    - Le frontend tourne localement : cd bridge-frontend && pnpm dev
+#    - Accès DB : psql -U postgres -h localhost -d invoicehub
+#    - Redis Insights : redis-cli -h localhost -p 6379
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  db:
+    ports:
+      - "5432:5432"
+    restart: on-failure
+    mem_limit: 512m
+
+  redis:
+    ports:
+      - "6379:6379"
+    restart: on-failure
+    mem_limit: 256m
+
+  # API et Frontend lancés localement — pas dockerisés en dev
+  api:
+    profiles:
+      - disabled
+
+  nginx:
+    profiles:
+      - disabled
+
+  frontend:
+    profiles:
+      - disabled

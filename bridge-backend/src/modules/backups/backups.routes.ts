@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { backupsController } from './backups.controller';
 import { authenticate } from '../../core/middleware/auth';
-import { authorize } from '../../core/middleware/rbac';
+import { authorizePermission } from '../../core/middleware/rbac';
 import { rateLimitByUser } from '../../core/middleware/rateLimitByUser';
 
 const router: ReturnType<typeof Router> = Router();
 
-router.use(authenticate, authorize('admin'));
+router.use(authenticate, authorizePermission('backups:manage'));
 
 // 3 backups manuels par heure par utilisateur
 const backupRateLimit = rateLimitByUser({

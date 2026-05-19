@@ -10,11 +10,11 @@
 import { Router } from 'express';
 import { auditController } from './audit.controller';
 import { authenticate } from '../../core/middleware/auth';
-import { authorize } from '../../core/middleware/rbac';
+import { authorizePermission } from '../../core/middleware/rbac';
 
 export const auditRouter: ReturnType<typeof Router> = Router();
 
-auditRouter.use(authenticate, authorize('admin'));
+auditRouter.use(authenticate, authorizePermission('audit:read'));
 
 auditRouter.get('/stats', auditController.stats.bind(auditController));
 auditRouter.get('/',      auditController.list.bind(auditController));

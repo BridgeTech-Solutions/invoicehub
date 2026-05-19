@@ -7,7 +7,7 @@ import { useState, useRef, useEffect, useId } from 'react'
 import {
   ChevronLeft, Pencil, Archive, FileText, AlertTriangle,
   Mail, Phone, MapPin, Building2, User, Clock, TrendingUp,
-  Hash, Landmark, CreditCard, FileCheck, StickyNote, Loader2,
+  Hash, CreditCard, FileCheck, StickyNote, Loader2,
 } from 'lucide-react'
 import { useClient, useClientSummary, useArchiveClient } from '@/features/clients/hooks'
 import { useInvoices } from '@/features/invoices/hooks'
@@ -253,15 +253,6 @@ export default function ClientDetailPage() {
                 <InfoRow icon={<FileCheck size={14} />}>
                   <span style={{ fontSize: 11.5, color: 'var(--text-3)', marginRight: 4 }}>RCCM</span>
                   <span className="doc-number" style={{ fontSize: 12 }}>{client.rccm}</span>
-                </InfoRow>
-              )}
-
-              {/* Banque */}
-              {(client.bankName || client.bankAccount) && (
-                <InfoRow icon={<Landmark size={14} />}>
-                  <span style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>
-                    {[client.bankName, client.bankAccount].filter(Boolean).join(' — ')}
-                  </span>
                 </InfoRow>
               )}
 

@@ -17,6 +17,9 @@ import { processRecurringJob }    from './processors/recurring.processor';
 import { processReminderJob }     from './processors/reminder.processor';
 import { processBackupJob }      from './processors/backup.processor';
 import { processCleanupJob }     from './processors/cleanup.processor';
+import { processExportJob }      from './processors/export.processor';
+import { processBankImportJob }  from './processors/bank-import.processor';
+import { approvalProcessor }     from './processors/approval.processor';
 
 let workers: Worker[] = [];
 
@@ -56,7 +59,22 @@ export function startWorkers(): void {
     concurrency: 1,
   });
 
-  workers = [emailWorker, notificationWorker, overdueWorker, recurringWorker, reminderWorker, backupWorker, cleanupWorker];
+  const exportWorker = new Worker('export', processExportJob, {
+    connection: redisConnection as unknown as ConnectionOptions,
+    concurrency: 2,
+  });
+
+  const bankImportWorker = new Worker('bank-import', processBankImportJob, {
+    connection: redisConnection as unknown as ConnectionOptions,
+    concurrency: 2,
+  });
+
+  const approvalWorker = new Worker('approval', approvalProcessor, {
+    connection: redisConnection as unknown as ConnectionOptions,
+    concurrency: 1,
+  });
+
+  workers = [emailWorker, notificationWorker, overdueWorker, recurringWorker, reminderWorker, backupWorker, cleanupWorker, exportWorker, bankImportWorker, approvalWorker];
 
   for (const worker of workers) {
     worker.on('completed', (job) => {

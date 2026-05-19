@@ -13,6 +13,7 @@ import {
 } from '../hooks'
 import type { Proforma } from '../types'
 import { ROUTES } from '@/lib/constants'
+import { ApprovalStatusBadge } from '@/features/approvals/components/ApprovalStatusBadge'
 
 // ─── Reject modal ───────────────────────────────────────────────
 
@@ -320,15 +321,21 @@ export function ProformaActionsMenu({ proforma }: ProformaActionsMenuProps) {
           </button>
         )}
 
+        {/* Approval badge */}
+        {proforma.requiresApproval && proforma.approvalRequest && (
+          <ApprovalStatusBadge request={proforma.approvalRequest} />
+        )}
+
         {/* Send — draft or rejected */}
         {(status === 'draft' || status === 'rejected') && (
           <button
-            style={btnPrimary}
-            disabled={isLoading}
+            style={{ ...btnPrimary, ...(proforma.approvalRequest?.status === 'pending' ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
+            disabled={isLoading || proforma.approvalRequest?.status === 'pending'}
             onClick={() => sendMutation.mutate(id)}
+            title={proforma.approvalRequest?.status === 'pending' ? "En attente d'approbation" : undefined}
           >
             {sendMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-            Envoyer au client
+            {proforma.approvalRequest?.status === 'pending' ? "En attente d'approbation..." : 'Envoyer au client'}
           </button>
         )}
 

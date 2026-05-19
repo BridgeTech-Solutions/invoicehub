@@ -1,19 +1,29 @@
 # ─────────────────────────────────────────────────────────────────────────────
-#  InvoiceHub v2.0 — Docker Compose (production)
+#  InvoiceHub v2.0 — Docker Compose PRODUCTION
 #  Bridge Technologies Solutions — Douala, Cameroun
+#
+#  Usage :
+#    docker compose up -d                  # tous les services
+#    docker compose --profile ai up -d    # + Ollama (BTS Assistant)
+#
+#  Variables requises dans .env (voir .env.example) :
+#    DB_PASSWORD, JWT_ACCESS_SECRET, JWT_REFRESH_SECRET,
+#    APP_URL, BACKEND_URL, NEXT_PUBLIC_API_URL, NEXT_PUBLIC_SOCKET_URL
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
+
+  # ── Base de données ─────────────────────────────────────────────────────────
   db:
     image: postgres:15-alpine
     container_name: invoicehub-db
     restart: unless-stopped
     volumes:
       - invoicehub_postgres:/var/lib/postgresql/data
-      - ../invoicehub_schema_v2.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./invoicehub_schema_v3.sql:/docker-entrypoint-initdb.d/init.sql:ro
     environment:
-      POSTGRES_DB: invoicehub
-      POSTGRES_USER: postgres
+      POSTGRES_DB:       invoicehub
+      POSTGRES_USER:     postgres
       POSTGRES_PASSWORD: ${DB_PASSWORD:?Definir DB_PASSWORD dans .env}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d invoicehub"]
@@ -25,6 +35,7 @@ services:
       - bridge-net
     mem_limit: 384m
 
+  # ── Cache / Queue ────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: invoicehub-redis
@@ -42,9 +53,10 @@ services:
       - bridge-net
     mem_limit: 128m
 
+  # ── API Backend (NestJS) ─────────────────────────────────────────────────────
   api:
     build:
-      context: .
+      context: ./invoicehub-api
       dockerfile: docker/Dockerfile
     image: invoicehub-api:latest
     container_name: invoicehub-api
@@ -60,30 +72,47 @@ services:
       timeout: 5s
       retries: 5
       start_period: 40s
-    ports:
-      - "3005:3005"
     env_file: .env
     environment:
-      NODE_ENV: production
-      PORT: 3005
-      DATABASE_URL: postgresql://postgres:${DB_PASSWORD}@db:5432/invoicehub
-      REDIS_URL: redis://redis:6379
-      OLLAMA_URL: http://ollama:11434
-      # Configurable via .env — défaut = URLs de production
-      APP_URL: ${APP_URL:-http://invoicehub.bridgetech-solutions}
-      BACKEND_URL: ${BACKEND_URL:-http://api.invoicehub.bridgetech-solutions}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://invoicehub.bridgetech-solutions}
-      # Force Chromium Linux — écrase le chemin Windows du .env dev
-      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
+      NODE_ENV:                    production
+      PORT:                        3005
+      DATABASE_URL:                postgresql://postgres:${DB_PASSWORD}@db:5432/invoicehub
+      REDIS_URL:                   redis://redis:6379
+      OLLAMA_URL:                  http://ollama:11434
+      APP_URL:                     ${APP_URL:-http://invoicehub.bridgetech-solutions}
+      BACKEND_URL:                 ${BACKEND_URL:-http://api.invoicehub.bridgetech-solutions}
+      CORS_ORIGINS:                ${CORS_ORIGINS:-http://invoicehub.bridgetech-solutions}
+      PUPPETEER_EXECUTABLE_PATH:   /usr/bin/chromium
     volumes:
       - invoicehub_uploads:/app/uploads
     networks:
       - bridge-net
-    # Chromium (PDF) consomme 200-400 MB — 1.5g évite les OOMKill
     mem_limit: 1536m
-    # /dev/shm étendu pour Chromium headless (alternative à --disable-dev-shm-usage)
     shm_size: 256m
 
+  # ── Frontend ─────────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./bridge-frontend
+      dockerfile: docker/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL:    ${NEXT_PUBLIC_API_URL:-http://api.invoicehub.bridgetech-solutions/api}
+        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL:-http://api.invoicehub.bridgetech-solutions}
+        NEXT_PUBLIC_APP_NAME:   InvoiceHub
+    image: invoicehub-frontend:latest
+    container_name: invoicehub-frontend
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT:     3001
+    networks:
+      - bridge-net
+    mem_limit: 256m
+
+  # ── BTS Assistant (optionnel) ─────────────────────────────────────────────────
   ollama:
     image: ollama/ollama:latest
     container_name: invoicehub-ollama
@@ -95,31 +124,6 @@ services:
     networks:
       - bridge-net
     mem_limit: 3g
-
-  frontend:
-    build:
-      context: ../bridge-frontend
-      dockerfile: docker/Dockerfile
-      args:
-        # URLs publiques (utilisées par le navigateur du client)
-        # Configurable via .env — défaut = URLs de production
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://api.invoicehub.bridgetech-solutions/api}
-        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL:-http://api.invoicehub.bridgetech-solutions}
-        NEXT_PUBLIC_APP_NAME: InvoiceHub
-    image: invoicehub-frontend:latest
-    container_name: invoicehub-frontend
-    restart: unless-stopped
-    depends_on:
-      api:
-        condition: service_healthy
-    ports:
-      - "3001:3001"
-    environment:
-      NODE_ENV: production
-      PORT: 3001
-    networks:
-      - bridge-net
-    mem_limit: 256m
 
 volumes:
   invoicehub_postgres:

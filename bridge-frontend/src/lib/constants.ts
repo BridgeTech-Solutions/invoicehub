@@ -23,6 +23,58 @@ export const ROUTES = {
   SETTINGS_BACKUPS:       '/settings/backups',
   ASSISTANT:              '/assistant',
   GUIDE:                  '/guide',
+
+  // ── Tiers ──────────────────────────────────────────────────────
+  SUPPLIERS:           '/suppliers',
+
+  // ── Achats ─────────────────────────────────────────────────────
+  PURCHASE_ORDERS:     '/purchase-orders',
+  SUPPLIER_INVOICES:   '/supplier-invoices',
+  EXPENSES:            '/expenses',
+  EXPENSE_CATEGORIES:  '/expenses/categories',
+  EXPENSE_BUDGETS:     '/expenses/budgets',
+
+  // ── Stocks & Produits ───────────────────────────────────────────
+  STOCK:               '/stock',
+  STOCK_MOVEMENTS:     '/stock/movements',
+  STOCK_LEVELS:        '/stock/levels',
+  STOCK_ALERTS:        '/stock/alerts',
+
+  // ── Finances — Banque ───────────────────────────────────────────
+  BANK:                       '/bank',
+  BANK_ACCOUNTS:              '/bank/accounts',
+  BANK_IMPORT:                '/bank/import',
+  BANK_TRANSACTIONS:          '/bank/transactions',
+  BANK_RECONCILIATIONS:       '/bank/reconciliations',
+  BANK_MATCHING_RULES:        '/bank/matching-rules',
+
+  // ── Finances — Comptabilité ─────────────────────────────────────
+  ACCOUNTING:                 '/accounting',
+  ACCOUNTING_CHART:           '/accounting/chart',
+  ACCOUNTING_PERIODS:         '/accounting/periods',
+  ACCOUNTING_JOURNALS:        '/accounting/journals',
+  ACCOUNTING_ENTRIES:         '/accounting/entries',
+  ACCOUNTING_REPORTS:         '/accounting/reports',
+  ACCOUNTING_TAX:             '/accounting/tax-declarations',
+  ACCOUNTING_LETTERING:       '/accounting/lettering',
+
+  // ── Administration ──────────────────────────────────────────────
+  ROLES:               '/roles',
+  ROLES_PERMISSIONS:   '/roles/permissions',
+  APPROVALS:           '/approvals',
+
+  // ── Paramètres avancés ──────────────────────────────────────────
+  SETTINGS_OFFICES:         '/settings/offices',
+  SETTINGS_TAX_RATES:       '/settings/tax-rates',
+  SETTINGS_EMAIL_TEMPLATES: '/settings/email-templates',
+  SETTINGS_WEBHOOKS:        '/settings/webhooks',
+  SETTINGS_API_KEYS:        '/settings/api-keys',
+  SETTINGS_CUSTOM_FIELDS:   '/settings/custom-fields',
+  SETTINGS_WORKFLOW_RULES:  '/settings/workflow-rules',
+  SETTINGS_WORKFLOWS:       '/settings/workflows',
+  SETTINGS_IP_WHITELIST:    '/settings/ip-whitelist',
+  SETTINGS_EXPORTS:         '/settings/exports',
+  SETTINGS_OUTLOOK:         '/settings/outlook',
 } as const
 
 export const ROLES = {

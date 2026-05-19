@@ -48,6 +48,21 @@ export interface InvoiceStatusHistory {
   changedBy: InvoiceUser
 }
 
+export interface PaymentBankAccount {
+  id: string
+  name: string
+  accountingAccount: string | null
+}
+
+export interface InvoiceBankAccount {
+  id: string
+  name: string
+  bankName: string
+  accountNumber: string | null
+  iban: string | null
+  swiftBic: string | null
+}
+
 export interface Payment {
   id: string
   invoiceId: string
@@ -56,6 +71,13 @@ export interface Payment {
   method: PaymentMethod
   reference: string | null
   notes: string | null
+  attachmentPath: string | null
+  bankAccountId: string | null
+  bankAccount: PaymentBankAccount | null
+  reconciledAt: string | null
+  reconciledBy: InvoiceUser | null
+  escompteApplied: boolean
+  escompteAmount: number
   createdById: string
   createdBy: InvoiceUser
   invoice?: {
@@ -104,10 +126,18 @@ export interface Invoice {
   balanceDue: number
   acomptePercentage: number | null
   totalAcomptesDeducted: number
+  escompteRate: number | null
+  escompteDeadline: string | null
+  escompteAmount: number
   reminderEscalationLevel: number
   lines: InvoiceLineBase[]
   payments?: Payment[]
   statusHistory?: InvoiceStatusHistory[]
+  bankAccountId?: string | null
+  bankAccount?: InvoiceBankAccount | null
+  requiresApproval: boolean
+  approvalRequestId?: string | null
+  approvalRequest?: { status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'expired'; currentStep: number; totalSteps: number } | null
   createdAt: string
   updatedAt: string
 }
@@ -163,6 +193,9 @@ export interface CreateInvoicePayload {
   globalDiscountType?: DiscountType
   globalDiscountValue?: number
   acomptePercentage?: number
+  bankAccountId?: string
+  escompteRate?: number
+  escompteDeadline?: string
   lines: CreateInvoiceLinePayload[]
 }
 
@@ -237,6 +270,18 @@ export interface CreatePaymentPayload {
   method: PaymentMethod
   reference?: string
   notes?: string
+  bankAccountId?: string
+  attachmentPath?: string
+  applyEscompte?: boolean
+}
+
+export interface BankAccountOption {
+  id: string
+  name: string
+  bankName: string | null
+  accountingAccount: string | null
+  currency: string
+  isActive: boolean
 }
 
 export interface ListPaymentsParams {

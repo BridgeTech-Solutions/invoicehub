@@ -21,26 +21,12 @@
  *   }
  */
 import { Router } from 'express';
-import { z } from 'zod';
-import { searchService } from './search.service';
+import { searchController } from './search.controller';
 import { authenticate } from '../../core/middleware/auth';
+import { authorizePermission } from '../../core/middleware/rbac';
 
 export const searchRouter: ReturnType<typeof Router> = Router();
 
-searchRouter.use(authenticate);
+searchRouter.use(authenticate, authorizePermission('search:read'));
 
-const searchSchema = z.object({
-  q:     z.string().min(1, 'La recherche ne peut pas être vide').max(200),
-  limit: z.coerce.number().int().min(1).max(20).default(5),
-});
-
-searchRouter.get('/', async (req, res, next) => {
-  try {
-    const { q, limit } = searchSchema.parse(req.query);
-    const isAdmin      = req.user!.role === 'admin';
-    const data         = await searchService.search(q, limit, isAdmin);
-    res.json({ success: true, data });
-  } catch (err) {
-    next(err);
-  }
-});
+searchRouter.get('/', searchController.search.bind(searchController));

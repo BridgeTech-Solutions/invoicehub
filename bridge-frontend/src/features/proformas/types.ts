@@ -44,6 +44,15 @@ export interface ProformaStatusHistory {
   changedBy: ProformaUser
 }
 
+export interface ProformaBankAccount {
+  id: string
+  name: string
+  bankName: string
+  accountNumber: string | null
+  iban: string | null
+  swiftBic: string | null
+}
+
 export interface Proforma {
   id: string
   number: string
@@ -73,6 +82,10 @@ export interface Proforma {
   totalTtc: number
   lines: ProformaLineBase[]
   statusHistory?: ProformaStatusHistory[]
+  bankAccountId?: string | null
+  bankAccount?: ProformaBankAccount | null
+  requiresApproval: boolean
+  approvalRequest?: { status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'expired'; currentStep: number; totalSteps: number } | null
   createdAt: string
   updatedAt: string
 }
@@ -114,6 +127,7 @@ export interface CreateProformaPayload {
   currency?: string
   globalDiscountType?: DiscountType
   globalDiscountValue?: number
+  bankAccountId?: string
   lines: CreateProformaLinePayload[]
 }
 

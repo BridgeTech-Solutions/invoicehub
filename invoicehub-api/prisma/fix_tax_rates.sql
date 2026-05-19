@@ -1,0 +1,1 @@
+ALTER TABLE clients DROP CONSTRAINT IF EXISTS uq_client_name_email;

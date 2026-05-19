@@ -5,7 +5,7 @@ import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { usersController } from './users.controller';
 import { authenticate } from '../../core/middleware/auth';
-import { authorize } from '../../core/middleware/rbac';
+import { authorizePermission } from '../../core/middleware/rbac';
 import { auditMiddleware } from '../../core/middleware/audit';
 
 const router: ReturnType<typeof Router> = Router();
@@ -36,13 +36,13 @@ router.put('/me/password', usersController.changePassword.bind(usersController))
 router.put('/me/avatar',   avatarUpload.single('file'), usersController.uploadAvatar.bind(usersController));
 router.delete('/me/avatar', usersController.deleteAvatar.bind(usersController));
 
-router.get('/',                    authorize('admin'), usersController.list.bind(usersController));
-router.post('/',                   authorize('admin'), auditMiddleware('user', 'CREATE'),        usersController.create.bind(usersController));
-router.get('/:id',                 authorize('admin'), usersController.findById.bind(usersController));
-router.put('/:id',                 authorize('admin'), auditMiddleware('user', 'UPDATE'),        usersController.update.bind(usersController));
-router.delete('/:id',              authorize('admin'), auditMiddleware('user', 'SOFT_DELETE'),   usersController.delete.bind(usersController));
-router.post('/:id/reactivate',     authorize('admin'), auditMiddleware('user', 'STATUS_CHANGE'), usersController.reactivate.bind(usersController));
-router.post('/:id/reset-password', authorize('admin'), auditMiddleware('user', 'UPDATE'),        usersController.resetPassword.bind(usersController));
-router.get('/:id/activity',        authorize('admin'), usersController.activity.bind(usersController));
+router.get('/',                    authorizePermission('users:manage'), usersController.list.bind(usersController));
+router.post('/',                   authorizePermission('users:manage'), auditMiddleware('user', 'CREATE'),        usersController.create.bind(usersController));
+router.get('/:id',                 authorizePermission('users:manage'), usersController.findById.bind(usersController));
+router.put('/:id',                 authorizePermission('users:manage'), auditMiddleware('user', 'UPDATE'),        usersController.update.bind(usersController));
+router.delete('/:id',              authorizePermission('users:manage'), auditMiddleware('user', 'SOFT_DELETE'),   usersController.delete.bind(usersController));
+router.post('/:id/reactivate',     authorizePermission('users:manage'), auditMiddleware('user', 'STATUS_CHANGE'), usersController.reactivate.bind(usersController));
+router.post('/:id/reset-password', authorizePermission('users:manage'), auditMiddleware('user', 'UPDATE'),        usersController.resetPassword.bind(usersController));
+router.get('/:id/activity',        authorizePermission('users:manage'), usersController.activity.bind(usersController));
 
 export { router as usersRouter };

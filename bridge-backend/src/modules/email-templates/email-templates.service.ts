@@ -24,13 +24,22 @@ export class EmailTemplatesService {
     return prisma.emailTemplate.update({ where: { id }, data: input });
   }
 
+  async findByType(type: string) {
+    const data = await prisma.emailTemplate.findFirst({ where: { type: type as never } });
+    if (!data) throw AppError.notFound(`Template introuvable pour le type : ${type}`);
+    return data;
+  }
+
   async preview(id: string, vars: Record<string, string>) {
     const template = await this.findById(id);
-    let html = template.bodyHtml;
+    let subject = template.subject;
+    let html    = template.bodyHtml;
     for (const [key, value] of Object.entries(vars)) {
-      html = html.replaceAll(`{{${key}}}`, value);
+      const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+      subject = subject.replace(regex, value);
+      html    = html.replace(regex, value);
     }
-    return { subject: template.subject, html };
+    return { subject, html };
   }
 }
 

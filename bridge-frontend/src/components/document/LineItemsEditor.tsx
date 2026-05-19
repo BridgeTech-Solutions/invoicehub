@@ -9,7 +9,7 @@ import type { FormLine, DiscountType } from '@/features/proformas/types'
 import type { Product } from '@/features/products/types'
 import { computeLineValues, makeBlankLine } from '@/lib/document-math'
 import { formatXAF } from '@/lib/utils'
-import { QuickCreateProductModal } from './QuickCreateProductModal'
+import { ProductDrawer } from '@/features/products/components/ProductDrawer'
 
 // ─── Constants ─────────────────────────────────────────────────
 
@@ -269,12 +269,13 @@ function ProductCombo({ value, onChange, onSelect, disabled }: ProductComboProps
         />
       </div>
       {mounted ? createPortal(dropdown, document.body) : null}
-      <QuickCreateProductModal
-        open={quickCreateOpen}
-        initialName={quickCreateName}
-        onClose={() => setQuickCreateOpen(false)}
-        onCreated={handleProductCreated}
-      />
+      {quickCreateOpen && (
+        <ProductDrawer
+          initialName={quickCreateName}
+          onClose={() => setQuickCreateOpen(false)}
+          onCreated={handleProductCreated}
+        />
+      )}
     </div>
   )
 }

@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { hashPassword, comparePassword } from '../../lib/bcrypt';
 import { AppError } from '../../core/errors/AppError';
@@ -16,7 +15,8 @@ const USER_SELECT = {
   lastName: true,
   email: true,
   phone: true,
-  role: true,
+  roleId: true,
+  role: { select: { name: true } },
   status: true,
   mustChangePassword: true,
   twoFactorEnabled: true,
@@ -29,7 +29,7 @@ const USER_SELECT = {
   lastLoginAt: true,
   createdAt: true,
   updatedAt: true,
-} satisfies Prisma.UserSelect;
+};
 
 /** Convertit un chemin filesystem (absolu ou relatif) en URL HTTP publique du backend. */
 function toAvatarUrl(avatarPath: string | null): string | null {
@@ -40,10 +40,10 @@ function toAvatarUrl(avatarPath: string | null): string | null {
   return `${env.BACKEND_URL}/${rel}`;
 }
 
-/** Remplace avatarPath par avatarUrl dans la réponse. */
-function formatUser<T extends { avatarPath: string | null }>(user: T) {
-  const { avatarPath, ...rest } = user;
-  return { ...rest, avatarUrl: toAvatarUrl(avatarPath) };
+/** Remplace avatarPath par avatarUrl et expose roleName. */
+function formatUser(user: any) {
+  const { avatarPath, role, ...rest } = user;
+  return { ...rest, roleName: (role as any)?.name ?? 'employee', avatarUrl: toAvatarUrl(avatarPath as string | null) };
 }
 
 export class UsersService {
@@ -51,23 +51,28 @@ export class UsersService {
     const { page, limit, role, status, search } = input;
     const skip = (page - 1) * limit;
 
-    const where: Prisma.UserWhereInput = {
-      deletedAt: null,
-      ...(role && { role }),
-      ...(status && { status }),
-      ...(search && {
-        OR: [
-          { firstName: { contains: search, mode: 'insensitive' } },
-          { lastName: { contains: search, mode: 'insensitive' } },
-          { email: { contains: search, mode: 'insensitive' } },
-        ],
-      }),
-    };
+    const where: Record<string, unknown> = {};
+    // Les utilisateurs suspendus ont deletedAt != null — on lève le filtre pour ce statut
+    if (status === 'suspended') {
+      where['status']    = 'suspended';
+      where['deletedAt'] = { not: null };
+    } else {
+      where['deletedAt'] = null;
+      if (status) where['status'] = status;
+    }
+    if (role) where['role'] = { is: { name: role } };
+    if (search) {
+      where['OR'] = [
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
 
     const [total, users] = await Promise.all([
-      prisma.user.count({ where }),
+      prisma.user.count({ where: where as any }),
       prisma.user.findMany({
-        where,
+        where: where as any,
         select: USER_SELECT,
         orderBy: { createdAt: 'desc' },
         skip,
@@ -91,9 +96,8 @@ export class UsersService {
     const exists = await prisma.user.findUnique({ where: { email: input.email } });
     if (exists) throw AppError.conflict('Un utilisateur avec cet email existe déjà');
 
-    // Génère un mot de passe aléatoire temporaire (ne sera pas communiqué car l'activation forcera le reset)
     const tempPassword = crypto.randomBytes(16).toString('hex');
-    const passwordHash = await hashPassword(tempPassword);
+    const passwordHash = input.password ? await hashPassword(input.password) : await hashPassword(tempPassword);
 
     const user = await prisma.user.create({
       data: {
@@ -101,33 +105,28 @@ export class UsersService {
         lastName: input.lastName,
         email: input.email,
         phone: input.phone,
-        role: input.role,
+        role: { connect: { name: input.role } },
         passwordHash,
-        status: 'pending_activation',
+        status: 'pending_activation' as any,
         mustChangePassword: true,
-        createdById,
-      },
+        createdBy: createdById ? { connect: { id: createdById } } : undefined,
+      } as any,
       select: USER_SELECT,
     });
 
-    logger.info(`Utilisateur créé : ${user.email} (${user.role}) par ${createdById}`);
+    const roleName = user.role?.name ?? input.role;
+    logger.info(`Utilisateur créé : ${user.email} (${roleName}) par ${createdById}`);
 
-    // Génération du token d'activation (réutilise la logique de PasswordResetToken)
     const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-    const expiresAt = new Date(Date.now() + 24 * 3600 * 1000); // 24 heures pour l'activation
+    const expiresAt = new Date(Date.now() + 24 * 3600 * 1000);
 
     await prisma.passwordResetToken.create({
-      data: {
-        userId: user.id,
-        tokenHash,
-        expiresAt,
-      },
+      data: { userId: user.id, tokenHash, expiresAt },
     });
 
     const activationUrl = `${env.APP_URL}/reset-password?token=${rawToken}`;
 
-    // Email de bienvenue avec lien d'activation
     void emailQueue.add('email', {
       to: user.email,
       subject: 'Bienvenue sur InvoiceHub — Activez votre compte',
@@ -137,17 +136,14 @@ export class UsersService {
           <p>Bonjour <strong>${user.firstName} ${user.lastName}</strong>,</p>
           <p>Votre compte a été créé sur la plateforme InvoiceHub de Bridge Technologies Solutions.</p>
           <p>Pour commencer à utiliser votre compte, vous devez d'abord l'activer en choisissant votre mot de passe.</p>
-          
           <p style="margin:24px 0">
             <a href="${activationUrl}" style="display:inline-block;padding:12px 24px;background:#2D7DD2;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold">
               Activer mon compte
             </a>
           </p>
-          
           <p style="font-size:13px;color:#718096">
-            Ce lien est valable pendant 24 heures. Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet email.
+            Ce lien est valable pendant 24 heures.
           </p>
-          
           <table style="border-collapse:collapse;width:100%;margin:16px 0;font-size:13px">
             <tr>
               <td style="padding:8px 12px;background:#f5f7fa;border:1px solid #e2e8f0;font-weight:bold;width:120px">Email</td>
@@ -155,28 +151,26 @@ export class UsersService {
             </tr>
             <tr>
               <td style="padding:8px 12px;background:#f5f7fa;border:1px solid #e2e8f0;font-weight:bold">Rôle</td>
-              <td style="padding:8px 12px;border:1px solid #e2e8f0;text-transform:capitalize">${user.role}</td>
+              <td style="padding:8px 12px;border:1px solid #e2e8f0;text-transform:capitalize">${roleName}</td>
             </tr>
           </table>
-
           <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0"/>
           <p style="font-size:12px;color:#718096">InvoiceHub — Bridge Technologies Solutions</p>
         </div>
       `,
     });
 
-    // Notifier les admins qu'un nouveau compte a été créé
     const admins = await prisma.user.findMany({
-      where: { role: 'admin', status: 'active', deletedAt: null },
+      where: { role: { is: { name: 'admin' } }, status: 'active', deletedAt: null } as any,
       select: { id: true },
     });
     for (const admin of admins) {
-      if (admin.id === createdById) continue; // pas d'auto-notification
+      if (admin.id === createdById) continue;
       void notificationQueue.add('notification', {
         userId: admin.id,
         type: 'user_created',
         title: 'Nouveau compte utilisateur',
-        message: `${user.firstName} ${user.lastName} (${user.role}) a rejoint l'équipe.`,
+        message: `${user.firstName} ${user.lastName} (${roleName}) a rejoint l'équipe.`,
         data: { userId: user.id },
       });
     }
@@ -186,17 +180,15 @@ export class UsersService {
 
   async update(id: string, input: UpdateUserInput) {
     const oldUser = await this.findById(id);
-    
-    // Si le rôle change, révoquer tous les tokens pour forcer la reconnexion
-    if (input.role && input.role !== oldUser.role) {
+
+    if (input.role && input.role !== oldUser.roleName) {
       await prisma.refreshToken.updateMany({
         where: { userId: id, revokedAt: null },
         data: { revokedAt: new Date(), revokeReason: 'role_changed' },
       });
-      logger.info(`Tokens révoqués pour ${oldUser.email} : changement de rôle ${oldUser.role} → ${input.role}`);
+      logger.info(`Tokens révoqués pour ${oldUser.email} : changement de rôle ${oldUser.roleName} → ${input.role}`);
     }
 
-    // Si le statut passe à suspendu, révoquer tous les tokens
     if (input.status === 'suspended' && oldUser.status !== 'suspended') {
       await prisma.refreshToken.updateMany({
         where: { userId: id, revokedAt: null },
@@ -205,9 +197,13 @@ export class UsersService {
       logger.info(`Tokens révoqués pour ${oldUser.email} : compte suspendu`);
     }
 
+    const { role, ...rest } = input;
+    const updateData: Record<string, unknown> = { ...rest };
+    if (role) updateData['role'] = { connect: { name: role } };
+
     const user = await prisma.user.update({
       where: { id },
-      data: input,
+      data: updateData as any,
       select: USER_SELECT,
     });
 
@@ -237,7 +233,6 @@ export class UsersService {
 
     logger.info(`Mot de passe changé pour : ${user.email}`);
 
-    // Révoquer tous les refresh tokens sauf la session courante
     await prisma.refreshToken.updateMany({
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date(), revokeReason: 'password_change' },
@@ -246,14 +241,12 @@ export class UsersService {
 
   async softDelete(id: string): Promise<void> {
     const user = await this.findById(id);
-    
-    // Archiver l'utilisateur
+
     await prisma.user.update({
       where: { id },
       data: { deletedAt: new Date(), status: 'suspended' },
     });
 
-    // Révoquer TOUS les refresh tokens de cet utilisateur
     await prisma.refreshToken.updateMany({
       where: { userId: id, revokedAt: null },
       data: { revokedAt: new Date(), revokeReason: 'user_deleted' },
@@ -269,7 +262,6 @@ export class UsersService {
       where: { id },
       data: { passwordHash, mustChangePassword: true },
     });
-    // Révoquer tous les tokens pour forcer une reconnexion
     await prisma.refreshToken.updateMany({
       where: { userId: id, revokedAt: null },
       data: { revokedAt: new Date(), revokeReason: 'password_reset_by_admin' },
@@ -278,9 +270,6 @@ export class UsersService {
   }
 
   async reactivate(id: string): Promise<void> {
-    // Gère deux cas :
-    // 1. Archivé via softDelete (deletedAt != null, status = suspended)
-    // 2. Suspendu via PUT /:id (deletedAt = null, status = suspended)
     const user = await prisma.user.findFirst({
       where: {
         id,

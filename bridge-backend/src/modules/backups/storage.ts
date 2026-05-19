@@ -244,14 +244,212 @@ export class AzureAdapter implements StorageAdapter {
 }
 
 // ---------------------------------------------------------------------------
+// OneDriveAdapter (Microsoft OneDrive for Business — Microsoft Graph API)
+// ---------------------------------------------------------------------------
+//
+// Prérequis Azure AD :
+//   1. App Registration → noter client_id + tenant_id
+//   2. Certificats & secrets → créer un secret → noter client_secret
+//   3. API permissions → Microsoft Graph → Files.ReadWrite.All (Application) → Accorder
+//
+// Variables .env requises :
+//   BACKUP_STORAGE_DISK=onedrive
+//   ONEDRIVE_TENANT_ID=<votre-tenant-id>
+//   ONEDRIVE_CLIENT_ID=<client-id-app>
+//   ONEDRIVE_CLIENT_SECRET=<client-secret>
+//   ONEDRIVE_DRIVE_ID=<drive-id>          # optionnel
+//   ONEDRIVE_FOLDER_PATH=InvoiceHub/Backups  # optionnel
+
+export class OneDriveAdapter implements StorageAdapter {
+  private readonly tenantId:     string;
+  private readonly clientId:     string;
+  private readonly clientSecret: string;
+  private readonly driveId:      string;
+  private readonly folderPath:   string;
+
+  // Cache du token OAuth2 (expire ~1h côté Microsoft)
+  private tokenCache: { token: string; expiresAt: number } | null = null;
+
+  // Taille des chunks d'upload : 5 MB (doit être multiple de 320 KB)
+  private static readonly CHUNK_SIZE = 5 * 320 * 1024; // 1 638 400 octets ≈ 1,6 MB
+
+  constructor() {
+    if (!env.ONEDRIVE_TENANT_ID || !env.ONEDRIVE_CLIENT_ID || !env.ONEDRIVE_CLIENT_SECRET) {
+      throw AppError.internal(
+        'OneDrive mal configuré : ONEDRIVE_TENANT_ID, ONEDRIVE_CLIENT_ID et ONEDRIVE_CLIENT_SECRET sont requis',
+      );
+    }
+    this.tenantId     = env.ONEDRIVE_TENANT_ID;
+    this.clientId     = env.ONEDRIVE_CLIENT_ID;
+    this.clientSecret = env.ONEDRIVE_CLIENT_SECRET;
+    this.driveId      = env.ONEDRIVE_DRIVE_ID ?? '';
+    this.folderPath   = env.ONEDRIVE_FOLDER_PATH;
+  }
+
+  // ── OAuth2 client credentials ─────────────────────────────────────────────
+
+  private async getAccessToken(): Promise<string> {
+    // Retourner le token en cache s'il est valide encore 60 secondes
+    if (this.tokenCache && this.tokenCache.expiresAt > Date.now() + 60_000) {
+      return this.tokenCache.token;
+    }
+
+    const url  = `https://login.microsoftonline.com/${this.tenantId}/oauth2/v2.0/token`;
+    const body = new URLSearchParams({
+      grant_type:    'client_credentials',
+      client_id:     this.clientId,
+      client_secret: this.clientSecret,
+      scope:         'https://graph.microsoft.com/.default',
+    });
+
+    const res = await fetch(url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body:    body.toString(),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw AppError.internal(`OneDrive auth échouée (${res.status}) : ${text}`);
+    }
+
+    const data = await res.json() as { access_token: string; expires_in: number };
+    this.tokenCache = {
+      token:     data.access_token,
+      expiresAt: Date.now() + data.expires_in * 1000,
+    };
+    return data.access_token;
+  }
+
+  // ── URL racine du drive Microsoft Graph ───────────────────────────────────
+
+  private driveRoot(): string {
+    return this.driveId
+      ? `https://graph.microsoft.com/v1.0/drives/${this.driveId}`
+      : 'https://graph.microsoft.com/v1.0/me/drive';
+  }
+
+  // ── Upload via session (supporte n'importe quelle taille) ────────────────
+
+  async upload(localPath: string, filename: string): Promise<string> {
+    const token      = await this.getAccessToken();
+    const remotePath = `${this.folderPath}/${filename}`;
+
+    // 1. Créer la session d'upload
+    const sessionRes = await fetch(
+      `${this.driveRoot()}/root:/${encodeURIComponent(remotePath)}:/createUploadSession`,
+      {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'replace' } }),
+      },
+    );
+
+    if (!sessionRes.ok) {
+      throw AppError.internal(
+        `OneDrive createUploadSession (${sessionRes.status}) : ${await sessionRes.text()}`,
+      );
+    }
+
+    const { uploadUrl } = await sessionRes.json() as { uploadUrl: string };
+
+    // 2. Upload en chunks depuis un stream (ne charge pas tout en mémoire)
+    const stat      = fs.statSync(localPath);
+    const totalSize = stat.size;
+    const fd        = fs.openSync(localPath, 'r');
+    const chunkBuf  = Buffer.allocUnsafe(OneDriveAdapter.CHUNK_SIZE);
+
+    try {
+      let offset = 0;
+      while (offset < totalSize) {
+        const bytesRead = fs.readSync(fd, chunkBuf, 0, OneDriveAdapter.CHUNK_SIZE, offset);
+        const chunk     = chunkBuf.slice(0, bytesRead);
+        const end       = offset + bytesRead - 1;
+
+        const chunkRes = await fetch(uploadUrl, {
+          method:  'PUT',
+          headers: {
+            'Content-Length': String(bytesRead),
+            'Content-Range':  `bytes ${offset}-${end}/${totalSize}`,
+            'Content-Type':   'application/octet-stream',
+          },
+          body: chunk,
+        });
+
+        // 202 Accepted = chunk reçu, continuer ; 201/200 = upload terminé
+        if (!chunkRes.ok && chunkRes.status !== 202) {
+          throw AppError.internal(
+            `OneDrive upload chunk (${chunkRes.status}) : ${await chunkRes.text()}`,
+          );
+        }
+
+        offset += bytesRead;
+      }
+    } finally {
+      fs.closeSync(fd);
+    }
+
+    fs.unlinkSync(localPath);
+    return remotePath;
+  }
+
+  // ── Lien de téléchargement temporaire (1 heure, portée organisation) ─────
+
+  async getDownloadUrl(storagePath: string): Promise<string> {
+    const token = await this.getAccessToken();
+
+    const res = await fetch(
+      `${this.driveRoot()}/root:/${encodeURIComponent(storagePath)}:/createLink`,
+      {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          type:               'view',
+          scope:              'organization',
+          expirationDateTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        }),
+      },
+    );
+
+    if (!res.ok) {
+      throw AppError.internal(`OneDrive createLink (${res.status}) : ${await res.text()}`);
+    }
+
+    const data = await res.json() as { link: { webUrl: string } };
+    return data.link.webUrl;
+  }
+
+  getLocalPath(_storagePath: string): null {
+    return null;
+  }
+
+  // ── Suppression ───────────────────────────────────────────────────────────
+
+  async delete(storagePath: string): Promise<void> {
+    const token = await this.getAccessToken();
+
+    const res = await fetch(
+      `${this.driveRoot()}/root:/${encodeURIComponent(storagePath)}`,
+      { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
+    );
+
+    // 204 = supprimé avec succès, 404 = déjà absent — les deux sont acceptables
+    if (!res.ok && res.status !== 404 && res.status !== 204) {
+      throw AppError.internal(`OneDrive delete (${res.status}) : ${await res.text()}`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
 
 export function getStorageAdapter(): StorageAdapter {
   switch (env.BACKUP_STORAGE_DISK) {
-    case 's3':     return new S3Adapter();
-    case 'google': return new GCSAdapter();
-    case 'azure':  return new AzureAdapter();
-    default:       return new LocalAdapter();
+    case 's3':       return new S3Adapter();
+    case 'google':   return new GCSAdapter();
+    case 'azure':    return new AzureAdapter();
+    case 'onedrive': return new OneDriveAdapter();
+    default:         return new LocalAdapter();
   }
 }

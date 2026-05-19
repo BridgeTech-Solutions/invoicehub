@@ -7,20 +7,20 @@ import {
   Shield, Phone, Mail, Clock, Calendar, Loader2,
   ShieldCheck, ShieldOff, AlertTriangle, Activity, X, Eye, EyeOff,
 } from 'lucide-react'
-import { useUser, useUpdateUser, useReactivateUser, useResetUserPassword, useDeleteUser, useUserActivity } from '@/features/users/hooks'
+import { useUser, useUpdateUser, useReactivateUser, useResetUserPassword, useDeleteUser, useUserActivity, useRoles } from '@/features/users/hooks'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, getInitials } from '@/lib/utils'
 import { ROUTES } from '@/lib/constants'
-import type { Role } from '@/lib/constants'
 import type { User } from '@/features/users/types'
 
-// ─── Constants ────────────────────────────────────────────────
-
-const ROLE_CFG: Record<Role, { label: string; color: string; bg: string }> = {
-  admin:      { label: 'Administrateur', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
-  commercial: { label: 'Commercial',     color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
-  employee:   { label: 'Employé',        color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
-}
+const ROLE_COLORS: { color: string; bg: string }[] = [
+  { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
+  { color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
+  { color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+  { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+  { color: '#ef4444', bg: 'rgba(239,68,68,0.1)'  },
+  { color: '#6366f1', bg: 'rgba(99,102,241,0.1)' },
+]
 
 const STATUS_CFG = {
   active:             { label: 'Actif',      color: '#10b981', bg: 'rgba(16,185,129,0.1)'  },
@@ -112,6 +112,7 @@ function Skeleton() {
 
 function EditModal({ user, onClose }: { user: User; onClose: () => void }) {
   const titleId  = useId()
+  const { data: editRoles = [] } = useRoles()
   const modalRef = useRef<HTMLDivElement>(null)
   const updateM  = useUpdateUser(user.id)
 
@@ -119,7 +120,7 @@ function EditModal({ user, onClose }: { user: User; onClose: () => void }) {
     firstName: user.firstName,
     lastName:  user.lastName,
     phone:     user.phone ?? '',
-    role:      user.role as Role,
+    role:      user.role,
   })
 
   useEffect(() => {
@@ -169,10 +170,10 @@ function EditModal({ user, onClose }: { user: User; onClose: () => void }) {
           </div>
           <div>
             <label style={labelCss}>Rôle</label>
-            <select value={form.role} onChange={(e) => setForm(f => ({ ...f, role: e.target.value as Role }))} style={{ ...inputCss, cursor: 'pointer' }}>
-              <option value="employee">Employé</option>
-              <option value="commercial">Commercial</option>
-              <option value="admin">Administrateur</option>
+            <select value={form.role} onChange={(e) => setForm(f => ({ ...f, role: e.target.value }))} style={{ ...inputCss, cursor: 'pointer' }}>
+              {editRoles.map((r) => (
+                <option key={r.name} value={r.name}>{r.displayName}</option>
+              ))}
             </select>
           </div>
           <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
@@ -353,6 +354,7 @@ export default function UserDetailPage() {
 
   const { data: user, isLoading, isError } = useUser(id)
   const { data: activity = [], isLoading: activityLoading } = useUserActivity(id)
+  const { data: roles = [] } = useRoles()
 
   const suspendM    = useDeleteUser()
   const reactivateM = useReactivateUser()
@@ -367,7 +369,8 @@ export default function UserDetailPage() {
     )
   }
 
-  const roleCfg   = ROLE_CFG[user.role] ?? ROLE_CFG.employee
+  const roleIdx   = user.role.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % ROLE_COLORS.length
+  const roleCfg   = { ...ROLE_COLORS[roleIdx], label: roles.find((r) => r.name === user.role)?.displayName ?? user.role }
   const statusCfg = STATUS_CFG[user.status] ?? STATUS_CFG.active
   const isSuspended = user.status === 'suspended'
 

@@ -19,6 +19,7 @@
  */
 import { Job } from 'bullmq';
 import { prisma } from '../../config/database';
+import { env } from '../../config/env';
 import { notificationQueue, emailQueue } from '../queues';
 import { logger } from '../../core/middleware/requestLogger';
 import type { ReminderJobData } from '../queues';
@@ -122,10 +123,12 @@ function buildOverdueNotifMessage(
 function buildOverdueEmailHtml(
   label: string, number: string, clientName: string,
   daysOverdue: number, amount: string, recipientFirstName: string,
+  invoiceId: string,
 ): string {
-  const emoji = levelEmoji(label);
-  const d     = daysOverdue === 0 ? "aujourd'hui" : `depuis ${daysLabel(daysOverdue)}`;
-  const color = label === 'Critique' ? '#dc2626' : label === 'Urgente' ? '#ea580c' : label === 'Ferme' ? '#d97706' : '#2563eb';
+  const emoji   = levelEmoji(label);
+  const d       = daysOverdue === 0 ? "aujourd'hui" : `depuis ${daysLabel(daysOverdue)}`;
+  const color   = label === 'Critique' ? '#dc2626' : label === 'Urgente' ? '#ea580c' : label === 'Ferme' ? '#d97706' : '#2563eb';
+  const docUrl  = `${env.APP_URL}/invoices/${invoiceId}`;
   return `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
       <div style="background:${color};padding:16px 24px;border-radius:8px 8px 0 0;">
@@ -141,6 +144,11 @@ function buildOverdueEmailHtml(
           <tr style="background:#f9fafb;"><td style="padding:10px 16px;border:1px solid #e5e7eb;font-weight:bold;">Retard</td><td style="padding:10px 16px;border:1px solid #e5e7eb;">${d}</td></tr>
           <tr><td style="padding:10px 16px;border:1px solid #e5e7eb;font-weight:bold;">Solde dû</td><td style="padding:10px 16px;border:1px solid #e5e7eb;color:${color};font-weight:bold;">${amount} XAF</td></tr>
         </table>
+        <div style="text-align:center;margin:24px 0;">
+          <a href="${docUrl}" style="background:${color};color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:15px;">
+            Ouvrir la facture
+          </a>
+        </div>
         <p style="color:#6b7280;font-size:13px;">Ceci est une alerte interne — InvoiceHub BTS. Aucun email n'a été envoyé au client.</p>
       </div>
     </div>`;
@@ -151,6 +159,7 @@ function buildCheckEmailHtml(
   checkType: 'payment' | 'status' | 'draft',
   number: string, clientName: string,
   days: number, amount: string, recipientFirstName: string,
+  docId: string,
 ): string {
   const docLabel = docType === 'invoice' ? 'facture' : 'proforma';
   const checkMsg =
@@ -159,6 +168,7 @@ function buildCheckEmailHtml(
       : checkType === 'status'
         ? 'Le client a-t-il répondu (accepté ou refusé) ? Si oui, mettez à jour le statut dans InvoiceHub.'
         : `Cette ${docLabel} est encore en brouillon. A-t-elle été envoyée au client ? Si oui, mettez à jour son statut.`;
+  const docUrl  = `${env.APP_URL}/${docType === 'invoice' ? 'invoices' : 'proformas'}/${docId}`;
 
   return `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
@@ -176,6 +186,11 @@ function buildCheckEmailHtml(
           <tr><td style="padding:10px 16px;border:1px solid #e5e7eb;font-weight:bold;">En attente depuis</td><td style="padding:10px 16px;border:1px solid #e5e7eb;">${daysLabel(days)}</td></tr>
         </table>
         <p>${checkMsg}</p>
+        <div style="text-align:center;margin:24px 0;">
+          <a href="${docUrl}" style="background:#2563eb;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:15px;">
+            Ouvrir le document
+          </a>
+        </div>
         <p style="color:#6b7280;font-size:13px;">Ceci est une alerte interne — InvoiceHub BTS. Aucun email n'a été envoyé au client.</p>
       </div>
     </div>`;
@@ -267,7 +282,7 @@ async function processOverdueEscalation(
         await emailQueue.add('email', {
           to: recipient.email,
           subject: `[InvoiceHub BTS] ${title}`,
-          html: buildOverdueEmailHtml(levelCfg.label, inv.number, inv.client.name, daysOverdue, amount, recipient.firstName),
+          html: buildOverdueEmailHtml(levelCfg.label, inv.number, inv.client.name, daysOverdue, amount, recipient.firstName, inv.id),
         });
       }
     }
@@ -343,7 +358,7 @@ async function processIssuedConfirmation(managers: Manager[], checkLevels: Check
         await emailQueue.add('email', {
           to:      recipient.email,
           subject: `[InvoiceHub BTS] Paiement à confirmer — ${inv.number}`,
-          html:    buildCheckEmailHtml('invoice', 'payment', inv.number, inv.client.name, days, amount, recipient.firstName),
+          html:    buildCheckEmailHtml('invoice', 'payment', inv.number, inv.client.name, days, amount, recipient.firstName, inv.id),
         });
       }
     }
@@ -416,7 +431,7 @@ async function processSentProformaCheck(managers: Manager[], checkLevels: CheckL
         await emailQueue.add('email', {
           to:      recipient.email,
           subject: `[InvoiceHub BTS] Réponse client à confirmer — ${pfm.number}`,
-          html:    buildCheckEmailHtml('proforma', 'status', pfm.number, pfm.client.name, days, amount, recipient.firstName),
+          html:    buildCheckEmailHtml('proforma', 'status', pfm.number, pfm.client.name, days, amount, recipient.firstName, pfm.id),
         });
       }
     }
@@ -490,7 +505,7 @@ async function processDraftCheck(managers: Manager[], draftCheckLevels: CheckLev
         await emailQueue.add('email', {
           to:      recipient.email,
           subject: `[InvoiceHub BTS] Brouillon à envoyer — ${inv.number}`,
-          html:    buildCheckEmailHtml('invoice', 'draft', inv.number, inv.client.name, days, amount, recipient.firstName),
+          html:    buildCheckEmailHtml('invoice', 'draft', inv.number, inv.client.name, days, amount, recipient.firstName, inv.id),
         });
       }
     }
@@ -554,7 +569,7 @@ async function processDraftCheck(managers: Manager[], draftCheckLevels: CheckLev
         await emailQueue.add('email', {
           to:      recipient.email,
           subject: `[InvoiceHub BTS] Brouillon à envoyer — ${pfm.number}`,
-          html:    buildCheckEmailHtml('proforma', 'draft', pfm.number, pfm.client.name, days, amount, recipient.firstName),
+          html:    buildCheckEmailHtml('proforma', 'draft', pfm.number, pfm.client.name, days, amount, recipient.firstName, pfm.id),
         });
       }
     }
@@ -602,7 +617,7 @@ export async function processReminderJob(_job: Job<ReminderJobData>): Promise<vo
 
   // Charger les managers une seule fois (partagés par tous les modules)
   const managers = await prisma.user.findMany({
-    where: { role: 'admin', status: 'active', deletedAt: null },
+    where: { role: { name: 'admin' }, status: 'active', deletedAt: null },
     select: { id: true, email: true, firstName: true },
   });
 

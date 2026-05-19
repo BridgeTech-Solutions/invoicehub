@@ -9,6 +9,7 @@ import { useClientQuickFill } from '@/features/clients/hooks'
 import { LineItemsEditor } from '@/components/document/LineItemsEditor'
 import { TotalsPanel } from '@/components/document/TotalsPanel'
 import { useCreateProforma, useUpdateProforma, useSendProforma } from '../hooks'
+import { useBankAccounts } from '@/features/invoices/hooks'
 import type { Proforma, FormLine, DiscountType, CreateProformaPayload } from '../types'
 import { lineToFormLine, makeBlankLine } from '@/lib/document-math'
 import { ROUTES } from '@/lib/constants'
@@ -35,6 +36,7 @@ interface FormState {
   warranty: string
   globalDiscountType: DiscountType
   globalDiscountValue: number
+  bankAccountId: string
   lines: FormLine[]
 }
 
@@ -60,6 +62,7 @@ function initForm(proforma?: Proforma, defaultClientId?: string): FormState {
       warranty:            proforma.warranty ?? '',
       globalDiscountType:  proforma.globalDiscountType,
       globalDiscountValue: Number(proforma.globalDiscountValue),
+      bankAccountId:       proforma.bankAccountId ?? '',
       lines:               proforma.lines.map(lineToFormLine),
     }
   }
@@ -74,6 +77,7 @@ function initForm(proforma?: Proforma, defaultClientId?: string): FormState {
     warranty:            '',
     globalDiscountType:  'none',
     globalDiscountValue: 0,
+    bankAccountId:       '',
     lines:               [makeBlankLine(0)],
   }
 }
@@ -190,6 +194,14 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
   // Client list
   const { data: clientsData } = useClients({ limit: 200, status: 'active' })
   const clients = clientsData?.data ?? []
+  const { data: bankAccounts = [] } = useBankAccounts()
+
+  // Pré-sélectionner le compte par défaut si aucun compte sélectionné
+  useEffect(() => {
+    if (form.bankAccountId || bankAccounts.length === 0) return
+    const def = bankAccounts.find(a => (a as any).isDefault) ?? bankAccounts[0]
+    if (def) setF('bankAccountId', def.id)
+  }, [bankAccounts]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Mutations
   const createMutation = useCreateProforma()
@@ -210,6 +222,7 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
     warranty:            form.warranty          || undefined,
     globalDiscountType:  form.globalDiscountType,
     globalDiscountValue: form.globalDiscountValue,
+    ...(form.bankAccountId && { bankAccountId: form.bankAccountId }),
     lines: form.lines.map((l, i) => ({
       productId:     l.productId,
       sortOrder:     i,
@@ -448,6 +461,25 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
                   onFocus={focusOn} onBlur={focusOff}
                 />
               </div>
+              {bankAccounts.length > 0 && (
+                <div>
+                  <Field htmlFor={id('bankAccount')} label="Compte bancaire de réception" />
+                  <select
+                    id={id('bankAccount')}
+                    value={form.bankAccountId}
+                    onChange={(e) => setF('bankAccountId', e.target.value)}
+                    style={{ ...inputCss, cursor: 'pointer' }}
+                    onFocus={focusOn} onBlur={focusOff}
+                  >
+                    <option value="">— Sélectionner un compte —</option>
+                    {bankAccounts.map(acc => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name}{acc.bankName ? ` · ${acc.bankName}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <Field htmlFor={id('deliveryDelay')} label="Délai de livraison" />
                 <input

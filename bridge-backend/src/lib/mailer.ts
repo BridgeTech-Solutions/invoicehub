@@ -48,6 +48,33 @@ export async function sendMail(options: SendMailOptions): Promise<void> {
 }
 
 /**
+ * Résout un template DB en substituant les variables.
+ * Retourne null si le template est introuvable ou inactif.
+ * Utiliser le résultat pour enqueuer via emailQueue plutôt qu'envoyer directement.
+ */
+export async function renderEmailTemplate(
+  templateType: string,
+  variables: Record<string, string>,
+): Promise<{ subject: string; html: string } | null> {
+  const template = await prisma.emailTemplate.findFirst({
+    where: { type: templateType as never, isActive: true },
+  });
+  if (!template) {
+    logger.warn(`Email template not found or inactive: ${templateType}`);
+    return null;
+  }
+
+  let subject = template.subject;
+  let html    = template.bodyHtml;
+  for (const [key, value] of Object.entries(variables)) {
+    const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+    subject = subject.replace(regex, value);
+    html    = html.replace(regex, value);
+  }
+  return { subject, html };
+}
+
+/**
  * Envoie un email à partir d'un template stocké en base (email_templates).
  * Les variables {{VAR}} sont remplacées par les valeurs fournies.
  */
@@ -56,23 +83,7 @@ export async function sendTemplatedEmail(
   to: string | string[],
   variables: Record<string, string>,
 ): Promise<void> {
-  const template = await prisma.emailTemplate.findFirst({
-    where: { name: templateCode },
-  });
-
-  if (!template || !template.isActive) {
-    logger.warn(`Email template not found or inactive: ${templateCode}`);
-    return;
-  }
-
-  let subject = template.subject;
-  let html = template.bodyHtml;
-
-  for (const [key, value] of Object.entries(variables)) {
-    const regex = new RegExp(`{{${key}}}`, 'g');
-    subject = subject.replace(regex, value);
-    html = html.replace(regex, value);
-  }
-
-  await sendMail({ to, subject, html });
+  const rendered = await renderEmailTemplate(templateCode, variables);
+  if (!rendered) return;
+  await sendMail({ to, subject: rendered.subject, html: rendered.html });
 }

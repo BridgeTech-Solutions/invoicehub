@@ -1,29 +1,31 @@
 # Module Backups — Guide complet
 
-Sauvegarde de la base de données PostgreSQL avec stockage **local**, **Amazon S3 / Cloudflare R2 / MinIO**, **Google Cloud Storage** ou **Microsoft Azure Blob Storage**.
+Sauvegarde automatique de la base de données PostgreSQL (et optionnellement des fichiers uploadés) avec stockage **local**, **Amazon S3 / Cloudflare R2 / MinIO**, **Google Cloud Storage**, **Microsoft Azure Blob Storage** ou **Microsoft OneDrive** (Microsoft 365).
 
 ---
 
 ## Sommaire
 
 1. [Fonctionnement général](#fonctionnement-général)
-2. [Configuration](#configuration)
+2. [Types de backup](#types-de-backup)
+3. [Configuration](#configuration)
    - [Stockage local](#stockage-local)
    - [Amazon S3 / Cloudflare R2 / MinIO](#amazon-s3--cloudflare-r2--minio)
    - [Google Cloud Storage](#google-cloud-storage)
    - [Microsoft Azure Blob Storage](#microsoft-azure-blob-storage)
-3. [Endpoints API](#endpoints-api)
-4. [Backup automatique (cron)](#backup-automatique-cron)
-5. [Flux d'exécution](#flux-dexécution)
-6. [Docker / Production](#docker--production)
-7. [Sécurité](#sécurité)
-8. [Dépannage](#dépannage)
+   - [Microsoft OneDrive (Microsoft 365)](#microsoft-onedrive-microsoft-365)
+4. [Endpoints API](#endpoints-api)
+5. [Backup automatique (cron)](#backup-automatique-cron)
+6. [Flux d'exécution](#flux-dexécution)
+7. [Docker / Production](#docker--production)
+8. [Sécurité](#sécurité)
+9. [Dépannage](#dépannage)
 
 ---
 
 ## Fonctionnement général
 
-Le module génère un dump complet de la base PostgreSQL via `pg_dump`, le compresse en `.sql.gz`, le stocke (localement ou cloud) et enregistre les métadonnées dans la table `backups`.
+Le module génère un backup de la base PostgreSQL via `pg_dump`, le compresse, le stocke (localement ou cloud) et enregistre les métadonnées dans la table `backups`.
 
 ```
 POST /api/backups
@@ -32,12 +34,34 @@ POST /api/backups
 
 Worker (fond):
   → status: pending → running
-  → pg_dump | gzip → invoicehub_20260310_143022.sql.gz
+  → pg_dump → invoicehub_db_20260422_153000.sql.gz       (BD uniquement)
+              ou invoicehub_full_20260422_153000.tar.gz   (BD + uploads)
   → Upload sur le disque configuré
   → status: running → success (ou failed)
 ```
 
 Les backups sont exécutés en arrière-plan dans une queue BullMQ dédiée pour ne pas bloquer l'API.
+
+---
+
+## Types de backup
+
+Deux modes contrôlés par `BACKUP_INCLUDE_FILES` :
+
+| Mode | Valeur | Fichier produit | Contenu |
+|---|---|---|---|
+| BD uniquement | `false` (défaut) | `invoicehub_db_YYYYMMDD_HHmmss.sql.gz` | Export PostgreSQL compressé |
+| Complet | `true` | `invoicehub_full_YYYYMMDD_HHmmss.tar.gz` | BD + logos + avatars + PDFs |
+
+Structure du backup complet :
+```
+invoicehub_full_20260422_153000.tar.gz
+├── database.sql     ← export complet de la base de données
+└── uploads/
+    ├── logos/       ← logo, tampon, signature entreprise
+    ├── avatars/     ← photos de profil utilisateurs
+    └── invoices/    ← PDFs générés (factures, proformas)
+```
 
 ---
 
@@ -49,9 +73,13 @@ Ajouter dans `.env` :
 
 ```env
 # ── Backup ───────────────────────────────────────────────────────────────────
-BACKUP_STORAGE_DISK=local         # local | s3 | google
+BACKUP_STORAGE_DISK=local         # local | s3 | google | azure | onedrive
 BACKUP_DIR=./uploads/backups      # Dossier local (utilisé si DISK=local)
 PGDUMP_PATH=pg_dump               # Chemin vers pg_dump (ou absolu si besoin)
+BACKUP_RETENTION_DAYS=30          # Suppression auto après N jours
+BACKUP_CRON=30 15 * * *           # Heure de backup (UTC). 15h30 UTC = 16h30 WAT Cameroun
+BACKUP_INCLUDE_FILES=false        # true = BD + uploads/ (tar.gz) | false = BD seule (sql.gz)
+UPLOADS_DIR=./uploads             # Dossier uploads à inclure si BACKUP_INCLUDE_FILES=true
 
 # ── Amazon S3 / Cloudflare R2 / MinIO ────────────────────────────────────────
 S3_BUCKET=invoicehub-backups
@@ -180,6 +208,30 @@ AZURE_STORAGE_CONTAINER=invoicehub-backups
 
 ---
 
+### Microsoft OneDrive (Microsoft 365)
+
+```env
+BACKUP_STORAGE_DISK=onedrive
+ONEDRIVE_TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+ONEDRIVE_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+ONEDRIVE_CLIENT_SECRET=VotreSecretClient~xxxxxxxxxxxx
+ONEDRIVE_DRIVE_ID=               # Optionnel — vide = OneDrive de l'application
+ONEDRIVE_FOLDER_PATH=InvoiceHub/Backups
+```
+
+**Prérequis :** App Registration Azure AD avec permission `Files.ReadWrite.All` (Application).  
+**Configuration complète :** voir `GUIDE_ONEDRIVE_BACKUP.md` à la racine du projet.
+
+**Avantages :**
+- Inclus gratuitement dans tout abonnement Microsoft 365 (aucun coût Azure supplémentaire)
+- Fichiers accessibles depuis l'interface OneDrive de l'entreprise
+- Upload par chunks (résistant aux coupures réseau)
+- Dossier `InvoiceHub/Backups` créé automatiquement
+
+`GET /api/backups/:id/download` génère un **lien de partage OneDrive** (valide 1 heure, portée organisation) et redirige (302).
+
+---
+
 ## Endpoints API
 
 Tous réservés au rôle **`admin`**.
@@ -298,22 +350,23 @@ Authorization: Bearer <admin_token>
 
 ## Backup automatique (cron)
 
-Un cron BullMQ déclenche automatiquement un backup **chaque jour à 00:00 UTC**.
+Un cron BullMQ déclenche automatiquement un backup **chaque jour à 15h30 UTC (16h30 WAT — Cameroun)**.
 
 ```
-Cron 00:00 UTC → backupQueue.add() → Worker → pg_dump → stockage
+Cron 15h30 UTC → backupQueue.add() → Worker → pg_dump → compression → stockage
 ```
 
-Le cron est configurable via les variables d'env :
+Le cron est configurable via la variable `BACKUP_CRON` :
 
 ```env
-BACKUP_CRON=0 0 * * *    # Défaut : minuit UTC chaque jour
-                          # Exemples :
-                          # 0 */6 * * *  → toutes les 6h
-                          # 0 2 * * 0    → dimanche à 02:00 UTC
+BACKUP_CRON=30 15 * * *   # Défaut : 15h30 UTC = 16h30 WAT (Cameroun)
+                           # Exemples :
+                           # 0 0 * * *   → minuit UTC
+                           # 0 */6 * * * → toutes les 6h
+                           # 0 2 * * 0   → dimanche à 02:00 UTC
 ```
 
-**Rétention automatique** : les backups de plus de 30 jours sont supprimés automatiquement par le worker (configurable via `BACKUP_RETENTION_DAYS`).
+**Rétention automatique** : les backups de plus de `BACKUP_RETENTION_DAYS` jours sont supprimés automatiquement du stockage ET de la base de données.
 
 ```env
 BACKUP_RETENTION_DAYS=30   # Défaut : 30 jours

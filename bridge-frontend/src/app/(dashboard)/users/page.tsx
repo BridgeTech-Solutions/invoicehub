@@ -4,31 +4,35 @@ import { useState, useRef, useEffect, useId } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, UserPlus, Loader2, Shield, Pencil, Trash2, KeyRound, X, AlertTriangle } from 'lucide-react'
 import { ActionMenu } from '@/components/ui/ActionMenu'
-import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '@/features/users/hooks'
+import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useRoles } from '@/features/users/hooks'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, getInitials } from '@/lib/utils'
 import type { User, CreateUserPayload, UpdateUserPayload, UserStatus } from '@/features/users/types'
 import { ROUTES } from '@/lib/constants'
-import type { Role } from '@/lib/constants'
 import type { AxiosError } from 'axios'
 
+
 // ─── Badges ───────────────────────────────────────────────────
-const ROLE_CFG: Record<Role, { label: string; color: string; bg: string }> = {
-  admin:      { label: 'Administrateur', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
-  commercial: { label: 'Commercial',     color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
-  employee:   { label: 'Employé',        color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
-}
+const ROLE_COLORS: { color: string; bg: string }[] = [
+  { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
+  { color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
+  { color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+  { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+  { color: '#ef4444', bg: 'rgba(239,68,68,0.1)'  },
+  { color: '#6366f1', bg: 'rgba(99,102,241,0.1)' },
+]
 const STATUS_CFG: Record<UserStatus, { label: string; color: string; bg: string }> = {
   active:             { label: 'Actif',      color: '#10b981', bg: 'rgba(16,185,129,0.1)'  },
   suspended:          { label: 'Suspendu',   color: '#ef4444', bg: 'rgba(239,68,68,0.1)'   },
   pending_activation: { label: 'En attente', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)'  },
 }
 
-function RoleBadge({ role }: { role: Role }) {
-  const c = ROLE_CFG[role] ?? ROLE_CFG.employee
+function RoleBadge({ role, displayName }: { role: string; displayName?: string }) {
+  const idx = role.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % ROLE_COLORS.length
+  const c = ROLE_COLORS[idx]
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', padding: '3px 9px', borderRadius: 100, fontSize: 11.5, fontFamily: 'var(--font-display)', fontWeight: 700, background: c.bg, color: c.color }}>
-      {c.label}
+      {displayName ?? role}
     </span>
   )
 }
@@ -164,6 +168,7 @@ function UserRowActions({ user, onEdit, onDelete, isSelf }: {
 function UserFormModal({ onClose, editUser }: { onClose: () => void; editUser?: User }) {
   const createMut = useCreateUser()
   const updateMut = useUpdateUser(editUser?.id ?? '')
+  const { data: roles = [] } = useRoles()
   const isPending = createMut.isPending || updateMut.isPending
 
   // C1 + M3: useId() pour IDs uniques
@@ -178,7 +183,7 @@ function UserFormModal({ onClose, editUser }: { onClose: () => void; editUser?: 
     lastName:  editUser?.lastName  ?? '',
     email:     editUser?.email     ?? '',
     phone:     editUser?.phone     ?? '',
-    role:      (editUser?.role     ?? 'employee') as Role,
+    role:      editUser?.role ?? 'employee',
     password:  '',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -365,12 +370,16 @@ function UserFormModal({ onClose, editUser }: { onClose: () => void; editUser?: 
             <select
               id={fid('role')}
               value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
+              onChange={(e) => setForm({ ...form, role: e.target.value })}
               style={{ ...inputCss, cursor: 'pointer' }}
             >
-              <option value="employee">Employé</option>
-              <option value="commercial">Commercial</option>
-              <option value="admin">Administrateur</option>
+              {roles.length === 0 ? (
+                <option value={form.role}>{form.role}</option>
+              ) : (
+                roles.map((r) => (
+                  <option key={r.name} value={r.name}>{r.displayName}</option>
+                ))
+              )}
             </select>
           </div>
 
@@ -439,17 +448,19 @@ export default function UsersPage() {
   const router  = useRouter()
   const isAdmin = me?.role === 'admin'
   const [search,       setSearch]       = useState('')
-  const [roleFilter,   setRoleFilter]   = useState<Role | ''>('')
+  const [roleFilter,   setRoleFilter]   = useState('')
   const [statusFilter, setStatusFilter] = useState<UserStatus | ''>('')
   const [page,         setPage]         = useState(1)
   const [showCreate,   setShowCreate]   = useState(false)
   const [editUser,     setEditUser]     = useState<User | null>(null)
 
   const { data, isLoading } = useUsers({ page, limit: 20, search: search || undefined, role: roleFilter || undefined, status: statusFilter || undefined })
+  const { data: roles = [] } = useRoles()
   const deleteMut  = useDeleteUser()
   const users      = data?.data       ?? []
   const total      = data?.total      ?? 0
   const totalPages = data?.totalPages ?? 1
+  const roleDisplayName = (name: string) => roles.find((r) => r.name === name)?.displayName ?? name
 
   const inputCss: React.CSSProperties = {
     padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)',
@@ -501,13 +512,13 @@ export default function UsersPage() {
           <select
             aria-label="Filtrer par rôle"
             value={roleFilter}
-            onChange={(e) => { setRoleFilter(e.target.value as Role | ''); setPage(1) }}
+            onChange={(e) => { setRoleFilter(e.target.value); setPage(1) }}
             style={{ ...inputCss, cursor: 'pointer' }}
           >
             <option value="">Tous les rôles</option>
-            <option value="admin">Administrateur</option>
-            <option value="commercial">Commercial</option>
-            <option value="employee">Employé</option>
+            {roles.map((r) => (
+              <option key={r.name} value={r.name}>{r.displayName}</option>
+            ))}
           </select>
           <select
             aria-label="Filtrer par statut"
@@ -584,7 +595,7 @@ export default function UsersPage() {
                           </div>
                         </div>
                       </td>
-                      <td style={{ padding: '12px 16px' }}><RoleBadge role={u.role} /></td>
+                      <td style={{ padding: '12px 16px' }}><RoleBadge role={u.role} displayName={roleDisplayName(u.role)} /></td>
                       <td style={{ padding: '12px 16px' }}><UserStatusBadge status={u.status} /></td>
                       {/* H5: <time dateTime> sur les dates */}
                       <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--text-3)' }}>

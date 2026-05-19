@@ -39,6 +39,13 @@ export class DashboardService {
       recentInvoices,
       topClients,
       monthlyRevenue,
+      purchasesThisMonth,
+      outstandingPayables,
+      expensesThisMonth,
+      cashPosition,
+      topSuppliers,
+      expensesByCategory,
+      stockAlerts,
     ] = await Promise.all([
       // Total facturé (toutes factures émises — hors draft et cancelled)
       prisma.invoice.aggregate({
@@ -141,6 +148,71 @@ export class DashboardService {
         GROUP BY month
         ORDER BY month ASC
       `,
+
+      // Total achats ce mois (factures fournisseurs validées)
+      prisma.supplierInvoice.aggregate({
+        where: {
+          deletedAt: null,
+          status: { notIn: ['draft', 'cancelled'] },
+          invoiceDate: { gte: startOfMonth },
+        },
+        _sum: { totalTtc: true },
+        _count: true,
+      }),
+
+      // Encours fournisseurs (payables non réglés)
+      prisma.supplierInvoice.aggregate({
+        where: {
+          deletedAt: null,
+          status: { in: ['validated', 'partially_paid'] },
+        },
+        _sum: { balanceDue: true },
+        _count: true,
+      }),
+
+      // Dépenses ce mois (approuvées ou payées)
+      prisma.expense.aggregate({
+        where: {
+          deletedAt: null,
+          status: { in: ['approved', 'paid'] },
+          expenseDate: { gte: startOfMonth },
+        },
+        _sum: { amountTtc: true },
+        _count: true,
+      }),
+
+      // Position de trésorerie (Σ soldes comptes bancaires actifs)
+      prisma.bankAccount.aggregate({
+        where: { deletedAt: null, isActive: true },
+        _sum: { currentBalance: true },
+        _count: true,
+      }),
+
+      // Top 5 fournisseurs par volume achats
+      prisma.supplierInvoice.groupBy({
+        by: ['supplierId'],
+        where: { deletedAt: null, status: { notIn: ['draft', 'cancelled'] } },
+        _sum: { totalTtc: true },
+        orderBy: { _sum: { totalTtc: 'desc' } },
+        take: 5,
+      }),
+
+      // Dépenses par catégorie (mois courant)
+      prisma.expense.groupBy({
+        by: ['categoryId'],
+        where: {
+          deletedAt: null,
+          status: { in: ['approved', 'paid'] },
+          expenseDate: { gte: startOfMonth },
+        },
+        _sum: { amountTtc: true },
+        _count: true,
+        orderBy: { _sum: { amountTtc: 'desc' } },
+        take: 10,
+      }),
+
+      // Placeholder — stockAlerts calculé via raw query après Promise.all
+      Promise.resolve(0),
     ]);
 
     // Résoudre les noms des top clients
@@ -151,11 +223,39 @@ export class DashboardService {
     });
     const clientMap = new Map(clientNames.map(c => [c.id, c.name]));
 
+    // Résoudre les noms des top fournisseurs
+    const supplierIds = topSuppliers.map(s => s.supplierId);
+    const supplierNames = await prisma.supplier.findMany({
+      where: { id: { in: supplierIds } },
+      select: { id: true, name: true },
+    });
+    const supplierMap = new Map(supplierNames.map(s => [s.id, s.name]));
+
+    // Résoudre les noms des catégories de dépenses
+    const categoryIds = expensesByCategory.map(e => e.categoryId).filter(Boolean) as string[];
+    const categoryNames = categoryIds.length > 0 ? await prisma.expenseCategory.findMany({
+      where: { id: { in: categoryIds } },
+      select: { id: true, name: true },
+    }) : [];
+    const categoryMap = new Map(categoryNames.map(c => [c.id, c.name]));
+
+    // Stock alerts : produits en dessous du seuil minimum
+    const stockAlertsCount = await prisma.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(*)::int AS count
+      FROM products
+      WHERE deleted_at IS NULL
+        AND track_stock = true
+        AND stock_quantity < min_stock_level
+    `.then(rows => Number(rows[0]?.count ?? 0)).catch(() => 0);
+
+    const totalSalesMonth = Number(invoicesThisMonth._sum.totalTtc ?? 0);
+    const totalPurchasesMonth = Number(purchasesThisMonth._sum.totalTtc ?? 0);
+
     return {
       invoices: {
         totalAmount: Number(invoicesTotal._sum.totalTtc ?? 0),
         totalCount: invoicesTotal._count,
-        thisMonthAmount: Number(invoicesThisMonth._sum.totalTtc ?? 0),
+        thisMonthAmount: totalSalesMonth,
         thisMonthCount: invoicesThisMonth._count,
       },
       overdue: {
@@ -178,11 +278,41 @@ export class DashboardService {
       proformas: {
         thisMonthCount: proformasThisMonth._count,
       },
+      // Nouveaux KPIs v3
+      purchases: {
+        thisMonthAmount: totalPurchasesMonth,
+        thisMonthCount: purchasesThisMonth._count,
+      },
+      payables: {
+        outstandingAmount: Number(outstandingPayables._sum?.balanceDue ?? 0),
+        count: outstandingPayables._count,
+      },
+      expenses: {
+        thisMonthAmount: Number(expensesThisMonth._sum.amountTtc ?? 0),
+        thisMonthCount: expensesThisMonth._count,
+      },
+      grossMarginMonth: totalSalesMonth - totalPurchasesMonth,
+      cashPosition: {
+        total: Number(cashPosition._sum.currentBalance ?? 0),
+        accountCount: cashPosition._count,
+      },
+      stockAlerts: stockAlertsCount,
       recentInvoices,
       topClients: topClients.map(c => ({
         clientId: c.clientId,
         clientName: clientMap.get(c.clientId) ?? 'Inconnu',
         totalRevenue: Number(c._sum.totalTtc ?? 0),
+      })),
+      topSuppliers: topSuppliers.map(s => ({
+        supplierId: s.supplierId,
+        supplierName: supplierMap.get(s.supplierId) ?? 'Inconnu',
+        totalPurchases: Number(s._sum.totalTtc ?? 0),
+      })),
+      expensesByCategory: expensesByCategory.map(e => ({
+        categoryId: e.categoryId,
+        categoryName: e.categoryId ? (categoryMap.get(e.categoryId) ?? 'Sans catégorie') : 'Sans catégorie',
+        totalAmount: Number(e._sum.amountTtc ?? 0),
+        count: e._count,
       })),
       monthlyRevenue: monthlyRevenue.map(r => ({
         month: r.month,

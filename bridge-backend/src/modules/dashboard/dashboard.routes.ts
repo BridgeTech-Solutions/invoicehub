@@ -1,36 +1,14 @@
-import { Router, Request, Response, NextFunction } from 'express';
-import { dashboardService } from './dashboard.service';
+import { Router } from 'express';
+import { dashboardController } from './dashboard.controller';
 import { authenticate } from '../../core/middleware/auth';
+import { authorizePermission } from '../../core/middleware/rbac';
 
 const router: ReturnType<typeof Router> = Router();
 
-router.use(authenticate);
+router.use(authenticate, authorizePermission('dashboard:read'));
 
-router.get('/kpis', async (_req: Request, res: Response, next: NextFunction) => {
-  try {
-    const data = await dashboardService.getKpis();
-    res.json({ success: true, data });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.get('/aging', async (_req: Request, res: Response, next: NextFunction) => {
-  try {
-    const data = await dashboardService.getAging();
-    res.json({ success: true, data });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.get('/cashflow', async (_req: Request, res: Response, next: NextFunction) => {
-  try {
-    const data = await dashboardService.getCashflowForecast();
-    res.json({ success: true, data });
-  } catch (err) {
-    next(err);
-  }
-});
+router.get('/kpis',     dashboardController.getKpis.bind(dashboardController));
+router.get('/aging',    dashboardController.getAging.bind(dashboardController));
+router.get('/cashflow', dashboardController.getCashflow.bind(dashboardController));
 
 export { router as dashboardRouter };

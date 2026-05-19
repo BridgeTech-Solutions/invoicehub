@@ -46,7 +46,7 @@ export class AuthService {
    * @throws `401 TOTP_REQUIRED` - Code 2FA attendu mais non fourni
    */
   async login(input: LoginInput, ip?: string, userAgent?: string) {
-    const user = await prisma.user.findUnique({ where: { email: input.email } });
+    const user = await prisma.user.findUnique({ where: { email: input.email }, include: { role: true } });
 
     /** Enregistre la tentative de connexion (succès ou échec) dans login_history */
     const logAttempt = async (success: boolean, failureReason?: string) => {
@@ -158,7 +158,7 @@ export class AuthService {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role,
+        role: user.role?.name ?? 'employee',
         mustChangePassword: user.mustChangePassword,
         twoFactorEnabled: user.twoFactorEnabled,
       },
@@ -216,6 +216,7 @@ export class AuthService {
 
     const user = await prisma.user.findFirst({
       where: { id: payload.sub, deletedAt: null, status: 'active' },
+      include: { role: true },
     });
 
     if (!user) {
@@ -226,7 +227,7 @@ export class AuthService {
 
     return {
       ...tokens,
-      user: { id: user.id, email: user.email, role: user.role },
+      user: { id: user.id, email: user.email, role: user.role?.name ?? 'employee' },
     };
   }
 
@@ -536,10 +537,10 @@ export class AuthService {
   private async issueTokens(userId: string, ip?: string, userAgent?: string) {
     const user = await prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { email: true, role: true },
+      select: { email: true, role: { select: { name: true } } },
     });
 
-    const accessToken  = signAccessToken({ sub: userId, email: user.email, role: user.role });
+    const accessToken  = signAccessToken({ sub: userId, email: user.email, role: user.role?.name ?? 'employee' });
     const refreshToken = signRefreshToken(userId);
     const tokenHash    = crypto.createHash('sha256').update(refreshToken).digest('hex');
 

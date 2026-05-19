@@ -25,12 +25,12 @@ function toRelativePath(absPath: string): string {
 import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../../config/database';
 import { authenticate } from '../../core/middleware/auth';
-import { authorize } from '../../core/middleware/rbac';
+import { authorizePermission } from '../../core/middleware/rbac';
 import { AppError } from '../../core/errors/AppError';
 
 export const settingsUploadRouter: ReturnType<typeof Router> = Router();
 
-settingsUploadRouter.use(authenticate, authorize('admin'));
+settingsUploadRouter.use(authenticate, authorizePermission('settings:update'));
 
 // Dossier de stockage
 const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads', 'company');
