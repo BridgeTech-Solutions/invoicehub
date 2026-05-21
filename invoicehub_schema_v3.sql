@@ -2074,6 +2074,7 @@ CREATE VIEW v_supplier_financial_summary AS
 SELECT
     s.id                                                                      AS supplier_id,
     s.name                                                                    AS supplier_name,
+    s.supplier_code,
     s.status                                                                  AS supplier_status,
     COUNT(DISTINCT si.id) FILTER (WHERE si.deleted_at IS NULL)                AS total_invoices,
     COALESCE(SUM(si.total_ttc)
@@ -2087,16 +2088,20 @@ SELECT
         FILTER (WHERE si.status = 'partially_paid')                           AS nb_partially_paid,
     COUNT(DISTINCT si.id)
         FILTER (WHERE si.due_date < CURRENT_DATE
-                  AND si.status IN ('validated','partially_paid'))             AS nb_overdue,
+                  AND si.status IN ('validated','partially_paid')
+                  AND si.deleted_at IS NULL)                                  AS nb_overdue,
     COUNT(DISTINCT po.id)
         FILTER (WHERE po.deleted_at IS NULL)                                  AS total_purchase_orders,
     MAX(si.invoice_date)
-        FILTER (WHERE si.deleted_at IS NULL)                                  AS last_invoice_date
+        FILTER (WHERE si.deleted_at IS NULL)                                  AS last_invoice_date,
+    MAX(sp.payment_date)
+        FILTER (WHERE sp.deleted_at IS NULL)                                  AS last_payment_date
 FROM suppliers s
 LEFT JOIN supplier_invoices si ON si.supplier_id = s.id
+LEFT JOIN supplier_payments sp ON sp.supplier_invoice_id = si.id
 LEFT JOIN purchase_orders   po ON po.supplier_id = s.id
 WHERE s.deleted_at IS NULL
-GROUP BY s.id, s.name, s.status;
+GROUP BY s.id, s.name, s.supplier_code, s.status;
 
 COMMENT ON VIEW v_supplier_financial_summary IS 'Synthèse financière par fournisseur : achats totaux, paiements, encours, retards, nombre de BCs.';
 
@@ -4861,42 +4866,8 @@ GROUP BY ec.id, ec.name, ec.accounting_account, eb.year, eb.month, eb.budget_amo
 COMMENT ON VIEW v_expense_vs_budget IS 'Comparatif Budget vs Realise par categorie de depenses.';
 
 -- ---------------------------------------------------------------
--- 8.4 Vue v_supplier_financial_summary — Synthèse fournisseurs (enrichie)
---     Mise à jour de la version étape 3 pour inclure supplier_code
+-- 8.4 Vue v_supplier_financial_summary — déjà définie à l'étape 3.12 (complète)
 -- ---------------------------------------------------------------
-CREATE OR REPLACE VIEW v_supplier_financial_summary AS
-SELECT
-    s.id                                                                      AS supplier_id,
-    s.name                                                                    AS supplier_name,
-    s.supplier_code,
-    s.status                                                                  AS supplier_status,
-    COUNT(DISTINCT si.id) FILTER (WHERE si.deleted_at IS NULL)                AS total_invoices,
-    COALESCE(SUM(si.total_ttc)
-        FILTER (WHERE si.status != 'cancelled' AND si.deleted_at IS NULL), 0) AS total_purchased,
-    COALESCE(SUM(si.amount_paid)
-        FILTER (WHERE si.deleted_at IS NULL), 0)                              AS total_paid,
-    COALESCE(SUM(si.balance_due)
-        FILTER (WHERE si.status IN ('received','validated','partially_paid')
-                  AND si.deleted_at IS NULL), 0)                              AS outstanding_balance,
-    COUNT(DISTINCT si.id)
-        FILTER (WHERE si.status = 'partially_paid')                           AS nb_partially_paid,
-    COUNT(DISTINCT si.id)
-        FILTER (WHERE si.due_date < CURRENT_DATE
-                  AND si.status IN ('validated','partially_paid')
-                  AND si.deleted_at IS NULL)                                  AS nb_overdue,
-    COUNT(DISTINCT po.id)
-        FILTER (WHERE po.deleted_at IS NULL)                                  AS total_purchase_orders,
-    MAX(si.invoice_date)
-        FILTER (WHERE si.deleted_at IS NULL)                                  AS last_invoice_date,
-    MAX(sp.payment_date)
-        FILTER (WHERE sp.deleted_at IS NULL)                                  AS last_payment_date
-FROM suppliers s
-LEFT JOIN supplier_invoices si ON si.supplier_id = s.id
-LEFT JOIN supplier_payments sp ON sp.supplier_invoice_id = si.id
-LEFT JOIN purchase_orders   po ON po.supplier_id = s.id
-WHERE s.deleted_at IS NULL
-GROUP BY s.id, s.name, s.supplier_code, s.status;
-COMMENT ON VIEW v_supplier_financial_summary IS 'Synthese financiere par fournisseur : achats totaux, paiements, encours, retards, nombre de BCs.';
 
 -- ---------------------------------------------------------------
 -- 8.5 Indexes manquants — performance & soft-delete
