@@ -8,7 +8,6 @@ import { DashboardSocketSync } from '@/features/dashboard/components/DashboardSo
 import { useInactivityLogout } from '@/hooks/useInactivityLogout'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { ShortcutsModal } from '@/components/ui/ShortcutsModal'
-import { ChatWidget } from '@/features/ai/ChatWidget'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, accessToken } = useAuthStore()
@@ -34,8 +33,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Écoute dashboard:refresh sur toutes les pages, pas seulement /dashboard */}
       <DashboardSocketSync />
       {children}
-      {/* BTS Assistant — widget flottant accessible sur toutes les pages */}
-      <ChatWidget />
       {/* Modale d'aide aux raccourcis clavier (touche ?) */}
       <ShortcutsModal open={shortcutsOpen} onClose={closeHelp} />
     </AppShell>

@@ -11,7 +11,7 @@ import { useApprovalPendingCount } from '@/features/approvals/hooks'
 import { useSidebarStore } from '@/store/sidebar'
 import { CompanyLogo } from '@/components/ui/CompanyLogo'
 import {
-  LayoutDashboard, Users, Package, FileText, Receipt, CreditCard,
+  LayoutDashboard, Users, FileText, Receipt, CreditCard,
   RefreshCw, BarChart3, Bell, UserCog, ClipboardList, Settings,
   PanelLeftClose, PanelLeftOpen,
   ChevronDown, Plus, Tag, ShieldCheck, Sparkles, BookOpen,
@@ -99,8 +99,7 @@ const NAV: { title: string; sectionIcon: React.ElementType; items: NavItem[] }[]
     title: 'STOCKS & PRODUITS',
     sectionIcon: Warehouse,
     items: [
-      { label: 'Produits',       href: ROUTES.PRODUCTS, icon: Package,  overlay: 'stock' },
-      { label: 'Stock',          href: ROUTES.STOCK,    icon: Warehouse, overlay: 'stock' },
+      { label: 'Stock & Produits', href: ROUTES.STOCK, icon: Warehouse, overlay: 'stock' },
     ],
   },
   {
@@ -340,6 +339,7 @@ export function Sidebar() {
                   border:         'none',
                   cursor:         'pointer',
                   width:          '100%',
+                  textAlign:      'left',
                 }
 
                 const innerContent = (

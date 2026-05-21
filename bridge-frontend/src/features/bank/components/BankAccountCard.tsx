@@ -75,26 +75,6 @@ export function BankAccountCard({ account, onEdit, onDelete, onSetDefault }: Ban
         borderRadius: '14px 0 0 14px',
       }} />
 
-      {/* Badge défaut */}
-      {account.isDefault && (
-        <div style={{
-          position: 'absolute',
-          top: 12, right: 46,
-          display: 'flex', alignItems: 'center', gap: 4,
-          background: 'rgba(45,125,210,0.09)',
-          border: '1px solid rgba(45,125,210,0.2)',
-          borderRadius: 99,
-          padding: '2px 8px',
-          fontSize: 10.5,
-          fontWeight: 600,
-          color: 'var(--primary)',
-          fontFamily: 'var(--font-display)',
-        }}>
-          <Star size={9} fill="currentColor" />
-          Défaut
-        </div>
-      )}
-
       {/* Action menu */}
       <div style={{ position: 'absolute', top: 10, right: 10 }}>
         <ActionMenu items={actions} width={220} />
@@ -103,7 +83,7 @@ export function BankAccountCard({ account, onEdit, onDelete, onSetDefault }: Ban
       {/* Corps */}
       <div style={{ padding: '20px 20px 16px 24px' }}>
         {/* En-tête */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16, paddingRight: 32 }}>
           <div style={{
             width: 40, height: 40, borderRadius: 10,
             background: `${color}18`,
@@ -113,14 +93,34 @@ export function BankAccountCard({ account, onEdit, onDelete, onSetDefault }: Ban
           }}>
             <TypeIcon size={18} style={{ color }} strokeWidth={1.8} />
           </div>
-          <div style={{ minWidth: 0, paddingTop: 2 }}>
-            <div style={{
-              fontSize: 14, fontWeight: 700,
-              fontFamily: 'var(--font-display)',
-              color: 'var(--text-1)',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {account.name}
+          <div style={{ minWidth: 0, paddingTop: 2, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              <div style={{
+                fontSize: 14, fontWeight: 700,
+                fontFamily: 'var(--font-display)',
+                color: 'var(--text-1)',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                minWidth: 0, flex: 1,
+              }}>
+                {account.name}
+              </div>
+              {account.isDefault && (
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  background: 'rgba(45,125,210,0.09)',
+                  border: '1px solid rgba(45,125,210,0.2)',
+                  borderRadius: 99,
+                  padding: '2px 8px',
+                  fontSize: 10.5,
+                  fontWeight: 600,
+                  color: 'var(--primary)',
+                  fontFamily: 'var(--font-display)',
+                  flexShrink: 0,
+                }}>
+                  <Star size={9} fill="currentColor" />
+                  Défaut
+                </div>
+              )}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>
               {account.bankName}
