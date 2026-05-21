@@ -301,13 +301,15 @@ winget install Google.Chrome
 
 ### 3.2 Créer le fichier `ecosystem.config.js`
 
-Créer ce fichier à la **racine du dépôt** (`C:\Apps\invoicehub\ecosystem.config.js`) et adapter toutes les valeurs en majuscules :
+Créer ce fichier à la **racine du dépôt** (`C:\Apps\invoicehub\ecosystem.config.js`) :
 
 ```js
 module.exports = {
   apps: [
 
     // ── API NestJS ─────────────────────────────────────────────────
+    // NestJS lit automatiquement invoicehub-api/.env via ConfigModule
+    // → pas besoin de répéter les variables ici
     {
       name:               'invoicehub-api',
       cwd:                './invoicehub-api',
@@ -316,51 +318,14 @@ module.exports = {
       autorestart:        true,
       watch:              false,
       max_memory_restart: '512M',
-      env_production: {
-        NODE_ENV:  'production',
-        PORT:      3005,
-
-        // Base de données
-        DATABASE_URL: 'postgresql://postgres:MOT_DE_PASSE_DB@localhost:5432/invoicehub',
-
-        // Redis
-        REDIS_URL: 'redis://localhost:6379',
-
-        // JWT — générer avec : node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
-        JWT_ACCESS_SECRET:     'REMPLACER_SECRET_ACCES_64_CHARS_MIN',
-        JWT_REFRESH_SECRET:    'REMPLACER_SECRET_REFRESH_64_CHARS_MIN',
-        JWT_ACCESS_EXPIRES_IN: '15m',
-        JWT_REFRESH_EXPIRES_IN:'7d',
-
-        // SMTP
-        SMTP_HOST:   'smtp.gmail.com',
-        SMTP_PORT:   587,
-        SMTP_SECURE: false,
-        SMTP_USER:   'votre@email.com',
-        SMTP_PASS:   'mot_de_passe_application',
-        SMTP_FROM:   'noreply@bts.cm',
-
-        // URLs (adapter l'IP du serveur)
-        APP_URL:      'http://192.168.1.10:3001',
-        BACKEND_URL:  'http://192.168.1.10:3005',
-        CORS_ORIGINS: 'http://192.168.1.10:3001',
-
-        // Sécurité
-        TOTP_ISSUER: 'InvoiceHub BTS',
-
-        // Fichiers & uploads
-        UPLOADS_DIR:              'C:/Apps/invoicehub/uploads',
-        BACKUP_DIR:               'C:/Apps/invoicehub/uploads/backups',
-        BACKUP_STORAGE_DISK:      'local',
-        BACKUP_RETENTION_DAYS:    30,
-
-        // Puppeteer (PDF)
-        PUPPETEER_EXECUTABLE_PATH:     'C:/Program Files/Google/Chrome/Application/chrome.exe',
-        PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: true,
+      env: {
+        NODE_ENV: 'production',
       },
     },
 
     // ── Frontend Next.js ───────────────────────────────────────────
+    // Les NEXT_PUBLIC_* sont figées dans le bundle au build (depuis .env.local)
+    // Seuls PORT et HOSTNAME sont nécessaires au runtime
     {
       name:               'invoicehub-frontend',
       cwd:                './bridge-frontend',
@@ -369,7 +334,7 @@ module.exports = {
       autorestart:        true,
       watch:              false,
       max_memory_restart: '512M',
-      env_production: {
+      env: {
         NODE_ENV: 'production',
         PORT:     3001,
         HOSTNAME: '0.0.0.0',
@@ -380,8 +345,15 @@ module.exports = {
 }
 ```
 
-> **Note** : les variables `NEXT_PUBLIC_*` sont intégrées **au moment du build**, pas via PM2.
-> Elles sont définies dans `bridge-frontend/.env.local` avant le `pnpm build`.
+**Pourquoi si peu de vars dans l'ecosystem ?**
+
+| App | Variables d'env | Où elles sont lues |
+|---|---|---|
+| API NestJS | `DATABASE_URL`, `JWT_*`, `SMTP_*`, etc. | `invoicehub-api/.env` — lu par `ConfigModule` au démarrage |
+| Frontend | `NEXT_PUBLIC_API_URL`, etc. | Figées dans le bundle lors du `pnpm build` via `bridge-frontend/.env.local` |
+| Frontend runtime | `PORT`, `HOSTNAME` | Dans l'ecosystem (seules vars inconnues au build) |
+
+> Ne jamais dupliquer les vars entre `.env` et `ecosystem.config.js` — une seule source de vérité.
 
 ---
 
