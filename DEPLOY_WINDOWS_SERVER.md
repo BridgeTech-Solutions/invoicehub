@@ -11,7 +11,7 @@ Deux méthodes sont décrites — **Docker** (recommandée, isolée) et **Native
 1. [Prérequis communs](#1-prérequis-communs)
 2. [Méthode A — Docker (recommandée)](#2-méthode-a--docker-recommandée)
 3. [Méthode B — Déploiement natif avec PM2](#3-méthode-b--déploiement-natif-avec-pm2)
-   - 3.1 Prérequis système (PostgreSQL, Redis, PM2, Chrome)
+   - 3.1 Prérequis système (PostgreSQL, Redis via WSL1/WSL2, PM2, Chrome)
    - 3.2 Fichier `ecosystem.config.js` (config complète PM2)
    - 3.3 Déployer l'API NestJS
    - 3.4 Déployer le Frontend Next.js (standalone)
@@ -270,18 +270,143 @@ CREATE DATABASE invoicehub;
 \q
 ```
 
-**Redis sur Windows**
+**Redis via WSL**
+
+Redis n'a pas de support natif Windows. On l'installe dans Ubuntu sous WSL.
+
+> **WSL2** (recommandé) nécessite la virtualisation Hyper-V.
+> **WSL1** fonctionne sans virtualisation — choisir selon la machine.
+
+#### Installer WSL
+
+Ouvrir **PowerShell en tant qu'Administrateur** (clic droit sur Démarrer → PowerShell Admin) :
 
 ```powershell
-# Via winget (recommandé)
-winget install Redis.Redis
+# Vérifier que tu es admin
+whoami   # → DESKTOP-XXX\Administrateur
 
-# Démarrer Redis comme service Windows
-redis-server --service-install
-redis-server --service-start
+# Activer WSL
+dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+```
+
+**Si la machine supporte la virtualisation (WSL2) :**
+```powershell
+dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+# Redémarrer, puis :
+wsl --set-default-version 2
+```
+
+**Si la machine NE supporte PAS la virtualisation (WSL1) :**
+```powershell
+# Redémarrer, puis rester sur WSL1 (défaut)
+wsl --set-default-version 1
+```
+
+```powershell
+# Installer Ubuntu 22.04 (commun aux deux versions)
+wsl --install -d Ubuntu-22.04
+# → créer un utilisateur Linux au premier lancement (ex: bts)
+```
+
+#### Installer Redis dans Ubuntu
+
+Dans le terminal Ubuntu — ouvrir avec `wsl` dans PowerShell :
+
+```bash
+sudo apt update && sudo apt install redis-server -y
+
+# Configurer : écoute réseau + mot de passe
+sudo nano /etc/redis/redis.conf
+```
+
+Modifier ces 3 lignes :
+```conf
+bind 0.0.0.0
+protected-mode no
+requirepass VotreMotDePasseRedis2024!
+```
+
+Sauvegarder : `Ctrl+O` → `Entrée` → `Ctrl+X`
+
+```bash
+sudo service redis-server restart
+
+# Vérifier dans Ubuntu
+redis-cli -a VotreMotDePasseRedis2024! ping   # → PONG
+```
+
+```powershell
+# Vérifier depuis PowerShell Windows
+redis-cli -h localhost -a VotreMotDePasseRedis2024! ping   # → PONG
+```
+
+> Si `localhost` ne répond pas, utiliser l'IP WSL :
+> `wsl hostname -I` → copier l'IP et l'utiliser dans `REDIS_URL`
+
+#### Démarrage automatique de Redis au boot Windows
+
+> **La tâche planifiée se crée dans PowerShell Admin Windows — pas dans WSL.**
+
+Ouvrir **PowerShell en tant qu'Administrateur** et exécuter :
+
+```powershell
+$action  = New-ScheduledTaskAction `
+             -Execute "wsl" `
+             -Argument "-u root service redis-server start"
+
+$trigger = New-ScheduledTaskTrigger -AtStartup
+
+$settings = New-ScheduledTaskSettingsSet `
+              -ExecutionTimeLimit (New-TimeSpan -Minutes 1)
+
+Register-ScheduledTask `
+  -TaskName "Redis-WSL-Autostart" `
+  -Action   $action `
+  -Trigger  $trigger `
+  -Settings $settings `
+  -RunLevel Highest `
+  -Force
+```
+
+Résultat attendu :
+```
+TaskPath  TaskName            State
+--------  --------            -----
+\         Redis-WSL-Autostart Ready
+```
+
+Tester sans redémarrer :
+```powershell
+# Arrêter Redis
+wsl -u root service redis-server stop
+
+# Déclencher la tâche manuellement
+Start-ScheduledTask -TaskName "Redis-WSL-Autostart"
+Start-Sleep -Seconds 3
 
 # Vérifier
-redis-cli ping   # → PONG
+redis-cli -h localhost -a VotreMotDePasseRedis2024! ping   # → PONG
+```
+
+Gérer la tâche :
+```powershell
+# Voir dans l'interface graphique
+taskschd.msc
+# → Bibliothèque du Planificateur de tâches → Redis-WSL-Autostart
+
+# Désactiver
+Disable-ScheduledTask  -TaskName "Redis-WSL-Autostart"
+
+# Réactiver
+Enable-ScheduledTask   -TaskName "Redis-WSL-Autostart"
+
+# Supprimer
+Unregister-ScheduledTask -TaskName "Redis-WSL-Autostart" -Confirm:$false
+```
+
+Mettre à jour `invoicehub-api/.env` :
+```env
+REDIS_URL=redis://:VotreMotDePasseRedis2024!@localhost:6379
 ```
 
 **PM2 + startup Windows**
