@@ -10,7 +10,13 @@ Deux méthodes sont décrites — **Docker** (recommandée, isolée) et **Native
 
 1. [Prérequis communs](#1-prérequis-communs)
 2. [Méthode A — Docker (recommandée)](#2-méthode-a--docker-recommandée)
-3. [Méthode B — Déploiement natif](#3-méthode-b--déploiement-natif)
+3. [Méthode B — Déploiement natif avec PM2](#3-méthode-b--déploiement-natif-avec-pm2)
+   - 3.1 Prérequis système (PostgreSQL, Redis, PM2, Chrome)
+   - 3.2 Fichier `ecosystem.config.js` (config complète PM2)
+   - 3.3 Déployer l'API NestJS
+   - 3.4 Déployer le Frontend Next.js (standalone)
+   - 3.5 Lancer avec PM2
+   - 3.6 Démarrage automatique Windows
 4. [Configuration des variables d'environnement](#4-configuration-des-variables-denvironnement)
 5. [Firewall Windows Server](#5-firewall-windows-server)
 6. [Vérification du déploiement](#6-vérification-du-déploiement)
@@ -247,98 +253,260 @@ docker logs invoicehub_api -f
 
 ---
 
-## 3. Méthode B — Déploiement natif
+## 3. Méthode B — Déploiement natif avec PM2
 
-### 3.1 Installer PostgreSQL
+### 3.1 Installer les prérequis système
 
-1. Télécharger PostgreSQL 16 : https://www.postgresql.org/download/windows/
+**PostgreSQL 16**
+
+1. Télécharger : https://www.postgresql.org/download/windows/
 2. Installer avec le mot de passe superuser de votre choix
 3. Créer la base de données :
 
 ```powershell
-# Ouvrir psql en tant qu'administrateur
 & "C:\Program Files\PostgreSQL\16\bin\psql.exe" -U postgres
-
 # Dans psql :
 CREATE DATABASE invoicehub;
 \q
 ```
 
-### 3.2 Installer Redis sur Windows
+**Redis sur Windows**
 
 ```powershell
-# Via winget
+# Via winget (recommandé)
 winget install Redis.Redis
-
-# Ou via Chocolatey
-choco install redis
 
 # Démarrer Redis comme service Windows
 redis-server --service-install
 redis-server --service-start
+
+# Vérifier
+redis-cli ping   # → PONG
 ```
 
-Vérifier : `redis-cli ping` → doit répondre `PONG`
+**PM2 + startup Windows**
+
+```powershell
+npm install -g pm2
+npm install -g pm2-windows-startup
+```
+
+**Chromium (pour la génération PDF)**
+
+```powershell
+winget install Google.Chrome
+```
+
+---
+
+### 3.2 Créer le fichier `ecosystem.config.js`
+
+Créer ce fichier à la **racine du dépôt** (`C:\Apps\invoicehub\ecosystem.config.js`) et adapter toutes les valeurs en majuscules :
+
+```js
+module.exports = {
+  apps: [
+
+    // ── API NestJS ─────────────────────────────────────────────────
+    {
+      name:               'invoicehub-api',
+      cwd:                './invoicehub-api',
+      script:             'dist/main.js',
+      instances:          1,
+      autorestart:        true,
+      watch:              false,
+      max_memory_restart: '512M',
+      env_production: {
+        NODE_ENV:  'production',
+        PORT:      3005,
+
+        // Base de données
+        DATABASE_URL: 'postgresql://postgres:MOT_DE_PASSE_DB@localhost:5432/invoicehub',
+
+        // Redis
+        REDIS_URL: 'redis://localhost:6379',
+
+        // JWT — générer avec : node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+        JWT_ACCESS_SECRET:     'REMPLACER_SECRET_ACCES_64_CHARS_MIN',
+        JWT_REFRESH_SECRET:    'REMPLACER_SECRET_REFRESH_64_CHARS_MIN',
+        JWT_ACCESS_EXPIRES_IN: '15m',
+        JWT_REFRESH_EXPIRES_IN:'7d',
+
+        // SMTP
+        SMTP_HOST:   'smtp.gmail.com',
+        SMTP_PORT:   587,
+        SMTP_SECURE: false,
+        SMTP_USER:   'votre@email.com',
+        SMTP_PASS:   'mot_de_passe_application',
+        SMTP_FROM:   'noreply@bts.cm',
+
+        // URLs (adapter l'IP du serveur)
+        APP_URL:      'http://192.168.1.10:3001',
+        BACKEND_URL:  'http://192.168.1.10:3005',
+        CORS_ORIGINS: 'http://192.168.1.10:3001',
+
+        // Sécurité
+        TOTP_ISSUER: 'InvoiceHub BTS',
+
+        // Fichiers & uploads
+        UPLOADS_DIR:              'C:/Apps/invoicehub/uploads',
+        BACKUP_DIR:               'C:/Apps/invoicehub/uploads/backups',
+        BACKUP_STORAGE_DISK:      'local',
+        BACKUP_RETENTION_DAYS:    30,
+
+        // Puppeteer (PDF)
+        PUPPETEER_EXECUTABLE_PATH:     'C:/Program Files/Google/Chrome/Application/chrome.exe',
+        PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: true,
+      },
+    },
+
+    // ── Frontend Next.js ───────────────────────────────────────────
+    {
+      name:               'invoicehub-frontend',
+      cwd:                './bridge-frontend',
+      script:             '.next/standalone/server.js',
+      instances:          1,
+      autorestart:        true,
+      watch:              false,
+      max_memory_restart: '512M',
+      env_production: {
+        NODE_ENV: 'production',
+        PORT:     3001,
+        HOSTNAME: '0.0.0.0',
+      },
+    },
+
+  ],
+}
+```
+
+> **Note** : les variables `NEXT_PUBLIC_*` sont intégrées **au moment du build**, pas via PM2.
+> Elles sont définies dans `bridge-frontend/.env.local` avant le `pnpm build`.
+
+---
 
 ### 3.3 Déployer l'API NestJS
 
 ```powershell
 cd C:\Apps\invoicehub\invoicehub-api
 
-# Installer les dépendances
+# 1. Installer les dépendances
 pnpm install --frozen-lockfile
 
-# Configurer l'environnement
+# 2. Configurer l'environnement (uniquement pour prisma CLI — PM2 apporte les vraies vars)
 copy .env.example .env
-# Éditer .env avec vos valeurs (voir section 4)
 notepad .env
+#   Renseigner au minimum : DATABASE_URL, REDIS_URL, JWT_ACCESS_SECRET, JWT_REFRESH_SECRET
 
-# Générer le client Prisma + appliquer les migrations
+# 3. Générer le client Prisma
 pnpm exec prisma generate
+
+# 4. Appliquer le schéma SQL v3 (première fois)
+& "C:\Program Files\PostgreSQL\16\bin\psql.exe" -U postgres -d invoicehub -f C:\Apps\invoicehub\invoicehub_schema_v3.sql
+
+# 5. Appliquer les migrations Prisma
 pnpm exec prisma migrate deploy
+
+# 6. Seed — données initiales
 pnpm exec prisma db seed
 
-# Build de production
+# 7. Build de production
 pnpm build
+# → produit le dossier dist/
 
-# Démarrer
-pnpm start
+# 8. Créer le dossier uploads
+New-Item -ItemType Directory -Force -Path C:\Apps\invoicehub\uploads\backups
 ```
 
-L'API tourne sur `http://localhost:3005`
+---
 
 ### 3.4 Déployer le Frontend Next.js
 
-> **Important** : les variables `NEXT_PUBLIC_*` sont intégrées au moment du build.
-> Tout changement d'URL nécessite un rebuild complet.
+> Les variables `NEXT_PUBLIC_*` sont figées dans le bundle au build — adapter l'IP **avant** de builder.
 
 ```powershell
 cd C:\Apps\invoicehub\bridge-frontend
 
-# Installer les dépendances
+# 1. Installer les dépendances
 pnpm install --frozen-lockfile
 
-# Configurer l'environnement
-copy .env.local.example .env.local
-notepad .env.local
-```
-
-Contenu de `.env.local` (adapter l'IP) :
-```env
+# 2. Créer .env.local avec les bonnes URLs
+@"
 NEXT_PUBLIC_API_URL=http://192.168.1.10:3005/api
 NEXT_PUBLIC_SOCKET_URL=http://192.168.1.10:3005
 NEXT_PUBLIC_APP_NAME=InvoiceHub
+"@ | Out-File -FilePath .env.local -Encoding utf8
+
+# 3. Build de production (génère .next/standalone/)
+pnpm build
+```
+
+**Après le build**, copier les assets statiques dans le dossier standalone
+(Next.js ne le fait pas automatiquement) :
+
+```powershell
+# Copier le dossier public
+Copy-Item -Recurse -Force `
+  C:\Apps\invoicehub\bridge-frontend\public `
+  C:\Apps\invoicehub\bridge-frontend\.next\standalone\public
+
+# Copier les assets .next/static
+Copy-Item -Recurse -Force `
+  C:\Apps\invoicehub\bridge-frontend\.next\static `
+  C:\Apps\invoicehub\bridge-frontend\.next\standalone\.next\static
+```
+
+> Sans ces deux copies, les images, polices et JS client ne se chargeront pas.
+
+---
+
+### 3.5 Lancer les deux processus avec PM2
+
+```powershell
+cd C:\Apps\invoicehub
+
+# Démarrer API + Frontend en mode production
+pm2 start ecosystem.config.js --env production
+
+# Vérifier l'état
+pm2 status
+```
+
+Résultat attendu :
+```
+┌─────┬──────────────────────┬─────────┬──────┬───────────┬──────────┬──────────┐
+│ id  │ name                 │ mode    │ ↺    │ status    │ cpu      │ memory   │
+├─────┼──────────────────────┼─────────┼──────┼───────────┼──────────┼──────────┤
+│ 0   │ invoicehub-api       │ fork    │ 0    │ online    │ 0%       │ 80.0mb   │
+│ 1   │ invoicehub-frontend  │ fork    │ 0    │ online    │ 0%       │ 120.0mb  │
+└─────┴──────────────────────┴─────────┴──────┴───────────┴──────────┴──────────┘
 ```
 
 ```powershell
-# Build de production (intègre les variables d'env)
-pnpm build
+# Voir les logs en temps réel
+pm2 logs invoicehub-api      --lines 50
+pm2 logs invoicehub-frontend --lines 30
 
-# Démarrer
-pnpm start
+# Logs des deux en même temps
+pm2 logs --lines 30
 ```
 
-Le frontend tourne sur `http://localhost:3001`
+---
+
+### 3.6 Configurer le démarrage automatique au boot Windows
+
+```powershell
+# Sauvegarder la liste des processus actifs
+pm2 save
+
+# Installer le service de démarrage Windows
+pm2-startup install
+
+# Vérifier que le service est bien configuré
+Get-Service -Name "PM2*"
+```
+
+> Après cela, API et Frontend redémarreront automatiquement si le serveur redémarre.
 
 ---
 
@@ -425,40 +593,17 @@ Invoke-WebRequest -Uri "http://192.168.1.10:3001"
 
 ## 7. Démarrage automatique au boot
 
-### Méthode Docker — redémarrage automatique
+### Méthode Docker
 
-Les conteneurs Docker ont `restart: unless-stopped` — ils redémarrent automatiquement après un reboot serveur si Docker est configuré comme service Windows :
+Les conteneurs ont `restart: unless-stopped` — ils redémarrent automatiquement si Docker est service Windows :
 
 ```powershell
-# Configurer Docker Engine comme service Windows (démarrage auto)
 Set-Service -Name docker -StartupType Automatic
 ```
 
-### Méthode Native — PM2
+### Méthode Native (PM2)
 
-```powershell
-# Installer PM2 globalement
-npm install -g pm2
-npm install -g pm2-windows-startup
-
-# Lancer l'API avec PM2
-cd C:\Apps\invoicehub\invoicehub-api
-pm2 start dist/main.js --name "invoicehub-api"
-
-# Lancer le frontend avec PM2
-cd C:\Apps\invoicehub\bridge-frontend
-pm2 start node --name "invoicehub-frontend" -- .next/standalone/server.js
-
-# Sauvegarder la configuration PM2
-pm2 save
-
-# Configurer le démarrage automatique Windows
-pm2-startup install
-
-# Vérifier l'état
-pm2 status
-pm2 logs invoicehub-api --lines 50
-```
+Voir la section **3.6** — le démarrage automatique est configuré avec `pm2 save` + `pm2-startup install`.
 
 ---
 
@@ -480,10 +625,10 @@ docker compose -f docker-compose.prod.yml ps
 docker logs invoicehub_api --tail 30
 ```
 
-### Méthode Native
+### Méthode Native (PM2)
 
 ```powershell
-# API
+# ── Mise à jour API ───────────────────────────────────────────────
 cd C:\Apps\invoicehub\invoicehub-api
 git pull origin main
 pnpm install --frozen-lockfile
@@ -491,13 +636,20 @@ pnpm exec prisma migrate deploy
 pnpm build
 pm2 restart invoicehub-api
 
-# Frontend (rebuild obligatoire si les variables d'env n'ont pas changé)
+# ── Mise à jour Frontend ──────────────────────────────────────────
 cd C:\Apps\invoicehub\bridge-frontend
 git pull origin main
 pnpm install --frozen-lockfile
 pnpm build
+
+# Re-copier les assets standalone après chaque rebuild
+Copy-Item -Recurse -Force public .next/standalone/public
+Copy-Item -Recurse -Force .next/static .next/standalone/.next/static
+
 pm2 restart invoicehub-frontend
 ```
+
+> Si l'IP du serveur change, modifier `NEXT_PUBLIC_API_URL` dans `.env.local` et relancer un `pnpm build` complet.
 
 ---
 
