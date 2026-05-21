@@ -63,15 +63,13 @@ async function bootstrap() {
     message: { success: false, code: 'RATE_LIMIT', message: 'Trop de tentatives de renouvellement de token.' },
   }));
 
-  const setCrossOrigin: express.RequestHandler = (_req, res, next) => {
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  // Avatars servis directement (images profil utilisateur, accès cross-origin requis par le frontend)
+  const setCrossOriginSameSite: express.RequestHandler = (_req, res, next) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
     next();
   };
-
-  // Routes statiques publiques (utilisent le préfixe API si nécessaire)
-  app.use(`${apiPrefix}/uploads/avatars`, setCrossOrigin, express.static(path.join(process.cwd(), 'uploads/avatars')));
-  app.use(`${apiPrefix}/uploads/settings`, setCrossOrigin, express.static(path.join(process.cwd(), 'uploads/settings')));
-  app.use(`${apiPrefix}/settings/assets`, setCrossOrigin, express.static(path.join(process.cwd(), 'uploads/settings')));
+  app.use(`${apiPrefix}/uploads/avatars`, setCrossOriginSameSite, express.static(path.join(process.cwd(), 'uploads/avatars')));
+  // Les assets settings (logos, cachets, signatures) sont servis uniquement via le contrôleur NestJS authentifié
 
   const reflector = app.get(Reflector);
   app.useGlobalFilters(new AllExceptionsFilter());

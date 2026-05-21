@@ -126,7 +126,6 @@ export function OverlaySubNav({ panelId, onClose }: OverlaySubNavProps) {
                     <Link
                       key={item.href}
                       href={item.href}
-                      onClick={onClose}
                       aria-current={active ? 'page' : undefined}
                       style={{
                         display:        'flex',

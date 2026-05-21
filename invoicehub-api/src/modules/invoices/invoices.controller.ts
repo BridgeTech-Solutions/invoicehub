@@ -120,6 +120,7 @@ export class InvoicesController {
     const { buffer, filename } = await this.svc.generatePdfResponse(id);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Cache-Control', 'private, max-age=300');
     return new StreamableFile(buffer);
   }
 

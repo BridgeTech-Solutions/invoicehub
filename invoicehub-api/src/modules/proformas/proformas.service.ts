@@ -6,7 +6,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { generateDocumentNumber, getDefaultOfficeId } from '../../lib/documentNumber';
 import { EventsGateway } from '../../gateway/events.gateway';
-import { generatePdf, buildDocumentHtml, imgToBase64 } from '../../lib/pdf';
+import { generatePdf, buildDocumentHtml, resolveDocumentAssets } from '../../lib/pdf';
 import { computeLine, computeTotals } from '../../lib/document-math';
 import type { NotificationJobData, EmailJobData } from '../../jobs/job-types';
 import type { CreateProformaInput, UpdateProformaInput, ListProformasInput, ConvertProformaInput } from './proformas.schema';
@@ -19,6 +19,7 @@ export class ProformasService {
     @InjectQueue('notification') private readonly notificationQueue: Queue<NotificationJobData>,
     @InjectQueue('email') private readonly emailQueue: Queue<EmailJobData>,
   ) {}
+
 
   async list(input: ListProformasInput) {
     const { page, limit, clientId, status, search, dateFrom, dateTo } = input;
@@ -414,9 +415,7 @@ export class ProformasService {
       this.prisma.companySettings.findFirst({ select: { headerImagePath: true, footerImagePath: true, stampPath: true, footerSafeZonePx: true } }),
     ]);
 
-    const headerImageB64 = settings?.headerImagePath ? imgToBase64(settings.headerImagePath) : undefined;
-    const footerImageB64 = settings?.footerImagePath ? imgToBase64(settings.footerImagePath) : undefined;
-    const sealImageB64   = settings?.stampPath       ? imgToBase64(settings.stampPath)       : undefined;
+    const { headerImageB64, footerImageB64, sealImageB64 } = resolveDocumentAssets(settings ?? null);
 
     const html = buildDocumentHtml({
       type:       'Proforma',

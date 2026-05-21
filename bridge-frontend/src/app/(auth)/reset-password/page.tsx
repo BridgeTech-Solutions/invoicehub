@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Eye, EyeOff, Loader2, ChevronLeft, Mail, CheckCircle } from 'lucide-react'
 import { useForgotPassword, useResetPassword } from '@/features/auth/hooks'
 import { ROUTES } from '@/lib/constants'
+import { CompanyLogo } from '@/components/ui/CompanyLogo'
 import type { AxiosError } from 'axios'
 
 // ─── Forgot password form ─────────────────────────────────────
@@ -242,7 +243,7 @@ function ResetPasswordContent() {
 
         {/* Logo */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
-          <img src="/logos/invoicehub.png" alt="InvoiceHub" style={{ height: 36, objectFit: 'contain' }} />
+          <CompanyLogo variant="blue" height={36} alt="InvoiceHub" public />
         </div>
 
         <div className="card" style={{ padding: '32px 28px' }}>

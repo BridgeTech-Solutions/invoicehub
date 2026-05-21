@@ -7,6 +7,7 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useLogin } from '@/features/auth/hooks'
 import { ROUTES } from '@/lib/constants'
 import { useIsMobile } from '@/hooks/useMediaQuery'
+import { CompanyLogo } from '@/components/ui/CompanyLogo'
 import type { AxiosError } from 'axios'
 
 export default function LoginPage() {
@@ -68,13 +69,12 @@ export default function LoginPage() {
             display: 'flex', flexDirection: 'column', alignItems: 'center',
             flex: 1, justifyContent: 'center',
           }}>
-            <img
-              src="/logos/invoicehub.png"
+            <CompanyLogo
+              variant="white"
+              height={140}
               alt="InvoiceHub"
-              style={{
-                height: 140, width: 'auto', objectFit: 'contain',
-                filter: 'brightness(0) invert(1)', opacity: 0.92, marginBottom: 32,
-              }}
+              public
+              style={{ opacity: 0.92, marginBottom: 32 }}
             />
             <div>
               {/* C1: texte marketing → <p>, le <h1> est dans le panneau droit */}
@@ -94,11 +94,12 @@ export default function LoginPage() {
 
           {/* Footer — logo BTS décoratif (M1: alt="") */}
           <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <img
-              src="/logos/logo-bts-white.png"
+            <CompanyLogo
+              variant="white"
+              height={36}
               alt=""
-              aria-hidden="true"
-              style={{ height: 36, width: 'auto', objectFit: 'contain', filter: 'brightness(0) invert(1)', opacity: 0.5 }}
+              public
+              style={{ opacity: 0.5 }}
             />
             <p style={{ fontSize: 11.5, color: 'var(--sidebar-section)' }}>
               © 2026 Bridge Technologies Solutions
@@ -123,7 +124,7 @@ export default function LoginPage() {
           {/* Logo visible uniquement sur mobile */}
           {isMobile && (
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 28 }}>
-              <img src="/logos/invoicehub.png" alt="InvoiceHub" style={{ height: 36, objectFit: 'contain' }} />
+              <CompanyLogo variant="blue" height={36} alt="InvoiceHub" public />
             </div>
           )}
 

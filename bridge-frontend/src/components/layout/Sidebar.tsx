@@ -9,13 +9,14 @@ import { useAuthStore } from '@/features/auth/store'
 import { useUnreadCount } from '@/features/notifications/hooks'
 import { useApprovalPendingCount } from '@/features/approvals/hooks'
 import { useSidebarStore } from '@/store/sidebar'
+import { CompanyLogo } from '@/components/ui/CompanyLogo'
 import {
   LayoutDashboard, Users, Package, FileText, Receipt, CreditCard,
   RefreshCw, BarChart3, Bell, UserCog, ClipboardList, Settings,
   PanelLeftClose, PanelLeftOpen,
   ChevronDown, Plus, Tag, ShieldCheck, Sparkles, BookOpen,
   ShoppingCart, FileInput, Wallet, ReceiptText, PieChart,
-  Warehouse, ArrowLeftRight, BarChart2, AlertTriangle,
+  Warehouse,
   Landmark, BookCheck, CheckSquare, Building2,
 } from 'lucide-react'
 import { OverlaySubNav } from './OverlaySubNav'
@@ -98,20 +99,8 @@ const NAV: { title: string; sectionIcon: React.ElementType; items: NavItem[] }[]
     title: 'STOCKS & PRODUITS',
     sectionIcon: Warehouse,
     items: [
-      {
-        label: 'Produits', href: ROUTES.PRODUCTS, icon: Package,
-        children: [
-          { label: 'Catégories', href: ROUTES.PRODUCT_CATEGORIES, icon: Tag },
-        ],
-      },
-      {
-        label: 'Stock', href: ROUTES.STOCK, icon: Warehouse,
-        children: [
-          { label: 'Mouvements', href: ROUTES.STOCK_MOVEMENTS, icon: ArrowLeftRight },
-          { label: 'Niveaux',    href: ROUTES.STOCK_LEVELS,    icon: BarChart2 },
-          { label: 'Alertes',    href: ROUTES.STOCK_ALERTS,    icon: AlertTriangle },
-        ],
-      },
+      { label: 'Produits',       href: ROUTES.PRODUCTS, icon: Package,  overlay: 'stock' },
+      { label: 'Stock',          href: ROUTES.STOCK,    icon: Warehouse, overlay: 'stock' },
     ],
   },
   {
@@ -149,7 +138,7 @@ export function Sidebar() {
   const { data: approvalCountData } = useApprovalPendingCount()
   const approvalCount = approvalCountData?.count ?? 0
 
-  const { collapsed, mobileOpen, overlayPanel, setCollapsed, setMobileOpen, setOverlayPanel, toggle } = useSidebarStore()
+  const { collapsed, mobileOpen, overlayPanel, openSections, setCollapsed, setMobileOpen, setOverlayPanel, toggle, openSection, toggleSection } = useSidebarStore()
 
   const isChildActive = (item: NavItem) =>
     item.children?.some((c) => pathname === c.href || pathname.startsWith(c.href)) ?? false
@@ -164,14 +153,11 @@ export function Sidebar() {
     return initial
   })
 
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {}
-    NAV.forEach((s) => { initial[s.title] = false })
-    return initial
-  })
+  // openSections lives in Zustand (persisted) — local state removed
 
-  // Auto-expand parent items when navigating to a child route
+  // Auto-expand parent items + section when navigating
   useEffect(() => {
+    // 1. Expand item children
     setOpenItems((prev) => {
       const next = { ...prev }
       for (const section of NAV) {
@@ -181,10 +167,20 @@ export function Sidebar() {
       }
       return next
     })
+    // 2. Open the section that contains the active route
+    for (const section of NAV) {
+      const hasActive = section.items.some(item => {
+        const base = item.href === ROUTES.DASHBOARD ? pathname === item.href : pathname.startsWith(item.href)
+        const child = item.children?.some(c => pathname === c.href || pathname.startsWith(c.href + '/')) ?? false
+        return base || child
+      })
+      if (hasActive) openSection(section.title)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
 
   // Auto-open overlay panel when navigating to a sub-route of an overlay item
+  // Auto-close nav-driven overlays (bank/accounting) when leaving their routes
   useEffect(() => {
     for (const section of NAV) {
       for (const item of section.items) {
@@ -193,6 +189,10 @@ export function Sidebar() {
           return
         }
       }
+    }
+    // Not in any overlay module route — close nav-driven overlays only
+    if (overlayPanel === 'bank' || overlayPanel === 'accounting' || overlayPanel === 'stock') {
+      setOverlayPanel(null)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
@@ -241,18 +241,15 @@ export function Sidebar() {
         <div className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
           {collapsed ? (
             <div style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <img
-                src="/logos/logo-bts-white.png"
-                alt="BTS"
-                style={{ width: 36, height: 36, objectFit: 'contain', filter: 'brightness(0) invert(1)' }}
-              />
+              <CompanyLogo variant="white" height={36} width={36} alt="BTS" />
             </div>
           ) : (
-            <img
-              src="/logos/logo-bts-white.png"
+            <CompanyLogo
+              variant="white"
+              height={42}
               alt="Bridge Technologies Solutions"
               className="sidebar-logo-text"
-              style={{ height: 42, width: 'auto', objectFit: 'contain', filter: 'brightness(0) invert(1)', maxWidth: 180 }}
+              style={{ maxWidth: 180 }}
             />
           )}
         </div>
@@ -272,7 +269,7 @@ export function Sidebar() {
                   <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '8px 12px' }} />
                 )}
                 <button
-                  onClick={() => setOpenSections((prev) => ({ ...prev, [section.title]: !prev[section.title] }))}
+                  onClick={() => toggleSection(section.title)}
                   className="nav-section-title flex items-center justify-between w-full"
                   style={{
                     padding: '8px 12px 6px',

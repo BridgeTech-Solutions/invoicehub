@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Loader2, ShieldCheck, ChevronLeft } from 'lucide-react'
 import { useLogin } from '@/features/auth/hooks'
 import { useAuthStore } from '@/features/auth/store'
+import { CompanyLogo } from '@/components/ui/CompanyLogo'
 import { ROUTES } from '@/lib/constants'
 
 export default function TwoFAPage() {
@@ -91,7 +92,7 @@ export default function TwoFAPage() {
 
         {/* Logo */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
-          <img src="/logos/invoicehub.png" alt="InvoiceHub" style={{ height: 36, objectFit: 'contain' }} />
+          <CompanyLogo variant="blue" height={36} alt="InvoiceHub" public />
         </div>
 
         {/* Card */}

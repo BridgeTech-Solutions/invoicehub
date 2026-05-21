@@ -13,6 +13,16 @@ export function useSettings() {
   })
 }
 
+/** Même hook, utilisé sur les pages non-authentifiées (login, 2FA, reset-password). */
+export function usePublicSettings() {
+  return useQuery({
+    queryKey:  KEY,
+    queryFn:   settingsApi.get,
+    staleTime: 300_000,
+    retry:     false,
+  })
+}
+
 export function useUpdateSettings() {
   const qc = useQueryClient()
   return useMutation({

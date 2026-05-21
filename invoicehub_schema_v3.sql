@@ -1325,128 +1325,7 @@ GROUP BY p.id, p.name, p.type, p.unit, p.unit_price_ht, p.is_active, pc.name;
 
 COMMENT ON VIEW v_product_usage_stats IS 'Statistiques d''utilisation par produit.';
 
-CREATE OR REPLACE VIEW v_dashboard_kpis AS
-WITH
-periods AS (
-    SELECT
-        DATE_TRUNC('month',  NOW())::DATE AS month_start,
-        DATE_TRUNC('quarter',NOW())::DATE AS quarter_start,
-        DATE_TRUNC('year',   NOW())::DATE AS year_start
-),
-active_invoices AS (
-    SELECT i.*
-    FROM invoices i, periods p
-    WHERE i.deleted_at IS NULL
-      AND i.status != 'cancelled'
-      AND i.type    != 'avoir'
-),
-ca AS (
-    SELECT
-        COALESCE(SUM(total_ttc) FILTER (WHERE issue_date >= p.month_start),   0) AS ca_month,
-        COALESCE(SUM(total_ttc) FILTER (WHERE issue_date >= p.quarter_start),  0) AS ca_quarter,
-        COALESCE(SUM(total_ttc) FILTER (WHERE issue_date >= p.year_start),     0) AS ca_year,
-        COALESCE(SUM(total_ttc),                                               0) AS ca_total
-    FROM active_invoices, periods p
-),
-counts AS (
-    SELECT
-        COUNT(*) FILTER (WHERE status = 'issued')          AS nb_issued,
-        COUNT(*) FILTER (WHERE status = 'partially_paid')  AS nb_partial,
-        COUNT(*) FILTER (WHERE status = 'paid')            AS nb_paid,
-        COUNT(*) FILTER (WHERE status = 'overdue')         AS nb_overdue,
-        COUNT(*)                                           AS nb_total
-    FROM active_invoices
-),
-creances AS (
-    SELECT COALESCE(SUM(balance_due), 0) AS total_outstanding
-    FROM active_invoices
-    WHERE status IN ('issued', 'partially_paid', 'overdue')
-),
--- Achats fournisseurs du mois
-purchases AS (
-    SELECT
-        COALESCE(SUM(total_ttc) FILTER (WHERE si.invoice_date >= p.month_start), 0) AS total_purchases_month,
-        COALESCE(SUM(si.balance_due) FILTER (WHERE si.status IN ('received','validated','partially_paid')), 0) AS total_outstanding_payables
-    FROM supplier_invoices si, periods p
-    WHERE si.deleted_at IS NULL AND si.status != 'cancelled'
-),
--- Dépenses opérationnelles du mois
-expenses_agg AS (
-    SELECT COALESCE(SUM(amount_ttc) FILTER (WHERE e.expense_date >= p.month_start), 0) AS total_expenses_month
-    FROM expenses e, periods p
-    WHERE e.deleted_at IS NULL AND e.status IN ('approved', 'paid')
-),
-top_clients AS (
-    SELECT
-        c.id                    AS client_id,
-        c.name                  AS client_name,
-        SUM(i.total_ttc)        AS ca,
-        COUNT(i.id)             AS nb_invoices
-    FROM active_invoices i
-    JOIN clients c ON c.id = i.client_id, periods p
-    WHERE i.issue_date >= p.year_start
-    GROUP BY c.id, c.name
-    ORDER BY ca DESC
-    LIMIT 5
-),
-top_products AS (
-    SELECT
-        p.id                    AS product_id,
-        p.name                  AS product_name,
-        pc.name                 AS category_name,
-        SUM(il.total_ttc)       AS ca,
-        SUM(il.quantity)        AS total_qty
-    FROM invoice_lines il
-    JOIN invoices  i  ON i.id  = il.invoice_id
-    JOIN products  p  ON p.id  = il.product_id
-    LEFT JOIN product_categories pc ON pc.id = p.category_id, periods per
-    WHERE i.deleted_at IS NULL
-      AND i.status != 'cancelled'
-      AND i.issue_date >= per.year_start
-    GROUP BY p.id, p.name, pc.name
-    ORDER BY ca DESC
-    LIMIT 5
-),
-monthly_evolution AS (
-    SELECT
-        DATE_TRUNC('month', issue_date)::DATE AS month,
-        COALESCE(SUM(total_ttc), 0)           AS ca,
-        COUNT(*)                              AS nb_invoices
-    FROM active_invoices
-    WHERE issue_date >= (NOW() - INTERVAL '12 months')::DATE
-    GROUP BY 1
-    ORDER BY 1
-)
-SELECT
-    ca.ca_month,
-    ca.ca_quarter,
-    ca.ca_year,
-    ca.ca_total,
-    counts.nb_issued,
-    counts.nb_partial,
-    counts.nb_paid,
-    counts.nb_overdue,
-    counts.nb_total,
-    creances.total_outstanding,
-    purchases.total_purchases_month,
-    purchases.total_outstanding_payables,
-    expenses_agg.total_expenses_month,
-    -- Marge brute du mois = CA ventes - coût achats
-    (ca.ca_month - purchases.total_purchases_month - expenses_agg.total_expenses_month) AS gross_margin_month,
-    (SELECT jsonb_agg(jsonb_build_object(
-        'client_id', client_id, 'client_name', client_name,
-        'ca', ca, 'nb_invoices', nb_invoices
-    ) ORDER BY ca DESC) FROM top_clients)  AS top_clients,
-    (SELECT jsonb_agg(jsonb_build_object(
-        'product_id', product_id, 'product_name', product_name,
-        'category_name', category_name, 'ca', ca, 'total_qty', total_qty
-    ) ORDER BY ca DESC) FROM top_products) AS top_products,
-    (SELECT jsonb_agg(jsonb_build_object(
-        'month', month, 'ca', ca, 'nb_invoices', nb_invoices
-    ) ORDER BY month) FROM monthly_evolution) AS monthly_evolution
-FROM ca, counts, creances, purchases, expenses_agg;
-
-COMMENT ON VIEW v_dashboard_kpis IS 'KPIs consolides du tableau de bord. CA, achats, depenses, marge brute, creances, dettes fournisseurs, top 5 clients/produits, evolution 12 mois.';
+-- v_dashboard_kpis déplacée après étape 4 (références supplier_invoices + expenses)
 
 -- ================================================================
 -- ████████████████████████████████████████████████████████████████
@@ -1461,7 +1340,6 @@ ALTER TYPE document_type ADD VALUE IF NOT EXISTS 'purchase_order';
 ALTER TYPE document_type ADD VALUE IF NOT EXISTS 'supplier_invoice';
 ALTER TYPE document_type ADD VALUE IF NOT EXISTS 'expense';
 ALTER TYPE document_type ADD VALUE IF NOT EXISTS 'delivery_note';
-
 -- ================================================================
 -- 2.2 Étendre `payment_method` ENUM — nouveaux modes achats
 -- ================================================================
@@ -1668,25 +1546,7 @@ COMMENT ON COLUMN users.job_title    IS 'Intitulé du poste : Ingénieur Réseau
 COMMENT ON COLUMN users.employee_id  IS 'Matricule employé unique. Utilisé dans les rapports RH et fiches de paie.';
 COMMENT ON COLUMN users.office_id    IS 'Bureau/agence de rattachement de l''employé.';
 
--- ================================================================
--- ████████████████████████████████████████████████████████████████
--- FIN ÉTAPE 2 — EXTENSIONS TABLES ET ENUMS EXISTANTS
--- ████████████████████████████████████████████████████████████████
---
--- CHECKLIST ÉTAPE 2 :
--- [x] document_type étendu : purchase_order, supplier_invoice, expense, delivery_note
--- [x] payment_method étendu : prelevement, lettre_de_change, carte_bancaire
--- [x] audit_action étendu : 14 nouvelles actions
--- [x] notification_status étendu : 14 nouveaux types
--- [x] company_settings : 19 nouveaux champs
--- [x] products : 9 nouveaux champs (stock, achat, barcode, poids)
--- [x] payments : 4 nouveaux champs (banque, rapprochement)
--- [x] clients : 9 nouveaux champs (CRM léger, contact, risque)
--- [x] users : 4 nouveaux champs (département, poste, matricule, bureau)
--- [x] Aucune rupture de compatibilité (ADD COLUMN IF NOT EXISTS)
---
--- PROCHAINE ÉTAPE : étape 3 — Module Achats & Fournisseurs
--- ================================================================
+
 
 -- ================================================================
 -- ████████████████████████████████████████████████████████████████
@@ -2479,6 +2339,130 @@ COMMENT ON TABLE expense_budgets IS 'Budgets prévisionnels par catégorie de d�
 --
 -- PROCHAINE ÉTAPE : étape 5 — Module Banques & Trésorerie
 -- ================================================================
+
+-- ================================================================
+-- VUE v_dashboard_kpis — placée ici car dépend de supplier_invoices (étape 3)
+-- et expenses (étape 4), toutes deux créées avant ce point.
+-- ================================================================
+CREATE OR REPLACE VIEW v_dashboard_kpis AS
+WITH
+periods AS (
+    SELECT
+        DATE_TRUNC('month',  NOW())::DATE AS month_start,
+        DATE_TRUNC('quarter',NOW())::DATE AS quarter_start,
+        DATE_TRUNC('year',   NOW())::DATE AS year_start
+),
+active_invoices AS (
+    SELECT i.*
+    FROM invoices i, periods p
+    WHERE i.deleted_at IS NULL
+      AND i.status != 'cancelled'
+      AND i.type    != 'avoir'
+),
+ca AS (
+    SELECT
+        COALESCE(SUM(total_ttc) FILTER (WHERE issue_date >= p.month_start),   0) AS ca_month,
+        COALESCE(SUM(total_ttc) FILTER (WHERE issue_date >= p.quarter_start),  0) AS ca_quarter,
+        COALESCE(SUM(total_ttc) FILTER (WHERE issue_date >= p.year_start),     0) AS ca_year,
+        COALESCE(SUM(total_ttc),                                               0) AS ca_total
+    FROM active_invoices, periods p
+),
+counts AS (
+    SELECT
+        COUNT(*) FILTER (WHERE status = 'issued')          AS nb_issued,
+        COUNT(*) FILTER (WHERE status = 'partially_paid')  AS nb_partial,
+        COUNT(*) FILTER (WHERE status = 'paid')            AS nb_paid,
+        COUNT(*) FILTER (WHERE status = 'overdue')         AS nb_overdue,
+        COUNT(*)                                           AS nb_total
+    FROM active_invoices
+),
+creances AS (
+    SELECT COALESCE(SUM(balance_due), 0) AS total_outstanding
+    FROM active_invoices
+    WHERE status IN ('issued', 'partially_paid', 'overdue')
+),
+purchases AS (
+    SELECT
+        COALESCE(SUM(total_ttc) FILTER (WHERE si.invoice_date >= p.month_start), 0) AS total_purchases_month,
+        COALESCE(SUM(si.balance_due) FILTER (WHERE si.status IN ('received','validated','partially_paid')), 0) AS total_outstanding_payables
+    FROM supplier_invoices si, periods p
+    WHERE si.deleted_at IS NULL AND si.status != 'cancelled'
+),
+expenses_agg AS (
+    SELECT COALESCE(SUM(amount_ttc) FILTER (WHERE e.expense_date >= p.month_start), 0) AS total_expenses_month
+    FROM expenses e, periods p
+    WHERE e.deleted_at IS NULL AND e.status IN ('approved', 'paid')
+),
+top_clients AS (
+    SELECT
+        c.id                    AS client_id,
+        c.name                  AS client_name,
+        SUM(i.total_ttc)        AS ca,
+        COUNT(i.id)             AS nb_invoices
+    FROM active_invoices i
+    JOIN clients c ON c.id = i.client_id, periods p
+    WHERE i.issue_date >= p.year_start
+    GROUP BY c.id, c.name
+    ORDER BY ca DESC
+    LIMIT 5
+),
+top_products AS (
+    SELECT
+        p.id                    AS product_id,
+        p.name                  AS product_name,
+        pc.name                 AS category_name,
+        SUM(il.total_ttc)       AS ca,
+        SUM(il.quantity)        AS total_qty
+    FROM invoice_lines il
+    JOIN invoices  i  ON i.id  = il.invoice_id
+    JOIN products  p  ON p.id  = il.product_id
+    LEFT JOIN product_categories pc ON pc.id = p.category_id, periods per
+    WHERE i.deleted_at IS NULL
+      AND i.status != 'cancelled'
+      AND i.issue_date >= per.year_start
+    GROUP BY p.id, p.name, pc.name
+    ORDER BY ca DESC
+    LIMIT 5
+),
+monthly_evolution AS (
+    SELECT
+        DATE_TRUNC('month', issue_date)::DATE AS month,
+        COALESCE(SUM(total_ttc), 0)           AS ca,
+        COUNT(*)                              AS nb_invoices
+    FROM active_invoices
+    WHERE issue_date >= (NOW() - INTERVAL '12 months')::DATE
+    GROUP BY 1
+    ORDER BY 1
+)
+SELECT
+    ca.ca_month,
+    ca.ca_quarter,
+    ca.ca_year,
+    ca.ca_total,
+    counts.nb_issued,
+    counts.nb_partial,
+    counts.nb_paid,
+    counts.nb_overdue,
+    counts.nb_total,
+    creances.total_outstanding,
+    purchases.total_purchases_month,
+    purchases.total_outstanding_payables,
+    expenses_agg.total_expenses_month,
+    (ca.ca_month - purchases.total_purchases_month - expenses_agg.total_expenses_month) AS gross_margin_month,
+    (SELECT jsonb_agg(jsonb_build_object(
+        'client_id', client_id, 'client_name', client_name,
+        'ca', ca, 'nb_invoices', nb_invoices
+    ) ORDER BY ca DESC) FROM top_clients)  AS top_clients,
+    (SELECT jsonb_agg(jsonb_build_object(
+        'product_id', product_id, 'product_name', product_name,
+        'category_name', category_name, 'ca', ca, 'total_qty', total_qty
+    ) ORDER BY ca DESC) FROM top_products) AS top_products,
+    (SELECT jsonb_agg(jsonb_build_object(
+        'month', month, 'ca', ca, 'nb_invoices', nb_invoices
+    ) ORDER BY month) FROM monthly_evolution) AS monthly_evolution
+FROM ca, counts, creances, purchases, expenses_agg;
+
+COMMENT ON VIEW v_dashboard_kpis IS 'KPIs consolides du tableau de bord. CA, achats, depenses, marge brute, creances, dettes fournisseurs, top 5 clients/produits, evolution 12 mois.';
 
 -- ================================================================
 -- ████████████████████████████████████████████████████████████████
@@ -5014,7 +4998,7 @@ CREATE INDEX idx_tax_rates_active            ON tax_rates(id)                   
 --     received → validated → partially_paid → paid / disputed / cancelled)
 --     Il faut un historique complet comme pour purchase_orders et expenses.
 -- ---------------------------------------------------------------
-CREATE TABLE                 (
+CREATE TABLE supplier_invoice_status_history (
     id                  UUID                    PRIMARY KEY DEFAULT uuid_generate_v4(),
     supplier_invoice_id UUID                    NOT NULL REFERENCES supplier_invoices(id) ON DELETE CASCADE,
     changed_by          UUID                    NOT NULL REFERENCES users(id) ON DELETE RESTRICT,

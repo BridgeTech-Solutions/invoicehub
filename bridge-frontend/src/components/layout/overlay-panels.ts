@@ -5,6 +5,7 @@ import {
   Shield, Key,
   Building2, MapPin, Percent, Mail, Lock, BellRing, HardDrive,
   Cloud, Webhook, Sliders, GitBranch,
+  Warehouse, Package, Tag, BarChart2, AlertTriangle,
 } from 'lucide-react'
 import { ROUTES } from '@/lib/constants'
 
@@ -28,6 +29,28 @@ export interface OverlayPanel {
 }
 
 export const OVERLAY_PANELS: Record<string, OverlayPanel> = {
+
+  stock: {
+    id: 'stock', title: 'Stock & Produits', icon: Warehouse,
+    sections: [
+      {
+        title: 'CATALOGUE',
+        items: [
+          { label: 'Produits',   href: ROUTES.PRODUCTS,           icon: Package },
+          { label: 'Catégories', href: ROUTES.PRODUCT_CATEGORIES, icon: Tag },
+        ],
+      },
+      {
+        title: 'STOCK',
+        items: [
+          { label: 'Inventaire', href: ROUTES.STOCK,          icon: Warehouse },
+          { label: 'Mouvements', href: ROUTES.STOCK_MOVEMENTS, icon: ArrowLeftRight },
+          { label: 'Niveaux',    href: ROUTES.STOCK_LEVELS,    icon: BarChart2 },
+          { label: 'Alertes',    href: ROUTES.STOCK_ALERTS,    icon: AlertTriangle },
+        ],
+      },
+    ],
+  },
 
   bank: {
     id: 'bank', title: 'Banque', icon: Landmark,

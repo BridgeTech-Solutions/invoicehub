@@ -6,7 +6,22 @@
       "Bash(npx tsc *)",
       "Bash(git stash *)",
       "Bash(xargs grep *)",
-      "Bash(pnpm build *)"
+      "Bash(pnpm build *)",
+      "Bash(Get-ChildItem *)",
+      "Bash(cat)",
+      "Bash(python3 /tmp/analyze_fk3.py)",
+      "Bash(psql -U postgres -d invoicehub -f invoicehub_schema_v3.sql)",
+      "Bash(Select-Object FullName)",
+      "Bash(python3 \".claude/skills/ui-ux-pro-max/scripts/search.py\" \"fintech banking dashboard reconciliation SaaS professional\" --design-system -p \"InvoiceHub Bank Module\" -f markdown)",
+      "Bash(python3 \".claude/skills/ui-ux-pro-max/scripts/search.py\" \"fintech banking dashboard\" --domain ux -n 6)",
+      "Bash(python3 \".claude/skills/ui-ux-pro-max/scripts/search.py\" \"financial data table list\" --stack nextjs)",
+      "Bash(python3 \".claude/skills/ui-ux-pro-max/scripts/search.py\" \"split screen two column matching workflow fintech reconciliation\" --design-system -p \"Reconciliation Workspace\" -f markdown)",
+      "Bash(python3 \".claude/skills/ui-ux-pro-max/scripts/search.py\" \"selection state feedback animation loading\" --domain ux -n 8)",
+      "Bash(python3 \".claude/skills/ui-ux-pro-max/scripts/search.py\" \"split panel two-column workspace data density\" --domain style -n 4)",
+      "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"enterprise SaaS sidebar navigation dashboard fintech\" --design-system -p \"BTS InvoiceHub\" -f markdown)",
+      "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"sidebar navigation menu collapse expand\" --domain ux -n 8)",
+      "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"navigation sidebar animation performance\" --domain ux -n 6)",
+      "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"dashboard SaaS enterprise minimal\" --domain style -n 4)"
     ]
   },
   "mcpServers": {

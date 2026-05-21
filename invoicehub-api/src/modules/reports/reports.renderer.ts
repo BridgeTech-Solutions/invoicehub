@@ -25,6 +25,7 @@ export function sendPdfResponse(res: Response, filename: string, buffer: Buffer)
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.setHeader('Content-Length', buffer.length);
+  res.setHeader('Cache-Control', 'private, max-age=300');
   res.end(buffer);
 }
 

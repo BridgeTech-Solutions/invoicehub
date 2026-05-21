@@ -10,6 +10,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
+import { assertFileMime } from '../../lib/file-magic';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { Permission } from '../../common/decorators/permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -89,6 +90,11 @@ export class UsersController implements OnModuleInit {
     @CurrentUser() user: JwtPayload,
   ) {
     if (!file) throw new BadRequestException('Aucun fichier reçu');
+    try {
+      assertFileMime(file.path, ['image/png', 'image/jpeg', 'image/webp']);
+    } catch (e: any) {
+      throw new BadRequestException(e.message);
+    }
     await this.svc.uploadAvatar(user.sub, file.path);
     return { success: true };
   }

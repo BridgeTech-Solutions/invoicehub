@@ -24,7 +24,7 @@ const logger = { info: console.log, warn: console.warn, error: console.error, de
  * Peut être surchargé via la variable d'env COMPANY_ASSETS_DIR (ex: Docker volume).
  */
 const ASSETS_DIR = process.env.COMPANY_ASSETS_DIR
-  ?? path.resolve(__dirname, '../../assets/company');
+  ?? path.join(process.cwd(), 'assets', 'company');
 
 /** Convertit une image en data URI base64 (graceful degradation si fichier absent). */
 export function imgToBase64(filePath: string): string {
@@ -38,7 +38,18 @@ export function imgToBase64(filePath: string): string {
   }
 }
 
-/** Retourne le premier fichier image trouvé dans un sous-dossier d'assets. */
+/**
+ * Résout un chemin d'asset stocké en DB (peut être relatif "/uploads/…" ou absolu)
+ * et retourne son contenu en base64. Retourne '' si le fichier est absent.
+ */
+export function settingsImageToBase64(imagePath: string): string {
+  const filePath = imagePath.startsWith('/')
+    ? path.join(process.cwd(), imagePath.slice(1))
+    : imagePath;
+  return imgToBase64(filePath);
+}
+
+/** Retourne le premier fichier image trouvé dans un sous-dossier d'assets statiques. */
 function firstImageIn(subfolder: string): string {
   const dir = path.join(ASSETS_DIR, subfolder);
   if (!fs.existsSync(dir)) return '';
@@ -46,43 +57,44 @@ function firstImageIn(subfolder: string): string {
   return files.length ? imgToBase64(path.join(dir, files[0])) : '';
 }
 
-// Cache par process (chargé une seule fois)
-let _header: string | null = null;
-let _footer: string | null = null;
-let _seal:   string | null = null;
+// Cache des assets statiques — chargés une seule fois au démarrage
+let _staticHeader: string | null = null;
+let _staticFooter: string | null = null;
+let _staticSeal:   string | null = null;
 
-const getHeader = () => (_header ??= firstImageIn('headers'));
-const getFooter = () => (_footer ??= firstImageIn('footers'));
-const getSeal   = () => (_seal   ??= firstImageIn('seals'));
+const getStaticHeader = () => (_staticHeader ??= firstImageIn('headers'));
+const getStaticFooter = () => (_staticFooter ??= firstImageIn('footers'));
+const getStaticSeal   = () => (_staticSeal   ??= firstImageIn('seals'));
 
-/**
- * Récupère les images depuis companySettings (uploadées par l'utilisateur)
- * ou utilise les images par défaut du dossier assets
- */
-function getHeaderImage(companySettings?: any): string {
-  // Si une image est uploadée en base, l'utiliser
-  if (companySettings?.headerImagePath) {
-    const filePath = companySettings.headerImagePath.replace(/^\//, '');
-    const absolutePath = path.join(process.cwd(), filePath);
-    if (fs.existsSync(absolutePath)) {
-      return imgToBase64(absolutePath);
-    }
-  }
-  // Sinon, fallback sur dossier assets
-  return getHeader();
+export interface DocumentAssets {
+  headerImageB64: string;
+  footerImageB64: string;
+  sealImageB64:   string;
 }
 
-function getFooterImage(companySettings?: any): string {
-  // Si une image est uploadée en base, l'utiliser
-  if (companySettings?.footerImagePath) {
-    const filePath = companySettings.footerImagePath.replace(/^\//, '');
-    const absolutePath = path.join(process.cwd(), filePath);
-    if (fs.existsSync(absolutePath)) {
-      return imgToBase64(absolutePath);
-    }
-  }
-  // Sinon, fallback sur dossier assets
-  return getFooter();
+/**
+ * Résout les assets d'un document PDF selon la priorité :
+ *   1. Asset uploadé via l'UI (stocké dans uploads/settings/, chemin en DB)
+ *   2. Asset statique embarqué (assets/company/)
+ *
+ * Point d'entrée unique — tous les services appellent cette fonction.
+ */
+export function resolveDocumentAssets(settings: {
+  headerImagePath?: string | null;
+  footerImagePath?: string | null;
+  stampPath?:       string | null;
+} | null): DocumentAssets {
+  return {
+    headerImageB64: settings?.headerImagePath
+      ? settingsImageToBase64(settings.headerImagePath) || getStaticHeader()
+      : getStaticHeader(),
+    footerImageB64: settings?.footerImagePath
+      ? settingsImageToBase64(settings.footerImagePath) || getStaticFooter()
+      : getStaticFooter(),
+    sealImageB64: settings?.stampPath
+      ? settingsImageToBase64(settings.stampPath) || getStaticSeal()
+      : getStaticSeal(),
+  };
 }
 
 // ─── Génération PDF ───────────────────────────────────────────────────────────
@@ -523,9 +535,9 @@ const BORDER = '#d4d4d4';
  * @returns HTML complet prêt à être passé à `generatePdf()`
  */
 export function buildDocumentHtml(params: DocumentHtmlParams): string {
-  const headerImg = params.headerImageB64 ?? getHeader();
-  const footerImg = params.footerImageB64 ?? getFooter();
-  const sealImg   = params.type === 'Proforma' ? (params.sealImageB64 ?? getSeal()) : '';
+  const headerImg = params.headerImageB64 ?? getStaticHeader();
+  const footerImg = params.footerImageB64 ?? getStaticFooter();
+  const sealImg   = params.type === 'Proforma' ? (params.sealImageB64 ?? getStaticSeal()) : '';
 
   const isProforma = params.type === 'Proforma';
   const isAcompte  = params.type === 'Facture Acompte';
@@ -947,9 +959,9 @@ export interface ReceiptParams {
  * @returns HTML complet prêt à être passé à `generatePdf()`
  */
 export function buildReceiptHtml(params: ReceiptParams): string {
-  const headerImg = params.headerImageB64 ?? getHeader();
-  const footerImg = params.footerImageB64 ?? getFooter();
-  const sealImg   = params.sealImageB64   ?? getSeal();
+  const headerImg = params.headerImageB64 ?? getStaticHeader();
+  const footerImg = params.footerImageB64 ?? getStaticFooter();
+  const sealImg   = params.sealImageB64   ?? getStaticSeal();
 
   const fmt = (n: number) =>
     new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(n));

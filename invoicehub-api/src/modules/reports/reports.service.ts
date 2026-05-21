@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { imgToBase64 } from '../../lib/pdf';
+import { resolveDocumentAssets } from '../../lib/pdf';
 
 export interface DateRangeInput {
   dateFrom?: Date; dateTo?: Date; year?: number; quarter?: number;
@@ -136,10 +136,11 @@ export class ReportsService {
 
   async getReportAssets() {
     const settings = await this.prisma.companySettings.findFirst({ select: { companyName: true, headerImagePath: true, footerImagePath: true } });
+    const { headerImageB64, footerImageB64 } = resolveDocumentAssets(settings ?? null);
     return {
-      companyName:     settings?.companyName ?? 'Bridge Technologies Solutions',
-      headerImageB64:  settings?.headerImagePath ? imgToBase64(settings.headerImagePath) : undefined,
-      footerImageB64:  settings?.footerImagePath ? imgToBase64(settings.footerImagePath) : undefined,
+      companyName: settings?.companyName ?? 'Bridge Technologies Solutions',
+      headerImageB64,
+      footerImageB64,
     };
   }
 }

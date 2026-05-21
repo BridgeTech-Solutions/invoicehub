@@ -9,6 +9,7 @@ import { Permission } from '../../common/decorators/permission.decorator';
 import { Audit } from '../../common/decorators/audit.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { SettingsService } from './settings.service';
+import { assertFileMime } from '../../lib/file-magic';
 import { PrismaService } from '../../prisma/prisma.service';
 import { updateSettingsSchema } from './settings.schema';
 
@@ -28,6 +29,7 @@ export class SettingsController implements OnModuleInit {
     }
   }
 
+  @Public()
   @Get()
   async get() {
     return this.settingsService.get();
@@ -73,8 +75,13 @@ export class SettingsController implements OnModuleInit {
     @UploadedFile() file: Express.Multer.File,
   ) {
     if (!file) {
-      console.error('❌ Aucun fichier reçu');
       throw new BadRequestException('Aucun fichier reçu');
+    }
+
+    try {
+      assertFileMime(file.path, ['image/png', 'image/jpeg', 'image/webp', 'application/pdf']);
+    } catch (e: any) {
+      throw new BadRequestException(e.message);
     }
 
     // Map type to database field
@@ -93,38 +100,45 @@ export class SettingsController implements OnModuleInit {
 
     const url = `/api/settings/assets/${file.filename}`;
 
-    // Mise à jour en base de données
+    // Supprimer l'ancien fichier avant de sauvegarder le nouveau
     const existing = await this.prisma.companySettings.findFirst();
     if (existing) {
+      const oldUrl: string | null = (existing as any)[field] ?? null;
+      if (oldUrl) {
+        const oldFilename = path.basename(oldUrl);
+        const oldFilePath = path.join(this.uploadDir, oldFilename);
+        if (fs.existsSync(oldFilePath)) {
+          fs.unlinkSync(oldFilePath);
+        }
+      }
       await this.prisma.companySettings.update({
         where: { id: existing.id },
         data: { [field]: url },
       });
     }
 
-    console.log(`✓ Fichier sauvegardé: ${file.path} → ${url} (${field})`);
     return { path: url };
   }
 
-  @Public()
   @Get('assets/:filename')
   async getAsset(
     @Param('filename') filename: string,
     @Res() res: Response,
   ) {
-    const filePath = path.join(process.cwd(), 'uploads', 'settings', filename);
-    
-    console.log(`[GET Asset] filename=${filename}, path=${filePath}`);
+    // Valider le format du nom de fichier — UUID + extension uniquement
+    const SAFE_FILENAME = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|jpg|jpeg|webp|pdf)$/i;
+    if (!SAFE_FILENAME.test(filename)) {
+      return res.status(400).json({ error: 'Nom de fichier invalide' });
+    }
 
-    // Vérifier que le fichier demandé est bien dans le répertoire uploads/settings
     const basePath = path.resolve(path.join(process.cwd(), 'uploads', 'settings'));
-    if (!path.resolve(filePath).startsWith(basePath)) {
-      console.error(`[GET Asset] Tentative d'accès à l'extérieur du répertoire: ${filePath}`);
+    const filePath = path.resolve(path.join(basePath, filename));
+
+    if (!filePath.startsWith(basePath + path.sep) && filePath !== basePath) {
       return res.status(403).json({ error: 'Accès refusé' });
     }
 
     if (!fs.existsSync(filePath)) {
-      console.error(`[GET Asset] Fichier non trouvé: ${filePath}`);
       return res.status(404).json({ error: 'Fichier non trouvé' });
     }
 
@@ -139,9 +153,7 @@ export class SettingsController implements OnModuleInit {
 
     const contentType = mimeMap[ext] || 'application/octet-stream';
     res.set('Content-Type', contentType);
-    res.set('Cache-Control', 'public, max-age=86400');
-    
-    console.log(`[GET Asset] ✓ Fichier trouvé, envoi: ${filePath} (${contentType})`);
+    res.set('Cache-Control', 'private, max-age=3600');
     return res.sendFile(filePath);
   }
 }
