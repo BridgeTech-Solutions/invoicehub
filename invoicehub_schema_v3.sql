@@ -1526,13 +1526,6 @@ CREATE INDEX IF NOT EXISTS idx_clients_assigned_to ON clients(assigned_to) WHERE
 CREATE INDEX IF NOT EXISTS idx_clients_risk_level  ON clients(risk_level);
 
 -- ================================================================
--- 2.8b Ajouter supplier_code à suppliers — code interne fournisseur
--- ================================================================
-ALTER TABLE suppliers
-    ADD COLUMN IF NOT EXISTS supplier_code VARCHAR(50) UNIQUE;
-COMMENT ON COLUMN suppliers.supplier_code IS 'Code interne BTS du fournisseur. Ex: FOURNISSEUR-001. Facultatif, unique.';
-
--- ================================================================
 -- 2.9 Étendre `users` — informations RH légères
 -- ================================================================
 ALTER TABLE users
@@ -1612,6 +1605,7 @@ CREATE TABLE suppliers (
     bank_swift          VARCHAR(20),
 
     -- Classification & performance
+    supplier_code       VARCHAR(50)     UNIQUE,
     category            VARCHAR(100),
     rating              SMALLINT        DEFAULT 3,
     is_preferred        BOOLEAN         NOT NULL DEFAULT FALSE,
@@ -1645,6 +1639,7 @@ CREATE INDEX idx_suppliers_category ON suppliers(category);
 CREATE INDEX idx_suppliers_active   ON suppliers(id) WHERE deleted_at IS NULL;
 
 COMMENT ON TABLE  suppliers                   IS 'Annuaire des fournisseurs BTS. Miroir de clients pour le circuit d''achats.';
+COMMENT ON COLUMN suppliers.supplier_code      IS 'Code interne BTS du fournisseur. Ex: FOURNISSEUR-001. Facultatif, unique.';
 COMMENT ON COLUMN suppliers.accounting_account IS 'Compte SYSCOHADA classe 4 : 401000 = Fournisseurs. Personnalisable par sous-compte.';
 COMMENT ON COLUMN suppliers.internal_notes     IS 'CONFIDENTIEL : jamais affiché sur les bons de commande.';
 
@@ -4897,7 +4892,7 @@ SELECT
         FILTER (WHERE sp.deleted_at IS NULL)                                  AS last_payment_date
 FROM suppliers s
 LEFT JOIN supplier_invoices si ON si.supplier_id = s.id
-LEFT JOIN supplier_payments sp ON sp.supplier_id = s.id
+LEFT JOIN supplier_payments sp ON sp.supplier_invoice_id = si.id
 LEFT JOIN purchase_orders   po ON po.supplier_id = s.id
 WHERE s.deleted_at IS NULL
 GROUP BY s.id, s.name, s.supplier_code, s.status;
