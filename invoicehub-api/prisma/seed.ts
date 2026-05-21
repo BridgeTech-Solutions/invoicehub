@@ -7,13 +7,13 @@
  * 2.  Bureau Douala (DC)
  * 3.  Taux TVA (19,25% + exonéré)
  * 4.  Utilisateurs (admin + commercial + employee + comptable)
- * 5.  Catégories produits (6) — lues depuis la BD
+ * 5.  Catégories produits (7) — lues depuis la BD (insérées par le SQL)
  * 6.  Produits (10) — avec gestion stock pour les produits physiques
  * 7.  Clients (8) — données nettoyées
  * 8.  Comptes bancaires BTS (2 comptes propres)
  * 9.  Catégories de dépenses (8)
- * 10. Journaux comptables SYSCOHADA (5)
- * 11. Email templates (11)
+ * 10. Journaux comptables SYSCOHADA — insérés par le script SQL v3
+ * 11. Email templates (12)
  *
  * Usage :
  * pnpm prisma:seed
@@ -877,7 +877,13 @@ async function main() {
   console.log('⑦  Clients…');
   await seedClients();
 
+  console.log('⑧  Comptes bancaires…');
+  await seedBankAccounts();
 
+  console.log('⑨  Catégories de dépenses…');
+  await seedExpenseCategories();
+
+  console.log('⑩  Journaux comptables — insérés par le SQL v3 (INSERT INTO accounting_journals)');
 
   console.log('⑪  Email templates…');
   await seedEmailTemplates();
