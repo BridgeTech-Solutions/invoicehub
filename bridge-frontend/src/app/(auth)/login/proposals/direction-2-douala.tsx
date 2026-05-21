@@ -34,7 +34,7 @@ export default function LoginDouala() {
   const [activeIdx, setActiveIdx] = useState(0)
   const router       = useRouter()
   const loginMutation = useLogin()
-  const timerRef     = useRef<ReturnType<typeof setInterval>>()
+  const timerRef     = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
 
   useEffect(() => {
     setMounted(true)
