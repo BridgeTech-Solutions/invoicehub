@@ -20,7 +20,8 @@ function newLine(): LineState {
 }
 function calcLine(l: LineState) {
   const ht = l.quantity * l.unitPriceHt
-  return { ht, tax: ht * (l.taxRate / 100), ttc: ht * (1 + l.taxRate / 100) }
+  const r = (l.taxRate ?? TAX_RATE_DEFAULT) / 100
+  return { ht, tax: ht * r, ttc: ht * (1 + r) }
 }
 
 const inp: React.CSSProperties = {

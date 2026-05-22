@@ -30,7 +30,7 @@ function newLine(): LineState {
 
 function calcLine(l: LineState) {
   const ht  = l.quantity * l.unitPriceHt
-  const tax = ht * (l.taxRate / 100)
+  const tax = ht * ((l.taxRate ?? TAX_RATE_DEFAULT) / 100)
   return { ht, tax, ttc: ht + tax }
 }
 
