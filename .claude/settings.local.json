@@ -40,7 +40,24 @@
       "Bash(python scripts/search.py \"data table list filter pagination SaaS\" --domain ux -n 8)",
       "Bash(python scripts/search.py \"accounting fintech ERP dashboard\" --domain style -n 5)",
       "Bash(python scripts/search.py \"form validation inline error state loading\" --domain ux -n 5)",
-      "Bash(python scripts/search.py \"nextjs SaaS dashboard enterprise\" --stack nextjs)"
+      "Bash(python scripts/search.py \"nextjs SaaS dashboard enterprise\" --stack nextjs)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(mkdir -p \"D:\\\\Bel\\\\projets\\\\BRIDGE\\\\bridge-frontend\\\\src\\\\app\\\\\\(dashboard\\)\\\\purchase-orders\\\\[id]\")",
+      "Bash(mkdir -p \"D:\\\\Bel\\\\projets\\\\BRIDGE\\\\bridge-frontend\\\\src\\\\app\\\\\\(dashboard\\)\\\\supplier-invoices\\\\[id]\")",
+      "Bash(mkdir -p \"D:\\\\Bel\\\\projets\\\\BRIDGE\\\\bridge-frontend\\\\src\\\\app\\\\\\(dashboard\\)\\\\expenses\\\\[id]\")",
+      "Bash(mkdir -p \"D:\\\\Bel\\\\projets\\\\BRIDGE\\\\bridge-frontend\\\\src\\\\app\\\\\\(dashboard\\)\\\\suppliers\\\\[id]\\\\edit\")",
+      "Bash(mkdir -p \"D:\\\\Bel\\\\projets\\\\BRIDGE\\\\bridge-frontend\\\\src\\\\app\\\\\\(dashboard\\)\\\\purchase-orders\\\\[id]\\\\edit\")",
+      "Bash(mkdir -p \"D:\\\\Bel\\\\projets\\\\BRIDGE\\\\bridge-frontend\\\\src\\\\app\\\\\\(dashboard\\)\\\\supplier-invoices\\\\[id]\\\\edit\")",
+      "Bash(mkdir -p \"D:\\\\Bel\\\\projets\\\\BRIDGE\\\\bridge-frontend\\\\src\\\\app\\\\\\(dashboard\\)\\\\expenses\\\\[id]\\\\edit\")",
+      "Bash(python scripts/search.py \"enterprise SaaS fintech ERP billing platform professional Cameroon Africa\" --design-system -p \"BTS InvoiceHub\" -f markdown)",
+      "Bash(python scripts/search.py \"auth login security enterprise dark elegant\" --domain style -n 4)",
+      "Bash(python scripts/search.py \"financial corporate dark professional\" --domain typography -n 3)",
+      "Bash(dir /s /b \"D:\\\\Bel\\\\projets\\\\BRIDGE\\\\bridge-frontend\\\\src\")",
+      "Bash(findstr /i \"login register forgot reset 2fa verify auth\")",
+      "Bash(python scripts/search.py \"login form authentication error feedback accessibility\" --domain ux -n 5)",
+      "Bash(dir /b \"D:\\\\Bel\\\\projets\\\\BRIDGE\\\\bridge-frontend\\\\*.md\")",
+      "Bash(dir /b \"D:\\\\Bel\\\\projets\\\\BRIDGE\\\\bridge-backend\\\\*.md\")",
+      "Bash(dir /b \"D:\\\\Bel\\\\projets\\\\BRIDGE\\\\*.md\")"
     ]
   },
   "mcpServers": {

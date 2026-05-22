@@ -6,6 +6,7 @@ import {
   Building2, MapPin, Percent, Mail, Lock, BellRing, HardDrive,
   Cloud, Webhook, Sliders, GitBranch,
   Warehouse, Package, Tag, BarChart2, AlertTriangle,
+  Wallet, ReceiptText, PieChart,
 } from 'lucide-react'
 import { ROUTES } from '@/lib/constants'
 
@@ -29,6 +30,25 @@ export interface OverlayPanel {
 }
 
 export const OVERLAY_PANELS: Record<string, OverlayPanel> = {
+
+  expenses: {
+    id: 'expenses', title: 'Dépenses & Frais', icon: Wallet,
+    sections: [
+      {
+        title: 'DÉPENSES',
+        items: [
+          { label: 'Notes de frais', href: ROUTES.EXPENSES, icon: ReceiptText },
+        ],
+      },
+      {
+        title: 'ORGANISATION',
+        items: [
+          { label: 'Catégories', href: ROUTES.EXPENSE_CATEGORIES, icon: Tag },
+          { label: 'Budgets',    href: ROUTES.EXPENSE_BUDGETS,    icon: PieChart },
+        ],
+      },
+    ],
+  },
 
   stock: {
     id: 'stock', title: 'Stock & Produits', icon: Warehouse,

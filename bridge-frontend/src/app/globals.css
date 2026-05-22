@@ -58,6 +58,17 @@
   --s-expired:          #9333ea;
   --s-expired-bg:       #faf5ff;
 
+  /* Achats — statuts */
+  --s-po-draft:         #94a3b8;   --s-po-draft-bg:      #f1f5f9;
+  --s-po-pending:       #d97706;   --s-po-pending-bg:    #fffbeb;
+  --s-po-approved:      #2D7DD2;   --s-po-approved-bg:   #eff6ff;
+  --s-po-ordered:       #0891b2;   --s-po-ordered-bg:    #ecfeff;
+  --s-po-received:      #16a34a;   --s-po-received-bg:   #f0fdf4;
+  --s-po-billed:        #7c3aed;   --s-po-billed-bg:     #faf5ff;
+  --s-po-paid:          #16a34a;   --s-po-paid-bg:       #f0fdf4;
+  --s-po-cancelled:     #64748b;   --s-po-cancelled-bg:  #f8fafc;
+  --s-po-partial:       #d97706;   --s-po-partial-bg:    #fffbeb;
+
   /* Shadows */
   --shadow-sm:  0 1px 3px rgba(15,25,35,0.06), 0 1px 2px rgba(15,25,35,0.04);
   --shadow-md:  0 4px 12px rgba(15,25,35,0.08), 0 2px 4px rgba(15,25,35,0.04);

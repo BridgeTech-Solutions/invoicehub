@@ -15,7 +15,7 @@ import {
   RefreshCw, BarChart3, Bell, UserCog, ClipboardList, Settings,
   PanelLeftClose, PanelLeftOpen,
   ChevronDown, Plus, Tag, ShieldCheck, Sparkles, BookOpen,
-  ShoppingCart, FileInput, Wallet, ReceiptText, PieChart,
+  ShoppingCart, FileInput, Wallet,
   Warehouse,
   Landmark, BookCheck, CheckSquare, Building2,
 } from 'lucide-react'
@@ -85,14 +85,7 @@ const NAV: { title: string; sectionIcon: React.ElementType; items: NavItem[] }[]
     items: [
       { label: 'Bons de commande',      href: ROUTES.PURCHASE_ORDERS,   icon: ShoppingCart },
       { label: 'Factures fournisseurs', href: ROUTES.SUPPLIER_INVOICES, icon: FileInput },
-      {
-        label: 'Dépenses & Frais', href: ROUTES.EXPENSES, icon: Wallet,
-        children: [
-          { label: 'Notes de frais', href: ROUTES.EXPENSES,           icon: ReceiptText },
-          { label: 'Catégories',     href: ROUTES.EXPENSE_CATEGORIES, icon: Tag },
-          { label: 'Budgets',        href: ROUTES.EXPENSE_BUDGETS,    icon: PieChart },
-        ],
-      },
+      { label: 'Dépenses & Frais',      href: ROUTES.EXPENSES,          icon: Wallet, overlay: 'expenses' },
     ],
   },
   {
