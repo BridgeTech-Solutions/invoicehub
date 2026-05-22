@@ -131,7 +131,8 @@ export function BankAccountDrawer({ account, onClose, onSuccess }: BankAccountDr
       notes:             form.notes             || null,
     }
     if (isEdit) {
-      const result = await updateMutation.mutateAsync({ id: account.id, data: payload })
+      const { openingBalance: _, ...updateData } = payload
+      const result = await updateMutation.mutateAsync({ id: account.id, data: updateData })
       onSuccess?.(result as BankAccount)
     } else {
       const result = await createMutation.mutateAsync(payload)

@@ -3,15 +3,8 @@ import type {
   User, ListUsersParams, PaginatedUsers,
   CreateUserPayload, UpdateUserPayload, UpdateMePayload, ChangePasswordPayload,
 } from './types'
-
-export interface RoleEntry {
-  id:          string
-  name:        string
-  displayName: string
-  isSystem:    boolean
-  permissions: string[]
-  _count?:     { users: number }
-}
+export type { RoleEntry } from '@/features/roles/types'
+export { rolesApi } from '@/features/roles/api'
 
 export interface AuditLogEntry {
   id:         string
@@ -19,13 +12,6 @@ export interface AuditLogEntry {
   entityType: string | null
   entityId:   string | null
   createdAt:  string
-}
-
-export const rolesApi = {
-  async list(): Promise<RoleEntry[]> {
-    const { data } = await apiClient.get<RoleEntry[]>('/roles')
-    return data
-  },
 }
 
 export const usersApi = {

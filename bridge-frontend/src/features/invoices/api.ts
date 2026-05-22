@@ -102,7 +102,7 @@ export const paymentsApi = {
 
 export const bankAccountsApi = {
   list: () =>
-    apiClient.get<{ data: BankAccountOption[] }>('/bank/accounts', {
-      params: { limit: 100, isActive: true },
-    }).then(r => r.data.data ?? []),
+    apiClient.get<BankAccountOption[]>('/bank/accounts', {
+      params: { limit: 100 },
+    }).then(r => r.data ?? []),
 }

@@ -187,7 +187,7 @@ function Step1({
               <CheckCircle2 size={15} style={{ color: detected.detectedBank ? '#16a34a' : '#d97706', flexShrink: 0 }} />
               <div style={{ fontSize: 13 }}>
                 <span style={{ fontWeight: 600, color: 'var(--text-1)' }}>
-                  Format détecté : {detected.format.toUpperCase()}
+                  Format détecté : {detected.format?.toUpperCase() ?? ''}
                   {detected.detectedBank && ` — ${detected.detectedBank}`}
                 </span>
                 {detected.periodStart && (
@@ -298,7 +298,7 @@ function Step2({ file, accountId, onBack, onConfirm }: {
             </tr>
           </thead>
           <tbody>
-            {preview.rows.slice(0, 10).map((row, i) => (
+            {(preview.rows ?? []).slice(0, 10).map((row, i) => (
               <tr key={i}>
                 <td style={{ fontSize: 12.5, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{row.date}</td>
                 <td style={{ fontSize: 13, maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</td>

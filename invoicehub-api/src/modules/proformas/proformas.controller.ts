@@ -9,6 +9,7 @@ import { ProformasService } from './proformas.service';
 import { Permission } from '../../common/decorators/permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SkipResponseWrapper } from '../../common/interceptors/response.interceptor';
+import { Audit } from '../../common/decorators/audit.decorator';
 import type { JwtPayload } from '../../common/types/jwt-payload.type';
 import {
   createProformaSchema,
@@ -44,12 +45,14 @@ export class ProformasController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @Permission('proformas:create')
+  @Audit('proforma', 'CREATE')
   create(@Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.svc.create(createProformaSchema.parse(body), user.sub);
   }
 
   @Put(':id')
   @Permission('proformas:update')
+  @Audit('proforma', 'UPDATE')
   update(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.svc.update(id, updateProformaSchema.parse(body), user.sub);
   }
@@ -57,6 +60,7 @@ export class ProformasController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @Permission('proformas:delete')
+  @Audit('proforma', 'SOFT_DELETE')
   async remove(@Param('id') id: string) {
     await this.svc.softDelete(id);
     return { message: 'Proforma supprimée' };
@@ -64,18 +68,21 @@ export class ProformasController {
 
   @Post(':id/send')
   @Permission('proformas:update')
+  @Audit('proforma', 'STATUS_CHANGE')
   send(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.svc.send(id, user.sub);
   }
 
   @Post(':id/accept')
   @Permission('proformas:update')
+  @Audit('proforma', 'STATUS_CHANGE')
   accept(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.svc.accept(id, user.sub);
   }
 
   @Post(':id/reject')
   @Permission('proformas:update')
+  @Audit('proforma', 'STATUS_CHANGE')
   reject(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
     const { reason } = (body as any) ?? {};
     return this.svc.reject(id, user.sub, reason);
@@ -83,6 +90,7 @@ export class ProformasController {
 
   @Post(':id/convert')
   @Permission('proformas:update')
+  @Audit('proforma', 'CONVERT_TO_INVOICE')
   convert(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.svc.convertToInvoice(id, user.sub, convertProformaSchema.parse(body));
   }
@@ -90,18 +98,21 @@ export class ProformasController {
   @Post(':id/duplicate')
   @HttpCode(HttpStatus.CREATED)
   @Permission('proformas:create')
+  @Audit('proforma', 'CREATE')
   duplicate(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.svc.duplicate(id, user.sub);
   }
 
   @Post(':id/quick-confirm-sent')
   @Permission('proformas:update')
+  @Audit('proforma', 'STATUS_CHANGE')
   quickConfirmSent(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.svc.send(id, user.sub);
   }
 
   @Post(':id/quick-confirm-accepted')
   @Permission('proformas:update')
+  @Audit('proforma', 'STATUS_CHANGE')
   quickConfirmAccepted(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.svc.accept(id, user.sub);
   }
@@ -110,6 +121,7 @@ export class ProformasController {
   @Permission('proformas:read')
   @UseGuards(ThrottlerGuard)
   @SkipResponseWrapper()
+  @Audit('proforma', 'PDF_GENERATED')
   async getPdf(@Param('id') id: string, @Res({ passthrough: true }) res: Response) {
     const { buffer, filename } = await this.svc.generatePdfResponse(id);
     res.setHeader('Content-Type', 'application/pdf');

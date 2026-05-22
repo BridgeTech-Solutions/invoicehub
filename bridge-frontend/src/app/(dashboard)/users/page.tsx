@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useId } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, UserPlus, Loader2, Shield, Pencil, Trash2, KeyRound, X, AlertTriangle } from 'lucide-react'
+import { Search, UserPlus, Loader2, Shield, Pencil, Trash2, KeyRound, X, AlertTriangle, ShieldCheck, ShieldOff, Users, UserCheck } from 'lucide-react'
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useRoles } from '@/features/users/hooks'
 import { useAuthStore } from '@/store/auth'
@@ -423,7 +423,7 @@ function UserFormModal({ onClose, editUser }: { onClose: () => void; editUser?: 
 function SkeletonRow() {
   return (
     <tr aria-hidden="true">
-      {[200, 120, 90, 110, 110, 40].map((w, i) => (
+      {[200, 120, 90, 80, 110, 110, 40].map((w, i) => (
         <td key={i} style={{ padding: '14px 16px' }}>
           <div style={{ height: 12, width: w, background: 'var(--border)', borderRadius: 4 }} className="animate-pulse" />
         </td>
@@ -432,11 +432,47 @@ function SkeletonRow() {
   )
 }
 
+// ─── 2FA badge ────────────────────────────────────────────────
+function TwoFaBadge({ enabled }: { enabled: boolean }) {
+  if (enabled) {
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 100, fontSize: 11.5, fontWeight: 700, background: 'rgba(16,185,129,0.1)', color: '#059669', fontFamily: 'var(--font-display)' }}>
+        <ShieldCheck size={11} aria-hidden="true" />
+        Activée
+      </span>
+    )
+  }
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 100, fontSize: 11.5, fontWeight: 400, background: 'var(--surface)', color: 'var(--text-3)', fontFamily: 'var(--font-display)' }}>
+      <ShieldOff size={11} aria-hidden="true" />
+      Non activée
+    </span>
+  )
+}
+
+// ─── KPI card ─────────────────────────────────────────────────
+function KpiCard({ icon, label, value, accent }: {
+  icon: React.ReactNode; label: string; value: React.ReactNode; accent: string
+}) {
+  return (
+    <div className="card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div aria-hidden="true" style={{ width: 38, height: 38, borderRadius: 'var(--radius-md)', background: `${accent}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <span style={{ color: accent }}>{icon}</span>
+      </div>
+      <div>
+        <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0, lineHeight: 1 }}>{value}</p>
+        <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: '3px 0 0', fontFamily: 'var(--font-display)' }}>{label}</p>
+      </div>
+    </div>
+  )
+}
+
 // ─── En-têtes du tableau (C9) ─────────────────────────────────
 const TABLE_HEADERS: { label: string; srOnly?: boolean }[] = [
   { label: 'Utilisateur' },
   { label: 'Rôle' },
   { label: 'Statut' },
+  { label: '2FA' },
   { label: 'Dernière connexion' },
   { label: 'Créé le' },
   { label: 'Actions', srOnly: true },
@@ -461,6 +497,10 @@ export default function UsersPage() {
   const total      = data?.total      ?? 0
   const totalPages = data?.totalPages ?? 1
   const roleDisplayName = (name: string) => roles.find((r) => r.name === name)?.displayName ?? name
+
+  // Stats calculées depuis les utilisateurs visibles sur la page courante
+  const activeCount = users.filter((u) => u.status === 'active').length
+  const twoFaCount  = users.filter((u) => u.twoFactorEnabled).length
 
   const inputCss: React.CSSProperties = {
     padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)',
@@ -491,6 +531,14 @@ export default function UsersPage() {
             Créer un compte
           </button>
         )}
+      </div>
+
+      {/* KPI strip */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
+        <KpiCard icon={<Users size={16} />}       label="Comptes totaux"    value={isLoading ? '—' : total}          accent="#2D7DD2" />
+        <KpiCard icon={<UserCheck size={16} />}   label="Actifs (page)"     value={isLoading ? '—' : activeCount}    accent="#10b981" />
+        <KpiCard icon={<ShieldCheck size={16} />} label="2FA (page)"        value={isLoading ? '—' : twoFaCount}     accent="#8b5cf6" />
+        <KpiCard icon={<Shield size={16} />}      label="Rôles disponibles" value={roles.length || '—'}              accent="#f59e0b" />
       </div>
 
       {/* Filtres (C7: label sr-only + aria-hidden Search, C8: aria-label selects) */}
@@ -561,7 +609,7 @@ export default function UsersPage() {
                 : users.length === 0
                   ? (
                     <tr>
-                      <td colSpan={6} style={{ padding: '48px 24px', textAlign: 'center' }}>
+                      <td colSpan={7} style={{ padding: '48px 24px', textAlign: 'center' }}>
                         <p style={{ fontSize: 14, color: 'var(--text-3)', margin: 0 }}>Aucun utilisateur trouvé</p>
                       </td>
                     </tr>
@@ -597,6 +645,7 @@ export default function UsersPage() {
                       </td>
                       <td style={{ padding: '12px 16px' }}><RoleBadge role={u.role} displayName={roleDisplayName(u.role)} /></td>
                       <td style={{ padding: '12px 16px' }}><UserStatusBadge status={u.status} /></td>
+                      <td style={{ padding: '12px 16px' }}><TwoFaBadge enabled={u.twoFactorEnabled} /></td>
                       {/* H5: <time dateTime> sur les dates */}
                       <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--text-3)' }}>
                         {u.lastLoginAt

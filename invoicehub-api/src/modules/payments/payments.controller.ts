@@ -15,6 +15,7 @@ import { PaymentsService } from './payments.service';
 import { Permission } from '../../common/decorators/permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SkipResponseWrapper } from '../../common/interceptors/response.interceptor';
+import { Audit } from '../../common/decorators/audit.decorator';
 import type { JwtPayload } from '../../common/types/jwt-payload.type';
 import { createPaymentSchema, listPaymentsSchema } from './payments.schema';
 
@@ -37,6 +38,7 @@ export class PaymentsController {
   @Permission('payments:read')
   @UseGuards(ThrottlerGuard)
   @SkipResponseWrapper()
+  @Audit('payment', 'PDF_GENERATED')
   async getReceipt(@Param('id') id: string, @Res({ passthrough: true }) res: Response) {
     const { buffer, filename } = await this.svc.generateReceipt(id);
     res.setHeader('Content-Type', 'application/pdf');
@@ -47,6 +49,7 @@ export class PaymentsController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @Permission('payments:delete')
+  @Audit('payment', 'PAYMENT_DELETED')
   async remove(@Param('id') id: string) {
     await this.svc.softDelete(id);
     return { message: 'Paiement supprimé' };

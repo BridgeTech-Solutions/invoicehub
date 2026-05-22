@@ -10,6 +10,7 @@ import { PaymentsService } from '../payments/payments.service';
 import { Permission } from '../../common/decorators/permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SkipResponseWrapper } from '../../common/interceptors/response.interceptor';
+import { Audit } from '../../common/decorators/audit.decorator';
 import type { JwtPayload } from '../../common/types/jwt-payload.type';
 import {
   createInvoiceSchema,
@@ -49,6 +50,7 @@ export class InvoicesController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @Permission('invoices:create')
+  @Audit('invoice', 'CREATE')
   create(@Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.svc.create(createInvoiceSchema.parse(body), user.sub);
   }
@@ -73,18 +75,21 @@ export class InvoicesController {
 
   @Put(':id')
   @Permission('invoices:update')
+  @Audit('invoice', 'UPDATE')
   update(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.svc.update(id, updateInvoiceSchema.parse(body), user.sub);
   }
 
   @Post(':id/issue')
   @Permission('invoices:update')
+  @Audit('invoice', 'STATUS_CHANGE')
   issue(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.svc.issue(id, user.sub);
   }
 
   @Post(':id/cancel')
   @Permission('invoices:cancel')
+  @Audit('invoice', 'STATUS_CHANGE')
   cancel(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
     const { reason } = (body as { reason?: string }) ?? {};
     return this.svc.cancel(id, user.sub, reason);
@@ -93,6 +98,7 @@ export class InvoicesController {
   @Post(':id/duplicate')
   @HttpCode(HttpStatus.CREATED)
   @Permission('invoices:create')
+  @Audit('invoice', 'CREATE')
   duplicate(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.svc.duplicate(id, user.sub);
   }
@@ -100,6 +106,7 @@ export class InvoicesController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @Permission('invoices:delete')
+  @Audit('invoice', 'SOFT_DELETE')
   async remove(@Param('id') id: string) {
     await this.svc.softDelete(id);
     return { message: 'Facture supprimée' };
@@ -108,6 +115,7 @@ export class InvoicesController {
   @Post(':id/avoir')
   @HttpCode(HttpStatus.CREATED)
   @Permission('invoices:cancel')
+  @Audit('invoice', 'CREATE')
   createAvoir(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.svc.createAvoir(id, createAvoirSchema.parse(body), user.sub);
   }
@@ -116,6 +124,7 @@ export class InvoicesController {
   @Permission('invoices:read')
   @UseGuards(ThrottlerGuard)
   @SkipResponseWrapper()
+  @Audit('invoice', 'PDF_GENERATED')
   async getPdf(@Param('id') id: string, @Res({ passthrough: true }) res: Response) {
     const { buffer, filename } = await this.svc.generatePdfResponse(id);
     res.setHeader('Content-Type', 'application/pdf');
@@ -128,6 +137,7 @@ export class InvoicesController {
   @Post(':id/payment')
   @HttpCode(HttpStatus.CREATED)
   @Permission('payments:create')
+  @Audit('payment', 'PAYMENT_REGISTERED')
   createPayment(
     @Param('id') invoiceId: string,
     @Body() body: unknown,
@@ -140,6 +150,7 @@ export class InvoicesController {
   @Post(':id/quick-confirm-payment')
   @HttpCode(HttpStatus.CREATED)
   @Permission('payments:create')
+  @Audit('payment', 'PAYMENT_REGISTERED')
   quickConfirmPayment(
     @Param('id') invoiceId: string,
     @Body() body: unknown,
@@ -150,6 +161,7 @@ export class InvoicesController {
 
   @Post(':id/quick-confirm-issued')
   @Permission('invoices:update')
+  @Audit('invoice', 'STATUS_CHANGE')
   quickConfirmIssued(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.svc.issue(id, user.sub);
   }

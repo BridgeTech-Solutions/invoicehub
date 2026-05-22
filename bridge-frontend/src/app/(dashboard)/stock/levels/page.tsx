@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useId, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Search, Layers, Plus, ChevronLeft, ChevronRight, History } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -40,8 +41,9 @@ function Pagination({ page, totalPages, onChange }: { page: number; totalPages: 
 }
 
 function RowActions({ product, onAdjust }: { product: StockLevel; onAdjust: (p: StockLevel) => void }) {
+  const router = useRouter()
   const items = [
-    { label: 'Historique', icon: History, onClick: () => void 0, href: `${ROUTES.STOCK_LEVELS}/${product.id}/history` },
+    { label: 'Historique', icon: History, onClick: () => router.push(`${ROUTES.STOCK_LEVELS}/${product.id}/history`) },
     { label: 'Ajuster le stock', icon: Plus, onClick: () => onAdjust(product) },
   ]
   return <ActionMenu items={items} />

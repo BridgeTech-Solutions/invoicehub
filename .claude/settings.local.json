@@ -24,7 +24,14 @@
       "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"dashboard SaaS enterprise minimal\" --domain style -n 4)",
       "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"enterprise SaaS roles permissions security settings admin\" --design-system -p \"InvoiceHub RBAC\" -f markdown)",
       "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"permissions matrix toggle checkbox admin panel\" --domain ux -n 6)",
-      "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"security 2FA authentication settings dark professional\" --domain style -n 4)"
+      "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"security 2FA authentication settings dark professional\" --domain style -n 4)",
+      "Bash(python3 \"D:/Bel/projets/BRIDGE/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"enterprise saas user management roles permissions admin dashboard\" --design-system -p \"InvoiceHub Users & Roles\" -f markdown)",
+      "Bash(python \"D:/Bel/projets/BRIDGE/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"enterprise saas user management roles permissions admin dashboard\" --design-system -p \"InvoiceHub Users & Roles\" -f markdown)",
+      "Bash(python3 \"D:/Bel/projets/BRIDGE/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"user management rbac permissions matrix enterprise admin\" --domain ux -n 6)",
+      "Bash(python \"D:/Bel/projets/BRIDGE/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"user management rbac permissions matrix enterprise admin\" --domain ux -n 6)",
+      "Bash(python3 \"D:/Bel/projets/BRIDGE/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"enterprise saas admin roles permissions\" --domain style -n 4)",
+      "Bash(python \"D:/Bel/projets/BRIDGE/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"enterprise saas admin roles permissions\" --domain style -n 4)",
+      "Bash(npx next *)"
     ]
   },
   "mcpServers": {
