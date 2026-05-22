@@ -28,8 +28,9 @@ const STATUS_CFG: Record<UserStatus, { label: string; color: string; bg: string 
 }
 
 function RoleBadge({ role, displayName }: { role: string; displayName?: string }) {
-  const idx = role.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % ROLE_COLORS.length
-  const c = ROLE_COLORS[idx]
+  const safeRole = role ?? ''
+  const idx = safeRole.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % ROLE_COLORS.length
+  const c = ROLE_COLORS[idx]!
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', padding: '3px 9px', borderRadius: 100, fontSize: 11.5, fontFamily: 'var(--font-display)', fontWeight: 700, background: c.bg, color: c.color }}>
       {displayName ?? role}

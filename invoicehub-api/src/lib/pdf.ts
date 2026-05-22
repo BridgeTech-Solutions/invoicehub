@@ -719,7 +719,6 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
         <h1 style="font-size:17px;font-weight:bold;text-decoration:underline;letter-spacing:1px;display:inline-block;">${titleLabel}</h1>
         <p style="font-size:11px;margin-top:6px;"><strong>N° Facture :</strong>&nbsp;&nbsp;${params.number}</p>
         <p style="font-size:11px;margin-top:3px;"><strong>Date :</strong>&nbsp;&nbsp;${params.issueDate}</p>
-        ${params.dueDate ? `<p style="font-size:11px;margin-top:3px;"><strong>Échéance :</strong>&nbsp;&nbsp;${params.dueDate}</p>` : ''}
       </div>
       <table style="width:60%;border-collapse:collapse;margin-bottom:18px;font-size:11px;">
         <tr><td style="${labelTd}text-align:center;width:22%;">Client</td>
@@ -744,7 +743,6 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
         <h1 style="font-size:16px;font-weight:bold;text-decoration:underline;letter-spacing:1px;display:inline-block;">${titleLabel}</h1>
         <p style="font-size:11px;margin-top:6px;"><strong>N° Facture :</strong> ${params.number}</p>
         <p style="font-size:11px;margin-top:3px;"><strong>Date de facturation :</strong> ${params.issueDate}</p>
-        ${params.dueDate ? `<p style="font-size:11px;margin-top:3px;"><strong>Échéance :</strong> ${params.dueDate}</p>` : ''}
       </div>
       <table style="width:100%;border-collapse:collapse;margin-bottom:18px;font-size:11px;">
         <tr><td style="${labelTd}width:24%;">Client</td>
@@ -817,9 +815,9 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
     if (sealImg) {
       bottomSection += `
         <div style="text-align:right;margin-top:10px;padding-right:30px;">
-          <div style="display:inline-block;text-align:center;width:180px;">
+          <div style="display:inline-block;text-align:center;width:240px;">
             <p style="font-weight:bold;font-size:12px;margin-bottom:12px;text-decoration:underline;">Le Service Commercial</p>
-            <img src="${sealImg}" style="width:180px;" alt="cachet BTS" />
+            <img src="${sealImg}" style="width:240px;" alt="cachet BTS" />
           </div>
         </div>`;
     }
@@ -847,8 +845,7 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
     if (hasBankInfo || params.contactPerson) {
       bottomSection += `
         <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:11px;">
-          ${params.btsBankName    ? `<tr><td style="${labelTd}width:34%;">Banque</td><td style="${td}">${params.btsBankName}</td></tr>` : ''}
-          ${params.btsBankAccount ? `<tr><td style="${labelTd}">Numéro de compte</td><td style="${td}">${params.btsBankAccount}</td></tr>` : ''}
+          ${(params.btsBankName || params.btsBankAccount) ? `<tr><td style="${labelTd}width:34%;">Banque ${params.btsBankName ?? ''}</td><td style="${td}">${params.btsBankAccount ?? ''}</td></tr>` : ''}
           ${params.btsBankIban    ? `<tr><td style="${labelTd}">IBAN</td><td style="${td}">${params.btsBankIban}</td></tr>` : ''}
           ${params.btsBankSwift   ? `<tr><td style="${labelTd}">SWIFT/BIC</td><td style="${td}">${params.btsBankSwift}</td></tr>` : ''}
           ${params.contactPerson  ? `<tr><td style="${labelTd}">Personne à contacter</td><td style="${td}">${params.contactPerson}</td></tr>` : ''}
@@ -1028,7 +1025,7 @@ export function buildReceiptHtml(params: ReceiptParams): string {
 
     <div style="text-align:right;margin-top:16px;margin-right:20px;">
       <p style="font-weight:bold;font-size:12px;margin-bottom:10px;">La Caisse</p>
-      ${sealImg ? `<img src="${sealImg}" style="width:160px;" alt="cachet BTS" />` : ''}
+      ${sealImg ? `<img src="${sealImg}" style="width:240px;" alt="cachet BTS" />` : ''}
     </div>
   </div>
 </body>

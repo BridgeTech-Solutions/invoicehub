@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Building2, PiggyBank, Banknote, Smartphone, Lock,
   Star, Upload, GitMerge, ArrowLeftRight,
@@ -36,18 +37,18 @@ interface BankAccountCardProps {
 
 export function BankAccountCard({ account, onEdit, onDelete, onSetDefault }: BankAccountCardProps) {
   const [hovered, setHovered] = useState(false)
+  const router   = useRouter()
   const TypeIcon = TYPE_ICON[account.accountType] ?? Building2
   const color    = account.color ?? '#2D7DD2'
   const balance  = Number(account.currentBalance)
-  const formatted = balance.toLocaleString('fr-FR', { maximumFractionDigits: 0 })
 
   const actions = [
-    { label: 'Modifier',      icon: Pencil,       onClick: () => onEdit(account) },
+    { label: 'Modifier',            icon: Pencil,         onClick: () => onEdit(account) },
     ...(!account.isDefault ? [{ label: 'Définir comme défaut', icon: CheckCircle, onClick: () => onSetDefault(account) }] : []),
-    { label: 'Importer un relevé', icon: Upload,    onClick: () => {} },
-    { label: 'Transactions',       icon: ArrowLeftRight, onClick: () => {} },
-    { label: 'Rapprocher',         icon: GitMerge,  onClick: () => {} },
-    { label: 'Supprimer',          icon: Trash2,    onClick: () => onDelete(account), danger: true, separator: true },
+    { label: 'Importer un relevé',  icon: Upload,         onClick: () => router.push(`${ROUTES.BANK_IMPORT}?accountId=${account.id}`) },
+    { label: 'Transactions',        icon: ArrowLeftRight, onClick: () => router.push(`${ROUTES.BANK_TRANSACTIONS}?accountId=${account.id}`) },
+    { label: 'Rapprocher',          icon: GitMerge,       onClick: () => router.push(`${ROUTES.BANK_RECONCILIATIONS}?accountId=${account.id}`) },
+    { label: 'Supprimer',           icon: Trash2,         onClick: () => onDelete(account), danger: true, separator: true },
   ]
 
   return (

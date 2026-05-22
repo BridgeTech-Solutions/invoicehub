@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import {
   bankSummaryApi, bankAccountsApi, bankTransactionsApi,
   bankImportApi, bankReconciliationsApi, bankMatchingRulesApi,
+  bankImportProfilesApi,
 } from './api'
 import type {
   CreateBankAccountPayload, UpdateBankAccountPayload,
@@ -13,6 +14,7 @@ import type {
   ListTransactionsParams, OpenReconciliationPayload,
   CreateMatchingRulePayload, UpdateMatchingRulePayload,
   ListReconciliationsParams,
+  CreateImportProfilePayload, UpdateImportProfilePayload,
 } from './types'
 
 // ─── Query Keys ─────────────────────────────────────────────────────────────
@@ -27,6 +29,7 @@ export const BANK_KEYS = {
   reconciliations:(p?: ListReconciliationsParams) => ['bank', 'reconciliations', p] as const,
   reconciliation: (id: string) => ['bank', 'reconciliations', id] as const,
   matchingRules:  (accountId?: string) => ['bank', 'matching-rules', accountId] as const,
+  importProfiles: ['bank', 'import-profiles'] as const,
 }
 
 // ─── Summary ─────────────────────────────────────────────────────────────────
@@ -330,4 +333,51 @@ export function useImportPolling(importId: string | null) {
   const result = useImportStatus(importId, isActive)
   const isDone = result.data?.status === 'completed' || result.data?.status === 'failed'
   return { ...result, isDone }
+}
+
+// ─── Import Profiles ───────────────────────────────────────────────────────────
+
+export function useImportProfiles() {
+  return useQuery({
+    queryKey: BANK_KEYS.importProfiles,
+    queryFn:  bankImportProfilesApi.list,
+    staleTime: 60_000,
+  })
+}
+
+export function useCreateImportProfile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: CreateImportProfilePayload) => bankImportProfilesApi.create(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: BANK_KEYS.importProfiles })
+      toast.success('Profil d\'import créé')
+    },
+    onError: () => toast.error('Erreur lors de la création du profil'),
+  })
+}
+
+export function useUpdateImportProfile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateImportProfilePayload }) =>
+      bankImportProfilesApi.update(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: BANK_KEYS.importProfiles })
+      toast.success('Profil mis à jour')
+    },
+    onError: () => toast.error('Erreur lors de la mise à jour du profil'),
+  })
+}
+
+export function useDeleteImportProfile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => bankImportProfilesApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: BANK_KEYS.importProfiles })
+      toast.success('Profil supprimé')
+    },
+    onError: () => toast.error('Erreur lors de la suppression du profil'),
+  })
 }

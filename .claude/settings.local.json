@@ -31,7 +31,16 @@
       "Bash(python \"D:/Bel/projets/BRIDGE/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"user management rbac permissions matrix enterprise admin\" --domain ux -n 6)",
       "Bash(python3 \"D:/Bel/projets/BRIDGE/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"enterprise saas admin roles permissions\" --domain style -n 4)",
       "Bash(python \"D:/Bel/projets/BRIDGE/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"enterprise saas admin roles permissions\" --domain style -n 4)",
-      "Bash(npx next *)"
+      "Bash(npx next *)",
+      "Bash(ConvertTo-Json)",
+      "Bash(findstr -i \"migration\\\\|shadowDatabase\\\\|provider\")",
+      "Bash(dir \"D:/Bel/projets/BRIDGE/bridge-frontend/src/app/\\(dashboard\\)\" /b /ad)",
+      "Bash(python scripts/search.py \"fintech ERP accounting purchases expenses SaaS dashboard professional\" --design-system -p \"BTS InvoiceHub Achats\" -f markdown)",
+      "Bash(python scripts/search.py \"procurement supplier invoice expense management\" --domain ux -n 5)",
+      "Bash(python scripts/search.py \"data table list filter pagination SaaS\" --domain ux -n 8)",
+      "Bash(python scripts/search.py \"accounting fintech ERP dashboard\" --domain style -n 5)",
+      "Bash(python scripts/search.py \"form validation inline error state loading\" --domain ux -n 5)",
+      "Bash(python scripts/search.py \"nextjs SaaS dashboard enterprise\" --stack nextjs)"
     ]
   },
   "mcpServers": {

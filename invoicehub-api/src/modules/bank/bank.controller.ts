@@ -224,10 +224,14 @@ export class BankController {
   @UseInterceptors(FileInterceptor('file', fileUpload))
   async previewImport(
     @UploadedFile() file: Express.Multer.File,
-    @Body() body: { bankAccountId: string; encoding?: string },
+    @Body() body: { bankAccountId: string; encoding?: string; columnMapping?: string },
   ) {
     if (!file) throw AppError.badRequest('Fichier requis');
-    return this.bank.previewImport(file.buffer, body.bankAccountId, file.originalname, body.encoding as any);
+    let columnMappingOverride: object | undefined;
+    if (body.columnMapping) {
+      try { columnMappingOverride = JSON.parse(body.columnMapping); } catch { /* ignore */ }
+    }
+    return this.bank.previewImport(file.buffer, body.bankAccountId, file.originalname, body.encoding as any, undefined, columnMappingOverride);
   }
 
   @Post('import/confirm')
@@ -268,7 +272,7 @@ export class BankController {
     return this.bank.importCsv(csvContent, body, user.sub);
   }
 
-  // ── Profils ──────────────────────────────────────────────────────────────────
+  // ── Profils — override par compte ───────────────────────────────────────────
 
   @Post('profiles/override')
   @Permission('bank:import-parse')
@@ -277,6 +281,53 @@ export class BankController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.bank.saveProfileOverride(body.bankAccountId, body.profileData, user.sub);
+  }
+
+  // ── Profils d'import partagés ────────────────────────────────────────────────
+
+  @Get('import-profiles')
+  @Permission('bank:read')
+  async listImportProfiles() {
+    return this.bank.listImportProfiles();
+  }
+
+  @Post('import-profiles')
+  @Permission('bank:import-parse')
+  @HttpCode(HttpStatus.CREATED)
+  async createImportProfile(
+    @Body() body: any,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.bank.createImportProfile(body, user.sub);
+  }
+
+  @Get('import-profiles/:id')
+  @Permission('bank:read')
+  async getImportProfile(@Param('id') id: string) {
+    return this.bank.getImportProfileById(id);
+  }
+
+  @Put('import-profiles/:id')
+  @Permission('bank:manage')
+  async updateImportProfile(
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.bank.updateImportProfile(id, body);
+  }
+
+  @Delete('import-profiles/:id')
+  @Permission('bank:manage')
+  async deleteImportProfile(@Param('id') id: string) {
+    await this.bank.deleteImportProfile(id);
+    return { message: 'Profil d\'import supprimé' };
+  }
+
+  @Post('import-profiles/:id/use')
+  @Permission('bank:import-parse')
+  async incrementImportProfileUsage(@Param('id') id: string) {
+    await this.bank.incrementImportProfileUsage(id);
+    return { message: 'Usage enregistré' };
   }
 
   // ── Règles de matching ───────────────────────────────────────────────────────

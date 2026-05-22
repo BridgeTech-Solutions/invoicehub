@@ -632,6 +632,7 @@ model User {
   bankReconciliationsReviewed      BankReconciliation[]         @relation("BankReconciliationReviewedBy")
   bankProfileOverridesCreated      BankProfileOverride[]        @relation("BankProfileCreatedBy")
   bankMatchingRulesCreated         BankMatchingRule[]           @relation("BankMatchingRuleCreatedBy")
+  bankImportProfilesCreated        BankImportProfile[]          @relation("BankImportProfileCreatedBy")
   chartOfAccountsCreated           ChartOfAccount[]             @relation("CoaCreatedBy")
   fiscalPeriodsCreated             FiscalPeriod[]               @relation("FiscalPeriodCreatedBy")
   fiscalPeriodsClosed              FiscalPeriod[]               @relation("FiscalPeriodClosedBy")
@@ -1172,7 +1173,7 @@ model AuditLog {
   userId        String?     @map("user_id") @db.Uuid
   user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
   userEmail     String?     @map("user_email") @db.VarChar(255)
-  userRole      String?     @map("user_role") @db.VarChar(100)
+  userRole      String?     @map("user_role_name") @db.VarChar(100)
   action        AuditAction
   entityType    String?     @map("entity_type") @db.VarChar(100)
   entityId      String?     @map("entity_id") @db.Uuid
@@ -1830,6 +1831,35 @@ model BankMatchingRule {
   updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
   @@map("bank_matching_rules")
+}
+
+model BankImportProfile {
+  id                  String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name                String    @db.VarChar(255)
+  bankName            String?   @map("bank_name") @db.VarChar(255)
+  country             String?   @db.VarChar(10)
+  source              String    @default("user") @db.VarChar(20)
+  fileFormat          String    @default("csv") @map("file_format") @db.VarChar(20)
+  encoding            String    @default("utf-8") @db.VarChar(30)
+  delimiter           String    @default(";") @db.VarChar(5)
+  dateFormat          String    @default("DD/MM/YYYY") @map("date_format") @db.VarChar(30)
+  numberFormat        Json      @map("number_format")
+  columnMapping       Json      @map("column_mapping")
+  directionValues     Json?     @map("direction_values")
+  amountSign          String?   @map("amount_sign") @db.VarChar(50)
+  skipRowsContaining  Json?     @map("skip_rows_containing")
+  skipFirstRows       Int       @default(0) @map("skip_first_rows")
+  isPublic            Boolean   @default(false) @map("is_public")
+  usageCount          Int       @default(0) @map("usage_count")
+  lastUsedAt          DateTime? @map("last_used_at") @db.Timestamptz()
+  notes               String?
+  createdById         String    @map("created_by") @db.Uuid
+  createdBy           User      @relation("BankImportProfileCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz()
+
+  @@map("bank_import_profiles")
 }
 
 // ================================================================

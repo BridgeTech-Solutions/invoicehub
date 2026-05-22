@@ -724,7 +724,7 @@ export async function detectImportFormat(
   bankAccountId: string,
   filename: string,
   encodingHint?: 'auto' | 'utf-8' | 'win1252' | 'iso-8859-1' | 'utf-16le'
-): Promise<DetectedFormat & { fileFormat: FileFormat }> {
+): Promise<DetectedFormat & { fileFormat: FileFormat; confidenceScore: number; needsMapping: boolean }> {
   const account = await prisma.bankAccount.findFirst({ where: { id: bankAccountId, deletedAt: null } });
   if (!account) throw AppError.notFound('Compte bancaire introuvable');
 
@@ -734,24 +734,61 @@ export async function detectImportFormat(
   // OFX / MT940 : format auto-descriptif, pas besoin de mapping de colonnes
   if (fileFormat === 'ofx' || fileFormat === 'mt940') {
     return {
-      profileId:       fileFormat,
-      profileName:     fileFormat === 'ofx' ? 'OFX / QFX' : 'MT940 SWIFT',
-      delimiter:       ',',
-      encoding:        encodingHint ?? 'auto',
-      dateFormat:      'YYYY-MM-DD',
-      numberFormat:    { thousands: '', decimal: '.' },
-      columnMapping:   { date: 'auto', label: 'auto' },
-      confidence:      95,
-      source:          'verified' as const,
+      profileId:        fileFormat,
+      profileName:      fileFormat === 'ofx' ? 'OFX / QFX' : 'MT940 SWIFT',
+      delimiter:        ',',
+      encoding:         encodingHint ?? 'auto',
+      dateFormat:       'YYYY-MM-DD',
+      numberFormat:     { thousands: '', decimal: '.' },
+      columnMapping:    { date: 'auto', label: 'auto' },
+      confidence:       95,
+      confidenceScore:  95,
+      needsMapping:     false,
+      source:           'verified' as const,
       verificationNote: `Format ${fileFormat.toUpperCase()} — structure auto-interprétée`,
-      headerRow:       0,
+      headerRow:        0,
       fileFormat,
     };
   }
 
-  const override = await prisma.bankProfileOverride.findUnique({ where: { bankAccountId } });
-  const fmt = autoDetectFormat(content, override?.profileData ?? undefined);
-  return { ...fmt, fileFormat };
+  // Charger l'override par compte + les profils DB personnalisés
+  const [override, dbProfiles] = await Promise.all([
+    prisma.bankProfileOverride.findUnique({ where: { bankAccountId } }),
+    prisma.bankImportProfile.findMany({
+      where: { deletedAt: null },
+      select: {
+        id: true, name: true, bankName: true, country: true, source: true,
+        fileFormat: true, encoding: true, delimiter: true, dateFormat: true,
+        numberFormat: true, columnMapping: true, directionValues: true,
+        amountSign: true, skipRowsContaining: true, skipFirstRows: true,
+      },
+    }),
+  ]);
+
+  // Convertir les profils DB au format BankProfile pour le scoring
+  const extraProfiles = dbProfiles.map(p => ({
+    _dbId:              p.id,
+    id:                 p.id,
+    name:               p.name,
+    country:            p.country,
+    source:             p.source as any,
+    fileFormat:         p.fileFormat as any,
+    encoding:           p.encoding as any,
+    delimiter:          p.delimiter as any,
+    dateFormat:         p.dateFormat,
+    numberFormat:       p.numberFormat as any,
+    columns:            p.columnMapping as any,
+    directionValues:    p.directionValues as any,
+    amountSign:         p.amountSign as any,
+    skipRowsContaining: p.skipRowsContaining as any,
+    skipFirstRows:      p.skipFirstRows,
+  }));
+
+  const fmt = autoDetectFormat(content, override?.profileData ?? undefined, extraProfiles);
+  const confidenceScore = fmt.confidence;
+  const needsMapping    = confidenceScore < 80 && !override;
+
+  return { ...fmt, fileFormat, confidenceScore, needsMapping };
 }
 
 export async function previewImport(
@@ -1225,4 +1262,108 @@ export async function updateMatchingRule(id: string, data: {
 
 export async function deleteMatchingRule(id: string) {
   return prisma.bankMatchingRule.update({ where: { id }, data: { isActive: false } });
+}
+
+// ── Profils d'import bancaire ─────────────────────────────────────────────────
+
+export async function listImportProfiles() {
+  return prisma.bankImportProfile.findMany({
+    where:   { deletedAt: null },
+    orderBy: [{ source: 'asc' }, { usageCount: 'desc' }, { name: 'asc' }],
+    include: { createdBy: { select: { id: true, firstName: true, lastName: true } } },
+  });
+}
+
+export async function getImportProfileById(id: string) {
+  const p = await prisma.bankImportProfile.findFirst({ where: { id, deletedAt: null } });
+  if (!p) throw AppError.notFound('Profil introuvable');
+  return p;
+}
+
+export async function createImportProfile(data: {
+  name: string; bankName?: string; country?: string;
+  encoding?: string; delimiter?: string; dateFormat?: string;
+  numberFormat: { thousands: string; decimal: string };
+  columnMapping: Record<string, string>;
+  directionValues?: { debit: string[]; credit: string[] };
+  amountSign?: string;
+  skipRowsContaining?: string[];
+  skipFirstRows?: number;
+  isPublic?: boolean;
+  notes?: string;
+}, userId: string) {
+  return prisma.bankImportProfile.create({
+    data: {
+      name:               data.name,
+      bankName:           data.bankName ?? undefined,
+      country:            data.country ?? 'CM',
+      source:             'user',
+      fileFormat:         'csv',
+      encoding:           data.encoding ?? 'utf-8',
+      delimiter:          data.delimiter ?? ';',
+      dateFormat:         data.dateFormat ?? 'DD/MM/YYYY',
+      numberFormat:       data.numberFormat,
+      columnMapping:      data.columnMapping,
+      directionValues:    data.directionValues ?? undefined,
+      amountSign:         data.amountSign ?? undefined,
+      skipRowsContaining: data.skipRowsContaining ?? undefined,
+      skipFirstRows:      data.skipFirstRows ?? 1,
+      isPublic:           data.isPublic ?? false,
+      notes:              data.notes ?? undefined,
+      createdById:        userId,
+    },
+    include: { createdBy: { select: { id: true, firstName: true, lastName: true } } },
+  });
+}
+
+export async function updateImportProfile(id: string, data: {
+  name?: string; bankName?: string; country?: string;
+  encoding?: string; delimiter?: string; dateFormat?: string;
+  numberFormat?: { thousands: string; decimal: string };
+  columnMapping?: Record<string, string>;
+  directionValues?: { debit: string[]; credit: string[] };
+  amountSign?: string;
+  skipRowsContaining?: string[];
+  skipFirstRows?: number;
+  isPublic?: boolean;
+  notes?: string;
+}) {
+  const existing = await prisma.bankImportProfile.findFirst({ where: { id, deletedAt: null } });
+  if (!existing) throw AppError.notFound('Profil introuvable');
+  if (existing.source !== 'user') throw AppError.forbidden('Seuls les profils utilisateur sont modifiables');
+
+  return prisma.bankImportProfile.update({
+    where: { id },
+    data:  {
+      ...(data.name               !== undefined && { name: data.name }),
+      ...(data.bankName           !== undefined && { bankName: data.bankName }),
+      ...(data.country            !== undefined && { country: data.country }),
+      ...(data.encoding           !== undefined && { encoding: data.encoding }),
+      ...(data.delimiter          !== undefined && { delimiter: data.delimiter }),
+      ...(data.dateFormat         !== undefined && { dateFormat: data.dateFormat }),
+      ...(data.numberFormat       !== undefined && { numberFormat: data.numberFormat }),
+      ...(data.columnMapping      !== undefined && { columnMapping: data.columnMapping }),
+      ...(data.directionValues    !== undefined && { directionValues: data.directionValues }),
+      ...(data.amountSign         !== undefined && { amountSign: data.amountSign }),
+      ...(data.skipRowsContaining !== undefined && { skipRowsContaining: data.skipRowsContaining }),
+      ...(data.skipFirstRows      !== undefined && { skipFirstRows: data.skipFirstRows }),
+      ...(data.isPublic           !== undefined && { isPublic: data.isPublic }),
+      ...(data.notes              !== undefined && { notes: data.notes }),
+    },
+    include: { createdBy: { select: { id: true, firstName: true, lastName: true } } },
+  });
+}
+
+export async function deleteImportProfile(id: string) {
+  const existing = await prisma.bankImportProfile.findFirst({ where: { id, deletedAt: null } });
+  if (!existing) throw AppError.notFound('Profil introuvable');
+  if (existing.source !== 'user') throw AppError.forbidden('Les profils système ne peuvent pas être supprimés');
+  return prisma.bankImportProfile.update({ where: { id }, data: { deletedAt: new Date() } });
+}
+
+export async function incrementProfileUsage(id: string) {
+  return prisma.bankImportProfile.update({
+    where: { id },
+    data:  { usageCount: { increment: 1 }, lastUsedAt: new Date() },
+  });
 }

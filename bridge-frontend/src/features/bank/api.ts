@@ -9,6 +9,7 @@ import type {
   PaginatedReconciliations, ListReconciliationsParams,
   BankMatchingRule, CreateMatchingRulePayload, UpdateMatchingRulePayload,
   BankSummary,
+  BankImportProfile, CreateImportProfilePayload, UpdateImportProfilePayload,
 } from './types'
 
 // ─── Summary ────────────────────────────────────────────────────────────────
@@ -80,11 +81,12 @@ export const bankImportApi = {
     }).then(r => r.data)
   },
 
-  preview: (file: File, bankAccountId: string, encoding?: string) => {
+  preview: (file: File, bankAccountId: string, encoding?: string, columnMapping?: object) => {
     const form = new FormData()
     form.append('file', file)
     form.append('bankAccountId', bankAccountId)
-    if (encoding) form.append('encoding', encoding)
+    if (encoding)      form.append('encoding', encoding)
+    if (columnMapping) form.append('columnMapping', JSON.stringify(columnMapping))
     return apiClient.post<ImportPreviewResult>('/bank/import/preview', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then(r => r.data)
@@ -141,4 +143,23 @@ export const bankMatchingRulesApi = {
 
   delete: (id: string) =>
     apiClient.delete(`/bank/matching-rules/${id}`),
+}
+
+// ─── Import Profiles ──────────────────────────────────────────────────────────
+
+export const bankImportProfilesApi = {
+  list: () =>
+    apiClient.get<BankImportProfile[]>('/bank/import-profiles').then(r => r.data),
+
+  get: (id: string) =>
+    apiClient.get<BankImportProfile>(`/bank/import-profiles/${id}`).then(r => r.data),
+
+  create: (data: CreateImportProfilePayload) =>
+    apiClient.post<BankImportProfile>('/bank/import-profiles', data).then(r => r.data),
+
+  update: (id: string, data: UpdateImportProfilePayload) =>
+    apiClient.put<BankImportProfile>(`/bank/import-profiles/${id}`, data).then(r => r.data),
+
+  delete: (id: string) =>
+    apiClient.delete(`/bank/import-profiles/${id}`),
 }

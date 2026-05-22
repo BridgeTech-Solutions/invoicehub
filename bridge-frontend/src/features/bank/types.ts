@@ -170,16 +170,111 @@ export interface BankStatementImport {
   createdAt:        string
 }
 
+// ─── Import Profiles ────────────────────────────────────────────────────────
+
+export type ColumnRole =
+  | 'date' | 'label' | 'debit' | 'credit' | 'amount'
+  | 'direction' | 'reference' | 'balance' | 'valueDate' | 'ignore'
+
+export interface ColumnMapping {
+  date:         string
+  label:        string
+  debit?:       string
+  credit?:      string
+  amount?:      string
+  direction?:   string
+  reference?:   string
+  balanceAfter?: string
+  valueDate?:   string
+}
+
+export interface NumberFormat {
+  thousands: string
+  decimal:   string
+}
+
+export interface ProfileCandidate {
+  profileId: string | null
+  name:      string
+  source:    string
+  score:     number
+}
+
+export interface BankImportProfile {
+  id:                  string
+  name:                string
+  bankName:            string | null
+  country:             string
+  source:              'system' | 'user'
+  fileFormat:          ImportFormat
+  encoding:            string
+  delimiter:           string
+  dateFormat:          string
+  numberFormat:        NumberFormat
+  columnMapping:       ColumnMapping
+  directionValues:     { debit: string[]; credit: string[] } | null
+  amountSign:          string | null
+  skipRowsContaining:  string[] | null
+  skipFirstRows:       number
+  isPublic:            boolean
+  usageCount:          number
+  lastUsedAt:          string | null
+  notes:               string | null
+  createdBy?:          { id: string; firstName: string; lastName: string } | null
+  createdAt:           string
+  updatedAt:           string
+}
+
+export interface CreateImportProfilePayload {
+  name:                string
+  bankName?:           string
+  country?:            string
+  encoding?:           string
+  delimiter?:          string
+  dateFormat?:         string
+  numberFormat:        NumberFormat
+  columnMapping:       ColumnMapping
+  directionValues?:    { debit: string[]; credit: string[] }
+  amountSign?:         string
+  skipRowsContaining?: string[]
+  skipFirstRows?:      number
+  isPublic?:           boolean
+  notes?:              string
+}
+
+export type UpdateImportProfilePayload = Partial<CreateImportProfilePayload>
+
 export interface DetectFormatResult {
   importId:          string
   format:            ImportFormat
   detectedBank:      string | null
   confidence:        'high' | 'medium' | 'low'
+  confidenceScore:   number
+  needsMapping:      boolean
   totalRows:         number
   encoding:          string
   periodStart:       string | null
   periodEnd:         string | null
   warnings:          string[]
+  /** Noms bruts des colonnes CSV (null pour OFX/MT940) */
+  headers:           string[] | null
+  /** Premières 3 lignes de données brutes */
+  sampleRows:        string[][] | null
+  /** Mapping détecté complet (pour pré-remplir le mapper) */
+  detectedMapping:   {
+    columnMapping:   ColumnMapping
+    dateFormat:      string
+    numberFormat:    NumberFormat
+    delimiter:       string
+    encoding:        string
+    amountSign?:     string
+    directionValues?: { debit: string[]; credit: string[] }
+    skipRowsContaining?: string[]
+    profileId:       string | null
+    profileName:     string
+    headerRow:       number
+  } | null
+  profileCandidates: ProfileCandidate[]
 }
 
 export interface ImportPreviewRow {

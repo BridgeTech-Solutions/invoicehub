@@ -33,6 +33,13 @@ router.get('/import/:id/status',           authorizePermission('bank:import-conf
 router.delete('/import/:id',               authorizePermission('bank:import-confirm'), auditMiddleware('bank_import', 'DELETE'), ctrl.rollbackImport);
 router.post('/profiles/override',          authorizePermission('bank:import-parse'),   ctrl.saveProfileOverride);
 
+// ── Bibliothèque de profils d'import ─────────────────────────────────────────
+router.get('/import-profiles',             authorizePermission('bank:read'),          ctrl.listImportProfiles);
+router.post('/import-profiles',            authorizePermission('bank:import-parse'),  auditMiddleware('bank_import_profile', 'CREATE'), ctrl.createImportProfile);
+router.get('/import-profiles/:id',         authorizePermission('bank:read'),          ctrl.getImportProfile);
+router.put('/import-profiles/:id',         authorizePermission('bank:import-parse'),  auditMiddleware('bank_import_profile', 'UPDATE'), ctrl.updateImportProfile);
+router.delete('/import-profiles/:id',      authorizePermission('bank:import-parse'),  auditMiddleware('bank_import_profile', 'DELETE'), ctrl.deleteImportProfile);
+
 // ── Config import par compte ──────────────────────────────────────────────────
 router.get('/accounts/:id/import-config',  authorizePermission('bank:read'), ctrl.getImportConfig);
 

@@ -155,12 +155,19 @@ export async function previewImport(req: Request, res: Response, next: NextFunct
   try {
     const file = (req as any).file as Express.Multer.File | undefined;
     if (!file) throw { statusCode: 400, message: 'Fichier requis' };
-    const { bankAccountId, encoding } = req.body;
+    const { bankAccountId, encoding, columnMapping: columnMappingRaw } = req.body;
+
+    let formatOverride: import('./bank.parsers').DetectedFormat | undefined;
+    if (columnMappingRaw) {
+      try { formatOverride = JSON.parse(columnMappingRaw); } catch { /* ignore malformed */ }
+    }
+
     const data = await service.previewImport(
       file.buffer,
       bankAccountId,
       file.originalname,
-      encoding as any
+      encoding as any,
+      formatOverride
     );
     res.json({ success: true, data });
   } catch (err) { next(err); }
@@ -291,5 +298,42 @@ export async function completeReconciliation(req: Request, res: Response, next: 
   try {
     const data = await service.completeReconciliation(String(req.params['id']), req.user!.id);
     res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
+
+// ── Profils d'import CRUD ─────────────────────────────────────────────────────
+
+export async function listImportProfiles(_req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await service.listImportProfiles();
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
+
+export async function getImportProfile(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await service.getImportProfileById(String(req.params['id']));
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
+
+export async function createImportProfile(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await service.createImportProfile(req.body, req.user!.id);
+    res.status(201).json({ success: true, data });
+  } catch (err) { next(err); }
+}
+
+export async function updateImportProfile(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await service.updateImportProfile(String(req.params['id']), req.body);
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
+
+export async function deleteImportProfile(req: Request, res: Response, next: NextFunction) {
+  try {
+    await service.deleteImportProfile(String(req.params['id']));
+    res.json({ success: true, message: 'Profil supprimé' });
   } catch (err) { next(err); }
 }

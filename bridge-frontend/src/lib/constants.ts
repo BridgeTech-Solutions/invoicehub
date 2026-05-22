@@ -44,6 +44,7 @@ export const ROUTES = {
   BANK:                       '/bank',
   BANK_ACCOUNTS:              '/bank/accounts',
   BANK_IMPORT:                '/bank/import',
+  BANK_IMPORT_PROFILES:       '/bank/import-profiles',
   BANK_TRANSACTIONS:          '/bank/transactions',
   BANK_RECONCILIATIONS:       '/bank/reconciliations',
   BANK_MATCHING_RULES:        '/bank/matching-rules',

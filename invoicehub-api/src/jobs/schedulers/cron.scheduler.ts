@@ -29,12 +29,14 @@ export class CronScheduler {
     await this.reminderQueue.add('reminder', { triggeredAt: new Date().toISOString() });
   }
 
-  @Cron('30 16 * * *', { timeZone: 'UTC' })
+  // 16h30 heure locale (UTC+1) — dans la fenêtre 8h-17h
+  @Cron('30 15 * * *', { timeZone: 'UTC' })
   async runBackup() {
     await this.backupQueue.add('backup', { backupId: '' });
   }
 
-  @Cron('0 15 * * 5', { timeZone: 'UTC' })
+  // 8h15 heure locale — nettoyage des imports pending abandonnés + jobs expirés
+  @Cron('15 7 * * *', { timeZone: 'UTC' })
   async runCleanup() {
     await this.cleanupQueue.add('cleanup', { triggeredAt: new Date().toISOString() });
   }

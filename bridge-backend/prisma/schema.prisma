@@ -625,6 +625,7 @@ model User {
   bankReconciliationsCompleted     BankReconciliation[]         @relation("BankReconciliationCompletedBy")
   bankReconciliationsReviewed      BankReconciliation[]         @relation("BankReconciliationReviewedBy")
   bankProfileOverridesCreated      BankProfileOverride[]        @relation("BankProfileCreatedBy")
+  bankImportProfilesCreated        BankImportProfile[]          @relation("BankImportProfileCreatedBy")
   bankMatchingRulesCreated         BankMatchingRule[]           @relation("BankMatchingRuleCreatedBy")
   chartOfAccountsCreated           ChartOfAccount[]             @relation("CoaCreatedBy")
   fiscalPeriodsCreated             FiscalPeriod[]               @relation("FiscalPeriodCreatedBy")
@@ -1802,6 +1803,35 @@ model BankMatchingRule {
   updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
   @@map("bank_matching_rules")
+}
+
+model BankImportProfile {
+  id                  String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name                String    @db.VarChar(255)
+  bankName            String?   @map("bank_name") @db.VarChar(255)
+  country             String    @default("CM") @db.Char(2)
+  source              String    @default("user") @db.VarChar(20)
+  fileFormat          String    @default("csv") @map("file_format") @db.VarChar(20)
+  encoding            String    @default("utf-8") @db.VarChar(20)
+  delimiter           String    @default(";") @db.Char(1)
+  dateFormat          String    @default("DD/MM/YYYY") @map("date_format") @db.VarChar(30)
+  numberFormat        Json      @map("number_format")
+  columnMapping       Json      @map("column_mapping")
+  directionValues     Json?     @map("direction_values")
+  amountSign          String?   @map("amount_sign") @db.VarChar(30)
+  skipRowsContaining  Json?     @map("skip_rows_containing")
+  skipFirstRows       Int       @default(1) @map("skip_first_rows")
+  isPublic            Boolean   @default(false) @map("is_public")
+  usageCount          Int       @default(0) @map("usage_count")
+  lastUsedAt          DateTime? @map("last_used_at") @db.Timestamptz()
+  notes               String?
+  createdById         String    @map("created_by") @db.Uuid
+  createdBy           User      @relation("BankImportProfileCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz()
+
+  @@map("bank_import_profiles")
 }
 
 // ================================================================

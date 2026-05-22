@@ -38,9 +38,15 @@ export interface DetectedFormat {
   directionValues?: { debit: string[]; credit: string[] };
   skipRowsContaining?: string[];
   confidence: number;
-  source: 'estimated' | 'community' | 'verified' | 'override' | 'auto-detected';
+  source: 'estimated' | 'community' | 'verified' | 'override' | 'auto-detected' | 'user';
   verificationNote?: string;
   headerRow: number;
+  /** Noms des colonnes bruts (CSV seulement, null pour OFX/MT940) */
+  headers?: string[];
+  /** Premières 3 lignes de données brutes (CSV seulement) */
+  sampleRows?: string[][];
+  /** Top candidats avec score, pour choix manuel dans l'UI */
+  profileCandidates?: Array<{ profileId: string | null; name: string; source: string; score: number }>;
 }
 
 export interface ImportPreview {
@@ -192,25 +198,42 @@ function scoreProfile(profile: BankProfile, headers: string[], sampleRows: strin
 export function selectBestProfile(
   headers: string[],
   sampleRows: string[][],
-  overrideProfileData?: any
-): { profile: BankProfile | null; confidence: number } {
+  overrideProfileData?: any,
+  extraProfiles: Array<BankProfile & { _dbId?: string }> = []
+): {
+  profile: BankProfile | null;
+  confidence: number;
+  candidates: Array<{ profileId: string | null; name: string; source: string; score: number }>;
+} {
   if (overrideProfileData) {
-    return { profile: overrideProfileData as BankProfile, confidence: 100 };
+    return {
+      profile: overrideProfileData as BankProfile,
+      confidence: 100,
+      candidates: [{ profileId: overrideProfileData.id ?? null, name: overrideProfileData.name ?? 'Profil personnalisé', source: 'override', score: 100 }],
+    };
   }
 
-  let bestScore = 0;
-  let bestProfile: BankProfile | null = null;
+  const allProfiles = [...extraProfiles, ...BANK_PROFILES];
+  const scored = allProfiles.map(p => ({
+    profile: p,
+    score: scoreProfile(p, headers, sampleRows),
+  })).sort((a, b) => b.score - a.score);
 
-  for (const profile of BANK_PROFILES) {
-    const score = scoreProfile(profile, headers, sampleRows);
-    if (score > bestScore) {
-      bestScore = score;
-      bestProfile = profile;
-    }
-  }
-
+  const best = scored[0];
+  const bestScore = best?.score ?? 0;
+  const bestProfile = bestScore > 0 ? (best?.profile ?? null) : null;
   const confidence = Math.min(100, Math.round((bestScore / 80) * 100));
-  return { profile: bestProfile, confidence };
+
+  const candidates = scored.slice(0, 5)
+    .filter(s => s.score > 0)
+    .map(s => ({
+      profileId: (s.profile as any)._dbId ?? s.profile.id ?? null,
+      name:      s.profile.name,
+      source:    s.profile.source,
+      score:     Math.min(100, Math.round((s.score / 80) * 100)),
+    }));
+
+  return { profile: bestProfile, confidence, candidates };
 }
 
 // ── Parser une ligne CSV (gestion des guillemets) ─────────────────────────────
@@ -321,7 +344,8 @@ export function computeContentHash(
 
 export function autoDetectFormat(
   content: string,
-  overrideProfileData?: any
+  overrideProfileData?: any,
+  extraProfiles: Array<BankProfile & { _dbId?: string }> = []
 ): DetectedFormat {
   const lines = content.split(/\r?\n/).filter(l => l.trim());
   if (lines.length === 0) throw new Error('Fichier vide');
@@ -345,7 +369,7 @@ export function autoDetectFormat(
     .slice(headerRowIndex + 1, headerRowIndex + 6)
     .map(l => parseCsvLine(l, delimiter));
 
-  const { profile, confidence } = selectBestProfile(headers, sampleRows, overrideProfileData);
+  const { profile, confidence, candidates } = selectBestProfile(headers, sampleRows, overrideProfileData, extraProfiles);
 
   let columnMapping: DetectedFormat['columnMapping'];
   let dateFormat = 'DD/MM/YYYY';
@@ -423,6 +447,9 @@ export function autoDetectFormat(
     source:              overrideProfileData ? 'override' : (profile?.source ?? 'auto-detected'),
     verificationNote:    profile?.verificationNote,
     headerRow:           headerRowIndex,
+    headers,
+    sampleRows:          sampleRows.slice(0, 3),
+    profileCandidates:   candidates,
   };
 }
 

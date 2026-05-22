@@ -2793,7 +2793,64 @@ COMMENT ON COLUMN bank_matching_rules.confidence  IS 'Niveau de confiance (0..N)
 COMMENT ON COLUMN bank_matching_rules.is_auto_apply IS 'Si TRUE, le rapprochement est appliqué sans validation humaine (réservé aux règles à haute confiance).';
 
 -- ================================================================
--- 5.10 VUE `v_cash_position` — Position de trésorerie temps réel
+-- 5.10 TABLE `bank_import_profiles` — Profils d'import de relevés
+-- ================================================================
+CREATE TABLE bank_import_profiles (
+    id                    UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
+
+    -- Identification
+    name                  VARCHAR(255) NOT NULL,
+    bank_name             VARCHAR(255),
+    country               VARCHAR(10),
+
+    -- Origine : 'system' (livré avec l'app) ou 'user' (créé par un utilisateur)
+    source                VARCHAR(20)  NOT NULL DEFAULT 'user',
+
+    -- Format du fichier
+    file_format           VARCHAR(20)  NOT NULL DEFAULT 'csv',   -- csv | ofx | mt940 | qif
+    encoding              VARCHAR(30)  NOT NULL DEFAULT 'utf-8',
+    delimiter             VARCHAR(5)   NOT NULL DEFAULT ';',
+
+    -- Parsing des données
+    date_format           VARCHAR(30)  NOT NULL DEFAULT 'DD/MM/YYYY',
+    number_format         JSONB        NOT NULL DEFAULT '{"decimal":",","thousands":"."}',
+    column_mapping        JSONB        NOT NULL DEFAULT '{}',
+    direction_values      JSONB,        -- ex: {"credit":"Crédit","debit":"Débit"}
+    amount_sign           VARCHAR(50),  -- 'debit_negative' | 'credit_positive' | etc.
+    skip_rows_containing  JSONB,        -- ex: ["***","SOLDE INITIAL"]
+    skip_first_rows       INTEGER      NOT NULL DEFAULT 0,
+
+    -- Visibilité
+    is_public             BOOLEAN      NOT NULL DEFAULT false,
+
+    -- Statistiques d'usage
+    usage_count           INTEGER      NOT NULL DEFAULT 0,
+    last_used_at          TIMESTAMPTZ,
+
+    notes                 TEXT,
+
+    -- Audit
+    created_by            UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    created_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    deleted_at            TIMESTAMPTZ
+);
+
+CREATE TRIGGER tg_bank_import_profiles_updated_at
+    BEFORE UPDATE ON bank_import_profiles
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE INDEX idx_bip_source     ON bank_import_profiles(source)     WHERE deleted_at IS NULL;
+CREATE INDEX idx_bip_is_public  ON bank_import_profiles(is_public)  WHERE deleted_at IS NULL;
+CREATE INDEX idx_bip_created_by ON bank_import_profiles(created_by) WHERE deleted_at IS NULL;
+
+COMMENT ON TABLE  bank_import_profiles            IS 'Profils de configuration pour l''import de relevés bancaires (CSV, OFX, MT940). Réutilisables entre comptes.';
+COMMENT ON COLUMN bank_import_profiles.source     IS 'system = livré avec l''application, user = créé par un utilisateur BTS.';
+COMMENT ON COLUMN bank_import_profiles.is_public  IS 'Si TRUE, visible par tous les utilisateurs. Sinon, privé au créateur.';
+COMMENT ON COLUMN bank_import_profiles.column_mapping IS 'Mapping des colonnes du fichier vers les champs internes : {date, label, debit, credit, balance, reference}.';
+
+-- ================================================================
+-- 5.11 VUE `v_cash_position` — Position de trésorerie temps réel
 -- ================================================================
 CREATE VIEW v_cash_position AS
 SELECT
@@ -2850,6 +2907,7 @@ COMMENT ON VIEW v_cash_position IS 'Position de trésorerie consolidée par comp
 -- [x] bank_reconciliations (différence calculée GENERATED)
 -- [x] bank_profile_overrides (config import personnalisée, verified_count)
 -- [x] bank_matching_rules (règles apprises, confidence, is_auto_apply)
+-- [x] bank_import_profiles (profils d'import réutilisables, system + user, is_public)
 -- [x] v_cash_position (solde + prévisionnel + créances + dettes)
 -- [x] FK bank_account_id + bank_transaction_id sur :
 --     payments, supplier_payments, expenses

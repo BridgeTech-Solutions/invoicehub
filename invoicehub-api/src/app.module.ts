@@ -10,6 +10,7 @@ import { RedisModule } from './redis/redis.module';
 import { CommonAuthModule } from './common/auth.module';
 import { GatewayModule } from './gateway/gateway.module';
 import { JobsModule } from './jobs/jobs.module';
+import { WorkersModule } from './jobs/workers.module';
 import { HealthModule } from './modules/health/health.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RbacGuard } from './common/guards/rbac.guard';
@@ -72,6 +73,7 @@ import { AiModule } from './modules/ai/ai.module';
     CommonAuthModule,
     GatewayModule,
     JobsModule,
+    WorkersModule,
     HealthModule,
     // Phase 2
     TaxRatesModule,

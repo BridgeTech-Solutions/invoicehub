@@ -25,8 +25,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: { sub: string }): Promise<JwtPayload> {
     const cacheKey = `rbac:user:${payload.sub}`;
-    const cached   = await this.redis.get(cacheKey);
-    if (cached) return JSON.parse(cached) as JwtPayload;
+
+    try {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) return JSON.parse(cached) as JwtPayload;
+    } catch {
+      // Redis unavailable — fall through to DB
+    }
 
     const user = await this.prisma.user.findFirst({
       where: { id: payload.sub, deletedAt: null, status: 'active' },
@@ -51,7 +56,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       permissions: user.role.permissions,
     };
 
-    await this.redis.setex(cacheKey, RBAC_TTL, JSON.stringify(data));
+    try {
+      await this.redis.setex(cacheKey, RBAC_TTL, JSON.stringify(data));
+    } catch {
+      // Redis unavailable — cache miss is acceptable
+    }
+
     return data;
   }
 }

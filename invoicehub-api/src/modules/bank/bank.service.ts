@@ -15,6 +15,7 @@ import {
   detectFileFormat, computeContentHash,
   DetectedFormat, ImportPreview, FileFormat,
 } from './bank.parsers';
+import type { BankProfile } from './bank.profiles';
 import {
   computeScore, subsetSum, hungarian, SubsetCandidate,
 } from './bank.matching';
@@ -684,12 +685,41 @@ export class BankService {
         confidence: 95, source: 'verified' as const,
         verificationNote: `Format ${fileFormat.toUpperCase()} — structure auto-interprétée`,
         headerRow: 0, fileFormat,
+        confidenceScore: 95, needsMapping: false,
+        headers: null, sampleRows: null, profileCandidates: [],
       };
     }
 
-    const override = await this.prisma.bankProfileOverride.findUnique({ where: { bankAccountId } });
-    const fmt      = autoDetectFormat(content, override?.profileData ?? undefined);
-    return { ...fmt, fileFormat };
+    const [override, dbProfiles] = await Promise.all([
+      this.prisma.bankProfileOverride.findUnique({ where: { bankAccountId } }),
+      this.prisma.bankImportProfile.findMany({
+        where: { deletedAt: null },
+        select: { id: true, name: true, source: true, columnMapping: true, dateFormat: true, numberFormat: true, delimiter: true, encoding: true, amountSign: true, directionValues: true, skipRowsContaining: true },
+      }),
+    ]);
+
+    const extraProfiles = (dbProfiles as any[]).map(p => ({
+      id:           p.id,
+      name:         p.name,
+      source:       p.source,
+      columns:      p.columnMapping as any,
+      dateFormat:   p.dateFormat,
+      numberFormat: p.numberFormat as any,
+      encoding:     p.encoding,
+      delimiter:    p.delimiter,
+      amountSign:   p.amountSign,
+      directionValues: p.directionValues as any,
+      skipRowsContaining: p.skipRowsContaining as any,
+      _dbId:     p.id,
+      _dbName:   p.name,
+      _dbSource: p.source,
+    })) as Array<BankProfile & { _dbId: string; _dbName: string; _dbSource: string }>;
+
+    const fmt              = autoDetectFormat(content, override?.profileData ?? undefined, extraProfiles);
+    const confidenceScore  = fmt.confidence;
+    const needsMapping     = confidenceScore < 80 && !override;
+
+    return { ...fmt, fileFormat, confidenceScore, needsMapping };
   }
 
   async previewImport(
@@ -698,6 +728,7 @@ export class BankService {
     filename: string,
     encodingHint?: DetectFormatInput['encoding'],
     formatOverride?: DetectedFormat,
+    columnMappingOverride?: object,
   ): Promise<{ importId: string; preview: ImportPreview }> {
     const account = await this.prisma.bankAccount.findFirst({ where: { id: bankAccountId, deletedAt: null } });
     if (!account) throw AppError.notFound('Compte bancaire introuvable');
@@ -720,7 +751,7 @@ export class BankService {
     const uniqueTxns    = result.transactions.filter(t => !hashSet.has(t.contentHash));
     const duplicateRows = result.transactions.length - uniqueTxns.length;
 
-    const detectedFormat: DetectedFormat = formatOverride ?? result.detectedFormat ?? {
+    let detectedFormat: DetectedFormat = formatOverride ?? result.detectedFormat ?? {
       profileId:    result.fileFormat,
       profileName:  result.fileFormat === 'ofx' ? 'OFX / QFX' : 'MT940 SWIFT',
       delimiter:    ',' as const,
@@ -730,6 +761,28 @@ export class BankService {
       columnMapping: { date: 'auto', label: 'auto' },
       confidence:   95, source: 'verified' as const, headerRow: 0,
     };
+
+    // Apply custom mapping override from frontend ColumnMapper
+    if (columnMappingOverride && typeof columnMappingOverride === 'object') {
+      const cm = columnMappingOverride as any;
+      detectedFormat = {
+        ...detectedFormat,
+        columnMapping: {
+          date:         cm.date         ?? detectedFormat.columnMapping.date,
+          label:        cm.label        ?? detectedFormat.columnMapping.label,
+          debit:        cm.debit        ?? detectedFormat.columnMapping.debit,
+          credit:       cm.credit       ?? detectedFormat.columnMapping.credit,
+          amount:       cm.amount       ?? detectedFormat.columnMapping.amount,
+          direction:    cm.direction    ?? detectedFormat.columnMapping.direction,
+          reference:    cm.reference    ?? detectedFormat.columnMapping.reference,
+          balanceAfter: cm.balanceAfter ?? detectedFormat.columnMapping.balanceAfter,
+          valueDate:    cm.valueDate    ?? detectedFormat.columnMapping.valueDate,
+        },
+        ...(cm.dateFormat   ? { dateFormat:   cm.dateFormat }   : {}),
+        ...(cm.numberFormat ? { numberFormat: cm.numberFormat } : {}),
+        source: 'user' as const,
+      };
+    }
 
     const preview: ImportPreview = {
       detectedFormat,
@@ -1106,5 +1159,78 @@ export class BankService {
 
   async deleteMatchingRule(id: string) {
     return this.prisma.bankMatchingRule.update({ where: { id }, data: { isActive: false } });
+  }
+
+  // ── Profils d'import partagés ────────────────────────────────────────────────
+
+  async listImportProfiles() {
+    return this.prisma.bankImportProfile.findMany({
+      where:   { deletedAt: null },
+      orderBy: [{ source: 'asc' }, { name: 'asc' }],
+      include: { createdBy: { select: { id: true, firstName: true, lastName: true } } },
+    });
+  }
+
+  async getImportProfileById(id: string) {
+    const profile = await this.prisma.bankImportProfile.findFirst({
+      where: { id, deletedAt: null },
+    });
+    if (!profile) throw AppError.notFound('Profil d\'import introuvable');
+    return profile;
+  }
+
+  async createImportProfile(data: {
+    name: string; bankName?: string; country?: string;
+    fileFormat?: string; encoding?: string; delimiter?: string;
+    dateFormat?: string; numberFormat: object; columnMapping: object;
+    directionValues?: object; amountSign?: string;
+    skipRowsContaining?: string[]; skipFirstRows?: number; isPublic?: boolean; notes?: string;
+  }, userId: string) {
+    return this.prisma.bankImportProfile.create({
+      data: {
+        name:               data.name,
+        bankName:           data.bankName           ?? undefined,
+        country:            data.country            ?? undefined,
+        source:             'user',
+        fileFormat:         data.fileFormat          ?? 'csv',
+        encoding:           data.encoding            ?? 'utf-8',
+        delimiter:          data.delimiter           ?? ';',
+        dateFormat:         data.dateFormat          ?? 'DD/MM/YYYY',
+        numberFormat:       data.numberFormat,
+        columnMapping:      data.columnMapping,
+        directionValues:    data.directionValues     ?? undefined,
+        amountSign:         data.amountSign          ?? undefined,
+        skipRowsContaining: data.skipRowsContaining  ?? undefined,
+        skipFirstRows:      data.skipFirstRows        ?? 0,
+        isPublic:           data.isPublic             ?? false,
+        notes:              data.notes               ?? undefined,
+        createdById:        userId,
+      },
+    });
+  }
+
+  async updateImportProfile(id: string, data: Partial<{
+    name: string; bankName: string; country: string;
+    fileFormat: string; encoding: string; delimiter: string;
+    dateFormat: string; numberFormat: object; columnMapping: object;
+    directionValues: object; amountSign: string;
+    skipRowsContaining: string[]; skipFirstRows: number; isPublic: boolean; notes: string;
+  }>) {
+    const profile = await this.prisma.bankImportProfile.findFirst({ where: { id, deletedAt: null } });
+    if (!profile) throw AppError.notFound('Profil d\'import introuvable');
+    return this.prisma.bankImportProfile.update({ where: { id }, data });
+  }
+
+  async deleteImportProfile(id: string) {
+    const profile = await this.prisma.bankImportProfile.findFirst({ where: { id, deletedAt: null } });
+    if (!profile) throw AppError.notFound('Profil d\'import introuvable');
+    await this.prisma.bankImportProfile.update({ where: { id }, data: { deletedAt: new Date() } });
+  }
+
+  async incrementImportProfileUsage(id: string) {
+    await this.prisma.bankImportProfile.updateMany({
+      where: { id, deletedAt: null },
+      data:  { usageCount: { increment: 1 }, lastUsedAt: new Date() },
+    });
   }
 }

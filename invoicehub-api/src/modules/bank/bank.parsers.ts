@@ -16,6 +16,13 @@ export interface ParsedTransaction {
   rawRow: Record<string, string>;
 }
 
+export interface ProfileCandidate {
+  profileId: string;
+  name: string;
+  source: string;
+  score: number;
+}
+
 export interface DetectedFormat {
   profileId: string | null;
   profileName: string;
@@ -38,9 +45,15 @@ export interface DetectedFormat {
   directionValues?: { debit: string[]; credit: string[] };
   skipRowsContaining?: string[];
   confidence: number;
-  source: 'estimated' | 'community' | 'verified' | 'override' | 'auto-detected';
+  source: 'estimated' | 'community' | 'verified' | 'override' | 'auto-detected' | 'user';
   verificationNote?: string;
   headerRow: number;
+  // Fields added for the import profile feature
+  headers?: string[];
+  sampleRows?: string[][];
+  profileCandidates?: ProfileCandidate[];
+  confidenceScore?: number;
+  needsMapping?: boolean;
 }
 
 export interface ImportPreview {
@@ -192,25 +205,34 @@ function scoreProfile(profile: BankProfile, headers: string[], sampleRows: strin
 export function selectBestProfile(
   headers: string[],
   sampleRows: string[][],
-  overrideProfileData?: any
-): { profile: BankProfile | null; confidence: number } {
+  overrideProfileData?: any,
+  extraProfiles: Array<BankProfile & { _dbId?: string; _dbName?: string; _dbSource?: string }> = [],
+): { profile: BankProfile | null; confidence: number; candidates: ProfileCandidate[] } {
   if (overrideProfileData) {
-    return { profile: overrideProfileData as BankProfile, confidence: 100 };
+    return { profile: overrideProfileData as BankProfile, confidence: 100, candidates: [] };
   }
 
-  let bestScore = 0;
-  let bestProfile: BankProfile | null = null;
+  const allProfiles = [
+    ...BANK_PROFILES.map(p => ({ ...p, _dbId: undefined, _dbName: undefined, _dbSource: undefined })),
+    ...extraProfiles,
+  ];
 
-  for (const profile of BANK_PROFILES) {
-    const score = scoreProfile(profile, headers, sampleRows);
-    if (score > bestScore) {
-      bestScore = score;
-      bestProfile = profile;
-    }
-  }
+  const scored = allProfiles.map(p => ({ profile: p, score: scoreProfile(p, headers, sampleRows) }));
+  scored.sort((a, b) => b.score - a.score);
 
+  const best = scored[0];
+  const bestScore = best?.score ?? 0;
+  const bestProfile = bestScore > 0 ? (best!.profile as BankProfile) : null;
   const confidence = Math.min(100, Math.round((bestScore / 80) * 100));
-  return { profile: bestProfile, confidence };
+
+  const candidates: ProfileCandidate[] = scored.slice(0, 5).filter(s => s.score > 0).map(s => ({
+    profileId: s.profile._dbId ?? s.profile.id,
+    name:      s.profile._dbName ?? s.profile.name,
+    source:    s.profile._dbSource ?? s.profile.source,
+    score:     Math.min(100, Math.round((s.score / 80) * 100)),
+  }));
+
+  return { profile: bestProfile, confidence, candidates };
 }
 
 // ── Parser une ligne CSV (gestion des guillemets) ─────────────────────────────
@@ -321,7 +343,8 @@ export function computeContentHash(
 
 export function autoDetectFormat(
   content: string,
-  overrideProfileData?: any
+  overrideProfileData?: any,
+  extraProfiles: Array<BankProfile & { _dbId?: string; _dbName?: string; _dbSource?: string }> = [],
 ): DetectedFormat {
   const lines = content.split(/\r?\n/).filter(l => l.trim());
   if (lines.length === 0) throw new Error('Fichier vide');
@@ -345,7 +368,7 @@ export function autoDetectFormat(
     .slice(headerRowIndex + 1, headerRowIndex + 6)
     .map(l => parseCsvLine(l, delimiter));
 
-  const { profile, confidence } = selectBestProfile(headers, sampleRows, overrideProfileData);
+  const { profile, confidence, candidates } = selectBestProfile(headers, sampleRows, overrideProfileData, extraProfiles);
 
   let columnMapping: DetectedFormat['columnMapping'];
   let dateFormat = 'DD/MM/YYYY';
@@ -423,6 +446,10 @@ export function autoDetectFormat(
     source:              overrideProfileData ? 'override' : (profile?.source ?? 'auto-detected'),
     verificationNote:    profile?.verificationNote,
     headerRow:           headerRowIndex,
+    headers,
+    sampleRows:          sampleRows.slice(0, 3),
+    profileCandidates:   candidates,
+    confidenceScore:     confidence,
   };
 }
 
