@@ -1,6 +1,6 @@
 # InvoiceHub v2.0 — Bridge Technologies Solutions
 
-Plateforme de gestion de facturation entreprise pour **BTS (Bridge Technologies Solutions)**, Douala, Cameroun.
+Plateforme ERP interne pour **BTS (Bridge Technologies Solutions)**, Douala, Cameroun.  
 Conforme **SYSCOHADA** · Devise **XAF (Franc CFA)** · TVA **19,25 %**
 
 ---
@@ -9,34 +9,35 @@ Conforme **SYSCOHADA** · Devise **XAF (Franc CFA)** · TVA **19,25 %**
 
 ```
 BRIDGE/
-├── invoicehub-api/          # API REST — NestJS 11 + TypeScript + Prisma
-├── bridge-frontend/         # Interface web — Next.js 15 + TypeScript + Tailwind
+├── invoicehub-api/          # API REST — NestJS 11 + TypeScript + Prisma (actif)
+├── bridge-backend/          # Ancienne API Express (remplacée par invoicehub-api)
+├── bridge-frontend/         # Interface web — Next.js 15 + TypeScript + Tailwind 4
 ├── nginx/                   # Reverse proxy — Nginx + SSL
 ├── invoicehub_schema_v3.sql # Schéma PostgreSQL complet (init DB)
-├── docker-compose.yml       # Orchestration production (db, redis, api, frontend, ollama)
+├── docker-compose.yml       # Orchestration production
 ├── docker-compose.dev.yml   # Override développement (ports exposés, hot-reload)
 ├── .env.example             # Template variables d'environnement
-├── deploy.bat               # Script de déploiement Windows automatisé
-└── DEPLOIEMENT.md           # Guide de déploiement pas-à-pas
+├── deploy.bat               # Script déploiement Windows automatisé
+└── DEPLOY_WINDOWS_SERVER.md # Guide déploiement Windows Server
 ```
 
 ---
 
 ## Stack technique
 
-| Couche | Backend | Frontend |
+| Couche | Backend (`invoicehub-api`) | Frontend (`bridge-frontend`) |
 |---|---|---|
 | Langage | TypeScript 5 | TypeScript 5 |
 | Framework | NestJS 11 | Next.js 15 (App Router) |
 | ORM | Prisma 5 | TanStack Query v5 |
 | Base de données | PostgreSQL 15 | — |
 | Cache / Queues | Redis 7 + BullMQ | — |
-| Auth | JWT access 15m + refresh 7j | Zustand + Axios intercepteurs |
+| Auth | JWT access 15 min + refresh 7 j | Zustand + Axios intercepteurs |
 | 2FA | TOTP (otplib) + 8 codes de secours | QR code setup |
 | Temps réel | Socket.io + Redis adapter | Socket.io Client |
-| Styles | — | Tailwind CSS 4 |
+| Styles | — | Tailwind CSS 4 + CSS variables |
 | Graphiques | — | Recharts 2 |
-| PDF | Puppeteer (Chromium headless) | Téléchargement |
+| PDF | Puppeteer (Chromium headless) | Téléchargement direct |
 | Email | Nodemailer | — |
 | IA locale | Ollama (phi3:mini) | Assistant BTS streaming |
 | Conteneurs | Docker + Docker Compose v2 | Multi-stage Dockerfile |
@@ -44,89 +45,76 @@ BRIDGE/
 
 ---
 
-## Variables d'environnement
+## Modules Backend (`invoicehub-api/src/modules/`)
 
-Un seul fichier `.env` à la **racine du projet** sert de source de vérité pour tous les services.
-
-```bash
-# Copier le template et remplir les valeurs
-cp .env.example .env
-```
-
-**Variables obligatoires :**
-
-| Variable | Description |
+| Module | Fonctionnalités clés |
 |---|---|
-| `DB_PASSWORD` | Mot de passe PostgreSQL |
-| `JWT_ACCESS_SECRET` | Clé JWT access token (min 32 caractères) |
-| `JWT_REFRESH_SECRET` | Clé JWT refresh token (min 32 caractères) |
-| `APP_URL` | URL publique du frontend |
-| `BACKEND_URL` | URL publique de l'API |
-| `NEXT_PUBLIC_API_URL` | URL API vue depuis le navigateur |
-| `NEXT_PUBLIC_SOCKET_URL` | URL Socket.io vue depuis le navigateur |
-
-En développement local, `DATABASE_URL` et `REDIS_URL` doivent aussi pointer sur `localhost`.
-Voir `.env.example` pour la liste complète avec commentaires.
+| `auth` | Login, refresh, 2FA TOTP, sessions, reset-password, backup codes |
+| `users` | CRUD + avatar + gestion de profil |
+| `clients` | CRUD + résumé financier + quick-fill + import CSV |
+| `suppliers` | CRUD fournisseurs + coordonnées bancaires + historique achats |
+| `products` | Catalogue + catégories + prix + TVA par ligne |
+| `proformas` | Devis — cycle `draft→sent→accepted/rejected/expired` + PDF + duplication |
+| `invoices` | Factures — `standard`, `acompte`, `solde`, `avoir` auto + PDF + duplication |
+| `payments` | Paiements + recalcul solde automatique |
+| `purchase-orders` | Bons de commande — cycle `draft→approved→ordered→received→billed` |
+| `supplier-invoices` | Factures fournisseurs + rapprochement BC + paiements |
+| `expenses` | Notes de frais + catégories + budgets + workflow approbation |
+| `stock` | Inventaire + mouvements + niveaux + alertes + CMUP automatique |
+| `recurring` | Templates facturation récurrente (cron BullMQ) |
+| `bank-accounts` | Comptes bancaires BTS multi-banques |
+| `bank` | Import relevés + transactions + rapprochements + règles matching |
+| `accounting` | Plan comptable SYSCOHADA + journaux + écritures + lettrage + TVA |
+| `approvals` | Workflow d'approbation multi-niveaux |
+| `notifications` | In-app + préférences + Socket.io temps réel |
+| `dashboard` | KPIs + aging + cache Redis 5 min |
+| `reports` | Rapports financiers + export CSV |
+| `settings` | Paramètres entreprise + bureaux + taux TVA + templates email |
+| `audit` | Journal immuable + export CSV |
+| `search` | Recherche globale intelligente multi-entités |
+| `backups` | pg_dump + stockage local / S3 / Azure / OneDrive |
+| `ai` | BTS Assistant (Ollama streaming) |
 
 ---
 
-## Architecture API (`invoicehub-api/`)
+## Architecture Frontend (`bridge-frontend/src/`)
 
 ```
-src/
-├── main.ts                  # Bootstrap NestJS
-├── app.module.ts            # Module racine — imports globaux
-├── config/
-│   └── env.validation.ts    # Validation Zod des variables d'environnement
-├── common/
-│   ├── decorators/          # @CurrentUser, @Roles, @Public
-│   ├── guards/              # JwtAuthGuard (global), RolesGuard (global)
-│   ├── filters/             # GlobalExceptionFilter
-│   └── types/               # JwtPayload, Express.User augmentation
-├── gateway/                 # Socket.io WebSocket Gateway
-├── jobs/                    # BullMQ queues, workers, processors, scheduler
-└── modules/
-    ├── auth/                # Login, refresh, 2FA TOTP, sessions, reset-password
-    ├── users/               # CRUD + avatar
-    ├── clients/             # CRUD + résumé financier + quick-fill + import CSV
-    ├── products/            # Catalogue + catégories
-    ├── proformas/           # Devis — cycle complet + PDF + duplication
-    ├── invoices/            # Factures — standard/acompte/solde/avoir + PDF
-    ├── payments/            # Paiements + recalcul solde
-    ├── recurring/           # Templates facturation récurrente
-    ├── notifications/       # In-app + préférences + Socket.io
-    ├── dashboard/           # KPIs + aging + cache Redis 5min
-    ├── settings/            # Paramètres entreprise
-    ├── audit/               # Journal immuable + export CSV
-    ├── search/              # Recherche globale intelligente
-    ├── reports/             # Rapports financiers + export CSV
-    ├── tax-rates/           # CRUD taux TVA
-    ├── offices/             # CRUD bureaux/agences
-    ├── email-templates/     # Templates HTML configurables
-    ├── backups/             # pg_dump + stockage local/S3/GCS/Azure/OneDrive
-    ├── bank-accounts/       # Comptes bancaires BTS
-    └── ai/                  # BTS Assistant (Ollama)
-```
+app/
+├── (auth)/
+│   ├── login/               # Terminal BTS — panneau données live + formulaire
+│   ├── 2fa/                 # Vérification TOTP / code de secours
+│   └── reset-password/      # Mot de passe oublié + réinitialisation
+└── (dashboard)/             # AppShell — Sidebar + Topbar + OverlaySubNav
+    ├── dashboard/           # KPIs · graphiques CA · aging créances
+    ├── clients/             # Liste · détail · nouveau · édition
+    ├── suppliers/           # Liste · détail · nouveau · édition
+    ├── products/            # Catalogue · catégories
+    ├── proformas/           # Liste · détail · nouveau · édition
+    ├── invoices/            # Liste · détail · nouveau · édition
+    ├── payments/            # Liste · nouveau paiement
+    ├── recurring/           # Templates récurrents
+    ├── purchase-orders/     # Liste · détail · nouveau · édition
+    ├── supplier-invoices/   # Liste · détail · nouveau · édition
+    ├── expenses/            # Liste (3 tabs) · détail · nouveau · édition
+    │   ├── categories/      # Gestion des catégories avec palette couleur
+    │   └── budgets/         # Budgets annuels/mensuels avec progress bars
+    ├── stock/               # Inventaire · mouvements · niveaux · alertes
+    ├── bank/                # Comptes · import · transactions · rapprochements
+    ├── accounting/          # Plan comptable · journaux · écritures · lettrage
+    ├── reports/             # Rapports financiers
+    ├── approvals/           # Workflow approbation
+    ├── notifications/       # Centre de notifications
+    ├── users/               # Gestion utilisateurs (admin)
+    ├── audit/               # Journal d'audit (admin)
+    └── settings/            # Paramètres entreprise + sécurité + intégrations
 
-## Architecture Frontend (`bridge-frontend/`)
-
-```
-src/
-├── app/
-│   ├── (auth)/              # login · 2fa · reset-password
-│   └── (dashboard)/         # Pages protégées — AppShell
-│       ├── dashboard/ · clients/ · products/ · proformas/ · invoices/
-│       ├── payments/ · recurring/ · notifications/ · users/ · audit/
-│       ├── profile/ · reports/ · settings/
-├── components/
-│   ├── layout/              # AppShell · Sidebar · Topbar
-│   ├── document/            # LineItemsEditor · TotalsPanel
-│   └── feedback/            # TablePageSkeleton · RouteError · StatusBadge
-├── features/                # Logique métier feature-based
-├── hooks/                   # useAuth · usePermission · useSocket · useDebounce
-├── store/                   # auth (Zustand) · sidebar
-├── providers/               # QueryProvider · SocketProvider · ToastProvider
-└── lib/                     # api-client · document-math · utils
+features/                    # Logique métier feature-based (api + hooks + types)
+components/
+├── layout/                  # AppShell · Sidebar · Topbar · OverlaySubNav
+├── ui/                      # CompanyLogo · GlobalSearch
+└── feedback/                # TablePageSkeleton · RouteError · StatusBadge
+store/                       # auth (Zustand) · sidebar (collapsed + overlay)
 ```
 
 ---
@@ -135,24 +123,31 @@ src/
 
 ### Documents SYSCOHADA
 
-- **Numérotation atomique** — `fn_next_document_number()` PostgreSQL (SELECT FOR UPDATE, sans trou)
+- **Numérotation atomique** — `fn_next_document_number()` PostgreSQL (`SELECT FOR UPDATE`, sans trou)
   - Format : `BTS/{BUREAU}/{AAAA}/{MM}/FAC###` · `PFM###` · `ACP###` · `AVO###`
 - **Proformas** — `draft → sent → accepted / rejected / expired` → conversion en facture
-- **Factures** — `standard`, `acompte`, `solde`, `avoir` (généré automatiquement à l'annulation)
-- **PDF** — généré côté serveur (Puppeteer) avec logo, cachet et coordonnées bancaires
+- **Factures** — `standard`, `acompte`, `solde`, `avoir` (auto-généré à l'annulation)
+- **PDF** — généré côté serveur (Puppeteer) avec logo, cachet BTS, coordonnées bancaires
 - **Duplication** — tout document devient brouillon modifiable
 
-### Comptes bancaires
+### Achats & Dépenses
 
-- Module `bank-accounts` — comptes BTS multi-banques
-- Sélection du compte de réception sur chaque facture/proforma (affiché sur le PDF)
-- Compte par défaut auto-sélectionné à la création
+- **Bons de commande** — cycle complet avec approbation et réception partielle
+- **Factures fournisseurs** — rapprochement BC, paiements multiples, suivi balance dûe
+- **Notes de frais** — workflow `draft→submitted→approved→paid`, catégories colorées, budgets mensuels/annuels avec alertes dépassement
 
-### Tableau de bord
+### Stock & Produits
 
-- 4 KPI cards (CA du mois, factures émises, créances, retards) — cache Redis 5 min
-- Graphique CA 12 mois (Recharts) · Donut statuts · Aging créances
-- Top 5 clients + 5 dernières factures
+- Inventaire multi-entrepôt, mouvements (entrée/sortie/ajustement/transfert)
+- CMUP automatique, niveaux min/max, alertes stock critique
+- Historique complet des mouvements par produit
+
+### Banque & Comptabilité
+
+- Import de relevés bancaires (CSV/OFX), matching automatique via règles configurables
+- Rapprochements bancaires avec résidu non rapproché
+- Plan comptable SYSCOHADA, journaux, écritures, lettrage, déclarations TVA
+- Export Sage
 
 ### Authentification & Sécurité
 
@@ -161,11 +156,19 @@ src/
 - RBAC : `admin` > `commercial` > `employee`
 - Rate limiting · Audit immuable (protégé au niveau PostgreSQL)
 
-### Temps réel & Jobs
+### Interface
+
+- **Sidebar** rétractable avec sections et OverlaySubNav (panels Bank, Comptabilité, Stock, Dépenses, Rôles, Paramètres)
+- **Recherche globale** intelligente avec parser langage naturel, keyboard nav, groupée par entité
+- **Pages auth** : design Terminal BTS (Bloomberg × Palantir) — JetBrains Mono + Bricolage Grotesque
+- Dark/Light mode, responsive mobile
+
+### Temps réel & Jobs (BullMQ)
 
 - Notifications in-app via **Socket.io** — badge live dans la Topbar
-- **BullMQ** : relances escaladées J+0/7/15/30, facturation récurrente, backup automatique
-- Emails internes BTS avec liens directs vers les documents
+- Relances escaladées J+0/7/15/30 automatiques
+- Facturation récurrente automatique (cron 00:10 UTC)
+- Backup automatique planifié
 
 ---
 
@@ -173,9 +176,9 @@ src/
 
 | Rôle | Accès |
 |---|---|
-| `admin` | Accès complet + utilisateurs + audit + paramètres + backups |
-| `commercial` | CRUD documents + clients + produits + paiements |
-| `employee` | Lecture seule |
+| `admin` | Accès complet — utilisateurs, audit, paramètres, backups, rôles |
+| `commercial` | CRUD documents + clients + fournisseurs + produits + paiements + achats |
+| `employee` | Lecture + notes de frais personnelles |
 
 ---
 
@@ -190,47 +193,59 @@ src/
 | Soft-delete universel | `deleted_at` timestamp, jamais de DELETE physique |
 | Audit immuable | Règle PostgreSQL : pas d'UPDATE/DELETE sur `audit_logs` |
 | Acompte/Solde | Facture acompte (%) + facture solde liées par `parent_invoice_id` |
+| CMUP stock | Recalculé à chaque entrée — jamais stocké de façon permanente |
 
 ---
 
-## Charte graphique
+## Charte graphique (Dashboard)
 
-| Élément | Couleur |
+| Élément | Valeur |
 |---|---|
-| Sidebar | `#0f2d4a` |
-| Primaire | `#2D7DD2` |
+| Sidebar | `#0f2d4a` (navy) |
+| Primaire | `#2D7DD2` (bleu BTS) |
 | Fond | `#f5f7fa` |
+| Font display | Sora |
+| Font body | DM Sans |
+| Font mono | JetBrains Mono |
 
-| Statut | Couleur |
+**Pages auth** : fond `#070B11`, accent `#00BFFF`, fonts Bricolage Grotesque + JetBrains Mono
+
+---
+
+## Variables d'environnement
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Description |
 |---|---|
-| Brouillon | Gris `#94a3b8` |
-| Émise | Bleu `#3b82f6` |
-| Payée | Vert `#16a34a` |
-| Partiellement payée | Orange `#d97706` |
-| En retard | Rouge `#dc2626` |
-| Annulée | Gris foncé `#64748b` |
-| Acceptée (proforma) | Émeraude `#10b981` |
-| Rejetée (proforma) | Rose `#f43f5e` |
-| Expirée (proforma) | Violet `#9333ea` |
+| `DB_PASSWORD` | Mot de passe PostgreSQL |
+| `JWT_ACCESS_SECRET` | Clé JWT access token (min 32 car.) |
+| `JWT_REFRESH_SECRET` | Clé JWT refresh token (min 32 car.) |
+| `APP_URL` | URL publique du frontend |
+| `BACKEND_URL` | URL publique de l'API |
+| `NEXT_PUBLIC_API_URL` | URL API vue depuis le navigateur |
+| `NEXT_PUBLIC_SOCKET_URL` | URL Socket.io vue depuis le navigateur |
+| `REDIS_URL` | URL Redis (`redis://localhost:6379`) |
+| `SMTP_*` | Configuration email Nodemailer |
+| `OLLAMA_URL` | URL Ollama pour BTS Assistant |
 
 ---
 
 ## Déploiement
 
-Voir **[DEPLOIEMENT.md](./DEPLOIEMENT.md)** pour le guide complet développement et production.
+Voir **[DEPLOY_WINDOWS_SERVER.md](./DEPLOY_WINDOWS_SERVER.md)** pour le guide complet.
 
 ```bash
 # Production — script automatisé (Windows)
 deploy.bat
 
-# Production + BTS Assistant (Ollama)
+# Avec BTS Assistant (Ollama)
 deploy.bat --with-ollama
-
-# Passer les vérifications TypeScript
-deploy.bat --skip-tests
 ```
 
 ---
 
-*InvoiceHub v2.0 — Bridge Technologies Solutions — Douala, Cameroun*
-*Conforme SYSCOHADA · Devise XAF (Franc CFA) · TVA 19,25 %*
+*InvoiceHub v2.0 — Bridge Technologies Solutions — Douala, Cameroun*  
+*Conforme SYSCOHADA · XAF (Franc CFA) · TVA 19,25 %*
