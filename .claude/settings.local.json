@@ -74,7 +74,9 @@
       "Bash(Remove-Item *)",
       "Bash(dir \"D:\\\\Bel\\\\projets\\\\BRIDGE\")",
       "Bash(grep -n 'type=\"submit\"\\\\|Enregistrer\\\\|Sauvegarder\\\\|Save\\\\|handleSave' 'D:/Bel/projets/BRIDGE/bridge-frontend/src/app/\\(dashboard\\)/settings/__TRACKED_VAR__/page.tsx')",
-      "Bash(Write-Host \"Cache cleared\")"
+      "Bash(Write-Host \"Cache cleared\")",
+      "Bash(Select-Object Name)",
+      "Bash(pnpm add *)"
     ]
   },
   "mcpServers": {

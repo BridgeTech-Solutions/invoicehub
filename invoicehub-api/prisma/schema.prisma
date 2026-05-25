@@ -658,6 +658,8 @@ model User {
   approvalDecisions                ApprovalDecision[]           @relation("ApprovalDecider")
   approvalDelegationsReceived      ApprovalDecision[]           @relation("ApprovalDelegate")
 
+  emailTemplateVersions   EmailTemplateVersion[]
+
   refreshTokens           RefreshToken[]
   loginHistory            LoginHistory[]
   passwordResetTokens     PasswordResetToken[]
@@ -1156,7 +1158,8 @@ model NotificationSetting {
 
 model EmailTemplate {
   id        String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  type      NotificationStatus @unique
+  type      NotificationStatus
+  locale    String             @default("fr") @db.VarChar(5)
   name      String             @db.VarChar(255)
   subject   String             @db.VarChar(500)
   bodyHtml  String             @map("body_html")
@@ -1165,7 +1168,24 @@ model EmailTemplate {
   createdAt DateTime           @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
+  versions  EmailTemplateVersion[]
+
+  @@unique([type, locale])
   @@map("email_templates")
+}
+
+model EmailTemplateVersion {
+  id         String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  templateId String        @map("template_id") @db.Uuid
+  template   EmailTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  subject    String        @db.VarChar(500)
+  bodyHtml   String        @map("body_html")
+  editedById String?       @map("edited_by_id") @db.Uuid
+  editedBy   User?         @relation(fields: [editedById], references: [id], onDelete: SetNull)
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([templateId, createdAt(sort: Desc)])
+  @@map("email_template_versions")
 }
 
 model AuditLog {

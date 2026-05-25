@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useId } from 'react'
-import { Mail, Loader2, Check, X, ChevronDown, ChevronUp, Tag, Bell, Shield, Plus, Trash2 } from 'lucide-react'
+import { useState, useEffect, useId, useRef, useCallback } from 'react'
+import { Mail, Loader2, Check, X, ChevronDown, ChevronUp, Tag, Bell, Shield, Plus, Trash2, Eye, RotateCcw, AlertTriangle } from 'lucide-react'
 import {
-  useEmailTemplates, useEmailTemplate, useUpdateEmailTemplate,
+  useEmailTemplates, useEmailTemplate, useUpdateEmailTemplate, usePreviewEmailTemplate,
+  useEmailTemplateVersions, useRestoreEmailTemplateVersion,
 } from '@/features/email-templates/hooks'
 import {
   useNotificationSettings, useUpdateNotificationSettings,
@@ -11,7 +12,9 @@ import {
 import { useSettings, useUpdateSettings } from '@/features/settings/hooks'
 import { usePermission } from '@/hooks/usePermission'
 import { AccessDenied } from '@/components/ui/AccessDenied'
-import { TEMPLATE_VARIABLES } from '@/features/email-templates/types'
+import { TEMPLATE_VARIABLES, DEFAULT_EMAIL_TEMPLATES, SAMPLE_PREVIEW_VALUES } from '@/features/email-templates/types'
+import type { EmailTemplateVersion } from '@/features/email-templates/types'
+import { TipTapEditor } from '@/features/email-templates/TipTapEditor'
 import type { NotificationType, NotificationChannel } from '@/features/notifications/types'
 import type { EmailTemplate } from '@/features/email-templates/types'
 import type { UpdateSettingsPayload, ReminderEscalationLevel, CheckLevel } from '@/features/settings/types'
@@ -535,144 +538,390 @@ function RappelsSection() {
   )
 }
 
-// ─── Single template editor ───────────────────────────────────
-function TemplateEditor({ template }: { template: EmailTemplate }) {
-  const [expanded, setExpanded] = useState(false)
-  const { data: full, isLoading } = useEmailTemplate(expanded ? template.id : '')
-  const updateMut = useUpdateEmailTemplate(template.id)
-
-  const [subject, setSubject] = useState(template.subject)
-  const [body, setBody]       = useState('')
-  const [dirty, setDirty]     = useState(false)
-
-  const contentId  = useId()
-  const subjectId  = useId()
-  const bodyId     = useId()
-
+// ─── Preview modal ────────────────────────────────────────────
+function PreviewModal({ subject, html, onClose }: { subject: string; html: string; onClose: () => void }) {
   useEffect(() => {
-    if (full && body === '') setBody(full.bodyHtml)
-  }, [full])
-
-  const vars = TEMPLATE_VARIABLES[template.type] ?? []
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-      {/* Collapsed header */}
-      <button
-        type="button"
-        aria-expanded={expanded}
-        aria-controls={contentId}
-        onClick={() => setExpanded((v) => !v)}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', background: 'var(--surface)', border: 'none', cursor: 'pointer' }}
-        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)' }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface)' }}
-        onFocus={(e)      => { e.currentTarget.style.background = 'var(--surface-2)' }}
-        onBlur={(e)       => { e.currentTarget.style.background = 'var(--surface)' }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Mail size={14} style={{ color: 'var(--primary)' }} aria-hidden="true" />
-          <div style={{ textAlign: 'left' }}>
-            <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)', margin: 0 }}>{template.name}</p>
-            <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: '1px 0 0', fontFamily: 'var(--font-mono)' }}>{template.type}</p>
+    <div
+      role="dialog" aria-modal="true" aria-label="Prévisualisation du template"
+      style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)' }} />
+      <div style={{ position: 'relative', background: 'var(--bg)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', width: '100%', maxWidth: 680, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Eye size={14} style={{ color: 'var(--primary)' }} aria-hidden="true" />
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)' }}>Prévisualisation</span>
           </div>
+          <button type="button" onClick={onClose} aria-label="Fermer la prévisualisation"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 4, borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center' }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-1)'; e.currentTarget.style.background = 'var(--surface)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.background = 'none' }}>
+            <X size={16} aria-hidden="true" />
+          </button>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 100, background: template.isActive ? 'rgba(16,185,129,0.1)' : 'rgba(107,114,128,0.1)', color: template.isActive ? '#10b981' : '#6b7280', fontFamily: 'var(--font-display)', fontWeight: 700 }}>
-            {template.isActive ? 'Actif' : 'Inactif'}
-          </span>
-          {expanded
-            ? <ChevronUp size={15} style={{ color: 'var(--text-3)' }} aria-hidden="true" />
-            : <ChevronDown size={15} style={{ color: 'var(--text-3)' }} aria-hidden="true" />
-          }
+        {/* Subject */}
+        <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 8 }}>Objet</span>
+          <span style={{ fontSize: 13, color: 'var(--text-1)' }}>{subject}</span>
         </div>
-      </button>
-
-      {/* Expanded editor */}
-      <div id={contentId} hidden={!expanded}>
-        {expanded && (
-          <div style={{ padding: 16, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {isLoading
-              ? <div aria-hidden="true" style={{ height: 200, background: 'var(--border)', borderRadius: 'var(--radius-md)' }} className="animate-pulse" />
-              : (
-                <>
-                  {/* Variables */}
-                  {vars.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '8px 12px', background: 'rgba(45,125,210,0.04)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(45,125,210,0.15)' }}>
-                      <Tag size={12} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: 2 }} aria-hidden="true" />
-                      <span style={{ fontSize: 11.5, color: 'var(--text-3)', marginRight: 4 }}>Variables disponibles :</span>
-                      {vars.map((v) => (
-                        <code key={v} style={{ fontSize: 11.5, background: 'rgba(45,125,210,0.1)', color: 'var(--primary)', padding: '1px 6px', borderRadius: 4, fontFamily: 'var(--font-mono)' }}>{v}</code>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Subject */}
-                  <div>
-                    <label
-                      htmlFor={subjectId}
-                      style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)', display: 'block', marginBottom: 4 }}
-                    >
-                      Objet de l&apos;email
-                    </label>
-                    <input
-                      id={subjectId}
-                      value={subject}
-                      onChange={(e) => { setSubject(e.target.value); setDirty(true) }}
-                      style={{ padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13.5, color: 'var(--text-1)', fontFamily: 'var(--font-body)', outline: 'none', width: '100%', boxSizing: 'border-box' }}
-                    />
-                  </div>
-
-                  {/* Body HTML */}
-                  <div>
-                    <label
-                      htmlFor={bodyId}
-                      style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)', display: 'block', marginBottom: 4 }}
-                    >
-                      Corps HTML
-                    </label>
-                    <textarea
-                      id={bodyId}
-                      value={body || full?.bodyHtml || ''}
-                      onChange={(e) => { setBody(e.target.value); setDirty(true) }}
-                      rows={10}
-                      style={{ padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 12.5, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', outline: 'none', width: '100%', boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.6 }}
-                    />
-                  </div>
-
-                  {/* Actions */}
-                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                    <button type="button" onClick={() => { setExpanded(false); setDirty(false) }}
-                      style={{ padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 500 }}>
-                      Fermer
-                    </button>
-                    <button type="button"
-                      disabled={!dirty || updateMut.isPending}
-                      onClick={() => updateMut.mutate({ subject, bodyHtml: body || full?.bodyHtml }, { onSuccess: () => setDirty(false) })}
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius-md)', border: 'none', background: dirty ? 'var(--primary)' : 'var(--surface-2)', color: dirty ? '#fff' : 'var(--text-3)', cursor: dirty ? 'pointer' : 'not-allowed', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: updateMut.isPending ? 0.65 : 1 }}>
-                      {updateMut.isPending ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Check size={13} aria-hidden="true" />}
-                      Sauvegarder
-                    </button>
-                  </div>
-                </>
-              )
-            }
-          </div>
-        )}
+        {/* Body iframe */}
+        <iframe
+          srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:16px;background:#f3f4f6;}</style></head><body>${html}</body></html>`}
+          title="Prévisualisation email"
+          style={{ flex: 1, border: 'none', minHeight: 400 }}
+          sandbox="allow-same-origin"
+        />
+        <div style={{ padding: '10px 18px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onClose}
+            style={{ padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 500 }}>
+            Fermer
+          </button>
+        </div>
       </div>
     </div>
   )
 }
 
+// ─── Single template editor ───────────────────────────────────
+function TemplateEditor({ template }: { template: EmailTemplate }) {
+  const [expanded, setExpanded] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const { data: full, isLoading } = useEmailTemplate(expanded ? template.id : '')
+  const { data: versions = [], isLoading: versionsLoading } = useEmailTemplateVersions(template.id, showHistory)
+  const updateMut  = useUpdateEmailTemplate(template.id)
+  const previewMut = usePreviewEmailTemplate(template.id)
+  const restoreMut = useRestoreEmailTemplateVersion(template.id)
+
+  const [subject, setSubject]       = useState(template.subject)
+  const [body, setBody]             = useState('')
+  const [dirty, setDirty]           = useState(false)
+  const [previewData, setPreviewData] = useState<{ subject: string; html: string } | null>(null)
+  const [showRawHtml, setShowRawHtml] = useState(false)
+
+  const contentId = useId()
+  const subjectId = useId()
+  const bodyId    = useId()
+  const subjectRef = useRef<HTMLInputElement>(null)
+  const bodyRef    = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (full && body === '') setBody(full.bodyHtml)
+  }, [full])
+
+  const vars    = TEMPLATE_VARIABLES[template.type] ?? []
+  const defaults = DEFAULT_EMAIL_TEMPLATES[template.type]
+
+  // ── Detect unknown variables in bodyHtml ──────────────────
+  const usedVars  = Array.from((body || full?.bodyHtml || '').matchAll(/\{\{(\w+)\}\}/g), (m) => `{{${m[1]}}}`)
+  const knownVars = new Set(vars)
+  const unknownVars = [...new Set(usedVars.filter((v) => !knownVars.has(v)))]
+
+  // ── Insert variable at cursor ─────────────────────────────
+  const insertVariable = useCallback((varName: string, target: 'subject' | 'body') => {
+    if (target === 'subject') {
+      const el = subjectRef.current
+      if (!el) return
+      const start = el.selectionStart ?? subject.length
+      const end   = el.selectionEnd   ?? subject.length
+      const next  = subject.slice(0, start) + varName + subject.slice(end)
+      setSubject(next)
+      setDirty(true)
+      requestAnimationFrame(() => {
+        el.focus()
+        el.setSelectionRange(start + varName.length, start + varName.length)
+      })
+    } else {
+      const el = bodyRef.current
+      if (!el) return
+      const start = el.selectionStart ?? body.length
+      const end   = el.selectionEnd   ?? body.length
+      const cur   = body || full?.bodyHtml || ''
+      const next  = cur.slice(0, start) + varName + cur.slice(end)
+      setBody(next)
+      setDirty(true)
+      requestAnimationFrame(() => {
+        el.focus()
+        el.setSelectionRange(start + varName.length, start + varName.length)
+      })
+    }
+  }, [subject, body, full?.bodyHtml])
+
+  // ── Restore default ───────────────────────────────────────
+  function restoreDefault() {
+    if (!defaults) return
+    setSubject(defaults.subject)
+    setBody(defaults.bodyHtml)
+    setDirty(true)
+  }
+
+  // ── Preview ───────────────────────────────────────────────
+  async function handlePreview() {
+    const sampleVars: Record<string, string> = {}
+    for (const v of vars) {
+      const key = v.replace(/^\{\{|\}\}$/g, '')
+      sampleVars[key] = SAMPLE_PREVIEW_VALUES[key] ?? `[${key}]`
+    }
+    const result = await previewMut.mutateAsync(sampleVars)
+    setPreviewData(result)
+  }
+
+  const currentBody = body || full?.bodyHtml || ''
+
+  return (
+    <>
+      {previewData && (
+        <PreviewModal
+          subject={previewData.subject}
+          html={previewData.html}
+          onClose={() => setPreviewData(null)}
+        />
+      )}
+
+      <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+        {/* Collapsed header */}
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-controls={contentId}
+          onClick={() => setExpanded((v) => !v)}
+          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', background: 'var(--surface)', border: 'none', cursor: 'pointer' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface)' }}
+          onFocus={(e)      => { e.currentTarget.style.background = 'var(--surface-2)' }}
+          onBlur={(e)       => { e.currentTarget.style.background = 'var(--surface)' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Mail size={14} style={{ color: 'var(--primary)' }} aria-hidden="true" />
+            <div style={{ textAlign: 'left' }}>
+              <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)', margin: 0 }}>{template.name}</p>
+              <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: '1px 0 0', fontFamily: 'var(--font-mono)' }}>{template.type}</p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 100, background: template.isActive ? 'rgba(16,185,129,0.1)' : 'rgba(107,114,128,0.1)', color: template.isActive ? '#10b981' : '#6b7280', fontFamily: 'var(--font-display)', fontWeight: 700 }}>
+              {template.isActive ? 'Actif' : 'Inactif'}
+            </span>
+            {expanded
+              ? <ChevronUp size={15} style={{ color: 'var(--text-3)' }} aria-hidden="true" />
+              : <ChevronDown size={15} style={{ color: 'var(--text-3)' }} aria-hidden="true" />
+            }
+          </div>
+        </button>
+
+        {/* Expanded editor */}
+        <div id={contentId} hidden={!expanded}>
+          {expanded && (
+            <div style={{ padding: 16, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {isLoading
+                ? <div aria-hidden="true" style={{ height: 200, background: 'var(--border)', borderRadius: 'var(--radius-md)' }} className="animate-pulse" />
+                : (
+                  <>
+                    {/* Variables — click to insert */}
+                    {vars.length > 0 && (
+                      <div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '8px 12px', background: 'rgba(45,125,210,0.04)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(45,125,210,0.15)' }}>
+                          <Tag size={12} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: 2 }} aria-hidden="true" />
+                          <span style={{ fontSize: 11.5, color: 'var(--text-3)', marginRight: 4 }}>Cliquer pour insérer dans le champ actif :</span>
+                          {vars.map((v) => (
+                            <button
+                              key={v}
+                              type="button"
+                              title={`Insérer ${v} dans l'objet ou le corps`}
+                              onClick={() => insertVariable(v, 'body')}
+                              onDoubleClick={() => insertVariable(v, 'subject')}
+                              style={{ fontSize: 11.5, background: 'rgba(45,125,210,0.1)', color: 'var(--primary)', padding: '1px 6px', borderRadius: 4, fontFamily: 'var(--font-mono)', border: 'none', cursor: 'pointer', transition: 'background 0.15s' }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(45,125,210,0.25)' }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(45,125,210,0.1)' }}
+                            >
+                              {v}
+                            </button>
+                          ))}
+                        </div>
+                        <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '4px 0 0 2px' }}>
+                          Clic simple = insérer dans le corps · Double-clic = insérer dans l&apos;objet
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Unknown variables warning */}
+                    {unknownVars.length > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 'var(--radius-md)' }}>
+                        <AlertTriangle size={13} style={{ color: '#f59e0b', flexShrink: 0, marginTop: 1 }} aria-hidden="true" />
+                        <div>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: '#b45309', margin: '0 0 2px', fontFamily: 'var(--font-display)' }}>Variables inconnues détectées</p>
+                          <p style={{ fontSize: 11.5, color: '#92400e', margin: 0 }}>
+                            {unknownVars.map((v) => (
+                              <code key={v} style={{ fontFamily: 'var(--font-mono)', marginRight: 4 }}>{v}</code>
+                            ))}
+                            — ces variables ne seront pas substituées à l&apos;envoi.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Subject */}
+                    <div>
+                      <label
+                        htmlFor={subjectId}
+                        style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)', display: 'block', marginBottom: 4 }}
+                      >
+                        Objet de l&apos;email
+                      </label>
+                      <input
+                        id={subjectId}
+                        ref={subjectRef}
+                        value={subject}
+                        onChange={(e) => { setSubject(e.target.value); setDirty(true) }}
+                        style={{ padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13.5, color: 'var(--text-1)', fontFamily: 'var(--font-body)', outline: 'none', width: '100%', boxSizing: 'border-box' }}
+                      />
+                    </div>
+
+                    {/* Body — TipTap / HTML brut toggle */}
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)' }}>
+                          Corps de l&apos;email
+                        </label>
+                        <div style={{ display: 'flex', gap: 2, background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', padding: 2 }}>
+                          {(['visuel', 'html'] as const).map((mode) => (
+                            <button key={mode} type="button"
+                              onClick={() => setShowRawHtml(mode === 'html')}
+                              style={{ padding: '3px 10px', borderRadius: 'var(--radius-sm)', border: 'none', cursor: 'pointer', fontSize: 11.5, fontFamily: 'var(--font-display)', fontWeight: 600, background: (mode === 'html') === showRawHtml ? 'var(--primary)' : 'transparent', color: (mode === 'html') === showRawHtml ? '#fff' : 'var(--text-3)', transition: 'all 0.15s' }}>
+                              {mode === 'visuel' ? 'Éditeur visuel' : 'HTML brut'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {showRawHtml ? (
+                        <textarea
+                          id={bodyId}
+                          ref={bodyRef}
+                          value={currentBody}
+                          onChange={(e) => { setBody(e.target.value); setDirty(true) }}
+                          rows={12}
+                          aria-label="Corps HTML brut"
+                          style={{ padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 12.5, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', outline: 'none', width: '100%', boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.6 }}
+                        />
+                      ) : (
+                        <TipTapEditor
+                          id={bodyId}
+                          value={currentBody}
+                          onChange={(html) => { setBody(html); setDirty(true) }}
+                        />
+                      )}
+                    </div>
+
+                    {/* Version history */}
+                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                      <button type="button"
+                        onClick={() => setShowHistory((v) => !v)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-display)', fontWeight: 600, padding: 0 }}>
+                        {showHistory ? <ChevronUp size={11} aria-hidden="true" /> : <ChevronDown size={11} aria-hidden="true" />}
+                        Historique des modifications {versions.length > 0 && `(${versions.length})`}
+                      </button>
+                      {showHistory && (
+                        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {versionsLoading
+                            ? <div aria-hidden="true" style={{ height: 60, background: 'var(--border)', borderRadius: 'var(--radius-md)' }} className="animate-pulse" />
+                            : versions.length === 0
+                              ? <p style={{ fontSize: 12.5, color: 'var(--text-3)', margin: 0 }}>Aucune version enregistrée. Les versions sont créées à chaque sauvegarde.</p>
+                              : (versions as EmailTemplateVersion[]).map((v) => (
+                                <div key={v.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', gap: 10 }}>
+                                  <div style={{ minWidth: 0 }}>
+                                    <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-1)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.subject}</p>
+                                    <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '2px 0 0', fontFamily: 'var(--font-mono)' }}>
+                                      {new Date(v.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                      {v.editedBy && ` — ${v.editedBy.firstName} ${v.editedBy.lastName}`}
+                                    </p>
+                                  </div>
+                                  <button type="button"
+                                    onClick={() => restoreMut.mutate(v.id, { onSuccess: (data) => { setSubject(data.subject); setBody(data.bodyHtml); setDirty(false) } })}
+                                    disabled={restoreMut.isPending}
+                                    style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', fontSize: 11.5, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+                                    <RotateCcw size={10} aria-hidden="true" /> Restaurer
+                                  </button>
+                                </div>
+                              ))
+                          }
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {defaults && (
+                          <button type="button" onClick={restoreDefault}
+                            title="Restaurer le template par défaut"
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 500 }}>
+                            <RotateCcw size={12} aria-hidden="true" /> Réinitialiser
+                          </button>
+                        )}
+                        <button type="button"
+                          onClick={handlePreview}
+                          disabled={previewMut.isPending}
+                          title="Prévisualiser avec des données d'exemple"
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: previewMut.isPending ? 'not-allowed' : 'pointer', fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 500, opacity: previewMut.isPending ? 0.65 : 1 }}>
+                          {previewMut.isPending ? <Loader2 size={12} className="animate-spin" aria-hidden="true" /> : <Eye size={12} aria-hidden="true" />}
+                          Prévisualiser
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button type="button" onClick={() => { setExpanded(false); setDirty(false) }}
+                          style={{ padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 500 }}>
+                          Fermer
+                        </button>
+                        <button type="button"
+                          disabled={!dirty || updateMut.isPending}
+                          onClick={() => updateMut.mutate({ subject, bodyHtml: currentBody }, { onSuccess: () => setDirty(false) })}
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius-md)', border: 'none', background: dirty ? 'var(--primary)' : 'var(--surface-2)', color: dirty ? '#fff' : 'var(--text-3)', cursor: dirty ? 'pointer' : 'not-allowed', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: updateMut.isPending ? 0.65 : 1 }}>
+                          {updateMut.isPending ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Check size={13} aria-hidden="true" />}
+                          Sauvegarder
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )
+              }
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ─── Email templates section ───────────────────────────────────
 function EmailTemplatesSection() {
-  const { data: templates = [], isLoading } = useEmailTemplates()
+  const [locale, setLocale] = useState<string>('fr')
+  const { data: templates = [], isLoading } = useEmailTemplates(locale)
 
   return (
     <div className="card">
       <div style={{ marginBottom: 16, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div aria-hidden="true" style={{ color: 'var(--primary)' }}><Mail size={15} /></div>
-          <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0 }}>Templates d&apos;emails</h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div aria-hidden="true" style={{ color: 'var(--primary)' }}><Mail size={15} /></div>
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0 }}>Templates d&apos;emails</h2>
+          </div>
+          {/* Locale selector */}
+          <div style={{ display: 'flex', gap: 2, background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', padding: 2 }}>
+            {[{ value: 'fr', label: 'FR' }, { value: 'en', label: 'EN' }].map((l) => (
+              <button key={l.value} type="button"
+                onClick={() => setLocale(l.value)}
+                style={{ padding: '3px 10px', borderRadius: 'var(--radius-sm)', border: 'none', cursor: 'pointer', fontSize: 11.5, fontFamily: 'var(--font-display)', fontWeight: 700, background: locale === l.value ? 'var(--primary)' : 'transparent', color: locale === l.value ? '#fff' : 'var(--text-3)', transition: 'all 0.15s' }}>
+                {l.label}
+              </button>
+            ))}
+          </div>
         </div>
         <p style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '4px 0 0 23px' }}>Personnalisez les emails envoyés automatiquement. Utilisez les variables entre {'{{'} et {'}}'}.</p>
       </div>

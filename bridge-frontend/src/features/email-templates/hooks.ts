@@ -4,12 +4,17 @@ import { emailTemplatesApi } from './api'
 import type { UpdateEmailTemplatePayload, PreviewEmailTemplatePayload } from './types'
 
 const KEYS = {
-  all:  ['email-templates'] as const,
-  one:  (id: string) => ['email-templates', id] as const,
+  all:      (locale?: string) => ['email-templates', 'list', locale ?? 'all'] as const,
+  one:      (id: string) => ['email-templates', id] as const,
+  versions: (id: string) => ['email-templates', id, 'versions'] as const,
 }
 
-export function useEmailTemplates() {
-  return useQuery({ queryKey: KEYS.all, queryFn: emailTemplatesApi.list, staleTime: 120_000 })
+export function useEmailTemplates(locale?: string) {
+  return useQuery({
+    queryKey: KEYS.all(locale),
+    queryFn:  () => emailTemplatesApi.list(locale),
+    staleTime: 120_000,
+  })
 }
 
 export function useEmailTemplate(id: string) {
@@ -27,7 +32,7 @@ export function useUpdateEmailTemplate(id: string) {
     mutationFn: (p: UpdateEmailTemplatePayload) => emailTemplatesApi.update(id, p),
     onSuccess:  (data) => {
       qc.setQueryData(KEYS.one(id), data)
-      qc.invalidateQueries({ queryKey: KEYS.all })
+      qc.invalidateQueries({ queryKey: ['email-templates', 'list'] })
       toast.success('Template mis à jour')
     },
     onError: () => toast.error('Erreur lors de la sauvegarde'),
@@ -37,5 +42,28 @@ export function useUpdateEmailTemplate(id: string) {
 export function usePreviewEmailTemplate(id: string) {
   return useMutation({
     mutationFn: (vars: PreviewEmailTemplatePayload) => emailTemplatesApi.preview(id, vars),
+  })
+}
+
+export function useEmailTemplateVersions(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: KEYS.versions(id),
+    queryFn:  () => emailTemplatesApi.getVersions(id),
+    enabled:  !!id && enabled,
+    staleTime: 30_000,
+  })
+}
+
+export function useRestoreEmailTemplateVersion(templateId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (versionId: string) => emailTemplatesApi.restoreVersion(templateId, versionId),
+    onSuccess: (data) => {
+      qc.setQueryData(KEYS.one(templateId), data)
+      qc.invalidateQueries({ queryKey: KEYS.versions(templateId) })
+      qc.invalidateQueries({ queryKey: ['email-templates', 'list'] })
+      toast.success('Version restaurée')
+    },
+    onError: () => toast.error('Erreur lors de la restauration'),
   })
 }
