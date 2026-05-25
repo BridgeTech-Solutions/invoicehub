@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { MulterModule } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { ApprovalsModule } from '../approvals/approvals.module';
 import { ExpensesService } from './expenses.service';
@@ -7,7 +9,11 @@ import { ExpenseCategoriesController } from './expense-categories.controller';
 import { ExpenseBudgetsController } from './expense-budgets.controller';
 
 @Module({
-  imports: [PrismaModule, ApprovalsModule],
+  imports: [
+    PrismaModule,
+    ApprovalsModule,
+    MulterModule.register({ storage: memoryStorage() }),
+  ],
   controllers: [ExpenseCategoriesController, ExpensesController, ExpenseBudgetsController],
   providers: [ExpensesService],
   exports: [ExpensesService],

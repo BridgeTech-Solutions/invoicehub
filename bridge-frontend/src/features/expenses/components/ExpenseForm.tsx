@@ -69,6 +69,7 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
   const [designation,       setDesignation]       = useState(expense?.designation       ?? '')
   const [description,       setDescription]       = useState(expense?.description       ?? '')
   const [categoryId,        setCategoryId]        = useState(expense?.categoryId        ?? '')
+  const [accountOverridden, setAccountOverridden] = useState(!!expense?.accountingAccount)
   const [supplierName,      setSupplierName]      = useState(expense?.supplierName      ?? '')
   const [expenseDate,       setExpenseDate]       = useState(expense?.expenseDate.slice(0, 10) ?? new Date().toISOString().slice(0, 10))
   const [paymentMethod,     setPaymentMethod]     = useState<ExpensePaymentMethod>(expense?.paymentMethod ?? 'cash')
@@ -93,6 +94,13 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
   useEffect(() => {
     if (!BANK_MODES.has(paymentMethod)) setBankAccountId('')
   }, [paymentMethod])
+
+  // Pré-remplir le compte SYSCOHADA depuis la catégorie sélectionnée
+  useEffect(() => {
+    if (accountOverridden) return  // l'utilisateur a tapé manuellement → ne pas écraser
+    const cat = cats?.find(c => c.id === categoryId)
+    setAccountingAccount(cat?.accountingAccount ?? '')
+  }, [categoryId, cats]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const taxAmount = amountHt * (taxRate / 100)
   const totalTtc  = amountHt + taxAmount
@@ -231,7 +239,7 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
                   <select
                     id="exp-category"
                     value={categoryId}
-                    onChange={e => setCategoryId(e.target.value)}
+                    onChange={e => { setCategoryId(e.target.value); setAccountOverridden(false) }}
                     style={{ ...inputCss, cursor: 'pointer' }}
                     onFocus={focusOn} onBlur={focusOff}
                   >
@@ -439,9 +447,9 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
                     id="exp-account"
                     type="text"
                     value={accountingAccount}
-                    onChange={e => setAccountingAccount(e.target.value)}
-                    placeholder="624000"
-                    style={inputCss}
+                    onChange={e => { setAccountingAccount(e.target.value); setAccountOverridden(true) }}
+                    placeholder={cats?.find(c => c.id === categoryId)?.accountingAccount ? 'Rempli depuis la catégorie' : '624000'}
+                    style={{ ...inputCss, background: !accountOverridden && accountingAccount ? 'rgba(45,125,210,0.04)' : 'var(--bg)' }}
                     onFocus={focusOn} onBlur={focusOff}
                   />
                 </div>

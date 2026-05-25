@@ -1,7 +1,9 @@
 import {
   Controller, Get, Post, Put, Delete,
   Body, Param, Query, HttpCode, HttpStatus,
+  UploadedFile, UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ExpensesService } from './expenses.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Permission } from '../../common/decorators/permission.decorator';
@@ -15,6 +17,12 @@ import type { JwtPayload } from '../../common/types/jwt-payload.type';
 export class ExpensesController {
   constructor(private readonly svc: ExpensesService) {}
 
+  @Get('stats')
+  @Permission('expenses:read')
+  async stats() {
+    return this.svc.getExpenseStats();
+  }
+
   @Get()
   @Permission('expenses:read')
   async list(
@@ -26,12 +34,14 @@ export class ExpensesController {
     @Query('officeId')           officeId?: string,
     @Query('dateFrom')           dateFrom?: string,
     @Query('dateTo')             dateTo?: string,
+    @Query('isRecurring')        isRecurring?: string,
     @Query('isEmployeeExpense')  isEmployeeExpense?: string,
   ) {
     return this.svc.listExpenses({
       page:  parseInt(page,  10),
       limit: parseInt(limit, 10),
       search, status, categoryId, officeId, dateFrom, dateTo,
+      isRecurring:       isRecurring       !== undefined ? isRecurring       === 'true' : undefined,
       isEmployeeExpense: isEmployeeExpense !== undefined ? isEmployeeExpense === 'true' : undefined,
     });
   }
@@ -113,5 +123,23 @@ export class ExpensesController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.svc.cancelExpense(id, user.sub);
+  }
+
+  @Post(':id/attachment')
+  @Permission('expenses:write')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadAttachment(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.svc.uploadAttachment(id, file);
+  }
+
+  @Delete(':id/attachment')
+  @Permission('expenses:write')
+  @HttpCode(HttpStatus.OK)
+  async deleteAttachment(@Param('id') id: string) {
+    return this.svc.deleteAttachment(id);
   }
 }

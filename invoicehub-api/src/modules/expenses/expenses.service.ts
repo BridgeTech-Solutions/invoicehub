@@ -1,3 +1,5 @@
+import * as fs   from 'fs';
+import * as path from 'path';
 import { Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -111,16 +113,56 @@ export class ExpensesService {
 
   // ── Expenses ──────────────────────────────────────────────────────────────────
 
+  async getExpenseStats() {
+    const now   = new Date();
+    const y     = now.getFullYear();
+    const m     = now.getMonth(); // 0-based
+
+    const monthStart   = new Date(y, m, 1);
+    const monthEnd     = new Date(y, m + 1, 0, 23, 59, 59);
+    const quarterStart = new Date(y, Math.floor(m / 3) * 3, 1);
+    const quarterEnd   = new Date(y, Math.floor(m / 3) * 3 + 3, 0, 23, 59, 59);
+
+    const [currentMonth, currentQuarter, pending, recurring] = await Promise.all([
+      this.prisma.expense.aggregate({
+        where: { deletedAt: null, status: { not: 'cancelled' as any }, expenseDate: { gte: monthStart, lte: monthEnd } },
+        _sum:  { amountTtc: true },
+      }),
+      this.prisma.expense.aggregate({
+        where: { deletedAt: null, status: { not: 'cancelled' as any }, expenseDate: { gte: quarterStart, lte: quarterEnd } },
+        _sum:  { amountTtc: true },
+      }),
+      this.prisma.expense.aggregate({
+        where: { deletedAt: null, status: { in: ['draft', 'submitted'] as any[] } },
+        _sum:  { amountTtc: true },
+        _count: true,
+      }),
+      this.prisma.expense.aggregate({
+        where: { deletedAt: null, isRecurring: true, status: { not: 'cancelled' as any }, expenseDate: { gte: monthStart, lte: monthEnd } },
+        _sum:  { amountTtc: true },
+      }),
+    ]);
+
+    return {
+      currentMonth:     Number(currentMonth._sum.amountTtc    ?? 0),
+      currentQuarter:   Number(currentQuarter._sum.amountTtc  ?? 0),
+      pendingCount:     pending._count,
+      pendingAmount:    Number(pending._sum.amountTtc         ?? 0),
+      recurringMonthly: Number(recurring._sum.amountTtc       ?? 0),
+    };
+  }
+
   async listExpenses(params: {
     page: number; limit: number; search?: string; status?: string;
     categoryId?: string; officeId?: string; dateFrom?: string; dateTo?: string;
-    isEmployeeExpense?: boolean;
+    isRecurring?: boolean; isEmployeeExpense?: boolean;
   }) {
-    const { page, limit, search, status, categoryId, officeId, dateFrom, dateTo, isEmployeeExpense } = params;
+    const { page, limit, search, status, categoryId, officeId, dateFrom, dateTo, isRecurring, isEmployeeExpense } = params;
     const where: Record<string, unknown> = { deletedAt: null };
     if (status)     where['status']     = status;
     if (categoryId) where['categoryId'] = categoryId;
     if (officeId)   where['officeId']   = officeId;
+    if (typeof isRecurring       === 'boolean') where['isRecurring']       = isRecurring;
     if (typeof isEmployeeExpense === 'boolean') where['isEmployeeExpense'] = isEmployeeExpense;
     if (search) where['OR'] = [
       { title:  { contains: search, mode: 'insensitive' } },
@@ -180,9 +222,9 @@ export class ExpensesService {
           officeId:    officeIdResolved,
           number:      result.fn_next_document_number,
           amountTtc,
-          status:      'draft' as any,
+          status:      'draft',
           createdById: userId,
-        },
+        } as any,
       });
       await this.recordHistory(tx, expense.id, 'draft', userId);
       return this.formatExpense(expense);
@@ -265,6 +307,37 @@ export class ExpensesService {
 
   async cancelExpense(id: string, userId: string) {
     return this.transition(id, ['draft', 'submitted', 'approved'], 'cancelled', userId);
+  }
+
+  async uploadAttachment(id: string, file: Express.Multer.File) {
+    if (!file) throw AppError.badRequest('Fichier manquant');
+    const expense = await this.prisma.expense.findFirst({ where: { id, deletedAt: null } });
+    if (!expense) throw AppError.notFound('Dépense introuvable');
+
+    const uploadDir = path.join(process.cwd(), 'uploads', 'expenses');
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+    const ext      = path.extname(file.originalname).toLowerCase();
+    const filename = `${id}_${Date.now()}${ext}`;
+    const filePath = path.join(uploadDir, filename);
+    fs.writeFileSync(filePath, file.buffer);
+
+    const relativePath = `uploads/expenses/${filename}`;
+    const current = (expense as any).attachmentPaths as string[] ?? [];
+    await this.prisma.expense.update({
+      where: { id },
+      data:  { attachmentPaths: [...current, relativePath] } as any,
+    });
+
+    const backendUrl = process.env['BACKEND_URL'] ?? 'http://localhost:3000';
+    return { attachmentPath: `${backendUrl}/${relativePath}` };
+  }
+
+  async deleteAttachment(id: string) {
+    const expense = await this.prisma.expense.findFirst({ where: { id, deletedAt: null } });
+    if (!expense) throw AppError.notFound('Dépense introuvable');
+    await this.prisma.expense.update({ where: { id }, data: { attachmentPaths: [] } as any });
+    return { success: true };
   }
 
   // ── Budgets ───────────────────────────────────────────────────────────────────
