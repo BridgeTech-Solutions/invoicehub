@@ -51,7 +51,7 @@ function formatUser(user: any) {
   const { avatarPath, role, ...rest } = user;
   return {
     ...rest,
-    roleName:    (role as any)?.name ?? 'employee',
+    role:        (role as any)?.name ?? 'employee',
     permissions: (role as any)?.permissions ?? [],
     avatarUrl:   toAvatarUrl(avatarPath as string | null),
   };
@@ -199,12 +199,12 @@ export class UsersService {
   async update(id: string, input: UpdateUserInput) {
     const oldUser = await this.findById(id);
 
-    if (input.role && input.role !== oldUser.roleName) {
+    if (input.role && input.role !== oldUser.role) {
       await this.prisma.refreshToken.updateMany({
         where: { userId: id, revokedAt: null },
         data:  { revokedAt: new Date(), revokeReason: 'role_changed' },
       });
-      this.logger.log(`Tokens révoqués pour ${oldUser.email} : changement de rôle ${oldUser.roleName} → ${input.role}`);
+      this.logger.log(`Tokens révoqués pour ${oldUser.email} : changement de rôle ${oldUser.role} → ${input.role}`);
     }
 
     if (input.status === 'suspended' && oldUser.status !== 'suspended') {

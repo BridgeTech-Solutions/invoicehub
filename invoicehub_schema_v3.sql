@@ -1155,10 +1155,12 @@ COMMENT ON TABLE notification_settings IS 'Préférences de notification par uti
 
 -- ================================================================
 -- 22. EMAIL_TEMPLATES — Gabarits d'emails personnalisables
+-- v4 : ajout locale (multi-langue fr/en), contrainte unique (type, locale)
 -- ================================================================
 CREATE TABLE email_templates (
     id          UUID                PRIMARY KEY DEFAULT uuid_generate_v4(),
-    type        notification_status NOT NULL UNIQUE,
+    type        notification_status NOT NULL,
+    locale      VARCHAR(5)          NOT NULL DEFAULT 'fr',
     name        VARCHAR(255)        NOT NULL,
     subject     VARCHAR(500)        NOT NULL,
     body_html   TEXT                NOT NULL,
@@ -1167,13 +1169,31 @@ CREATE TABLE email_templates (
     is_active   BOOLEAN             NOT NULL DEFAULT TRUE,
     created_at  TIMESTAMPTZ         NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ         NOT NULL DEFAULT NOW(),
-    updated_by  UUID                REFERENCES users(id) ON DELETE SET NULL
+    updated_by  UUID                REFERENCES users(id) ON DELETE SET NULL,
+
+    CONSTRAINT uq_email_template_type_locale UNIQUE (type, locale)
 );
 CREATE TRIGGER tg_email_templates_updated_at
     BEFORE UPDATE ON email_templates
     FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
 
-COMMENT ON TABLE email_templates IS 'Gabarits d''emails transactionnels personnalisables par l''admin.';
+COMMENT ON TABLE email_templates IS 'Gabarits d''emails transactionnels personnalisables par l''admin. Un gabarit par (type, locale).';
+COMMENT ON COLUMN email_templates.locale IS 'Langue du gabarit : fr (defaut) ou en. Fallback automatique vers fr si la locale demandee n''existe pas.';
+
+-- ================================================================
+-- 22b. EMAIL_TEMPLATE_VERSIONS — Historique des modifications
+-- ================================================================
+CREATE TABLE email_template_versions (
+    id              UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+    template_id     UUID        NOT NULL REFERENCES email_templates(id) ON DELETE CASCADE,
+    subject         VARCHAR(500) NOT NULL,
+    body_html       TEXT        NOT NULL,
+    edited_by_id    UUID        REFERENCES users(id) ON DELETE SET NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_email_tpl_versions_template ON email_template_versions (template_id, created_at DESC);
+
+COMMENT ON TABLE email_template_versions IS 'Historique des modifications des gabarits d''email. Sauvegarde automatique avant chaque PUT. Permet le rollback par version (max 20 versions affichees).';
 
 -- ================================================================
 -- 23. AUDIT_LOGS — Journal d'audit immuable (CDC §4.8)

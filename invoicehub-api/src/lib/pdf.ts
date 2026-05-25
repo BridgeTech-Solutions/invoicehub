@@ -512,12 +512,12 @@ export interface DocumentHtmlParams {
 
 // ─── Constantes visuelles ─────────────────────────────────────────────────────
 
-/** Bleu BTS atténué (headers / labels de tableaux) — tinte 50 % sur blanc */
-const BLUE     = '#90CBF9';
-/** Couleur de texte pour les en-têtes bleus (lisible sur fond clair) */
-const BLUE_TXT = '#0D47A1';
-/** Beige/tan BTS atténué (lignes de totaux) — tinte 50 % sur blanc */
-const TAN      = '#E4DCB9';
+/** Bleu BTS (headers / labels de tableaux) */
+const BLUE     = '#2196F3';
+/** Couleur de texte pour les en-têtes bleus */
+const BLUE_TXT = '#ffffff';
+/** Beige/tan BTS (lignes de totaux) */
+const TAN      = '#C8B87A';
 /** Couleur de bordure des tableaux */
 const BORDER   = '#d4d4d4';
 
@@ -848,7 +848,6 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
       // Ligne banque : N° de compte + IBAN sur la même ligne (colonne valeur)
       const bankValue = [
         params.btsBankAccount ?? '',
-        params.btsBankIban ? `IBAN : ${params.btsBankIban}` : '',
       ].filter(Boolean).join('&nbsp;&nbsp;|&nbsp;&nbsp;');
 
       bottomSection += `
@@ -969,9 +968,9 @@ export function buildReceiptHtml(params: ReceiptParams): string {
   const fmt = (n: number) =>
     new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(n));
 
-  const BLUE_R     = '#90CBF9';
-  const BLUE_TXT_R = '#0D47A1';
-  const TAN_R      = '#E4DCB9';
+  const BLUE_R     = '#2196F3';
+  const BLUE_TXT_R = '#ffffff';
+  const TAN_R      = '#C8B87A';
   const BORDER_R   = '#d4d4d4';
   const td_r       = `border:1px solid ${BORDER_R};padding:6px 10px;`;
   const labelTd_r  = `${td_r}background:${BLUE_R};color:${BLUE_TXT_R};font-weight:bold;width:35%;`;

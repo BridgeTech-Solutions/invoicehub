@@ -714,7 +714,7 @@ export class InvoicesService {
   async generatePdfResponse(id: string) {
     const [invoice, settings] = await Promise.all([
       this.findById(id),
-      this.prisma.companySettings.findFirst({ select: { headerImagePath: true, footerImagePath: true, stampPath: true, footerSafeZonePx: true } }),
+      this.prisma.companySettings.findFirst({ select: { headerImagePath: true, footerImagePath: true, stampPath: true, footerSafeZonePx: true, email: true } }),
     ]);
 
     const isAcompte = invoice.type === 'acompte';
@@ -766,7 +766,7 @@ export class InvoicesService {
       btsBankAccount: invoice.bankAccount?.accountNumber ?? undefined,
       btsBankIban:    invoice.bankAccount?.iban          ?? undefined,
       btsBankSwift:   invoice.bankAccount?.swiftBic      ?? undefined,
-      contactPerson:     invoice.createdBy?.email ?? undefined,
+      contactPerson:     settings?.email ?? undefined,
       escompteRate:     (invoice as any).escompteRate     ? Number((invoice as any).escompteRate)     : undefined,
       escompteDeadline: (invoice as any).escompteDeadline ? new Date((invoice as any).escompteDeadline).toLocaleDateString('fr-FR') : undefined,
       escompteAmount:   (invoice as any).escompteAmount   ? Number((invoice as any).escompteAmount)   : undefined,

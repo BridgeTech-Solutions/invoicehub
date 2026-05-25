@@ -50,6 +50,9 @@ import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.
 import { SupplierInvoicesModule } from './modules/supplier-invoices/supplier-invoices.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 
+// Phase 8 — Accounting
+import { AccountingModule } from './modules/accounting/accounting.module';
+
 // Phase 7 Part 1 — Dashboard, Search, Reports
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { SearchModule } from './modules/search/search.module';
@@ -102,6 +105,8 @@ import { AiModule } from './modules/ai/ai.module';
     PurchaseOrdersModule,
     SupplierInvoicesModule,
     ExpensesModule,
+    // Phase 8
+    AccountingModule,
     // Phase 7 Part 1
     DashboardModule,
     SearchModule,

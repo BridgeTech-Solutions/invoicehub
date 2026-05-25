@@ -412,7 +412,7 @@ export class ProformasService {
   async generatePdfResponse(id: string) {
     const [proforma, settings] = await Promise.all([
       this.findById(id),
-      this.prisma.companySettings.findFirst({ select: { headerImagePath: true, footerImagePath: true, stampPath: true, footerSafeZonePx: true } }),
+      this.prisma.companySettings.findFirst({ select: { headerImagePath: true, footerImagePath: true, stampPath: true, footerSafeZonePx: true, email: true } }),
     ]);
 
     const { headerImageB64, footerImageB64, sealImageB64 } = resolveDocumentAssets(settings ?? null);
@@ -457,6 +457,7 @@ export class ProformasService {
       btsBankAccount: proforma.bankAccount?.accountNumber  ?? undefined,
       btsBankIban:    proforma.bankAccount?.iban            ?? undefined,
       btsBankSwift:   proforma.bankAccount?.swiftBic        ?? undefined,
+      contactPerson:  settings?.email                       ?? undefined,
       deliveryDelay:     proforma.deliveryDelay     ?? undefined,
       warranty:          proforma.warranty          ?? undefined,
       paymentConditions: proforma.paymentConditions ?? undefined,

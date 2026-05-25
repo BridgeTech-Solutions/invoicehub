@@ -73,7 +73,8 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
   const [expenseDate,       setExpenseDate]       = useState(expense?.expenseDate.slice(0, 10) ?? new Date().toISOString().slice(0, 10))
   const [paymentMethod,     setPaymentMethod]     = useState<ExpensePaymentMethod>(expense?.paymentMethod ?? 'cash')
   const [bankAccountId,     setBankAccountId]     = useState('')  // UI-only — identifie le compte débité
-  const [paymentRef,        setPaymentRef]        = useState(expense?.analyticalAxis    ?? '')
+  const [paymentRef,        setPaymentRef]        = useState('')
+  const [analyticalAxis,    setAnalyticalAxis]    = useState(expense?.analyticalAxis    ?? '')
   const [amountHt,          setAmountHt]          = useState<number>(expense?.amountHt  ?? 0)
   const [taxRate,           setTaxRate]           = useState<number>(expense?.taxRate   ?? TAX_RATE_DEFAULT)
   const [accountingAccount, setAccountingAccount] = useState(expense?.accountingAccount ?? '')
@@ -131,7 +132,7 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
       amountHt:          Number(amountHt),
       taxRate:           Number(taxRate),
       accountingAccount: accountingAccount || undefined,
-      analyticalAxis:    paymentRef        || undefined,
+      analyticalAxis:    analyticalAxis    || undefined,
       notes:             finalNotes        || undefined,
       isRecurring,
     }
@@ -449,8 +450,8 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
                   <input
                     id="exp-axis"
                     type="text"
-                    value={paymentRef}
-                    onChange={e => setPaymentRef(e.target.value)}
+                    value={analyticalAxis}
+                    onChange={e => setAnalyticalAxis(e.target.value)}
                     placeholder="PROJ-2026-001"
                     style={inputCss}
                     onFocus={focusOn} onBlur={focusOff}

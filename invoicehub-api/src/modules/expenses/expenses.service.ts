@@ -17,6 +17,8 @@ export class ExpensesService {
     private approvalsService: ApprovalsService,
   ) {}
 
+  // ── Helpers ───────────────────────────────────────────────────────────────────
+
   private async recordHistory(
     tx: Parameters<Parameters<typeof this.prisma.$transaction>[0]>[0],
     expenseId: string, newStatus: string, userId: string, reason?: string | null,
@@ -39,8 +41,38 @@ export class ExpensesService {
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.expense.update({ where: { id }, data: { status: to as any, ...extra } });
       await this.recordHistory(tx, id, to, userId, reason);
-      return updated;
+      return this.formatExpense(updated);
     });
+  }
+
+  // Maps DB field names → frontend field names expected by the frontend Expense type
+  private formatExpense(expense: any) {
+    if (!expense) return expense;
+    const {
+      title, beneficiaryName, reference,
+      attachmentPaths, createdBy, submittedBy,
+      ...rest
+    } = expense;
+    return {
+      ...rest,
+      designation:    title ?? '',
+      supplierName:   beneficiaryName ?? null,
+      analyticalAxis: reference       ?? null,
+      attachmentPath: Array.isArray(attachmentPaths) ? (attachmentPaths[0] ?? null) : null,
+      // submittedBy peut être null jusqu'à la soumission ; on retombe sur createdBy
+      submittedBy:    submittedBy ?? createdBy ?? null,
+    };
+  }
+
+  // Maps input frontend field names → DB field names for create/update
+  private mapInputToDb(data: Record<string, unknown>): Record<string, unknown> {
+    const { designation, supplierName, analyticalAxis, parentId, period, ...rest } = data as any;
+    const mapped: Record<string, unknown> = { ...rest };
+    if (designation  !== undefined) mapped['title']           = designation;
+    if (supplierName !== undefined) mapped['beneficiaryName'] = supplierName;
+    if (analyticalAxis !== undefined) mapped['reference']     = analyticalAxis;
+    // parentId et period sont ignorés (pas en DB)
+    return mapped;
   }
 
   // ── Categories ────────────────────────────────────────────────────────────────
@@ -54,15 +86,17 @@ export class ExpensesService {
   }
 
   async createCategory(data: CreateExpenseCategoryInput) {
+    const { parentId, ...dbData } = data as any; // parentId ignoré (pas en DB)
     const exists = await this.prisma.expenseCategory.findFirst({ where: { name: data.name, deletedAt: null } });
     if (exists) throw AppError.conflict('Une catégorie avec ce nom existe déjà');
-    return this.prisma.expenseCategory.create({ data });
+    return this.prisma.expenseCategory.create({ data: dbData });
   }
 
   async updateCategory(id: string, data: Partial<CreateExpenseCategoryInput>) {
     const cat = await this.prisma.expenseCategory.findFirst({ where: { id, deletedAt: null } });
     if (!cat) throw AppError.notFound('Catégorie introuvable');
-    return this.prisma.expenseCategory.update({ where: { id }, data });
+    const { parentId, ...dbData } = data as any;
+    return this.prisma.expenseCategory.update({ where: { id }, data: dbData });
   }
 
   async deleteCategory(id: string) {
@@ -89,8 +123,8 @@ export class ExpensesService {
     if (officeId)   where['officeId']   = officeId;
     if (typeof isEmployeeExpense === 'boolean') where['isEmployeeExpense'] = isEmployeeExpense;
     if (search) where['OR'] = [
-      { title:         { contains: search, mode: 'insensitive' } },
-      { expenseNumber: { contains: search, mode: 'insensitive' } },
+      { title:  { contains: search, mode: 'insensitive' } },
+      { number: { contains: search, mode: 'insensitive' } },
     ];
     if (dateFrom || dateTo) {
       where['expenseDate'] = {
@@ -102,13 +136,13 @@ export class ExpensesService {
       this.prisma.expense.findMany({
         where, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' },
         include: {
-          category:  { select: { id: true, name: true } },
+          category:  { select: { id: true, name: true, color: true } },
           createdBy: { select: { id: true, firstName: true, lastName: true } },
         },
       }),
       this.prisma.expense.count({ where }),
     ]);
-    return { data, total };
+    return { data: data.map(e => this.formatExpense(e)), total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async getExpenseById(id: string) {
@@ -118,17 +152,19 @@ export class ExpensesService {
         category:      true,
         createdBy:     { select: { id: true, firstName: true, lastName: true } },
         approvedBy:    { select: { id: true, firstName: true, lastName: true } },
+        submittedBy:   { select: { id: true, firstName: true, lastName: true } },
         statusHistory: { orderBy: { changedAt: 'asc' } },
       },
     });
     if (!expense) throw AppError.notFound('Dépense introuvable');
-    return expense;
+    return this.formatExpense(expense);
   }
 
   async createExpense(data: CreateExpenseInput, userId: string) {
+    const dbData = this.mapInputToDb(data as any);
     const amountTtc = data.amountHt * (1 + (data.taxRate ?? 0) / 100);
 
-    const officeIdResolved = data.officeId ?? (
+    const officeIdResolved = (data as any).officeId ?? (
       await this.prisma.agencyOffice.findFirst({ where: { deletedAt: null }, select: { id: true } })
     )?.id;
     if (!officeIdResolved) throw AppError.badRequest('Aucun bureau disponible');
@@ -140,13 +176,16 @@ export class ExpensesService {
     return this.prisma.$transaction(async (tx) => {
       const expense = await tx.expense.create({
         data: {
-          ...(data as any), officeId: officeIdResolved,
-          number: result.fn_next_document_number,
-          amountTtc, status: 'draft' as any, createdById: userId,
+          ...dbData,
+          officeId:    officeIdResolved,
+          number:      result.fn_next_document_number,
+          amountTtc,
+          status:      'draft' as any,
+          createdById: userId,
         },
       });
       await this.recordHistory(tx, expense.id, 'draft', userId);
-      return expense;
+      return this.formatExpense(expense);
     });
   }
 
@@ -155,15 +194,16 @@ export class ExpensesService {
     if (!expense) throw AppError.notFound('Dépense introuvable');
     if (expense.status !== 'draft') throw AppError.badRequest('Seuls les brouillons peuvent être modifiés');
 
+    const dbData = this.mapInputToDb(data as any);
     const amountTtc = data.amountHt !== undefined
       ? data.amountHt * (1 + ((data.taxRate ?? Number(expense.taxRate)) / 100))
       : undefined;
 
-    const updateData: Record<string, unknown> = { ...data };
-    if (amountTtc !== undefined) updateData['amountTtc'] = amountTtc;
-    if (data.officeId === null)  updateData['officeId']  = null;
+    if (amountTtc !== undefined) dbData['amountTtc'] = amountTtc;
+    if ((data as any).officeId === null) dbData['officeId'] = null;
 
-    return this.prisma.expense.update({ where: { id }, data: updateData as any });
+    const updated = await this.prisma.expense.update({ where: { id }, data: dbData as any });
+    return this.formatExpense(updated);
   }
 
   async deleteExpense(id: string) {
@@ -237,7 +277,7 @@ export class ExpensesService {
 
     const budgets = await this.prisma.expenseBudget.findMany({
       where, orderBy: [{ year: 'desc' }, { month: 'asc' }],
-      include: { category: { select: { id: true, name: true } } },
+      include: { category: { select: { id: true, name: true, color: true } } },
     });
 
     return Promise.all(budgets.map(async (b) => {
@@ -256,22 +296,39 @@ export class ExpensesService {
         where: { categoryId: b.categoryId, status: 'paid' as any, deletedAt: null, ...dateFilter },
         _sum:  { amountTtc: true },
       });
-      const realised = Number(agg._sum.amountTtc ?? 0);
-      return { ...b, realised, remaining: Number(b.budgetAmount) - realised };
+      const spent  = Number(agg._sum.amountTtc ?? 0);
+      const amount = Number(b.budgetAmount);
+      return {
+        ...b,
+        amount,
+        spent,
+        remaining:   amount - spent,
+        percentUsed: amount > 0 ? Math.round((spent / amount) * 100) : 0,
+        label:       b.notes ?? b.category?.name ?? `Budget ${b.year}`,
+        period:      b.month ? 'monthly' : 'annual',
+      };
     }));
   }
 
   async createBudget(data: CreateBudgetInput) {
-    const { amountBudget, ...rest } = data;
-    return this.prisma.expenseBudget.create({ data: { ...rest, budgetAmount: amountBudget } });
+    const { amount, label, period, ...rest } = data as any;
+    const notes = label ?? rest.notes ?? undefined;
+    return this.prisma.expenseBudget.create({
+      data: {
+        ...rest,
+        budgetAmount: amount,
+        notes,
+      },
+    });
   }
 
   async updateBudget(id: string, data: Partial<CreateBudgetInput>) {
     const budget = await this.prisma.expenseBudget.findUnique({ where: { id } });
     if (!budget) throw AppError.notFound('Budget introuvable');
-    const { amountBudget, ...rest } = data;
+    const { amount, label, period, ...rest } = data as any;
     const updateData: Record<string, unknown> = { ...rest };
-    if (amountBudget !== undefined) updateData['budgetAmount'] = amountBudget;
+    if (amount !== undefined) updateData['budgetAmount'] = amount;
+    if (label  !== undefined) updateData['notes']        = label;
     return this.prisma.expenseBudget.update({ where: { id }, data: updateData as any });
   }
 }
