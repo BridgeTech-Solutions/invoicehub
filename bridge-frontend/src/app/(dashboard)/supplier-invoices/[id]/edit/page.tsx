@@ -1,12 +1,17 @@
 'use client'
 
 import { use } from 'react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { useSupplierInvoice } from '@/features/supplier-invoices/hooks'
 import { SupplierInvoiceForm } from '@/features/supplier-invoices/components/SupplierInvoiceForm'
 
 export default function EditSupplierInvoicePage({ params }: { params: Promise<{ id: string }> }) {
+  const { can } = usePermission()
   const { id }                        = use(params)
   const { data: si, isLoading }       = useSupplierInvoice(id)
+
+  if (!can('supplier', 'update')) return <AccessDenied message="Vous n'avez pas les droits pour modifier une facture fournisseur." />
 
   if (isLoading || !si) {
     return (

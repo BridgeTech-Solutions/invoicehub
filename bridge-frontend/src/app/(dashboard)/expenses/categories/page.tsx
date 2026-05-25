@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
   useExpenseCategories, useCreateExpenseCategory,
@@ -88,6 +90,7 @@ function CategoryModal({
 }
 
 export default function ExpenseCategoriesPage() {
+  const { can } = usePermission()
   const { data: categories, isLoading } = useExpenseCategories()
   const createMutation = useCreateExpenseCategory()
   const updateMutation = useUpdateExpenseCategory()
@@ -117,6 +120,8 @@ export default function ExpenseCategoriesPage() {
       },
     }, { onSuccess: () => setEditing(null) })
   }
+
+  if (!can('expense', 'read')) return <AccessDenied message="Vous n'avez pas accès au module de dépenses." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 800, animation: 'page-in 0.2s ease' }}>

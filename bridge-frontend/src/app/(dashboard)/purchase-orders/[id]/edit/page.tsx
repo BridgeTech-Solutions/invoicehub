@@ -1,12 +1,17 @@
 'use client'
 
 import { use } from 'react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { usePurchaseOrder } from '@/features/purchase-orders/hooks'
 import { PurchaseOrderForm } from '@/features/purchase-orders/components/PurchaseOrderForm'
 
 export default function EditPurchaseOrderPage({ params }: { params: Promise<{ id: string }> }) {
+  const { can } = usePermission()
   const { id }                        = use(params)
   const { data: po, isLoading }       = usePurchaseOrder(id)
+
+  if (!can('purchase-order', 'update')) return <AccessDenied message="Vous n'avez pas les droits pour modifier un bon de commande." />
 
   if (isLoading || !po) {
     return (

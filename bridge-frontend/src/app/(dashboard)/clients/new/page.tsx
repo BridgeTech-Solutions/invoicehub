@@ -2,11 +2,17 @@
 
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { ClientForm } from '@/features/clients/components/ClientForm'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { ROUTES } from '@/lib/constants'
 
 export default function NewClientPage() {
+  const { can } = usePermission()
+
+  if (!can('client', 'create')) return <AccessDenied message="Vous n'avez pas les droits pour créer un client." />
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 900 }}>
       <div>

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EventsGateway } from '../../gateway/events.gateway';
 import { AppError } from '../../common/errors/app-error';
 import { invalidateRoleRbacCache } from '../../lib/rbacCache';
 import type { CreateRoleInput, UpdateRoleInput } from './roles.schema';
@@ -32,7 +33,10 @@ export const ALL_PERMISSIONS = [
 
 @Injectable()
 export class RolesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma:   PrismaService,
+    private readonly gateway:  EventsGateway,
+  ) {}
 
   async list() {
     return this.prisma.role.findMany({
@@ -70,11 +74,19 @@ export class RolesService {
 
     const updated = await this.prisma.role.update({ where: { id }, data });
 
-    const userIds = await this.prisma.user.findMany({
+    const users = await this.prisma.user.findMany({
       where:  { roleId: id, deletedAt: null },
       select: { id: true },
     });
-    await invalidateRoleRbacCache(userIds.map(u => u.id));
+    const ids = users.map(u => u.id);
+    await invalidateRoleRbacCache(ids);
+
+    // Notifie en temps réel tous les utilisateurs connectés de ce rôle
+    for (const userId of ids) {
+      this.gateway.emitToUser(userId, 'role:permissions_updated', {
+        permissions: updated.permissions,
+      });
+    }
 
     return updated;
   }

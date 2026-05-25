@@ -3,6 +3,8 @@
 import { useState, useId, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import {
   Plus, Search, FileDown, ShoppingCart, Pencil, Trash2, Copy,
   CheckCircle, PackageCheck, XCircle, Loader2, Clock, Package,
@@ -74,6 +76,7 @@ function Pagination({ page, totalPages, onChange }: { page: number; totalPages: 
 
 // ─── Page ─────────────────────────────────────────────────────
 export default function PurchaseOrdersPage() {
+  const { can } = usePermission()
   const { format } = useCurrency()
   const router   = useRouter()
   const searchId = useId()
@@ -105,6 +108,8 @@ export default function PurchaseOrdersPage() {
     if (!dateStr) return false
     return new Date(dateStr) < now
   }
+
+  if (!can('purchase-order', 'read')) return <AccessDenied message="Vous n'avez pas accès aux bons de commande." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, animation: 'page-in 0.2s ease' }}>

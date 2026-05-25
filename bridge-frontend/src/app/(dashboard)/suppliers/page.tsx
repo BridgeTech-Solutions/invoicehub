@@ -3,6 +3,8 @@
 import { useState, useId, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import {
   Plus, Search, FileDown, Building2, Pencil, Trash2,
   Phone, Mail, ExternalLink, Loader2, ShoppingCart, FileInput,
@@ -80,6 +82,7 @@ function ConfirmDeleteModal({ supplier, onConfirm, onCancel }: {
 
 // ─── Page ─────────────────────────────────────────────────────
 export default function SuppliersPage() {
+  const { can } = usePermission()
   const { format } = useCurrency()
   const router    = useRouter()
   const searchId  = useId()
@@ -112,6 +115,8 @@ export default function SuppliersPage() {
     if (!deleteTarget) return
     deleteMutation.mutate(deleteTarget.id, { onSettled: () => setDeleteTarget(null) })
   }
+
+  if (!can('supplier', 'read')) return <AccessDenied message="Vous n'avez pas accès au module fournisseurs." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, animation: 'page-in 0.2s ease' }}>

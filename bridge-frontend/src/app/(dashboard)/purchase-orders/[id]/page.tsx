@@ -2,6 +2,8 @@
 
 import { use, useState } from 'react'
 import Link from 'next/link'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import {
   ChevronLeft, CheckCircle2, XCircle, PackageCheck, Copy,
   Pencil, Clock, ShoppingCart, Building2, Calendar, Hash,
@@ -79,6 +81,7 @@ function ReceiveModal({ onConfirm, onClose, isPending }: {
 }
 
 export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { can } = usePermission()
   const { format } = useCurrency()
   const { id }    = use(params)
   const [showReceiveModal, setShowReceiveModal] = useState(false)
@@ -107,6 +110,8 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
   const canApprove = po.status === 'pending'
   const canReceive = ['approved', 'ordered', 'partially_received'].includes(po.status)
   const canCancel  = !['received', 'billed', 'cancelled'].includes(po.status)
+
+  if (!can('purchase-order', 'read')) return <AccessDenied message="Vous n'avez pas accès aux bons de commande." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 980, animation: 'page-in 0.2s ease' }}>

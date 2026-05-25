@@ -8,6 +8,8 @@ import {
   Download, Trash2, X, ChevronLeft, ChevronRight,
   Loader2, Receipt, SlidersHorizontal, ChevronDown,
 } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
 import { DocListItem, SkeletonDocItem } from '@/components/ui/DocListItem'
 import {
@@ -185,6 +187,7 @@ function EmptyState({ search, activeTab }: { search: string; activeTab: string }
 // ─── Page ─────────────────────────────────────────────────────
 
 export default function InvoicesPage() {
+  const { can } = usePermission()
   const [activeTab,    setActiveTab]    = useState('all')
   const [search,       setSearch]       = useState('')
   const [typeFilter,   setTypeFilter]   = useState<InvoiceType | ''>('')
@@ -250,6 +253,8 @@ export default function InvoicesPage() {
     fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13.5,
     transition: 'all 0.15s', minHeight: 44, padding: '0 16px',
   }
+
+  if (!can('invoice', 'read')) return <AccessDenied message="Vous n'avez pas accès à la liste des factures." />
 
   return (
     <>

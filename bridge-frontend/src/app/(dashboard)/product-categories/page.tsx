@@ -2,6 +2,8 @@
 
 import { useState, useId, useRef, useEffect } from 'react'
 import { Plus, Pencil, Trash2, Loader2, Tag, X, Check, AlertCircle } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { useProductCategories, useCreateCategory, useUpdateCategory, useDeleteCategory } from '@/features/products/hooks'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import type { ProductCategory } from '@/features/products/types'
@@ -141,6 +143,7 @@ function ColorPicker({
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function ProductCategoriesPage() {
+  const { can } = usePermission()
   const { data: categories = [], isLoading } = useProductCategories()
   const createMutation = useCreateCategory()
   const updateMutation = useUpdateCategory()
@@ -181,6 +184,8 @@ export default function ProductCategoriesPage() {
   }
 
   const cancelEdit = () => setEditId(null)
+
+  if (!can('product', 'read')) return <AccessDenied message="Vous n'avez pas accès aux catégories de produits." />
 
   return (
     <div style={{ padding: '0 0 40px' }}>

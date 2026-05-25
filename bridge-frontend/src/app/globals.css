@@ -205,6 +205,32 @@
   to   { opacity: 1; transform: scale(1)  translateY(0); }
 }
 
+/* ── Auth page animations ─────────────────────────────── */
+@keyframes authCharBob {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-9px); }
+}
+@keyframes authDocFloat {
+  0%, 100% { transform: translateY(0px) rotate(-3deg); }
+  50%       { transform: translateY(-8px) rotate(-1deg); }
+}
+@keyframes authChartFloat {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-6px); }
+}
+@keyframes authNotifPulse {
+  0%, 100% { transform: scale(1);    opacity: 0.88; }
+  50%       { transform: scale(1.11); opacity: 1; }
+}
+@keyframes authCoinSpin {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50%       { transform: translateY(-5px) rotate(10deg); }
+}
+@keyframes authStaggerIn {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* ─── Components ────────────────────────────────────────────── */
 /*
   Toutes les classes de composants sont dans @layer components.

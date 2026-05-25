@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight, Plus, Trash2, Loader2 } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
   useExpenseBudgets, useExpenseCategories,
@@ -79,6 +81,7 @@ function BudgetModal({ year, onClose, isPending, onSave, cats }: {
 }
 
 export default function ExpenseBudgetsPage() {
+  const { can } = usePermission()
   const { format } = useCurrency()
   const [year,       setYear]       = useState(new Date().getFullYear())
   const [showCreate, setShowCreate] = useState(false)
@@ -91,6 +94,8 @@ export default function ExpenseBudgetsPage() {
   function handleCreate(data: CreateBudgetPayload) {
     createMutation.mutate(data, { onSuccess: () => setShowCreate(false) })
   }
+
+  if (!can('expense', 'read')) return <AccessDenied message="Vous n'avez pas accès au module de dépenses." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 900, animation: 'page-in 0.2s ease' }}>

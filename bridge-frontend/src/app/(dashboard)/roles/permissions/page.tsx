@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Shield, Layers } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PERMISSION_GROUPS, PERM_ACTION_LABELS } from '@/features/roles/types'
 import { ROUTES } from '@/lib/constants'
 
@@ -10,7 +12,10 @@ function getAction(perm: string): string {
 }
 
 export default function PermissionsListPage() {
+  const { can } = usePermission()
   const router = useRouter()
+
+  if (!can('role', 'read')) return <AccessDenied message="La liste des permissions est réservée aux administrateurs." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 860, margin: '0 auto', width: '100%' }}>

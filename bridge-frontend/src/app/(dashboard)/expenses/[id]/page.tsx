@@ -3,6 +3,8 @@
 import { use, useState } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, CheckCircle2, XCircle, Banknote, Send, Tag, Calendar, User, Loader2 } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
   useExpense, useSubmitExpense, useApproveExpense,
@@ -48,6 +50,7 @@ function RejectModal({ onConfirm, onClose, isPending }: { onConfirm: (reason: st
 }
 
 export default function ExpenseDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { can } = usePermission()
   const { format } = useCurrency()
   const { id }       = use(params)
   const [showReject, setShowReject] = useState(false)
@@ -73,6 +76,8 @@ export default function ExpenseDetailPage({ params }: { params: Promise<{ id: st
   const canApprove = exp.status === 'submitted'
   const canReject  = exp.status === 'submitted'
   const canMarkPaid = exp.status === 'approved'
+
+  if (!can('expense', 'read')) return <AccessDenied message="Vous n'avez pas accès à cette dépense." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 860, animation: 'page-in 0.2s ease' }}>

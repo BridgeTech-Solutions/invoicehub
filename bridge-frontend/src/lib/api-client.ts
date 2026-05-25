@@ -29,6 +29,12 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config
 })
 
+// ─── Callback pour mettre à jour les permissions après refresh ─
+// Évite la dépendance circulaire api-client ↔ store
+type PermissionsUpdater = (permissions: string[]) => void
+let onPermissionsUpdated: PermissionsUpdater | null = null
+export function setPermissionsUpdater(fn: PermissionsUpdater) { onPermissionsUpdated = fn }
+
 // ─── Response interceptor: handle 401 → refresh ───────────────
 let isRefreshing = false
 let failedQueue: Array<{ resolve: (v: string) => void; reject: (e: unknown) => void }> = []
@@ -79,6 +85,9 @@ apiClient.interceptors.response.use(
         const newRefresh: string | undefined = data.data.refreshToken
         tokenStorage.setAccess(newToken)
         if (newRefresh) tokenStorage.setRefresh(newRefresh)
+        // Mise à jour des permissions si incluses dans la réponse refresh
+        const newPerms: string[] | undefined = data.data.user?.permissions
+        if (newPerms && onPermissionsUpdated) onPermissionsUpdated(newPerms)
         processQueue(null, newToken)
         original.headers['Authorization'] = `Bearer ${newToken}`
         return apiClient(original)

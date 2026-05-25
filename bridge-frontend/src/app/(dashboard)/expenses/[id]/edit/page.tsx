@@ -1,12 +1,17 @@
 'use client'
 
 import { use } from 'react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { useExpense } from '@/features/expenses/hooks'
 import { ExpenseForm } from '@/features/expenses/components/ExpenseForm'
 
 export default function EditExpensePage({ params }: { params: Promise<{ id: string }> }) {
+  const { can } = usePermission()
   const { id }                        = use(params)
   const { data: expense, isLoading }  = useExpense(id)
+
+  if (!can('expense', 'update')) return <AccessDenied message="Vous n'avez pas les droits pour modifier une dépense." />
 
   if (isLoading || !expense) {
     return (

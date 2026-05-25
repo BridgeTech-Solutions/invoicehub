@@ -3,6 +3,8 @@
 import { useState, useId } from 'react'
 import { Plus, GitMerge, ChevronLeft, ChevronRight, Loader2, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
 import { useReconciliations, useOpenReconciliation, useBankAccounts } from '@/features/bank/hooks'
@@ -115,6 +117,7 @@ function NewSessionModal({ onClose, accounts }: { onClose: () => void; accounts:
 // ─── Page ─────────────────────────────────────────────────────────────────
 
 export default function ReconciliationsPage() {
+  const { can } = usePermission()
   const [page,        setPage]       = useState(1)
   const [accountId,   setAccountId]  = useState('')
   const [modalOpen,   setModalOpen]  = useState(false)
@@ -124,6 +127,8 @@ export default function ReconciliationsPage() {
   const sessions    = data?.data ?? []
   const totalPages  = data?.meta.totalPages ?? 1
   const total       = data?.meta.total ?? 0
+
+  if (!can('bank', 'read')) return <AccessDenied message="Vous n'avez pas accès au module bancaire." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

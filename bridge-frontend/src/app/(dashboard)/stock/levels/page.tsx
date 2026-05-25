@@ -3,6 +3,8 @@
 import { useState, useMemo, useId, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { Search, Layers, Plus, ChevronLeft, ChevronRight, History } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
@@ -50,6 +52,7 @@ function RowActions({ product, onAdjust }: { product: StockLevel; onAdjust: (p: 
 }
 
 export default function StockLevelsPage() {
+  const { can } = usePermission()
   const { format } = useCurrency()
   const [search, setSearch]   = useState('')
   const [category, setCategory] = useState('')
@@ -81,6 +84,8 @@ export default function StockLevelsPage() {
     { key: 'lowStock', label: 'Stock bas' },
     { key: 'rupture',  label: 'Ruptures' },
   ]
+
+  if (!can('stock', 'read')) return <AccessDenied message="Vous n'avez pas accès au module de gestion des stocks." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

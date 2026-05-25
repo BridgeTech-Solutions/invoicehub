@@ -3,6 +3,8 @@
 import { useState, useMemo, useId, useCallback } from 'react'
 import Link from 'next/link'
 import { ArrowRightLeft, Search, ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
 import { MovementTypeBadge } from '@/features/stock/components/MovementTypeBadge'
@@ -54,6 +56,7 @@ function Pagination({ page, totalPages, onChange }: { page: number; totalPages: 
 }
 
 export default function StockMovementsPage() {
+  const { can } = usePermission()
   const { format } = useCurrency()
   const [type, setType]       = useState('')
   const [dateFrom, setFrom]   = useState('')
@@ -77,6 +80,8 @@ export default function StockMovementsPage() {
 
   const { data, isLoading } = useStockMovements(params)
   const movements = data?.data ?? []
+
+  if (!can('stock', 'read')) return <AccessDenied message="Vous n'avez pas accès au module de gestion des stocks." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

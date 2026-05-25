@@ -1,7 +1,7 @@
 import apiClient, { tokenStorage } from '@/lib/api-client'
 import type {
   LoginPayload, LoginResponse, RefreshResponse,
-  TwoFAEnableResponse, Session,
+  TwoFAEnableResponse, Session, AuthUser,
 } from './types'
 
 // ─── Auth API ─────────────────────────────────────────────────
@@ -56,6 +56,24 @@ export async function twoFADisable(token: string): Promise<void> {
 export async function twoFARegenerateBackupCodes(totpToken: string): Promise<{ backupCodes: string[] }> {
   const { data } = await apiClient.post<{ backupCodes: string[] }>('/auth/2fa/backup-codes', { totpToken })
   return data
+}
+
+// ─── Me ───────────────────────────────────────────────────────
+
+/** GET /users/me — profil de l'utilisateur connecté avec ses permissions */
+export async function getMe(): Promise<AuthUser & { permissions: string[] }> {
+  const { data } = await apiClient.get<any>('/users/me')
+  // Le backend retourne roleName + permissions ; on normalise pour AuthUser
+  return {
+    id:                 data.id,
+    email:              data.email,
+    firstName:          data.firstName,
+    lastName:           data.lastName,
+    role:               data.roleName ?? data.role,
+    permissions:        data.permissions ?? [],
+    mustChangePassword: data.mustChangePassword,
+    twoFactorEnabled:   data.twoFactorEnabled,
+  }
 }
 
 // ─── Sessions ─────────────────────────────────────────────────

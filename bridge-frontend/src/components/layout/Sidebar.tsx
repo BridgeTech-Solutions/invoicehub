@@ -61,8 +61,8 @@ const NAV: { title: string; sectionIcon: React.ElementType; items: NavItem[] }[]
     title: 'TIERS',
     sectionIcon: Users,
     items: [
-      { label: 'Clients',      href: ROUTES.CLIENTS,    icon: Users },
-      { label: 'Fournisseurs', href: ROUTES.SUPPLIERS,  icon: Building2 },
+      { label: 'Clients',      href: ROUTES.CLIENTS,   icon: Users,     permission: { resource: 'client',   action: 'read' } },
+      { label: 'Fournisseurs', href: ROUTES.SUPPLIERS, icon: Building2, permission: { resource: 'supplier',  action: 'read' } },
     ],
   },
   {
@@ -71,48 +71,50 @@ const NAV: { title: string; sectionIcon: React.ElementType; items: NavItem[] }[]
     items: [
       {
         label: 'Proformas', href: ROUTES.PROFORMAS, icon: FileText,
-        children: [{ label: 'Nouveau proforma', href: '/proformas/new', icon: Plus }],
+        permission: { resource: 'proforma', action: 'read' },
+        children: [{ label: 'Nouveau proforma', href: '/proformas/new', icon: Plus, permission: { resource: 'proforma', action: 'create' } }],
       },
       {
         label: 'Factures', href: ROUTES.INVOICES, icon: Receipt,
-        children: [{ label: 'Nouvelle facture', href: '/invoices/new', icon: Plus }],
+        permission: { resource: 'invoice', action: 'read' },
+        children: [{ label: 'Nouvelle facture', href: '/invoices/new', icon: Plus, permission: { resource: 'invoice', action: 'create' } }],
       },
-      { label: 'Paiements',   href: ROUTES.PAYMENTS,  icon: CreditCard },
-      { label: 'Récurrentes', href: ROUTES.RECURRING, icon: RefreshCw },
+      { label: 'Paiements',   href: ROUTES.PAYMENTS,  icon: CreditCard, permission: { resource: 'payment',   action: 'read' } },
+      { label: 'Récurrentes', href: ROUTES.RECURRING, icon: RefreshCw,  permission: { resource: 'recurring',  action: 'read' } },
     ],
   },
   {
     title: 'ACHATS',
     sectionIcon: ShoppingCart,
     items: [
-      { label: 'Bons de commande',      href: ROUTES.PURCHASE_ORDERS,   icon: ShoppingCart },
-      { label: 'Factures fournisseurs', href: ROUTES.SUPPLIER_INVOICES, icon: FileInput },
-      { label: 'Dépenses & Frais',      href: ROUTES.EXPENSES,          icon: Wallet, overlay: 'expenses' },
+      { label: 'Bons de commande',      href: ROUTES.PURCHASE_ORDERS,   icon: ShoppingCart, permission: { resource: 'purchase-order', action: 'read' } },
+      { label: 'Factures fournisseurs', href: ROUTES.SUPPLIER_INVOICES, icon: FileInput,    permission: { resource: 'supplier',      action: 'read' } },
+      { label: 'Dépenses & Frais',      href: ROUTES.EXPENSES,          icon: Wallet,       permission: { resource: 'expense',       action: 'read' }, overlay: 'expenses' },
     ],
   },
   {
     title: 'STOCKS & PRODUITS',
     sectionIcon: Warehouse,
     items: [
-      { label: 'Stock & Produits', href: ROUTES.STOCK, icon: Warehouse, overlay: 'stock' },
+      { label: 'Stock & Produits', href: ROUTES.STOCK, icon: Warehouse, permission: { resource: 'stock', action: 'read' }, overlay: 'stock' },
     ],
   },
   {
     title: 'FINANCES',
     sectionIcon: Landmark,
     items: [
-      { label: 'Rapports',        href: ROUTES.REPORTS,    icon: BarChart3 },
-      { label: 'Banque',          href: ROUTES.BANK,       icon: Landmark,  overlay: 'bank' },
-      { label: 'Comptabilité',    href: ROUTES.ACCOUNTING, icon: BookCheck, overlay: 'accounting' },
+      { label: 'Rapports',     href: ROUTES.REPORTS,    icon: BarChart3, permission: { resource: 'report',     action: 'read' } },
+      { label: 'Banque',       href: ROUTES.BANK,       icon: Landmark,  permission: { resource: 'bank',       action: 'read' }, overlay: 'bank' },
+      { label: 'Comptabilité', href: ROUTES.ACCOUNTING, icon: BookCheck, permission: { resource: 'accounting', action: 'read' }, overlay: 'accounting' },
     ],
   },
   {
     title: 'ADMINISTRATION',
     sectionIcon: ShieldCheck,
     items: [
-      { label: 'Utilisateurs',        href: ROUTES.USERS,         icon: UserCog,     permission: { resource: 'user',     action: 'read'   } },
-      { label: 'Rôles & Permissions', href: ROUTES.ROLES,         icon: ShieldCheck, overlay: 'roles', permission: { resource: 'role', action: 'read' } },
-      { label: 'Approbations',        href: ROUTES.APPROVALS,     icon: CheckSquare, approvalBadge: true, permission: { resource: 'approval', action: 'read' } },
+      { label: 'Utilisateurs',        href: ROUTES.USERS,         icon: UserCog,     permission: { resource: 'user',     action: 'read' } },
+      { label: 'Rôles & Permissions', href: ROUTES.ROLES,         icon: ShieldCheck, permission: { resource: 'role',     action: 'read' }, overlay: 'roles' },
+      { label: 'Approbations',        href: ROUTES.APPROVALS,     icon: CheckSquare, permission: { resource: 'approval', action: 'read' }, approvalBadge: true },
       { label: 'Notifications',       href: ROUTES.NOTIFICATIONS, icon: Bell, bell: true },
       { label: "Journal d'audit",     href: ROUTES.AUDIT,         icon: ClipboardList, permission: { resource: 'audit', action: 'read' } },
     ],
@@ -256,7 +258,12 @@ export function Sidebar() {
         className="sidebar-scroll flex-1 overflow-y-auto overflow-x-hidden py-2"
         style={{ scrollbarWidth: 'thin' }}
       >
-        {NAV.map((section, sectionIdx) => (
+        {NAV.map((section, sectionIdx) => {
+          const visibleSectionItems = section.items.filter(
+            (item) => !item.permission || can(item.permission.resource, item.permission.action)
+          )
+          if (visibleSectionItems.length === 0) return null
+          return (
           <div key={section.title} style={{ marginTop: sectionIdx === 0 ? 4 : 0 }}>
             {!collapsed && (
               <>
@@ -537,7 +544,8 @@ export function Sidebar() {
                 )
               })}
           </div>
-        ))}
+          )
+        })}
       </nav>
 
       {/* Footer nav — BTS Assistant, Guide, Paramètres */}

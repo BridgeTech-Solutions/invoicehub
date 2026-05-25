@@ -6,6 +6,8 @@ import {
   ArrowLeft, Plus, Pencil, Trash2, Shield, BookOpen,
   Check, Loader2, X, ChevronDown, ChevronUp,
 } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { ROUTES } from '@/lib/constants'
 import {
   useImportProfiles, useCreateImportProfile,
@@ -378,6 +380,7 @@ function DeleteConfirmModal({ name, onConfirm, onCancel, isPending }: {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function ImportProfilesPage() {
+  const { can } = usePermission()
   const router = useRouter()
   const { data: profiles = [], isLoading } = useImportProfiles()
   const deleteM = useDeleteImportProfile()
@@ -394,6 +397,8 @@ export default function ImportProfilesPage() {
     await deleteM.mutateAsync(deleteTarget.id)
     setDeleteTarget(null)
   }
+
+  if (!can('bank', 'read')) return <AccessDenied message="Vous n'avez pas accès au module bancaire." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 860, margin: '0 auto', width: '100%' }}>

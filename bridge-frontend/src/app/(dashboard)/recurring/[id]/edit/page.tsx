@@ -3,6 +3,8 @@
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { useRecurring } from '@/features/recurring/hooks'
 import { RecurringForm } from '@/features/recurring/components/RecurringForm'
 import { ROUTES } from '@/lib/constants'
@@ -46,6 +48,10 @@ function EditRecurringView({ id }: { id: string }) {
 }
 
 export default function EditRecurringPage() {
+  const { can } = usePermission()
   const { id } = useParams<{ id: string }>()
+
+  if (!can('recurring', 'update')) return <AccessDenied message="Vous n'avez pas les droits pour modifier un gabarit récurrent." />
+
   return <EditRecurringView id={id} />
 }

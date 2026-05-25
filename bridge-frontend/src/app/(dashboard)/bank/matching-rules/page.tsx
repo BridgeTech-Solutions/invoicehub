@@ -2,6 +2,8 @@
 
 import { useState, useId, useEffect } from 'react'
 import { Plus, Zap, Search, Pencil, Trash2, X, Loader2 } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
 import { ActionMenu } from '@/components/ui/ActionMenu'
@@ -200,6 +202,7 @@ function RuleDrawer({ rule, accounts, onClose }: {
 // ─── Page ─────────────────────────────────────────────────────────────────
 
 export default function MatchingRulesPage() {
+  const { can } = usePermission()
   const [drawerOpen,    setDrawerOpen]   = useState(false)
   const [editingRule,   setEditingRule]  = useState<BankMatchingRule | null>(null)
   const [accountFilter, setAccountFilter] = useState('')
@@ -230,6 +233,8 @@ export default function MatchingRulesPage() {
   const handleToggleAutoApply = async (rule: BankMatchingRule) => {
     await updateMutation.mutateAsync({ id: rule.id, data: { autoApply: !rule.autoApply } })
   }
+
+  if (!can('bank', 'read')) return <AccessDenied message="Vous n'avez pas accès au module bancaire." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

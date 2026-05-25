@@ -16,6 +16,8 @@ import {
   useUnpaid, usePayments, useTaxSummary,
 } from '@/features/reports/hooks'
 import { downloadCsv, downloadPdf } from '@/features/reports/api'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { formatDate, getInitials } from '@/lib/utils'
 import { ROUTES, STATUS_LABELS } from '@/lib/constants'
@@ -579,6 +581,7 @@ function TaxTab({ range }: { range: ReportRange }) {
 // ─── Page principale ───────────────────────────────────────────
 
 export default function ReportsPage() {
+  const { can } = usePermission()
   const currentYear = new Date().getFullYear()
   const [tab,          setTab]          = useState<TabId>('revenue')
   const [year,         setYear]         = useState(currentYear)
@@ -614,6 +617,8 @@ export default function ReportsPage() {
       setExportingPdf(false)
     }
   }
+
+  if (!can('report', 'read')) return <AccessDenied message="Vous n'avez pas accès aux rapports financiers." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

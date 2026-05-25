@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { Plus, Search, TrendingDown, Clock, RefreshCw, BarChart2, MoreHorizontal, Pencil, CheckCircle2, XCircle, Banknote, Trash2, ExternalLink, Send } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
@@ -122,6 +124,7 @@ function Pagination({ page, totalPages, onChange }: { page: number; totalPages: 
 type Tab = 'all' | 'submitted' | 'recurring'
 
 export default function ExpensesPage() {
+  const { can } = usePermission()
   const { format } = useCurrency()
   const [tab,        setTab]       = useState<Tab>('all')
   const [search,     setSearch]    = useState('')
@@ -143,6 +146,8 @@ export default function ExpensesPage() {
     { id: 'submitted', label: `En attente${(stats?.pendingCount ?? 0) > 0 ? ` (${stats?.pendingCount})` : ''}` },
     { id: 'recurring', label: 'Récurrentes' },
   ]
+
+  if (!can('expense', 'read')) return <AccessDenied message="Vous n'avez pas accès au module de dépenses." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, animation: 'page-in 0.2s ease' }}>

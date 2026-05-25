@@ -3,6 +3,8 @@
 import { use, useState } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, CheckCircle2, XCircle, Banknote, Building2, Calendar, Hash, Loader2 } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
   useSupplierInvoice, useApproveSupplierInvoice,
@@ -89,6 +91,7 @@ function PaymentModal({ invoiceId, maxAmount, onClose }: { invoiceId: string; ma
 }
 
 export default function SupplierInvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { can } = usePermission()
   const { format } = useCurrency()
   const { id }          = use(params)
   const [showPayModal, setShowPayModal] = useState(false)
@@ -113,6 +116,8 @@ export default function SupplierInvoiceDetailPage({ params }: { params: Promise<
   const canPay     = ['approved', 'partially_paid', 'overdue'].includes(inv.status)
   const canCancel  = !['paid', 'cancelled'].includes(inv.status)
   const paidPct    = inv.totalTtc > 0 ? Math.min(100, Math.round((inv.amountPaid / inv.totalTtc) * 100)) : 0
+
+  if (!can('supplier', 'read')) return <AccessDenied message="Vous n'avez pas accès aux factures fournisseurs." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 980, animation: 'page-in 0.2s ease' }}>

@@ -6,6 +6,8 @@ import {
   ChevronLeft, Calendar, Clock, User, FileText,
   Pencil, Building2, Mail,
 } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { useProforma } from '@/features/proformas/hooks'
 import { ProformaActionsMenu } from '@/features/proformas/components/ProformaActionsMenu'
 import { ProformaForm } from '@/features/proformas/components/ProformaForm'
@@ -321,10 +323,13 @@ function ProformaDetailView({ id }: { id: string }) {
 // ─── Page (edit or detail) ──────────────────────────────────────
 
 export default function ProformaPage() {
+  const { can } = usePermission()
   const { id }         = useParams<{ id: string }>()
   const searchParams   = useSearchParams()
   const isEditMode     = searchParams.get('mode') === 'edit'
   const { data: proforma, isLoading } = useProforma(id)
+
+  if (!can('proforma', 'read')) return <AccessDenied message="Vous n'avez pas accès aux devis." />
 
   if (isEditMode) {
     if (isLoading) return (

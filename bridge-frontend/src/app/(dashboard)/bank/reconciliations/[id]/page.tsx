@@ -8,6 +8,8 @@ import {
   ChevronDown, ChevronUp, Search, X, Info,
   FileText, CreditCard, Receipt,
 } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import {
   useReconciliation, useTransactions,
   useReconcileTransaction, useAutoMatch,
@@ -655,6 +657,7 @@ function CompleteModal({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ReconciliationWorkspacePage() {
+  const { can } = usePermission()
   const params   = useParams<{ id: string }>()
   const router   = useRouter()
   const [selectedTx,    setSelectedTx]    = useState<BankTransaction | null>(null)
@@ -714,6 +717,8 @@ export default function ReconciliationWorkspacePage() {
       </div>
     )
   }
+
+  if (!can('bank', 'read')) return <AccessDenied message="Vous n'avez pas accès au module bancaire." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 57px)', overflow: 'hidden' }}>

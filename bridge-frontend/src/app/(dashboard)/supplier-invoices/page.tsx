@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { Plus, Search, AlertTriangle, Clock, CreditCard, TrendingDown, MoreHorizontal, Pencil, CheckCircle2, Banknote, XCircle, Trash2, ExternalLink } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { useSupplierInvoices, useSupplierInvoiceStats, useDeleteSupplierInvoice, useApproveSupplierInvoice, useCancelSupplierInvoice } from '@/features/supplier-invoices/hooks'
@@ -105,6 +107,7 @@ function Pagination({ page, totalPages, onChange }: { page: number; totalPages: 
 }
 
 export default function SupplierInvoicesPage() {
+  const { can } = usePermission()
   const { format } = useCurrency()
   const [search,   setSearch]   = useState('')
   const [status,   setStatus]   = useState<SupplierInvoiceStatus | ''>('')
@@ -115,6 +118,8 @@ export default function SupplierInvoicesPage() {
   const { data: stats }      = useSupplierInvoiceStats()
   const invoices             = data?.data ?? []
   const totalPages           = data?.totalPages ?? 1
+
+  if (!can('supplier', 'read')) return <AccessDenied message="Vous n'avez pas accès aux factures fournisseurs." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, animation: 'page-in 0.2s ease' }}>

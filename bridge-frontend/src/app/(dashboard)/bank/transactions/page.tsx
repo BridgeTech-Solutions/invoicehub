@@ -7,6 +7,8 @@ import {
   ChevronDown, ChevronUp, CheckCircle2, XCircle, MinusCircle, HelpCircle,
   Loader2, Link2, Link2Off,
 } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
 import { ActionMenu } from '@/components/ui/ActionMenu'
@@ -238,6 +240,7 @@ function TransactionRow({ tx, accounts }: { tx: BankTransaction; accounts: impor
 // ─── Page ─────────────────────────────────────────────────────────────────
 
 export default function TransactionsPage() {
+  const { can } = usePermission()
   const searchParams  = useSearchParams()
   const [tab,         setTab]         = useState<StatusTab>((searchParams.get('reconciled') === 'false' ? 'pending' : 'all') as StatusTab)
   const [accountId,   setAccountId]   = useState(searchParams.get('accountId') ?? '')
@@ -270,6 +273,8 @@ export default function TransactionsPage() {
   const total        = data?.meta.total ?? 0
 
   const changeTab = useCallback((t: StatusTab) => { setTab(t); setPage(1) }, [])
+
+  if (!can('bank', 'read')) return <AccessDenied message="Vous n'avez pas accès au module bancaire." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

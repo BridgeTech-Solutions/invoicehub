@@ -7,16 +7,18 @@ export interface AuthUser {
   firstName:          string
   lastName:           string
   role:               Role
+  permissions:        string[]
   mustChangePassword: boolean
   twoFactorEnabled:   boolean
 }
 
 // ─── Auth store state ─────────────────────────────────────────
 export interface AuthState {
-  user:         AuthUser | null
-  accessToken:  string | null
-  refreshToken: string | null
-  isLoading:    boolean
+  user:              AuthUser | null
+  accessToken:       string | null
+  refreshToken:      string | null
+  isLoading:         boolean
+  permissionsLoaded: boolean   // true dès que les permissions ont été chargées
 }
 
 // ─── API payloads ─────────────────────────────────────────────
@@ -35,7 +37,7 @@ export interface LoginResponse {
 export interface RefreshResponse {
   accessToken:  string
   refreshToken: string
-  user: { id: string; email: string; role: Role }
+  user: { id: string; email: string; role: Role; permissions: string[] }
 }
 
 export interface TwoFAEnableResponse {

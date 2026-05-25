@@ -3,6 +3,8 @@
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { useClient } from '@/features/clients/hooks'
 import { ClientForm } from '@/features/clients/components/ClientForm'
 import { ROUTES } from '@/lib/constants'
@@ -25,8 +27,11 @@ function Skeleton() {
 }
 
 export default function EditClientPage() {
+  const { can } = usePermission()
   const { id } = useParams<{ id: string }>()
   const { data: client, isLoading } = useClient(id)
+
+  if (!can('client', 'update')) return <AccessDenied message="Vous n'avez pas les droits pour modifier un client." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 900 }}>

@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, TrendingDown, Plus, History } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
 import { StockStatusBadge } from '@/features/stock/components/StockStatusBadge'
@@ -12,11 +14,14 @@ import { ROUTES } from '@/lib/constants'
 import type { StockAlert } from '@/features/stock/types'
 
 export default function StockAlertsPage() {
+  const { can } = usePermission()
   const { data: alerts = [], isLoading } = useStockAlerts()
   const [drawer, setDrawer] = useState<StockAlert | null>(null)
 
   const ruptures = alerts.filter(a => a.stockStatus === 'rupture')
   const lowStock = alerts.filter(a => a.stockStatus === 'bas')
+
+  if (!can('stock', 'read')) return <AccessDenied message="Vous n'avez pas accès au module de gestion des stocks." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>

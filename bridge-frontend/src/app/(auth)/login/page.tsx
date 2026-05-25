@@ -54,16 +54,14 @@ export default function LoginPage() {
         padding: '40px 24px',
         overflow: 'auto',
       }}>
-        <div style={{
-          width: '100%',
-          maxWidth: 400,
-          opacity:    mounted ? 1 : 0,
-          transform:  mounted ? 'none' : 'translateY(18px)',
-          transition: 'opacity 0.42s ease, transform 0.42s ease',
-        }}>
+        <div style={{ width: '100%', maxWidth: 400 }}>
 
-          {/* En-tête */}
-          <div style={{ marginBottom: 32 }}>
+          {/* En-tête — entrée en cascade */}
+          <div style={{
+            marginBottom: 32,
+            opacity: mounted ? 1 : 0,
+            animation: mounted ? 'authStaggerIn 0.5s ease 0.05s both' : 'none',
+          }}>
             <h1 style={{
               fontSize: 26,
               fontWeight: 800,
@@ -85,6 +83,7 @@ export default function LoginPage() {
               role="alert"
               aria-live="assertive"
               style={{
+                animation: 'authStaggerIn 0.3s ease both',
                 marginBottom: 22,
                 padding: '12px 14px',
                 borderRadius: 8,
@@ -107,7 +106,11 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
             {/* Email */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            <div style={{
+              display: 'flex', flexDirection: 'column', gap: 7,
+              opacity: mounted ? 1 : 0,
+              animation: mounted ? 'authStaggerIn 0.5s ease 0.15s both' : 'none',
+            }}>
               <label htmlFor="email" style={{
                 fontSize: 13.5, fontWeight: 600,
                 color: '#374151', fontFamily: 'var(--font-display)',
@@ -128,7 +131,11 @@ export default function LoginPage() {
             </div>
 
             {/* Mot de passe */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            <div style={{
+              display: 'flex', flexDirection: 'column', gap: 7,
+              opacity: mounted ? 1 : 0,
+              animation: mounted ? 'authStaggerIn 0.5s ease 0.26s both' : 'none',
+            }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <label htmlFor="password" style={{
                   fontSize: 13.5, fontWeight: 600,
@@ -190,7 +197,11 @@ export default function LoginPage() {
               disabled={loading}
               aria-busy={loading}
               className="auth-btn"
-              style={{ marginTop: 4 }}
+              style={{
+                marginTop: 4,
+                opacity: mounted ? 1 : 0,
+                animation: mounted ? 'authStaggerIn 0.5s ease 0.37s both' : 'none',
+              }}
             >
               {loading
                 ? <><Loader2 size={16} className="animate-spin" aria-hidden /> Connexion en cours…</>
@@ -202,6 +213,8 @@ export default function LoginPage() {
           {/* Note de bas */}
           <p style={{
             marginTop: 28,
+            opacity: mounted ? 1 : 0,
+            animation: mounted ? 'authStaggerIn 0.5s ease 0.46s both' : 'none',
             fontSize: 12.5,
             color: '#94a3b8',
             textAlign: 'center',

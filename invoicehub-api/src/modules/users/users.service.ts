@@ -23,7 +23,7 @@ const USER_SELECT = {
   email:      true,
   phone:      true,
   roleId:     true,
-  role:       { select: { name: true } },
+  role:       { select: { name: true, permissions: true } },
   status:     true,
   mustChangePassword:   true,
   twoFactorEnabled:     true,
@@ -49,7 +49,12 @@ function toAvatarUrl(avatarPath: string | null): string | null {
 
 function formatUser(user: any) {
   const { avatarPath, role, ...rest } = user;
-  return { ...rest, roleName: (role as any)?.name ?? 'employee', avatarUrl: toAvatarUrl(avatarPath as string | null) };
+  return {
+    ...rest,
+    roleName:    (role as any)?.name ?? 'employee',
+    permissions: (role as any)?.permissions ?? [],
+    avatarUrl:   toAvatarUrl(avatarPath as string | null),
+  };
 }
 
 @Injectable()

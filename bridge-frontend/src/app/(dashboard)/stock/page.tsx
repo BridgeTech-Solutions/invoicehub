@@ -1,5 +1,7 @@
 'use client'
 
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { StockKpiCards } from '@/features/stock/components/StockKpiCards'
 import { RecentMovementsTable } from '@/features/stock/components/RecentMovementsTable'
@@ -8,6 +10,10 @@ import Link from 'next/link'
 import { Layers, AlertTriangle, ArrowRightLeft } from 'lucide-react'
 
 export default function StockPage() {
+  const { can } = usePermission()
+
+  if (!can('stock', 'read')) return <AccessDenied message="Vous n'avez pas accès au module de gestion des stocks." />
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <PageHeader

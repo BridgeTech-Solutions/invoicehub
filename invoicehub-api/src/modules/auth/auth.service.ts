@@ -139,6 +139,7 @@ export class AuthService {
         firstName:         user.firstName,
         lastName:          user.lastName,
         role:              user.role?.name ?? 'employee',
+        permissions:       user.role?.permissions ?? [],
         mustChangePassword: user.mustChangePassword,
         twoFactorEnabled:  user.twoFactorEnabled,
       },
@@ -189,7 +190,12 @@ export class AuthService {
 
     return {
       ...tokens,
-      user: { id: user.id, email: user.email, role: user.role?.name ?? 'employee' },
+      user: {
+        id:          user.id,
+        email:       user.email,
+        role:        user.role?.name ?? 'employee',
+        permissions: user.role?.permissions ?? [],
+      },
     };
   }
 

@@ -8,6 +8,8 @@ import {
   ArrowRight, AlertCircle, BookOpen,
 } from 'lucide-react'
 import Link from 'next/link'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
   useBankAccounts, useConfirmImport, useRollbackImport,
@@ -677,6 +679,7 @@ function Step3({ importId, onReset }: { importId: string; onReset: () => void })
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function BankImportPage() {
+  const { can } = usePermission()
   const searchParams = useSearchParams()
   const [step,        setStep]        = useState<Step>(1)
   const [accountId,   setAccountId]   = useState(searchParams.get('accountId') ?? '')
@@ -690,6 +693,8 @@ export default function BankImportPage() {
     setStep(1); setFile(null); setImportId(null); setCustomMapping(undefined)
     setAccountId(searchParams.get('accountId') ?? '')
   }
+
+  if (!can('bank', 'read')) return <AccessDenied message="Vous n'avez pas accès au module bancaire." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

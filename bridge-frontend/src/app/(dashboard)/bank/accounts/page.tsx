@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { Plus, Building2, Landmark } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
 import { useBankAccounts, useDeleteBankAccount, useUpdateBankAccount } from '@/features/bank/hooks'
@@ -12,6 +14,7 @@ import type { BankAccount } from '@/features/bank/types'
 import { toast } from 'sonner'
 
 export default function BankAccountsPage() {
+  const { can } = usePermission()
   const [drawerOpen,      setDrawerOpen]      = useState(false)
   const [editingAccount,  setEditingAccount]  = useState<BankAccount | null>(null)
   const [deletingAccount, setDeletingAccount] = useState<BankAccount | null>(null)
@@ -41,6 +44,8 @@ export default function BankAccountsPage() {
   }
 
   const activeCount = accounts.filter(a => a.isActive).length
+
+  if (!can('bank', 'read')) return <AccessDenied message="Vous n'avez pas accès au module bancaire." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

@@ -3,14 +3,19 @@
 import { use } from 'react'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { SupplierForm } from '@/features/suppliers/components/SupplierForm'
 import { useSupplier } from '@/features/suppliers/hooks'
 import { ROUTES } from '@/lib/constants'
 
 export default function EditSupplierPage({ params }: { params: Promise<{ id: string }> }) {
+  const { can } = usePermission()
   const { id } = use(params)
   const { data: supplier, isLoading } = useSupplier(id)
+
+  if (!can('supplier', 'update')) return <AccessDenied message="Vous n'avez pas les droits pour modifier un fournisseur." />
 
   if (isLoading) {
     return (

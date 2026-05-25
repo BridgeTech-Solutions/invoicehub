@@ -3,6 +3,8 @@
 import { use } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import {
   ChevronLeft, Building2, Mail, Phone, Globe, MapPin,
   Pencil, ShoppingCart, FileInput, Banknote,
@@ -34,6 +36,7 @@ function StatCard({ label, value, color, href }: { label: string; value: string;
 }
 
 export default function SupplierDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { can } = usePermission()
   const { format } = useCurrency()
   const { id } = use(params)
   const router  = useRouter()
@@ -50,6 +53,8 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
       </div>
     )
   }
+
+  if (!can('supplier', 'read')) return <AccessDenied message="Vous n'avez pas accès aux fournisseurs." />
 
   if (!supplier) return null
 
