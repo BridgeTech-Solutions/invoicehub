@@ -122,20 +122,15 @@ export function useMe() {
 // ─── UpdateMe ─────────────────────────────────────────────────
 export function useUpdateMe() {
   const qc = useQueryClient()
-  const { user, accessToken, refreshToken } = useAuthStore()
 
   return useMutation({
     mutationFn: (payload: UpdateMePayload) => usersApi.updateMe(payload),
     onSuccess: (updated) => {
       qc.setQueryData(KEYS.me, updated)
-      // Sync auth store if name changed
-      if (user && accessToken && refreshToken) {
-        useAuthStore.getState().setAuth(
-          { ...user, firstName: updated.firstName, lastName: updated.lastName },
-          accessToken,
-          refreshToken,
-        )
-      }
+      useAuthStore.getState().patchUser({
+        firstName: updated.firstName,
+        lastName:  updated.lastName,
+      })
       toast.success('Profil mis à jour')
     },
     onError: () => toast.error('Erreur lors de la mise à jour du profil'),

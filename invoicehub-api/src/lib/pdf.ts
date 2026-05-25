@@ -512,12 +512,14 @@ export interface DocumentHtmlParams {
 
 // ─── Constantes visuelles ─────────────────────────────────────────────────────
 
-/** Bleu BTS (headers / labels de tableaux) */
-const BLUE   = '#2196F3';
-/** Beige/tan BTS (lignes de totaux) */
-const TAN    = '#C8B87A';
+/** Bleu BTS atténué (headers / labels de tableaux) — tinte 50 % sur blanc */
+const BLUE     = '#90CBF9';
+/** Couleur de texte pour les en-têtes bleus (lisible sur fond clair) */
+const BLUE_TXT = '#0D47A1';
+/** Beige/tan BTS atténué (lignes de totaux) — tinte 50 % sur blanc */
+const TAN      = '#E4DCB9';
 /** Couleur de bordure des tableaux */
-const BORDER = '#d4d4d4';
+const BORDER   = '#d4d4d4';
 
 // ─── Template HTML ────────────────────────────────────────────────────────────
 
@@ -565,8 +567,8 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
   // ── Styles partagés ──────────────────────────────────────────────────────────
   const cellBorder = `border:1px solid ${BORDER};`;
   const td         = `${cellBorder}padding:5px 8px;background:transparent;`;
-  const labelTd    = `${td}background:${BLUE};color:#fff;font-weight:bold;`;
-  const thStyle    = `background:${BLUE};color:#fff;font-weight:bold;padding:6px 8px;${cellBorder}`;
+  const labelTd    = `${td}background:${BLUE};color:${BLUE_TXT};font-weight:bold;`;
+  const thStyle    = `background:${BLUE};color:${BLUE_TXT};font-weight:bold;padding:6px 8px;${cellBorder}`;
   const totalTd    = `background:${TAN};${cellBorder}padding:6px 8px;font-weight:bold;text-align:center;`;
   const totalTdVal = `background:${TAN};${cellBorder}padding:6px 8px;font-weight:bold;text-align:right;`;
 
@@ -851,8 +853,7 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
 
       bottomSection += `
         <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:11px;">
-          ${(params.btsBankName || params.btsBankAccount || params.btsBankIban) ? `<tr><td style="${labelTd}width:34%;">Banque ${params.btsBankName ?? ''}</td><td style="${td}">${bankValue}</td></tr>` : ''}
-          ${params.btsBankSwift   ? `<tr><td style="${labelTd}">SWIFT/BIC</td><td style="${td}">${params.btsBankSwift}</td></tr>` : ''}
+          ${(params.btsBankName || params.btsBankAccount) ? `<tr><td style="${labelTd}width:34%;">Banque ${params.btsBankName ?? ''}</td><td style="${td}">${bankValue}</td></tr>` : ''}
           ${params.contactPerson  ? `<tr><td style="${labelTd}">Personne à contacter</td><td style="${td}">${params.contactPerson}</td></tr>` : ''}
         </table>`;
     }
@@ -968,12 +969,13 @@ export function buildReceiptHtml(params: ReceiptParams): string {
   const fmt = (n: number) =>
     new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(n));
 
-  const BLUE_R   = '#2196F3';
-  const TAN_R    = '#C8B87A';
-  const BORDER_R = '#d4d4d4';
-  const td_r     = `border:1px solid ${BORDER_R};padding:6px 10px;`;
-  const labelTd_r = `${td_r}background:${BLUE_R};color:#fff;font-weight:bold;width:35%;`;
-  const totalTd_r = `background:${TAN_R};border:1px solid ${BORDER_R};padding:6px 10px;font-weight:bold;`;
+  const BLUE_R     = '#90CBF9';
+  const BLUE_TXT_R = '#0D47A1';
+  const TAN_R      = '#E4DCB9';
+  const BORDER_R   = '#d4d4d4';
+  const td_r       = `border:1px solid ${BORDER_R};padding:6px 10px;`;
+  const labelTd_r  = `${td_r}background:${BLUE_R};color:${BLUE_TXT_R};font-weight:bold;width:35%;`;
+  const totalTd_r  = `background:${TAN_R};border:1px solid ${BORDER_R};padding:6px 10px;font-weight:bold;`;
 
   // Conversion méthode en français
   const methodLabels: Record<string, string> = {

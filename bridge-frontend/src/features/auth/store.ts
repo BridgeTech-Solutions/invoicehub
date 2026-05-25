@@ -8,6 +8,7 @@ interface AuthStore extends AuthState {
   setAuth:        (user: AuthUser, accessToken: string, refreshToken: string) => void
   setTokens:      (accessToken: string, refreshToken: string) => void
   setPermissions: (permissions: string[]) => void
+  patchUser:      (partial: Partial<AuthUser>) => void
   clearAuth:      () => void
   setLoading:     (loading: boolean) => void
 }
@@ -42,6 +43,12 @@ export const useAuthStore = create<AuthStore>()(
         set(state => ({
           user:              state.user ? { ...state.user, permissions } : null,
           permissionsLoaded: true,
+        })),
+
+      // Met à jour des champs spécifiques du profil sans toucher aux tokens
+      patchUser: (partial) =>
+        set(state => ({
+          user: state.user ? { ...state.user, ...partial } : null,
         })),
 
       // Efface tout (logout)
