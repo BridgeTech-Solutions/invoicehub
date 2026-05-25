@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, Plus, Trash2, Loader2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Trash2, Loader2, AlertTriangle, X } from 'lucide-react'
 import { usePermission } from '@/hooks/usePermission'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -91,6 +91,10 @@ export default function ExpenseBudgetsPage() {
   const createMutation               = useCreateBudget(year)
   const deleteMutation               = useDeleteBudget(year)
 
+  const alertBudgets = (budgets ?? []).filter(b => b.percentUsed >= 80)
+  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set())
+  const visibleAlerts = alertBudgets.filter(b => !dismissedAlerts.has(b.id))
+
   function handleCreate(data: CreateBudgetPayload) {
     createMutation.mutate(data, { onSuccess: () => setShowCreate(false) })
   }
@@ -121,6 +125,39 @@ export default function ExpenseBudgetsPage() {
         />
       </div>
 
+      {/* Bandeau d'alertes budgets */}
+      {visibleAlerts.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {visibleAlerts.map(b => {
+            const isOver = b.percentUsed >= 100
+            return (
+              <div key={b.id} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 12,
+                padding: '12px 16px', borderRadius: 'var(--radius-md)',
+                background: isOver ? '#fef2f2' : '#fffbeb',
+                border: `1.5px solid ${isOver ? '#fecaca' : '#fde68a'}`,
+              }}>
+                <AlertTriangle size={16} style={{ color: isOver ? '#dc2626' : '#d97706', flexShrink: 0, marginTop: 1 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13.5, fontWeight: 700, color: isOver ? '#991b1b' : '#92400e', fontFamily: 'var(--font-display)', marginBottom: 2 }}>
+                    {isOver ? `Budget dépassé — ${b.label}` : `Alerte 80 % — ${b.label}`}
+                  </p>
+                  <p style={{ fontSize: 12.5, color: isOver ? '#b91c1c' : '#b45309' }}>
+                    {isOver
+                      ? `${Math.round(b.percentUsed)} % utilisé — dépassement de ${format(b.spent - b.amount)} · Vérifiez les dépenses de cette catégorie.`
+                      : `${Math.round(b.percentUsed)} % utilisé — il reste ${format(b.remaining)} sur ${format(b.amount)}.`}
+                  </p>
+                </div>
+                <button onClick={() => setDismissedAlerts(s => new Set([...s, b.id]))}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 4, border: 'none', background: 'transparent', cursor: 'pointer', color: isOver ? '#b91c1c' : '#b45309', flexShrink: 0, opacity: 0.7 }}>
+                  <X size={13} />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       {/* Year selector */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <button onClick={() => setYear(y => y - 1)}
@@ -147,13 +184,22 @@ export default function ExpenseBudgetsPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
           {(budgets ?? []).map(b => {
             const pct  = Math.min(100, Math.round(b.percentUsed))
-            const over = b.percentUsed > 100
-            const barColor = over ? '#dc2626' : pct > 80 ? '#d97706' : '#16a34a'
+            const over = b.percentUsed >= 100
+            const warn = !over && b.percentUsed >= 80
+            const barColor = over ? '#dc2626' : warn ? '#d97706' : '#16a34a'
             return (
-              <div key={b.id} className="card" style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div key={b.id} className="card" style={{
+                padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 12,
+                ...(over ? { borderColor: '#fecaca' } : warn ? { borderColor: '#fde68a' } : {}),
+              }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-1)', fontFamily: 'var(--font-display)' }}>{b.label}</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-1)', fontFamily: 'var(--font-display)' }}>{b.label}</p>
+                      {(over || warn) && (
+                        <AlertTriangle size={14} style={{ color: over ? '#dc2626' : '#d97706', flexShrink: 0 }} />
+                      )}
+                    </div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                       {b.category && (
                         <span style={{ fontSize: 11.5, color: 'var(--text-3)', background: 'var(--surface-2)', padding: '2px 8px', borderRadius: 10 }}>{b.category.name}</span>

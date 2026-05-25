@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ApprovalsService } from '../approvals/approvals.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { AppError } from '../../common/errors/app-error';
 import * as accountingEngine from '../../lib/accountingEngine';
 import {
@@ -17,6 +18,7 @@ export class ExpensesService {
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
     private approvalsService: ApprovalsService,
+    private notificationsService: NotificationsService,
   ) {}
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -75,6 +77,81 @@ export class ExpensesService {
     if (analyticalAxis !== undefined) mapped['reference']     = analyticalAxis;
     // parentId et period sont ignorés (pas en DB)
     return mapped;
+  }
+
+  // Vérifie si un budget vient de franchir 80 % ou 100 % après paiement d'une dépense
+  private async checkBudgetAlerts(categoryId: string | null, paidAmountTtc: number): Promise<void> {
+    if (!categoryId) return;
+
+    const now = new Date();
+    const y   = now.getFullYear();
+    const m   = now.getMonth() + 1; // 1-based
+
+    const budgets = await this.prisma.expenseBudget.findMany({
+      where: {
+        categoryId,
+        year: y,
+        OR: [{ month: null }, { month: m }],
+      },
+      include: { category: { select: { name: true } } },
+    });
+    if (budgets.length === 0) return;
+
+    const admins = await this.prisma.user.findMany({
+      where:  { role: { is: { name: 'admin' } }, status: 'active', deletedAt: null } as any,
+      select: { id: true },
+    });
+    if (admins.length === 0) return;
+
+    for (const budget of budgets) {
+      const start = budget.month ? new Date(y, budget.month - 1, 1) : new Date(y, 0, 1);
+      const end   = budget.month ? new Date(y, budget.month, 0, 23, 59, 59) : new Date(y, 11, 31, 23, 59, 59);
+
+      const agg = await this.prisma.expense.aggregate({
+        where: { categoryId, status: 'paid' as any, deletedAt: null, expenseDate: { gte: start, lte: end } },
+        _sum:  { amountTtc: true },
+      });
+
+      const spent    = Number(agg._sum.amountTtc ?? 0);
+      const amount   = Number(budget.budgetAmount);
+      if (amount <= 0) continue;
+
+      const prevSpent = Math.max(0, spent - paidAmountTtc);
+      const prevPct   = (prevSpent / amount) * 100;
+      const newPct    = (spent    / amount) * 100;
+
+      const catName     = (budget as any).category?.name ?? 'Catégorie';
+      const periodLabel = budget.month ? `${budget.month}/${y}` : `${y}`;
+
+      const notifications: { title: string; message: string; threshold: number }[] = [];
+
+      if (prevPct < 80 && newPct >= 80 && newPct < 100) {
+        notifications.push({
+          title:     `Alerte budget 80 % — ${catName}`,
+          message:   `Le budget "${catName}" (${periodLabel}) est utilisé à ${Math.round(newPct)} %. Il reste ${Math.round(amount - spent).toLocaleString()} XAF.`,
+          threshold: 80,
+        });
+      }
+      if (prevPct < 100 && newPct >= 100) {
+        notifications.push({
+          title:     `Budget dépassé — ${catName}`,
+          message:   `Le budget "${catName}" (${periodLabel}) est dépassé : ${Math.round(newPct)} % utilisé (dépassement de ${Math.round(spent - amount).toLocaleString()} XAF).`,
+          threshold: 100,
+        });
+      }
+
+      for (const notif of notifications) {
+        for (const admin of admins) {
+          await this.notificationsService.create(
+            admin.id,
+            'system' as any,
+            notif.title,
+            notif.message,
+            { budgetId: budget.id, categoryId, threshold: notif.threshold, percentUsed: Math.round(newPct) },
+          );
+        }
+      }
+    }
   }
 
   // ── Categories ────────────────────────────────────────────────────────────────
@@ -299,9 +376,15 @@ export class ExpensesService {
   }
 
   async payExpense(id: string, userId: string) {
+    const expense = await this.prisma.expense.findFirst({
+      where:  { id, deletedAt: null },
+      select: { categoryId: true, amountTtc: true },
+    });
     const result = await this.transition(id, 'approved', 'paid', userId, { paidAt: new Date() });
     void this.prisma.$transaction((tx: any) => accountingEngine.onExpensePaid(id, tx));
     this.eventEmitter.emit('expense.paid', { expenseId: id });
+    // Alertes budget (fire-and-forget — ne bloque pas la réponse)
+    void this.checkBudgetAlerts(expense?.categoryId ?? null, Number(expense?.amountTtc ?? 0));
     return result;
   }
 

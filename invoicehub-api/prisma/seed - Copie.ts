@@ -733,10 +733,11 @@ const EMAIL_TEMPLATES: {
 async function seedEmailTemplates() {
   for (const tpl of EMAIL_TEMPLATES) {
     await prisma.emailTemplate.upsert({
-      where:  { type: tpl.type },
+      where:  { type_locale: { type: tpl.type, locale: 'fr' } },
       update: {},
       create: {
         type:      tpl.type,
+        locale:    'fr',
         name:      tpl.name,
         subject:   tpl.subject,
         bodyHtml:  tpl.bodyHtml,
