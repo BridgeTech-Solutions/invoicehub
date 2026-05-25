@@ -9,6 +9,8 @@ import { useAuthStore } from '@/features/auth/store'
 import { useUnreadCount } from '@/features/notifications/hooks'
 import { useApprovalPendingCount } from '@/features/approvals/hooks'
 import { useSidebarStore } from '@/store/sidebar'
+import { usePermission } from '@/hooks/usePermission'
+import type { Resource, Action } from '@/hooks/usePermission'
 import { CompanyLogo } from '@/components/ui/CompanyLogo'
 import {
   LayoutDashboard, Users, FileText, Receipt, CreditCard,
@@ -23,10 +25,10 @@ import { OverlaySubNav } from './OverlaySubNav'
 
 // ─── Types ────────────────────────────────────────────────────
 interface SubItem {
-  label:  string
-  href:   string
-  icon:   React.ElementType
-  roles?: string[]
+  label:       string
+  href:        string
+  icon:        React.ElementType
+  permission?: { resource: Resource; action: Action }
 }
 
 interface NavItem {
@@ -35,7 +37,7 @@ interface NavItem {
   icon:           React.ElementType
   bell?:          boolean
   approvalBadge?: boolean
-  roles?:         string[]
+  permission?:    { resource: Resource; action: Action }
   children?:      SubItem[]
   external?:      boolean
   overlay?:       string  // 'bank' | 'accounting' | 'roles' | 'settings'
@@ -108,11 +110,11 @@ const NAV: { title: string; sectionIcon: React.ElementType; items: NavItem[] }[]
     title: 'ADMINISTRATION',
     sectionIcon: ShieldCheck,
     items: [
-      { label: 'Utilisateurs',        href: ROUTES.USERS,         icon: UserCog,     roles: ['admin'] },
-      { label: 'Rôles & Permissions', href: ROUTES.ROLES,         icon: ShieldCheck, overlay: 'roles', roles: ['admin'] },
-      { label: 'Approbations',        href: ROUTES.APPROVALS,     icon: CheckSquare, approvalBadge: true, roles: ['admin'] },
+      { label: 'Utilisateurs',        href: ROUTES.USERS,         icon: UserCog,     permission: { resource: 'user',     action: 'read'   } },
+      { label: 'Rôles & Permissions', href: ROUTES.ROLES,         icon: ShieldCheck, overlay: 'roles', permission: { resource: 'role', action: 'read' } },
+      { label: 'Approbations',        href: ROUTES.APPROVALS,     icon: CheckSquare, approvalBadge: true, permission: { resource: 'approval', action: 'read' } },
       { label: 'Notifications',       href: ROUTES.NOTIFICATIONS, icon: Bell, bell: true },
-      { label: "Journal d'audit",     href: ROUTES.AUDIT,         icon: ClipboardList, roles: ['admin'] },
+      { label: "Journal d'audit",     href: ROUTES.AUDIT,         icon: ClipboardList, permission: { resource: 'audit', action: 'read' } },
     ],
   },
 ]
@@ -126,6 +128,7 @@ const FOOTER_NAV: Pick<NavItem, 'label' | 'href' | 'icon' | 'external'>[] = [
 export function Sidebar() {
   const pathname   = usePathname()
   const user       = useAuthStore((s) => s.user)
+  const { can }    = usePermission()
   const notifCount    = useUnreadCount()
   const { data: approvalCountData } = useApprovalPendingCount()
   const approvalCount = approvalCountData?.count ?? 0
@@ -296,7 +299,7 @@ export function Sidebar() {
             )}
 
             {(!collapsed ? openSections[section.title] : true) && section.items
-              .filter((item) => !item.roles || item.roles.includes(user?.role ?? ''))
+              .filter((item) => !item.permission || can(item.permission.resource, item.permission.action))
               .map((item) => {
                 const isOverlayItem  = !!item.overlay
                 const isOverlayActive = item.overlay ? overlayPanel === item.overlay : false
@@ -307,7 +310,7 @@ export function Sidebar() {
                 const badgeNum        = item.bell ? notifCount : item.approvalBadge ? approvalCount : 0
                 const hasBadge        = badgeNum > 0
                 const badgeLabel      = hasBadge ? ` — ${badgeNum}` : ''
-                const visibleChildren = item.children?.filter((c) => !c.roles || c.roles.includes(user?.role ?? ''))
+                const visibleChildren = item.children?.filter((c) => !c.permission || can(c.permission.resource, c.permission.action))
                 const hasChildren     = !collapsed && !!visibleChildren && visibleChildren.length > 0
                 const isOpen          = !collapsed && (openItems[item.href] || childActive)
 
@@ -479,7 +482,7 @@ export function Sidebar() {
                         borderLeft: '1.5px solid rgba(45,125,210,0.35)',
                       }}>
                         {item.children!
-                          .filter((child) => !child.roles || child.roles.includes(user?.role ?? ''))
+                          .filter((child) => !child.permission || can(child.permission.resource, child.permission.action))
                           .map((child) => {
                             const childIsActive = pathname === child.href || pathname.startsWith(child.href + '/')
                             const ChildIcon = child.icon

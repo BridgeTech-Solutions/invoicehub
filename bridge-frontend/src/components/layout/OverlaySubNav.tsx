@@ -4,8 +4,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
-import { useAuthStore } from '@/features/auth/store'
 import { useSidebarStore } from '@/store/sidebar'
+import { usePermission } from '@/hooks/usePermission'
 import { OVERLAY_PANELS } from './overlay-panels'
 
 interface OverlaySubNavProps {
@@ -15,7 +15,7 @@ interface OverlaySubNavProps {
 
 export function OverlaySubNav({ panelId, onClose }: OverlaySubNavProps) {
   const pathname  = usePathname()
-  const user      = useAuthStore((s) => s.user)
+  const { can }   = usePermission()
   const collapsed = useSidebarStore((s) => s.collapsed)
 
   const panel = OVERLAY_PANELS[panelId]
@@ -100,7 +100,7 @@ export function OverlaySubNav({ panelId, onClose }: OverlaySubNavProps) {
         <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
           {panel.sections.map((section, si) => {
             const visibleItems = section.items.filter(
-              (item) => !item.roles || item.roles.includes(user?.role ?? ''),
+              (item) => !item.permission || can(item.permission.resource, item.permission.action),
             )
             if (!visibleItems.length) return null
 

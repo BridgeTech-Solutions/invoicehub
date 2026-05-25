@@ -8,19 +8,26 @@ import {
   ShieldCheck, ShieldOff, AlertTriangle, Activity, X, Eye, EyeOff,
 } from 'lucide-react'
 import { useUser, useUpdateUser, useReactivateUser, useResetUserPassword, useDeleteUser, useUserActivity, useRoles } from '@/features/users/hooks'
+import { usePermission } from '@/hooks/usePermission'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, getInitials } from '@/lib/utils'
 import { ROUTES } from '@/lib/constants'
 import type { User } from '@/features/users/types'
 
 const ROLE_COLORS: { color: string; bg: string }[] = [
-  { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
-  { color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
-  { color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
-  { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
-  { color: '#ef4444', bg: 'rgba(239,68,68,0.1)'  },
-  { color: '#6366f1', bg: 'rgba(99,102,241,0.1)' },
+  { color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)' },
+  { color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
+  { color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
+  { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+  { color: '#ef4444', bg: 'rgba(239,68,68,0.12)'  },
+  { color: '#6366f1', bg: 'rgba(99,102,241,0.12)' },
 ]
+
+const STATIC_ROLE_LABELS: Record<string, string> = {
+  admin:      'Administrateur',
+  commercial: 'Commercial',
+  employee:   'Employé',
+}
 
 const STATUS_CFG = {
   active:             { label: 'Actif',      color: '#10b981', bg: 'rgba(16,185,129,0.1)'  },
@@ -344,7 +351,7 @@ export default function UserDetailPage() {
   const { id }   = useParams<{ id: string }>()
   const router   = useRouter()
   const { user: me } = useAuthStore()
-  const isAdmin  = me?.role === 'admin'
+  const { can }  = usePermission()
   const isSelf   = me?.id === id
 
   const [showEdit,         setShowEdit]         = useState(false)
@@ -369,8 +376,12 @@ export default function UserDetailPage() {
     )
   }
 
-  const roleIdx   = user.role.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % ROLE_COLORS.length
-  const roleCfg   = { ...ROLE_COLORS[roleIdx], label: roles.find((r) => r.name === user.role)?.displayName ?? user.role }
+  const safeRole  = (user.role && typeof user.role === 'string') ? user.role : ''
+  const roleIdx   = safeRole ? safeRole.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % ROLE_COLORS.length : 0
+  const roleLabel = safeRole
+    ? (roles.find((r) => r.name === safeRole)?.displayName ?? STATIC_ROLE_LABELS[safeRole] ?? safeRole)
+    : '—'
+  const roleCfg   = { ...ROLE_COLORS[roleIdx]!, label: roleLabel }
   const statusCfg = STATUS_CFG[user.status] ?? STATUS_CFG.active
   const isSuspended = user.status === 'suspended'
 
@@ -441,7 +452,7 @@ export default function UserDetailPage() {
               </p>
 
               {/* Boutons actions — admin seulement */}
-              {isAdmin && (
+              {can('user', 'manage') && (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button type="button" onClick={() => setShowEdit(true)}
                     style={{ ...btnBase, border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)' }}>

@@ -11,7 +11,7 @@ import { StockStatusBadge } from '@/features/stock/components/StockStatusBadge'
 import { AdjustStockDrawer } from '@/features/stock/components/AdjustStockDrawer'
 import { useStockLevels } from '@/features/stock/hooks'
 import { useProductCategories } from '@/features/products/hooks'
-import { formatXAF } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
 import type { StockLevel } from '@/features/stock/types'
 
@@ -50,6 +50,7 @@ function RowActions({ product, onAdjust }: { product: StockLevel; onAdjust: (p: 
 }
 
 export default function StockLevelsPage() {
+  const { format } = useCurrency()
   const [search, setSearch]   = useState('')
   const [category, setCategory] = useState('')
   const [filter, setFilter]   = useState<'all' | 'lowStock' | 'rupture'>('all')
@@ -211,10 +212,10 @@ export default function StockLevelsPage() {
                       {p.stockMaxLevel != null ? Number(p.stockMaxLevel) : '—'}
                     </td>
                     <td style={{ fontSize: 13, color: 'var(--text-2)' }} className="amount">
-                      {p.costPriceHt != null ? formatXAF(Number(p.costPriceHt)) : '—'}
+                      {p.costPriceHt != null ? format(Number(p.costPriceHt)) : '—'}
                     </td>
                     <td style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-1)' }} className="amount">
-                      {formatXAF(Number(p.stockValue))}
+                      {format(Number(p.stockValue))}
                     </td>
                     <td><RowActions product={p} onAdjust={setDrawer} /></td>
                   </tr>

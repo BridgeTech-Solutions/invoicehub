@@ -12,11 +12,11 @@ import {
 import { useClient, useClientSummary, useArchiveClient } from '@/features/clients/hooks'
 import { useInvoices } from '@/features/invoices/hooks'
 import { ClientInvoiceHistory } from '@/features/clients/components/ClientInvoiceHistory'
-import { useAuthStore } from '@/features/auth/store'
 import { ClientSummaryCard } from '@/features/clients/components/ClientSummaryCard'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
-import { formatDate, formatXAF, getInitials } from '@/lib/utils'
+import { formatDate, getInitials } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
 
 // ─── Confirm archive modal ─────────────────────────────────────
@@ -89,9 +89,8 @@ export default function ClientDetailPage() {
   const { data: client, isLoading }    = useClient(id)
   const { data: invoicesData, isLoading: invoicesLoading } = useInvoices({ clientId: id, limit: 10, page: 1 })
   const { can } = usePermission()
-  const { user } = useAuthStore()
   const archiveMutation = useArchiveClient()
-  const canSeeInternalNotes = user?.role === 'admin' || user?.role === 'commercial'
+  const canSeeInternalNotes = can('client', 'update')
 
   // ─── Loading ───────────────────────────────────────────────
   if (isLoading) {
@@ -362,6 +361,7 @@ export default function ClientDetailPage() {
 
 // ─── Quick Fill Banner ─────────────────────────────────────────
 function ClientQuickFillBanner({ clientId }: { clientId: string }) {
+  const { format } = useCurrency()
   const { data } = useClientSummary(clientId)
 
   if (!data || data.totalPending === 0) return null
@@ -380,7 +380,7 @@ function ClientQuickFillBanner({ clientId }: { clientId: string }) {
           Solde impayé en cours
         </p>
         <p style={{ fontSize: 13, color: '#b45309' }}>
-          <span className="amount">{formatXAF(data.totalPending)}</span> à encaisser sur {data.pendingInvoiceCount} facture{data.pendingInvoiceCount > 1 ? 's' : ''}.
+          <span className="amount">{format(data.totalPending)}</span> à encaisser sur {data.pendingInvoiceCount} facture{data.pendingInvoiceCount > 1 ? 's' : ''}.
         </p>
       </div>
     </div>

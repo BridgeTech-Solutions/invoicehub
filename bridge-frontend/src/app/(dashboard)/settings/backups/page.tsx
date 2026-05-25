@@ -4,6 +4,8 @@ import { useState, useId, useRef, useEffect } from 'react'
 import { Database, Download, Trash2, Loader2, RefreshCw, CheckCircle2, XCircle, Clock, AlertCircle } from 'lucide-react'
 import { useBackups, useCreateBackup, useDownloadBackup, useDeleteBackup } from '@/features/backups/hooks'
 import { formatDate } from '@/lib/utils'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import type { BackupStatus } from '@/features/backups/types'
 
 // ─── Status badge ─────────────────────────────────────────────
@@ -104,6 +106,7 @@ function ConfirmDeleteModal({
 
 // ─── Page ─────────────────────────────────────────────────────
 export default function BackupsPage() {
+  const { can } = usePermission()
   const { data, isLoading, refetch, isFetching } = useBackups({ page: 1, limit: 20 })
   const createMut   = useCreateBackup()
   const downloadMut = useDownloadBackup()
@@ -114,6 +117,8 @@ export default function BackupsPage() {
   const backups    = data?.data       ?? []
   const total      = data?.total      ?? 0
   const hasActive  = backups.some((b) => b.status === 'pending' || b.status === 'running')
+
+  if (!can('settings', 'read')) return <AccessDenied />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -153,7 +158,7 @@ export default function BackupsPage() {
           >
             {isFetching ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <RefreshCw size={13} aria-hidden="true" />} Actualiser
           </button>
-          <button
+          {can('settings', 'update') && <button
             type="button"
             onClick={() => createMut.mutate()}
             disabled={createMut.isPending || hasActive}
@@ -161,7 +166,7 @@ export default function BackupsPage() {
           >
             {createMut.isPending ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <Database size={14} aria-hidden="true" />}
             Déclencher une sauvegarde
-          </button>
+          </button>}
         </div>
       </div>
 

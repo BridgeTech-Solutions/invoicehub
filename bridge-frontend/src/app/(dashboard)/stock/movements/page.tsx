@@ -7,7 +7,8 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
 import { MovementTypeBadge } from '@/features/stock/components/MovementTypeBadge'
 import { useStockMovements } from '@/features/stock/hooks'
-import { formatXAF, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
 import type { StockMovementType } from '@/features/stock/types'
 
@@ -53,6 +54,7 @@ function Pagination({ page, totalPages, onChange }: { page: number; totalPages: 
 }
 
 export default function StockMovementsPage() {
+  const { format } = useCurrency()
   const [type, setType]       = useState('')
   const [dateFrom, setFrom]   = useState('')
   const [dateTo, setTo]       = useState('')
@@ -192,7 +194,7 @@ export default function StockMovementsPage() {
                         {Number(m.quantityBefore)} → {Number(m.quantityAfter)}
                       </td>
                       <td className="amount" style={{ fontSize: 13, color: 'var(--text-2)' }}>
-                        {m.totalCostHt != null ? formatXAF(Number(m.totalCostHt)) : '—'}
+                        {m.totalCostHt != null ? format(Number(m.totalCostHt)) : '—'}
                       </td>
                       <td style={{ fontSize: 12, color: 'var(--text-3)' }}>
                         <p>{formatDate(m.createdAt)}</p>

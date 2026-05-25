@@ -2,9 +2,9 @@
 
 import Link from 'next/link'
 import { useDashboardKpis } from '../hooks'
-import { formatXAF } from '@/lib/utils'
 import { ROUTES } from '@/lib/constants'
 import { getInitials } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 
 // ─── Avatar colors ─────────────────────────────────────────────
 const AVATAR_COLORS = [
@@ -39,6 +39,7 @@ function ClientSkeleton() {
 
 // ─── Component ────────────────────────────────────────────────
 export function TopClientsTable() {
+  const { format } = useCurrency()
   const { data, isLoading } = useDashboardKpis()
 
   if (isLoading) return <ClientSkeleton />
@@ -141,7 +142,7 @@ export function TopClientsTable() {
 
                   {/* Revenue */}
                   <span className="amount" style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-1)', flexShrink: 0, marginLeft: 8 }}>
-                    {formatXAF(client.totalRevenue)}
+                    {format(client.totalRevenue)}
                   </span>
                 </div>
               </div>

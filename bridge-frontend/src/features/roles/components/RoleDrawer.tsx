@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useId } from 'react'
+import { useState, useEffect, useCallback, useRef, useId } from 'react'
 import { X, Loader2, Shield, ChevronDown, ChevronRight } from 'lucide-react'
 import { useCreateRole, useUpdateRole } from '../hooks'
 import { PERMISSION_GROUPS, PERM_ACTION_LABELS } from '../types'
@@ -35,6 +35,24 @@ export function RoleDrawer({ onClose, editRole }: Props) {
   const updateMut = useUpdateRole()
   const isPending = createMut.isPending || updateMut.isPending
 
+  const [isVisible, setIsVisible] = useState(false)
+
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setIsVisible(true))
+    return () => cancelAnimationFrame(t)
+  }, [])
+
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
+  const handleClose = useCallback(() => {
+    setIsVisible(false)
+    setTimeout(onClose, 280)
+  }, [onClose])
+
   const [displayName, setDisplayName]   = useState(editRole?.displayName ?? '')
   const [name,        setName]          = useState(editRole?.name ?? '')
   const [nameManual,  setNameManual]    = useState(isEdit)
@@ -53,10 +71,10 @@ export function RoleDrawer({ onClose, editRole }: Props) {
 
   // Escape key closes
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
     document.addEventListener('keydown', h)
     return () => document.removeEventListener('keydown', h)
-  }, [onClose])
+  }, [handleClose])
 
   // Focus first field on open
   useEffect(() => {
@@ -126,7 +144,7 @@ export function RoleDrawer({ onClose, editRole }: Props) {
           permissions: Array.from(permissions),
         })
       }
-      onClose()
+      handleClose()
     } catch {
       // Toast shown by hook
     }
@@ -142,8 +160,12 @@ export function RoleDrawer({ onClose, editRole }: Props) {
     <>
       {/* Backdrop */}
       <div
-        style={{ position: 'fixed', inset: 0, zIndex: 49, background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(3px)' }}
-        onClick={onClose}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 300,
+          background: 'rgba(10,20,35,0.45)', backdropFilter: 'blur(2px)',
+          opacity: isVisible ? 1 : 0, transition: 'opacity 0.28s ease',
+        }}
+        onClick={handleClose}
         aria-hidden="true"
       />
 
@@ -155,16 +177,21 @@ export function RoleDrawer({ onClose, editRole }: Props) {
         aria-labelledby={titleId}
         style={{
           position:   'fixed',
-          inset:      '0 0 0 auto',
-          zIndex:     50,
+          top: 0, right: 0, bottom: 0,
+          zIndex:     301,
           width:      '100%',
           maxWidth:   580,
-          background: 'var(--bg)',
-          boxShadow:  '-8px 0 40px rgba(0,0,0,0.15)',
+          background: 'var(--surface)',
+          boxShadow:  '-8px 0 40px rgba(10,20,35,0.18), -2px 0 8px rgba(10,20,35,0.08)',
+          borderLeft: '1px solid var(--border)',
           display:    'flex',
           flexDirection: 'column',
+          transform: isVisible ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 0.30s cubic-bezier(0.4,0,0.2,1)',
         }}
       >
+        {/* Navy → primary gradient stripe */}
+        <div style={{ height: 3, background: 'linear-gradient(90deg,#0f2d4a 0%,#2D7DD2 100%)', flexShrink: 0 }} />
         {/* Header */}
         <div style={{
           padding:      '18px 22px',
@@ -194,7 +221,7 @@ export function RoleDrawer({ onClose, editRole }: Props) {
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Fermer"
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
@@ -425,7 +452,7 @@ export function RoleDrawer({ onClose, editRole }: Props) {
         }}>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             style={{
               flex: 1, minHeight: 44, borderRadius: 'var(--radius-md)',
               border: '1.5px solid var(--border)', background: 'transparent',

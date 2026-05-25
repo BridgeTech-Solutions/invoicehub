@@ -8,7 +8,7 @@ import {
   useExpenseBudgets, useExpenseCategories,
   useCreateBudget, useDeleteBudget,
 } from '@/features/expenses/hooks'
-import { formatXAF } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
 import type { CreateBudgetPayload } from '@/features/expenses/types'
 
@@ -79,6 +79,7 @@ function BudgetModal({ year, onClose, isPending, onSave, cats }: {
 }
 
 export default function ExpenseBudgetsPage() {
+  const { format } = useCurrency()
   const [year,       setYear]       = useState(new Date().getFullYear())
   const [showCreate, setShowCreate] = useState(false)
 
@@ -167,8 +168,8 @@ export default function ExpenseBudgetsPage() {
 
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
-                    <span style={{ color: 'var(--text-3)' }}>Dépensé : <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: barColor }}>{formatXAF(b.spent)}</span></span>
-                    <span style={{ color: 'var(--text-3)' }}>Budget : <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--text-1)' }}>{formatXAF(b.amount)}</span></span>
+                    <span style={{ color: 'var(--text-3)' }}>Dépensé : <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: barColor }}>{format(b.spent)}</span></span>
+                    <span style={{ color: 'var(--text-3)' }}>Budget : <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--text-1)' }}>{format(b.amount)}</span></span>
                   </div>
                   <div style={{ height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${Math.min(100, pct)}%`, background: barColor, borderRadius: 3, transition: 'width 0.3s' }} />
@@ -176,7 +177,7 @@ export default function ExpenseBudgetsPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11.5 }}>
                     <span style={{ color: barColor, fontWeight: 600 }}>{pct}% utilisé</span>
                     <span style={{ color: over ? '#dc2626' : '#16a34a', fontWeight: 600 }}>
-                      {over ? `Dépassé de ${formatXAF(b.spent - b.amount)}` : `Restant : ${formatXAF(b.remaining)}`}
+                      {over ? `Dépassé de ${format(b.spent - b.amount)}` : `Restant : ${format(b.remaining)}`}
                     </span>
                   </div>
                 </div>

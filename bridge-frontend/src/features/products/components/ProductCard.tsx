@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useId } from 'react'
 import { MoreHorizontal, Pencil, Trash2, Wrench, Package, AlertTriangle } from 'lucide-react'
 import { useDeleteProduct } from '../hooks'
 import { usePermission } from '@/hooks/usePermission'
-import { formatXAF } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { StockStatusBadge } from '@/features/stock/components/StockStatusBadge'
 import type { Product } from '../types'
 import type { StockStatus } from '@/features/stock/types'
@@ -107,6 +107,7 @@ function ConfirmArchiveModal({
 
 // ─── Card ──────────────────────────────────────────────────────
 export function ProductCard({ product, onEdit }: ProductCardProps) {
+  const { format } = useCurrency()
   const [menuOpen,    setMenuOpen]    = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const { can } = usePermission()
@@ -286,7 +287,7 @@ export function ProductCard({ product, onEdit }: ProductCardProps) {
         {/* Prix + TVA */}
         <div style={{ marginBottom: 10 }}>
           <p className="amount" style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-1)', lineHeight: 1 }}>
-            {formatXAF(product.unitPriceHt)}
+            {format(product.unitPriceHt)}
             <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-3)', marginLeft: 4, fontFamily: 'var(--font-body)' }}>HT</span>
           </p>
           <p style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 3 }}>

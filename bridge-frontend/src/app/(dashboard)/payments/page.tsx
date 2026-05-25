@@ -5,9 +5,10 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Search, FileDown, Trash2, Loader2, ChevronRight } from 'lucide-react'
 import { usePayments, useDeletePayment, useDownloadReceipt } from '@/features/invoices/hooks'
-import { formatDate, formatXAF } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES, PAYMENT_METHODS } from '@/lib/constants'
-import { useAuthStore } from '@/store/auth'
+import { usePermission } from '@/hooks/usePermission'
 import type { PaymentMethod } from '@/features/invoices/types'
 
 // ─── Skeleton ───────────────────────────────────────────────────
@@ -27,9 +28,9 @@ function SkeletonRow() {
 // ─── Page ────────────────────────────────────────────────────────
 
 export default function PaymentsPage() {
+  const { format } = useCurrency()
   const router = useRouter()
-  const { user } = useAuthStore()
-  const isAdmin  = user?.role === 'admin'
+  const { can } = usePermission()
 
   const [search,      setSearch]      = useState('')
   const [methodFilter, setMethodFilter] = useState<PaymentMethod | ''>('')
@@ -174,7 +175,7 @@ export default function PaymentsPage() {
                         {pay.reference ?? '—'}
                       </td>
                       <td style={{ padding: '13px 16px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: '#10b981', whiteSpace: 'nowrap' }}>
-                        +{formatXAF(Number(pay.amount))}
+                        +{format(Number(pay.amount))}
                       </td>
                       <td style={{ padding: '13px 10px', width: 72 }} onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
@@ -183,7 +184,7 @@ export default function PaymentsPage() {
                             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--primary)' }}>
                             {receiptMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <FileDown size={13} />}
                           </button>
-                          {isAdmin && (
+                          {can('payment', 'delete') && (
                             <button type="button" title="Annuler" disabled={deleteMutation.isPending}
                               onClick={() => { if (confirm('Annuler ce paiement ? Le solde de la facture sera recalculé.')) deleteMutation.mutate(pay.id) }}
                               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#ef4444' }}>

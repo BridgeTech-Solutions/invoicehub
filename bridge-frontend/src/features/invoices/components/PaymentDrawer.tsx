@@ -9,7 +9,7 @@ import {
 import { format } from 'date-fns'
 import { useCreatePayment, useBankAccounts } from '../hooks'
 import type { Invoice } from '../types'
-import { formatXAF } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { PAYMENT_METHODS, STATUS_LABELS } from '@/lib/constants'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -79,6 +79,7 @@ function StatusBadge({ status }: { status: string }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function PaymentDrawer({ invoice, onClose }: PaymentDrawerProps) {
+  const { format } = useCurrency()
   const titleId     = useId()
   const balanceDue  = Number(invoice.balanceDue)
   const amountPaid  = Number(invoice.amountPaid)
@@ -338,7 +339,7 @@ export function PaymentDrawer({ invoice, onClose }: PaymentDrawerProps) {
                   fontFamily: 'var(--font-mono)', margin: 0,
                   letterSpacing: '-0.02em',
                 }}>
-                  {formatXAF(item.value)}
+                  {format(item.value)}
                 </p>
               </div>
             ))}
@@ -397,7 +398,7 @@ export function PaymentDrawer({ invoice, onClose }: PaymentDrawerProps) {
                   </p>
                   <p style={{ fontSize: 12, color: '#78350f', margin: '0 0 8px' }}>
                     Taux {escompteRate}% — réduction de{' '}
-                    <strong>{formatXAF(escompteAmount)}</strong>
+                    <strong>{format(escompteAmount)}</strong>
                     {invoice.escompteDeadline && (
                       <> (valable jusqu'au {new Date(invoice.escompteDeadline).toLocaleDateString('fr-FR')})</>
                     )}
@@ -411,8 +412,8 @@ export function PaymentDrawer({ invoice, onClose }: PaymentDrawerProps) {
                     />
                     <span style={{ fontSize: 12.5, color: '#92400e', fontWeight: 600 }}>
                       Appliquer l'escompte — client paie{' '}
-                      <strong>{formatXAF(Math.max(0, balanceDue - escompteAmount))}</strong>
-                      {' '}au lieu de {formatXAF(balanceDue)}
+                      <strong>{format(Math.max(0, balanceDue - escompteAmount))}</strong>
+                      {' '}au lieu de {format(balanceDue)}
                     </span>
                   </label>
                 </div>
@@ -496,7 +497,7 @@ export function PaymentDrawer({ invoice, onClose }: PaymentDrawerProps) {
                 <p style={{ fontSize: 12, color: 'var(--text-3)', margin: 0 }}>
                   Solde restant après paiement :{' '}
                   <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--text-2)' }}>
-                    {formatXAF(Math.round(newBalance))}
+                    {format(Math.round(newBalance))}
                   </span>
                 </p>
               )}
@@ -683,7 +684,7 @@ export function PaymentDrawer({ invoice, onClose }: PaymentDrawerProps) {
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             }}>
               <span style={{ fontSize: 12, color: 'var(--text-2)', fontFamily: 'var(--font-display)' }}>
-                {willBePaid ? 'Facture entièrement soldée après ce paiement' : `Solde restant : ${formatXAF(Math.round(newBalance))}`}
+                {willBePaid ? 'Facture entièrement soldée après ce paiement' : `Solde restant : ${format(Math.round(newBalance))}`}
               </span>
               {willBePaid && <CheckCircle2 size={14} style={{ color: '#10b981', flexShrink: 0 }} />}
             </div>

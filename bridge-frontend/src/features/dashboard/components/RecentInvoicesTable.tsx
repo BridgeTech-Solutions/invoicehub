@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { FileText } from 'lucide-react'
 import { useDashboardKpis } from '../hooks'
-import { formatXAF, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES, STATUS_LABELS } from '@/lib/constants'
 
 // ─── Status badge config ───────────────────────────────────────
@@ -37,6 +38,7 @@ function TableSkeleton() {
 
 // ─── Component ────────────────────────────────────────────────
 export function RecentInvoicesTable() {
+  const { format } = useCurrency()
   const { data, isLoading } = useDashboardKpis()
 
   if (isLoading) return <TableSkeleton />
@@ -112,7 +114,7 @@ export function RecentInvoicesTable() {
                   </td>
                   <td>
                     <span className="amount" style={{ fontSize: 13 }}>
-                      {formatXAF(inv.totalTtc)}
+                      {format(inv.totalTtc)}
                     </span>
                   </td>
                   <td>

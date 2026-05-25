@@ -57,7 +57,24 @@
       "Bash(python scripts/search.py \"login form authentication error feedback accessibility\" --domain ux -n 5)",
       "Bash(dir /b \"D:\\\\Bel\\\\projets\\\\BRIDGE\\\\bridge-frontend\\\\*.md\")",
       "Bash(dir /b \"D:\\\\Bel\\\\projets\\\\BRIDGE\\\\bridge-backend\\\\*.md\")",
-      "Bash(dir /b \"D:\\\\Bel\\\\projets\\\\BRIDGE\\\\*.md\")"
+      "Bash(dir /b \"D:\\\\Bel\\\\projets\\\\BRIDGE\\\\*.md\")",
+      "Bash(pnpm tsc *)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
+      "Bash(python skills/ui-ux-pro-max/scripts/search.py \"accounting ERP fintech SaaS dashboard professional enterprise\" --design-system -f markdown -p \"InvoiceHub BTS Comptabilité\")",
+      "Bash(python \"C:\\\\Users\\\\cruzj\\\\.claude\\\\plugins\\\\cache\\\\claude-plugins-official\\\\frontend-design\\\\unknown\\\\skills\\\\frontend-design\\\\scripts\\\\search.py\" --help)",
+      "Bash(python \".claude/skills/ui-ux-pro-max/scripts/search.py\" \"accounting ERP fintech SaaS dashboard professional enterprise\" --design-system -f markdown -p \"InvoiceHub BTS Comptabilite\")",
+      "Bash(python \".claude/skills/ui-ux-pro-max/scripts/search.py\" \"chart financial dashboard KPI\" --domain chart -n 6)",
+      "Bash(python \".claude/skills/ui-ux-pro-max/scripts/search.py\" \"enterprise fintech data-table density accessibility\" --domain ux -n 5)",
+      "Bash(python \".claude/skills/ui-ux-pro-max/scripts/search.py\" \"financial accounting ledger journal entries\" --domain style -n 4)",
+      "Bash(python skills/ui-ux-pro-max/scripts/search.py \"accounting financial dashboard enterprise SYSCOHADA data-dense\" --design-system -p \"BTS Accounting\")",
+      "Bash(python *)",
+      "Bash(dir /s /b \"D:\\\\Bel\\\\projets\\\\BRIDGE\\\\bridge-frontend\\\\src\\\\app\\\\\\(dashboard\\)\\\\accounting\\\\*.tsx\")",
+      "Bash(Sort-Object FullName)",
+      "Bash(Sort-Object)",
+      "Bash(Remove-Item *)",
+      "Bash(dir \"D:\\\\Bel\\\\projets\\\\BRIDGE\")",
+      "Bash(grep -n 'type=\"submit\"\\\\|Enregistrer\\\\|Sauvegarder\\\\|Save\\\\|handleSave' 'D:/Bel/projets/BRIDGE/bridge-frontend/src/app/\\(dashboard\\)/settings/__TRACKED_VAR__/page.tsx')",
+      "Bash(Write-Host \"Cache cleared\")"
     ]
   },
   "mcpServers": {

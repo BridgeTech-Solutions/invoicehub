@@ -8,7 +8,8 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { MovementTypeBadge } from '@/features/stock/components/MovementTypeBadge'
 import { AdjustStockDrawer } from '@/features/stock/components/AdjustStockDrawer'
 import { useProductStockHistory } from '@/features/stock/hooks'
-import { formatXAF, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
 import type { StockMovementType } from '@/features/stock/types'
 
@@ -38,6 +39,7 @@ function Pagination({ page, totalPages, onChange }: { page: number; totalPages: 
 }
 
 export default function ProductStockHistoryPage() {
+  const { format } = useCurrency()
   const { productId } = useParams<{ productId: string }>()
   const [page, setPage]       = useState(1)
   const [drawerOpen, setDrawer] = useState(false)
@@ -91,8 +93,8 @@ export default function ProductStockHistoryPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
             { label: 'Stock actuel',    value: `${Number(product.stockQuantity)} ${product.stockUnit ?? 'unités'}`, color: 'var(--text-1)' },
-            { label: 'CMUP',            value: product.costPriceHt != null ? formatXAF(Number(product.costPriceHt)) : '—', color: 'var(--text-1)' },
-            { label: 'Valeur stock',    value: formatXAF(Number(product.stockValue)), color: '#2D7DD2' },
+            { label: 'CMUP',            value: product.costPriceHt != null ? format(Number(product.costPriceHt)) : '—', color: 'var(--text-1)' },
+            { label: 'Valeur stock',    value: format(Number(product.stockValue)), color: '#2D7DD2' },
             { label: 'Seuil min / max', value: `${product.stockMinLevel ?? '—'} / ${product.stockMaxLevel ?? '—'}`, color: 'var(--text-2)' },
           ].map((item) => (
             <div key={item.label} className="card" style={{ padding: '14px 18px' }}>
@@ -161,7 +163,7 @@ export default function ProductStockHistoryPage() {
                         {Number(m.quantityBefore)} → {Number(m.quantityAfter)}
                       </td>
                       <td style={{ fontSize: 13, color: 'var(--text-2)' }} className="amount">
-                        {m.unitCostHt != null ? formatXAF(Number(m.unitCostHt)) : '—'}
+                        {m.unitCostHt != null ? format(Number(m.unitCostHt)) : '—'}
                       </td>
                       <td style={{ fontSize: 12.5, color: 'var(--text-3)', maxWidth: 220 }}>
                         {m.sourceLabel && <span style={{ display: 'block', fontWeight: 500, color: 'var(--text-2)' }}>{m.sourceLabel}</span>}

@@ -3,11 +3,10 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Eye, EyeOff, Loader2, ChevronRight } from 'lucide-react'
+import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react'
 import { useLogin } from '@/features/auth/hooks'
 import { ROUTES } from '@/lib/constants'
-import { CompanyLogo } from '@/components/ui/CompanyLogo'
-import { TerminalLeftPanel } from '../_components/TerminalLeftPanel'
+import { AuthLeftPanel } from '../_components/AuthLeftPanel'
 import type { AxiosError } from 'axios'
 
 export default function LoginPage() {
@@ -42,68 +41,78 @@ export default function LoginPage() {
   })()
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: 'var(--t-noir)', overflow: 'hidden', position: 'relative' }}>
-      {/* Scanline animée globale */}
-      <div className="t-scanline" aria-hidden="true" />
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      <AuthLeftPanel />
 
-      {/* ── Panneau gauche ─────────────────────────────────────── */}
-      <TerminalLeftPanel />
-
-      {/* ── Panneau droit : formulaire ─────────────────────────── */}
+      {/* ── Panneau droit ─────────────────────────────────────────── */}
       <main style={{
-        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'var(--t-noir)', padding: '40px 24px', position: 'relative',
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#fff',
+        padding: '40px 24px',
+        overflow: 'auto',
       }}>
-        {/* Glow central */}
-        <div aria-hidden style={{
-          position: 'absolute', top: '50%', left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 420, height: 420, pointerEvents: 'none',
-          background: 'radial-gradient(circle, rgba(0,191,255,0.04) 0%, transparent 65%)',
-        }} />
-
         <div style={{
-          width: '100%', maxWidth: 360, position: 'relative', zIndex: 1,
-          opacity:   mounted ? 1 : 0,
-          animation: mounted ? 'term-in 0.5s cubic-bezier(0.22,1,0.36,1) 0.12s both' : 'none',
+          width: '100%',
+          maxWidth: 400,
+          opacity:    mounted ? 1 : 0,
+          transform:  mounted ? 'none' : 'translateY(18px)',
+          transition: 'opacity 0.42s ease, transform 0.42s ease',
         }}>
-          {/* Logo (visible toujours à droite) */}
-          <div style={{ marginBottom: 30 }}>
-            <CompanyLogo variant="white" height={28} alt="InvoiceHub" public style={{ opacity: 0.75 }} />
-          </div>
 
-          <div style={{ marginBottom: 26 }}>
+          {/* En-tête */}
+          <div style={{ marginBottom: 32 }}>
             <h1 style={{
-              fontFamily: 'var(--t-brico)', fontWeight: 700, fontSize: 24,
-              color: '#E8F4FF', letterSpacing: '-0.02em', margin: '0 0 6px',
+              fontSize: 26,
+              fontWeight: 800,
+              fontFamily: 'var(--font-display)',
+              color: '#0f172a',
+              letterSpacing: '-0.025em',
+              margin: '0 0 7px',
             }}>
-              Authentification
+              Connexion
             </h1>
-            <p style={{ fontSize: 11.5, color: 'rgba(0,191,255,0.4)', margin: 0, fontFamily: 'var(--t-mono)', letterSpacing: '0.05em' }}>
-              SESSION · BTS-CORP · DOUALA
+            <p style={{ fontSize: 14, color: '#64748b', margin: 0, fontFamily: 'var(--font-body)' }}>
+              Accédez à votre espace de facturation
             </p>
           </div>
 
+          {/* Message d'erreur */}
           {loginError && (
-            <div role="alert" aria-live="assertive" style={{
-              fontSize: 12, color: 'var(--t-red)', marginBottom: 18,
-              background: 'rgba(255,107,107,0.07)', border: '1px solid rgba(255,107,107,0.22)',
-              borderRadius: 4, padding: '10px 14px', fontFamily: 'var(--t-mono)',
-              display: 'flex', gap: 10, alignItems: 'flex-start',
-            }}>
-              <span style={{ color: 'rgba(255,107,107,0.55)', fontWeight: 700, fontSize: 10, padding: '1px 5px', background: 'rgba(255,107,107,0.1)', borderRadius: 3, border: '1px solid rgba(255,107,107,0.2)', flexShrink: 0 }}>ERR</span>
+            <div
+              role="alert"
+              aria-live="assertive"
+              style={{
+                marginBottom: 22,
+                padding: '12px 14px',
+                borderRadius: 8,
+                background: '#fef2f2',
+                border: '1.5px solid #fecaca',
+                fontSize: 13.5,
+                color: '#dc2626',
+                fontFamily: 'var(--font-body)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+              }}
+            >
+              <AlertCircle size={16} aria-hidden style={{ flexShrink: 0, marginTop: 1 }} />
               {loginError}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Formulaire */}
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {/* Email */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
               <label htmlFor="email" style={{
-                fontSize: 10, fontWeight: 500, color: 'rgba(0,191,255,0.48)',
-                fontFamily: 'var(--t-mono)', letterSpacing: '0.1em', textTransform: 'uppercase',
+                fontSize: 13.5, fontWeight: 600,
+                color: '#374151', fontFamily: 'var(--font-display)',
               }}>
-                Identifiant / Email
+                Email professionnel
               </label>
               <input
                 id="email"
@@ -113,31 +122,31 @@ export default function LoginPage() {
                 placeholder="nom@bts.cm"
                 required
                 autoComplete="email"
-                className="term-input"
+                className="auth-input"
                 style={{ padding: '11px 14px' }}
               />
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {/* Mot de passe */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <label htmlFor="password" style={{
-                  fontSize: 10, fontWeight: 500, color: 'rgba(0,191,255,0.48)',
-                  fontFamily: 'var(--t-mono)', letterSpacing: '0.1em', textTransform: 'uppercase',
+                  fontSize: 13.5, fontWeight: 600,
+                  color: '#374151', fontFamily: 'var(--font-display)',
                 }}>
                   Mot de passe
                 </label>
                 <Link
                   href={ROUTES.RESET_PASSWORD}
                   style={{
-                    fontSize: 11, color: 'rgba(0,191,255,0.38)', textDecoration: 'none',
-                    fontFamily: 'var(--t-mono)', minHeight: 44,
-                    display: 'inline-flex', alignItems: 'center', padding: '0 2px',
-                    transition: 'color 0.15s',
+                    fontSize: 13, color: 'var(--primary)',
+                    textDecoration: 'none', fontFamily: 'var(--font-body)',
+                    fontWeight: 500, transition: 'opacity 0.15s',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--t-electric)')}
-                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(0,191,255,0.38)')}
+                  onMouseEnter={e => (e.currentTarget.style.opacity = '0.72')}
+                  onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
                 >
-                  reset →
+                  Mot de passe oublié ?
                 </Link>
               </div>
               <div style={{ position: 'relative' }}>
@@ -149,7 +158,7 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   required
                   autoComplete="current-password"
-                  className="term-input"
+                  className="auth-input"
                   style={{ padding: '11px 44px 11px 14px' }}
                 />
                 <button
@@ -157,50 +166,49 @@ export default function LoginPage() {
                   onClick={() => setShowPwd(s => !s)}
                   aria-label={showPwd ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                   style={{
-                    position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: 'rgba(0,191,255,0.3)', padding: 4, display: 'flex',
+                    position: 'absolute', right: 12, top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none', border: 'none',
+                    cursor: 'pointer', color: '#94a3b8',
+                    padding: 4, display: 'flex',
                     transition: 'color 0.15s',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.color = 'rgba(0,191,255,0.7)')}
-                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(0,191,255,0.3)')}
+                  onMouseEnter={e => (e.currentTarget.style.color = '#475569')}
+                  onMouseLeave={e => (e.currentTarget.style.color = '#94a3b8')}
                 >
-                  {showPwd ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
+                  {showPwd
+                    ? <EyeOff size={16} aria-hidden />
+                    : <Eye    size={16} aria-hidden />
+                  }
                 </button>
               </div>
             </div>
 
+            {/* Bouton */}
             <button
               type="submit"
               disabled={loading}
               aria-busy={loading}
-              className="term-btn"
-              style={{
-                marginTop: 8, padding: '12px 20px', borderRadius: 4,
-                background: 'rgba(0,191,255,0.07)',
-                color: 'var(--t-electric)',
-                border: '1px solid rgba(0,191,255,0.28)',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                fontFamily: 'var(--t-mono)', fontWeight: 700, fontSize: 12.5,
-                width: '100%', minHeight: 44,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                letterSpacing: '0.08em', textTransform: 'uppercase',
-                transition: 'all 0.2s ease',
-                opacity: loading ? 0.6 : 1,
-              }}
+              className="auth-btn"
+              style={{ marginTop: 4 }}
             >
               {loading
-                ? <><Loader2 size={14} className="animate-spin" aria-hidden /> Connexion...</>
-                : <><ChevronRight size={14} aria-hidden /> Se connecter</>
+                ? <><Loader2 size={16} className="animate-spin" aria-hidden /> Connexion en cours…</>
+                : 'Se connecter'
               }
             </button>
           </form>
 
+          {/* Note de bas */}
           <p style={{
-            marginTop: 24, fontSize: 10.5, color: 'rgba(255,255,255,0.15)',
-            textAlign: 'center', fontFamily: 'var(--t-mono)', letterSpacing: '0.04em',
+            marginTop: 28,
+            fontSize: 12.5,
+            color: '#94a3b8',
+            textAlign: 'center',
+            fontFamily: 'var(--font-body)',
+            lineHeight: 1.55,
           }}>
-            Accès restreint · Employés BTS uniquement
+            Accès réservé aux employés de Bridge Technologies Solutions
           </p>
         </div>
       </main>

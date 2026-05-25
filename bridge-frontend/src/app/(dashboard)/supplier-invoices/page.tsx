@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation'
 import { Plus, Search, AlertTriangle, Clock, CreditCard, TrendingDown, MoreHorizontal, Pencil, CheckCircle2, Banknote, XCircle, Trash2, ExternalLink } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { useSupplierInvoices, useSupplierInvoiceStats, useDeleteSupplierInvoice, useApproveSupplierInvoice, useCancelSupplierInvoice } from '@/features/supplier-invoices/hooks'
-import { formatXAF, formatDate, buildPageRange } from '@/lib/utils'
+import { formatDate, buildPageRange } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
 import type { SupplierInvoiceStatus, SupplierInvoiceListItem } from '@/features/supplier-invoices/types'
 
@@ -104,6 +105,7 @@ function Pagination({ page, totalPages, onChange }: { page: number; totalPages: 
 }
 
 export default function SupplierInvoicesPage() {
+  const { format } = useCurrency()
   const [search,   setSearch]   = useState('')
   const [status,   setStatus]   = useState<SupplierInvoiceStatus | ''>('')
   const [page,     setPage]     = useState(1)
@@ -129,10 +131,10 @@ export default function SupplierInvoicesPage() {
 
       {/* KPI cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
-        <KpiCard label="Total à payer"       value={formatXAF(stats?.totalDue ?? 0)}      color="var(--primary)"  icon={CreditCard} />
-        <KpiCard label="En retard"           value={formatXAF(stats?.overdueAmount ?? 0)} color="#dc2626"          icon={AlertTriangle} sub={`${stats?.overdueCount ?? 0} facture${(stats?.overdueCount ?? 0) !== 1 ? 's' : ''}`} />
-        <KpiCard label="À payer sous 7j"     value={formatXAF(stats?.dueSoon ?? 0)}       color="#d97706"          icon={Clock} />
-        <KpiCard label="Total du mois"       value={formatXAF(0)}                          color="#16a34a"          icon={TrendingDown} />
+        <KpiCard label="Total à payer"       value={format(stats?.totalDue ?? 0)}      color="var(--primary)"  icon={CreditCard} />
+        <KpiCard label="En retard"           value={format(stats?.overdueAmount ?? 0)} color="#dc2626"          icon={AlertTriangle} sub={`${stats?.overdueCount ?? 0} facture${(stats?.overdueCount ?? 0) !== 1 ? 's' : ''}`} />
+        <KpiCard label="À payer sous 7j"     value={format(stats?.dueSoon ?? 0)}       color="#d97706"          icon={Clock} />
+        <KpiCard label="Total du mois"       value={format(0)}                          color="#16a34a"          icon={TrendingDown} />
       </div>
 
       {/* Filters */}
@@ -208,9 +210,9 @@ export default function SupplierInvoicesPage() {
                         <td style={{ padding: '11px 14px', whiteSpace: 'nowrap', color: isOverdue ? '#dc2626' : 'var(--text-2)', fontWeight: isOverdue ? 600 : 400 }}>
                           {inv.dueDate ? formatDate(inv.dueDate) : '—'}
                         </td>
-                        <td style={{ padding: '11px 14px', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--text-1)', fontWeight: 600 }}>{formatXAF(inv.totalTtc)}</td>
+                        <td style={{ padding: '11px 14px', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--text-1)', fontWeight: 600 }}>{format(inv.totalTtc)}</td>
                         <td style={{ padding: '11px 14px', textAlign: 'right', fontFamily: 'var(--font-mono)', color: hasDue ? '#dc2626' : '#16a34a', fontWeight: 600 }}>
-                          {hasDue ? formatXAF(inv.balanceDue) : '—'}
+                          {hasDue ? format(inv.balanceDue) : '—'}
                         </td>
                         <td style={{ padding: '11px 14px' }}><StatusBadge status={inv.status} /></td>
                         <td style={{ padding: '11px 14px' }} onClick={e => e.stopPropagation()}>

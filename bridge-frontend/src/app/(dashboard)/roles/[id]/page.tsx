@@ -9,7 +9,7 @@ import {
 import { useRole } from '@/features/roles/hooks'
 import { RoleDrawer } from '@/features/roles/components/RoleDrawer'
 import { PermissionsMatrix } from '@/features/roles/components/PermissionsMatrix'
-import { useAuthStore } from '@/store/auth'
+import { usePermission } from '@/hooks/usePermission'
 import { formatDate, getInitials } from '@/lib/utils'
 import { ROUTES } from '@/lib/constants'
 
@@ -76,10 +76,10 @@ function getPalette(name: string, isSystem: boolean) {
 
 // ─── Page ─────────────────────────────────────────────────────
 export default function RoleDetailPage() {
-  const { id }   = useParams<{ id: string }>()
-  const router   = useRouter()
-  const { user: me } = useAuthStore()
-  const canManage = me?.role === 'admin'
+  const { id }    = useParams<{ id: string }>()
+  const router    = useRouter()
+  const { can }   = usePermission()
+  const canManage = can('role', 'manage')
 
   const [showEdit, setShowEdit] = useState(false)
 

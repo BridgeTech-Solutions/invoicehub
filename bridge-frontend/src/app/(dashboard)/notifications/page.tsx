@@ -8,6 +8,7 @@ import {
   Send, ThumbsUp, ThumbsDown, Clock, FileText,
   CreditCard, Coins, AlertCircle, Bell, UserPlus, Info,
   ChevronLeft, ChevronRight, CheckCircle2, XCircle,
+  Receipt, ShoppingCart, PackageCheck,
 } from 'lucide-react'
 import {
   useNotifications, useMarkRead, useMarkAllRead,
@@ -34,6 +35,11 @@ const TYPE_CONFIG: Record<NotificationType, {
   payment_registered:     { label: 'Paiement enregistré', color: '#10b981', bg: 'rgba(16,185,129,0.1)',  Icon: CreditCard,   href: (id) => id ? `/invoices/${id}` : '/invoices' },
   reminder_sent:          { label: 'Relance envoyée',     color: '#6b7280', bg: 'rgba(107,114,128,0.1)', Icon: Bell },
   user_created:           { label: 'Nouveau compte',      color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)',  Icon: UserPlus,     href: () => '/users' },
+  expense_submitted:      { label: 'Dépense soumise',     color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  Icon: Receipt,      href: (id) => id ? `/expenses/${id}` : '/expenses' },
+  expense_approved:       { label: 'Dépense approuvée',   color: '#10b981', bg: 'rgba(16,185,129,0.1)',  Icon: CheckCircle2, href: (id) => id ? `/expenses/${id}` : '/expenses' },
+  expense_rejected:       { label: 'Dépense rejetée',     color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   Icon: XCircle,      href: (id) => id ? `/expenses/${id}` : '/expenses' },
+  purchase_order_received:{ label: 'Bon de commande reçu',color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',  Icon: ShoppingCart, href: (id) => id ? `/purchase-orders/${id}` : '/purchase-orders' },
+  supplier_invoice_due:   { label: 'Facture fournisseur', color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   Icon: PackageCheck, href: (id) => id ? `/supplier-invoices/${id}` : '/supplier-invoices' },
   system:                 { label: 'Système',             color: '#6b7280', bg: 'rgba(107,114,128,0.1)', Icon: Info },
 }
 

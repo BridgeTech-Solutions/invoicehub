@@ -3,7 +3,7 @@
 import { useState, useId } from 'react'
 import { Loader2, Building2, User, Lock, AlertCircle } from 'lucide-react'
 import { useCreateClient, useUpdateClient } from '../hooks'
-import { useAuthStore } from '@/features/auth/store'
+import { usePermission } from '@/hooks/usePermission'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import type { Client, CreateClientPayload } from '../types'
 
@@ -60,10 +60,10 @@ function Field({
 }
 
 export function ClientForm({ client, onClose, wide = false }: ClientFormProps) {
-  const isEdit   = !!client
-  const { user } = useAuthStore()
+  const isEdit  = !!client
+  const { can } = usePermission()
   const isMobile = useIsMobile()
-  const canSeeInternalNotes = user?.role === 'admin' || user?.role === 'commercial'
+  const canSeeInternalNotes = can('client', 'update')
 
   // ─── Unique IDs for label/input association ──────────────────
   const idName            = useId()

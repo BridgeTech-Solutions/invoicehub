@@ -3,11 +3,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Loader2, ChevronRight, ChevronLeft } from 'lucide-react'
+import { Loader2, AlertCircle, ChevronLeft } from 'lucide-react'
 import { useLogin } from '@/features/auth/hooks'
 import { useAuthStore } from '@/features/auth/store'
 import { ROUTES } from '@/lib/constants'
-import { TerminalLeftPanel } from '../_components/TerminalLeftPanel'
+import { AuthLeftPanel } from '../_components/AuthLeftPanel'
 
 export default function TwoFAPage() {
   const router        = useRouter()
@@ -83,71 +83,78 @@ export default function TwoFAPage() {
     )
   }
 
-  // ─── Shared styles pour les digits OTP ──────────────────────
   const digitStyle = (digit: string, hasError: boolean): React.CSSProperties => ({
     width: 46, height: 54,
     textAlign: 'center',
-    fontFamily: 'var(--t-mono)',
+    fontFamily: 'var(--font-display)',
     fontSize: 22, fontWeight: 700,
-    color: '#E8F4FF',
-    background: 'rgba(0,191,255,0.04)',
-    border: `1px solid ${hasError ? 'rgba(255,107,107,0.5)' : digit ? 'rgba(0,191,255,0.5)' : 'rgba(0,191,255,0.18)'}`,
-    borderRadius: 4,
+    color: '#0f172a',
+    background: '#fff',
+    border: `1.5px solid ${hasError ? '#ef4444' : digit ? 'var(--primary)' : '#e2e8f0'}`,
+    borderRadius: 8,
     outline: 'none',
     transition: 'border-color 0.15s, box-shadow 0.15s',
-    boxSizing: 'border-box' as const,
+    boxSizing: 'border-box',
     cursor: 'text',
   })
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: 'var(--t-noir)', overflow: 'hidden', position: 'relative' }}>
-      <div className="t-scanline" aria-hidden="true" />
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      <AuthLeftPanel />
 
-      {/* ── Panneau gauche ─────────────────────────────────────── */}
-      <TerminalLeftPanel />
-
-      {/* ── Panneau droit ──────────────────────────────────────── */}
+      {/* ── Panneau droit ─────────────────────────────────────────── */}
       <main style={{
-        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'var(--t-noir)', padding: '40px 24px', position: 'relative',
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#fff',
+        padding: '40px 24px',
+        overflow: 'auto',
       }}>
-        <div aria-hidden style={{
-          position: 'absolute', top: '50%', left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 360, height: 360, pointerEvents: 'none',
-          background: 'radial-gradient(circle, rgba(0,191,255,0.04) 0%, transparent 65%)',
-        }} />
-
         <div style={{
-          width: '100%', maxWidth: 360, position: 'relative', zIndex: 1,
-          opacity:   mounted ? 1 : 0,
-          animation: mounted ? 'term-in 0.5s cubic-bezier(0.22,1,0.36,1) 0.12s both' : 'none',
+          width: '100%',
+          maxWidth: 400,
+          opacity:    mounted ? 1 : 0,
+          transform:  mounted ? 'none' : 'translateY(18px)',
+          transition: 'opacity 0.42s ease, transform 0.42s ease',
         }}>
-          {/* Header */}
-          <div style={{ marginBottom: 28 }}>
-            {/* Badge 2FA */}
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 8,
-              padding: '5px 12px', borderRadius: 4,
-              background: 'rgba(0,191,255,0.06)', border: '1px solid rgba(0,191,255,0.15)',
-              marginBottom: 20,
-            }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--t-green)', boxShadow: '0 0 6px var(--t-green)', animation: 'live-pulse 2.2s ease-in-out infinite' }} />
-              <span style={{ fontSize: 10, color: 'var(--t-electric)', fontFamily: 'var(--t-mono)', letterSpacing: '0.08em' }}>
-                2FA · TOTP REQUIRED
-              </span>
-            </div>
 
+          {/* Badge 2FA */}
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+            padding: '5px 12px', borderRadius: 100,
+            background: 'rgba(45,125,210,0.08)',
+            border: '1.5px solid rgba(45,125,210,0.18)',
+            marginBottom: 22,
+          }}>
+            <div style={{
+              width: 7, height: 7, borderRadius: '50%',
+              background: '#10b981',
+              boxShadow: '0 0 6px rgba(16,185,129,0.5)',
+            }} />
+            <span style={{
+              fontSize: 12, fontWeight: 600, color: 'var(--primary)',
+              fontFamily: 'var(--font-display)', letterSpacing: '0.02em',
+            }}>
+              Authentification à deux facteurs
+            </span>
+          </div>
+
+          {/* Titre */}
+          <div style={{ marginBottom: 28 }}>
             <h1 style={{
-              fontFamily: 'var(--t-brico)', fontWeight: 700, fontSize: 22,
-              color: '#E8F4FF', letterSpacing: '-0.02em', margin: '0 0 6px',
+              fontSize: 24, fontWeight: 800,
+              fontFamily: 'var(--font-display)',
+              color: '#0f172a', letterSpacing: '-0.025em',
+              margin: '0 0 7px',
             }}>
               {useBackup ? 'Code de secours' : 'Vérification en deux étapes'}
             </h1>
-            <p style={{ fontSize: 11.5, color: 'rgba(0,191,255,0.4)', margin: 0, fontFamily: 'var(--t-mono)', letterSpacing: '0.04em' }}>
+            <p style={{ fontSize: 14, color: '#64748b', margin: 0, fontFamily: 'var(--font-body)' }}>
               {useBackup
-                ? 'SAISIR UN CODE DE SECOURS (8 CARACTÈRES)'
-                : 'SAISIR LE CODE À 6 CHIFFRES · AUTHENTICATOR'
+                ? 'Saisissez un code de secours à 8 caractères'
+                : 'Saisissez le code à 6 chiffres de votre application Authenticator'
               }
             </p>
           </div>
@@ -155,23 +162,27 @@ export default function TwoFAPage() {
           {/* Erreur */}
           {error && (
             <div role="alert" aria-live="assertive" style={{
-              fontSize: 12, color: 'var(--t-red)', marginBottom: 18,
-              background: 'rgba(255,107,107,0.07)', border: '1px solid rgba(255,107,107,0.22)',
-              borderRadius: 4, padding: '10px 14px', fontFamily: 'var(--t-mono)',
-              display: 'flex', gap: 10, alignItems: 'flex-start',
+              marginBottom: 20,
+              padding: '12px 14px',
+              borderRadius: 8,
+              background: '#fef2f2',
+              border: '1.5px solid #fecaca',
+              fontSize: 13.5, color: '#dc2626',
+              fontFamily: 'var(--font-body)',
+              display: 'flex', alignItems: 'flex-start', gap: 10,
             }}>
-              <span style={{ color: 'rgba(255,107,107,0.55)', fontWeight: 700, fontSize: 10, padding: '1px 5px', background: 'rgba(255,107,107,0.1)', borderRadius: 3, border: '1px solid rgba(255,107,107,0.2)', flexShrink: 0 }}>ERR</span>
+              <AlertCircle size={16} aria-hidden style={{ flexShrink: 0, marginTop: 1 }} />
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
 
             {!useBackup ? (
-              /* ── OTP digits ─────────────────────────────────── */
+              /* ── Chiffres OTP ───────────────────────────────────── */
               <div
                 role="group"
-                aria-label="Code d'authentification à 6 chiffres"
+                aria-label="Code à 6 chiffres"
                 style={{ display: 'flex', gap: 8, justifyContent: 'center' }}
                 onPaste={handlePaste}
               >
@@ -190,25 +201,25 @@ export default function TwoFAPage() {
                     autoComplete={i === 0 ? 'one-time-code' : 'off'}
                     style={{
                       ...digitStyle(digit, !!error),
-                      animation: `otp-appear 0.3s ease ${i * 0.05}s both`,
+                      animationDelay: `${i * 0.04}s`,
                     }}
                     onFocus={e => {
-                      e.target.style.borderColor = 'var(--t-electric)'
-                      e.target.style.boxShadow   = '0 0 0 2px rgba(0,191,255,0.12), 0 0 12px rgba(0,191,255,0.07)'
+                      e.target.style.borderColor = 'var(--primary)'
+                      e.target.style.boxShadow   = '0 0 0 3px rgba(45,125,210,0.13)'
                     }}
                     onBlur={e => {
-                      e.target.style.borderColor = error ? 'rgba(255,107,107,0.5)' : digit ? 'rgba(0,191,255,0.5)' : 'rgba(0,191,255,0.18)'
+                      e.target.style.borderColor = error ? '#ef4444' : digit ? 'var(--primary)' : '#e2e8f0'
                       e.target.style.boxShadow   = 'none'
                     }}
                   />
                 ))}
               </div>
             ) : (
-              /* ── Code de secours ────────────────────────────── */
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              /* ── Code de secours ────────────────────────────────── */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                 <label htmlFor="backup-code" style={{
-                  fontSize: 10, fontWeight: 500, color: 'rgba(0,191,255,0.48)',
-                  fontFamily: 'var(--t-mono)', letterSpacing: '0.1em', textTransform: 'uppercase',
+                  fontSize: 13.5, fontWeight: 600,
+                  color: '#374151', fontFamily: 'var(--font-display)',
                 }}>
                   Code de secours
                 </label>
@@ -220,73 +231,66 @@ export default function TwoFAPage() {
                   placeholder="XXXXXXXX"
                   autoFocus
                   autoComplete="off"
-                  className="term-input"
+                  className="auth-input"
                   style={{
                     padding: '13px 14px',
-                    fontSize: 18, fontWeight: 700,
-                    letterSpacing: '0.18em', textAlign: 'center',
+                    fontSize: 20, fontWeight: 700,
+                    letterSpacing: '0.2em', textAlign: 'center',
+                    fontFamily: 'var(--font-display)',
                   }}
                 />
               </div>
             )}
 
-            {/* Submit */}
+            {/* Valider */}
             <button
               type="submit"
               disabled={loading}
               aria-busy={loading}
-              className="term-btn"
-              style={{
-                padding: '12px 20px', borderRadius: 4,
-                background: 'rgba(0,191,255,0.07)',
-                color: 'var(--t-electric)',
-                border: '1px solid rgba(0,191,255,0.28)',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                fontFamily: 'var(--t-mono)', fontWeight: 700, fontSize: 12.5,
-                width: '100%', minHeight: 44,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                letterSpacing: '0.08em', textTransform: 'uppercase',
-                transition: 'all 0.2s ease',
-                opacity: loading ? 0.6 : 1,
-              }}
+              className="auth-btn"
             >
               {loading
-                ? <><Loader2 size={14} className="animate-spin" aria-hidden /> Vérification...</>
-                : <><ChevronRight size={14} aria-hidden /> Vérifier</>
+                ? <><Loader2 size={16} className="animate-spin" aria-hidden /> Vérification…</>
+                : 'Vérifier'
               }
             </button>
 
-            {/* Toggle backup */}
+            {/* Bascule code de secours */}
             <button
               type="button"
               onClick={() => { setUseBackup(b => !b); setError('') }}
-              className="term-btn-sec"
               style={{
-                background: 'transparent', border: 'none', cursor: 'pointer',
-                fontSize: 11, color: 'rgba(0,191,255,0.38)',
-                fontFamily: 'var(--t-mono)', letterSpacing: '0.04em',
-                minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'color 0.15s', padding: '0 8px',
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 13, color: 'var(--primary)',
+                fontFamily: 'var(--font-body)', fontWeight: 500,
+                minHeight: 44, display: 'flex', alignItems: 'center',
+                justifyContent: 'center', transition: 'opacity 0.15s',
               }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
             >
-              {useBackup ? '← utiliser le code authenticator' : '→ utiliser un code de secours'}
+              {useBackup
+                ? 'Utiliser le code Authenticator'
+                : 'Utiliser un code de secours'
+              }
             </button>
           </form>
 
           {/* Retour */}
-          <div style={{ marginTop: 20, textAlign: 'center' }}>
+          <div style={{ marginTop: 24, textAlign: 'center' }}>
             <Link
               href={ROUTES.LOGIN}
               style={{
-                fontSize: 11, color: 'rgba(255,255,255,0.2)', textDecoration: 'none',
+                fontSize: 13, color: '#94a3b8',
+                textDecoration: 'none', fontFamily: 'var(--font-body)',
                 display: 'inline-flex', alignItems: 'center', gap: 4,
-                fontFamily: 'var(--t-mono)', minHeight: 44, transition: 'color 0.15s',
+                minHeight: 44, transition: 'color 0.15s',
               }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'rgba(0,191,255,0.5)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.2)')}
+              onMouseEnter={e => (e.currentTarget.style.color = '#475569')}
+              onMouseLeave={e => (e.currentTarget.style.color = '#94a3b8')}
             >
-              <ChevronLeft size={12} aria-hidden />
-              retour connexion
+              <ChevronLeft size={14} aria-hidden />
+              Retour à la connexion
             </Link>
           </div>
         </div>

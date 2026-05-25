@@ -6,6 +6,8 @@ import {
   Filter, ArrowRight, User,
 } from 'lucide-react'
 import { useApprovalRequests } from '@/features/approvals/hooks'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { ApprovalDecisionDrawer } from '@/features/approvals/components/ApprovalDecisionDrawer'
 import {
   DOCUMENT_TYPE_LABELS,
@@ -231,6 +233,7 @@ function SkeletonCard() {
 // ─── Page ────────────────────────────────────────────────────────
 
 export default function ApprovalsPage() {
+  const { can } = usePermission()
   const [activeStatus, setActiveStatus] = useState<ApprovalRequestStatus | ''>('')
   const [pendingForMe, setPendingForMe]  = useState(false)
   const [selected, setSelected]         = useState<ApprovalRequest | null>(null)
@@ -252,6 +255,8 @@ export default function ApprovalsPage() {
       myTurn:   all.filter((r) => r.isMyTurn).length,
     }
   }, [data])
+
+  if (!can('approval', 'read')) return <AccessDenied message="La gestion des approbations est réservée aux administrateurs." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

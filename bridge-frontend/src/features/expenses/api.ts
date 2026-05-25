@@ -61,10 +61,10 @@ export const expensesApi = {
   listCategories: () =>
     apiClient.get<ExpenseCategory[]>('/expense-categories').then(r => r.data),
 
-  createCategory: (data: { name: string; color?: string; icon?: string; accountingAccount?: string; parentId?: string }) =>
+  createCategory: (data: { name: string; description?: string; color?: string; icon?: string; accountingAccount?: string; parentId?: string }) =>
     apiClient.post<ExpenseCategory>('/expense-categories', data).then(r => r.data),
 
-  updateCategory: (id: string, data: Partial<{ name: string; color: string; icon: string; accountingAccount: string; isActive: boolean }>) =>
+  updateCategory: (id: string, data: Partial<{ name: string; description: string; color: string; icon: string; accountingAccount: string; isActive: boolean }>) =>
     apiClient.put<ExpenseCategory>(`/expense-categories/${id}`, data).then(r => r.data),
 
   deleteCategory: (id: string) =>

@@ -6,18 +6,24 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Format a number as XAF currency
- * e.g. 1200000 → "1 200 000 XAF"
+ * Format a number as currency — currency-aware version.
+ * e.g. formatCurrency(1200000, 'XAF') → "1 200 000 XAF"
+ *      formatCurrency(1200000, 'EUR') → "1 200 000 EUR"
  */
-export function formatXAF(amount: number | string | null | undefined): string {
-  if (amount === null || amount === undefined || amount === '') return '— XAF'
+export function formatCurrency(amount: number | string | null | undefined, currency = 'XAF'): string {
+  if (amount === null || amount === undefined || amount === '') return `— ${currency}`
   const n = typeof amount === 'string' ? parseFloat(amount) : amount
-  if (isNaN(n)) return '— XAF'
+  if (isNaN(n)) return `— ${currency}`
   return new Intl.NumberFormat('fr-FR', {
     style: 'decimal',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(Math.round(n)) + ' XAF'
+  }).format(Math.round(n)) + ` ${currency}`
+}
+
+/** @deprecated Use `useCurrency().format` in components or `formatCurrency(amount, currency)` elsewhere. */
+export function formatXAF(amount: number | string | null | undefined): string {
+  return formatCurrency(amount, 'XAF')
 }
 
 /**

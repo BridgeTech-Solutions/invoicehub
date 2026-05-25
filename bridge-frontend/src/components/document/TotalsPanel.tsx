@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import type { FormLine, DiscountType, DocumentTotals } from '@/features/proformas/types'
 import { computeDocumentTotals } from '@/lib/document-math'
-import { formatXAF } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 
 interface TotalsPanelProps {
   lines: FormLine[]
@@ -29,7 +29,7 @@ export function TotalsPanel({
   acomptePercentage,
   totalAcomptesDeducted = 0,
 }: TotalsPanelProps) {
-
+  const { format } = useCurrency()
   const totals = computeDocumentTotals(lines, globalDiscountType, globalDiscountValue)
 
   const isAcompte = invoiceType === 'acompte'
@@ -98,7 +98,7 @@ export function TotalsPanel({
 
       <div style={{ padding: '12px 16px' }}>
         {/* Sous-total */}
-        {row('Sous-total HT', formatXAF(totals.sumNetHt))}
+        {row('Sous-total HT', format(totals.sumNetHt))}
 
         {/* Global discount row */}
         {!readonly ? (
@@ -140,19 +140,19 @@ export function TotalsPanel({
             </div>
           </div>
         ) : (
-          row('Remise globale', hasDiscount ? `— ${formatXAF(totals.globalDiscountAmount)}` : '0 XAF')
+          row('Remise globale', hasDiscount ? `— ${format(totals.globalDiscountAmount)}` : '0 XAF')
         )}
 
         {/* Separator */}
         <div style={{ height: 1, background: 'var(--border)', margin: '8px 0' }} />
 
         {/* Total HT */}
-        {row('Total HT net', formatXAF(totals.totalHt), true)}
+        {row('Total HT net', format(totals.totalHt), true)}
 
         {/* TVA */}
         {row(
           `TVA (${lines.length > 0 ? `${lines[0].taxRate}%` : '19.25%'})`,
-          formatXAF(totals.totalTax),
+          format(totals.totalTax),
         )}
 
         {/* Thick separator */}
@@ -164,7 +164,7 @@ export function TotalsPanel({
             Total TTC{isAcompte && <span style={{ fontSize: 11.5, fontWeight: 400, color: 'var(--text-3)', marginLeft: 6 }}>(projet complet)</span>}
           </span>
           <span style={{ fontSize: isAcompte ? 14 : 20, fontWeight: isAcompte ? 600 : 800, color: isAcompte ? 'var(--text-2)' : 'var(--primary)', fontFamily: 'var(--font-mono)', letterSpacing: '-0.01em' }}>
-            {formatXAF(totals.totalTtc)}
+            {format(totals.totalTtc)}
           </span>
         </div>
 
@@ -186,19 +186,19 @@ export function TotalsPanel({
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0', marginBottom: 4 }}>
                   <span style={{ fontSize: 12.5, color: '#7c3aed', fontFamily: 'var(--font-body)' }}>Acomptes précédents</span>
                   <span style={{ fontSize: 12.5, fontWeight: 600, color: '#7c3aed', fontFamily: 'var(--font-mono)' }}>
-                    − {formatXAF(Math.round(totalAcomptesDeducted))}
+                    − {format(Math.round(totalAcomptesDeducted))}
                   </span>
                 </div>
               )}
-              {row('Acompte HT',      formatXAF(acompteHt))}
-              {row('TVA sur acompte', formatXAF(accomteTva))}
+              {row('Acompte HT',      format(acompteHt))}
+              {row('TVA sur acompte', format(accomteTva))}
               <div style={{ height: 1, background: 'rgba(124,58,237,0.15)', margin: '4px 0' }} />
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0' }}>
                 <span style={{ fontSize: 14, fontWeight: 700, color: '#7c3aed', fontFamily: 'var(--font-display)' }}>
                   Montant acompte TTC
                 </span>
                 <span style={{ fontSize: 18, fontWeight: 800, color: '#7c3aed', fontFamily: 'var(--font-mono)', letterSpacing: '-0.01em' }}>
-                  {formatXAF(acompteTtc)}
+                  {format(acompteTtc)}
                 </span>
               </div>
             </div>
@@ -207,7 +207,7 @@ export function TotalsPanel({
                 Solde restant TTC
               </span>
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>
-                {formatXAF(acompteReste)}
+                {format(acompteReste)}
               </span>
             </div>
           </>
@@ -227,24 +227,24 @@ export function TotalsPanel({
               <p style={{ margin: '0 0 6px', fontSize: 10.5, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#0891b2' }}>
                 Déduction acompte(s)
               </p>
-              {row('Total projet TTC', formatXAF(Math.round(totals.totalTtc)))}
+              {row('Total projet TTC', format(Math.round(totals.totalTtc)))}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0' }}>
                 <span style={{ fontSize: 13, color: '#0891b2', fontFamily: 'var(--font-body)' }}>Acomptes versés</span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#0891b2', fontFamily: 'var(--font-mono)' }}>
-                  − {formatXAF(Math.round(totalAcomptesDeducted))}
+                  − {format(Math.round(totalAcomptesDeducted))}
                 </span>
               </div>
               <div style={{ height: 1, background: 'rgba(8,145,178,0.15)', margin: '4px 0' }} />
               {/* Solde HT / TVA / TTC */}
-              {row('Solde HT', formatXAF(soldeHt))}
-              {row('TVA sur solde', formatXAF(soldeTva))}
+              {row('Solde HT', format(soldeHt))}
+              {row('TVA sur solde', format(soldeTva))}
               <div style={{ height: 1, background: 'rgba(8,145,178,0.25)', margin: '4px 0' }} />
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0' }}>
                 <span style={{ fontSize: 14, fontWeight: 700, color: '#0891b2', fontFamily: 'var(--font-display)' }}>
                   Solde dû TTC
                 </span>
                 <span style={{ fontSize: 18, fontWeight: 800, color: '#0891b2', fontFamily: 'var(--font-mono)', letterSpacing: '-0.01em' }}>
-                  {formatXAF(soldeTtc)}
+                  {format(soldeTtc)}
                 </span>
               </div>
             </div>

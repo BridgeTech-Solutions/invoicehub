@@ -8,7 +8,8 @@ import {
   useExpense, useSubmitExpense, useApproveExpense,
   useRejectExpense, useMarkExpensePaid,
 } from '@/features/expenses/hooks'
-import { formatXAF, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
 import type { ExpenseStatus } from '@/features/expenses/types'
 
@@ -47,6 +48,7 @@ function RejectModal({ onConfirm, onClose, isPending }: { onConfirm: (reason: st
 }
 
 export default function ExpenseDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { format } = useCurrency()
   const { id }       = use(params)
   const [showReject, setShowReject] = useState(false)
 
@@ -130,7 +132,7 @@ export default function ExpenseDetailPage({ params }: { params: Promise<{ id: st
         </div>
         <div className="card" style={{ padding: '16px 20px', borderLeft: '3px solid var(--primary)' }}>
           <p style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Montant TTC</p>
-          <p style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-1)' }}>{formatXAF(exp.amountTtc)}</p>
+          <p style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-1)' }}>{format(exp.amountTtc)}</p>
         </div>
         <div className="card" style={{ padding: '16px 20px' }}>
           <p style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Mode de paiement</p>
@@ -165,16 +167,16 @@ export default function ExpenseDetailPage({ params }: { params: Promise<{ id: st
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
               <span style={{ color: 'var(--text-3)' }}>Montant HT</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-1)' }}>{formatXAF(exp.amountHt)}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-1)' }}>{format(exp.amountHt)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
               <span style={{ color: 'var(--text-3)' }}>TVA ({exp.taxRate}%)</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-1)' }}>{formatXAF(exp.taxAmount)}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-1)' }}>{format(exp.taxAmount)}</span>
             </div>
             <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--text-1)' }}>Total TTC</span>
-              <span style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>{formatXAF(exp.amountTtc)}</span>
+              <span style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>{format(exp.amountTtc)}</span>
             </div>
             {exp.accountingAccount && (
               <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--text-3)' }}>

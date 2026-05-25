@@ -9,7 +9,8 @@ import {
   useExpenses, useExpenseStats, useExpenseCategories,
   useSubmitExpense, useApproveExpense, useMarkExpensePaid, useDeleteExpense,
 } from '@/features/expenses/hooks'
-import { formatXAF, formatDate, buildPageRange } from '@/lib/utils'
+import { formatDate, buildPageRange } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
 import type { ExpenseStatus, ExpenseListItem } from '@/features/expenses/types'
 
@@ -121,6 +122,7 @@ function Pagination({ page, totalPages, onChange }: { page: number; totalPages: 
 type Tab = 'all' | 'submitted' | 'recurring'
 
 export default function ExpensesPage() {
+  const { format } = useCurrency()
   const [tab,        setTab]       = useState<Tab>('all')
   const [search,     setSearch]    = useState('')
   const [status,     setStatus]    = useState<ExpenseStatus | ''>('')
@@ -163,10 +165,10 @@ export default function ExpensesPage() {
 
       {/* KPI */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
-        <KpiCard label="Ce mois"          value={formatXAF(stats?.currentMonth ?? 0)}    color="var(--primary)" icon={TrendingDown} />
-        <KpiCard label="Ce trimestre"     value={formatXAF(stats?.currentQuarter ?? 0)}  color="#7c3aed"        icon={BarChart2} />
-        <KpiCard label="En attente"       value={formatXAF(stats?.pendingAmount ?? 0)}   color="#d97706"        icon={Clock} sub={`${stats?.pendingCount ?? 0} dépense${(stats?.pendingCount ?? 0) !== 1 ? 's' : ''}`} />
-        <KpiCard label="Récurrentes/mois" value={formatXAF(stats?.recurringMonthly ?? 0)} color="#0891b2"       icon={RefreshCw} />
+        <KpiCard label="Ce mois"          value={format(stats?.currentMonth ?? 0)}    color="var(--primary)" icon={TrendingDown} />
+        <KpiCard label="Ce trimestre"     value={format(stats?.currentQuarter ?? 0)}  color="#7c3aed"        icon={BarChart2} />
+        <KpiCard label="En attente"       value={format(stats?.pendingAmount ?? 0)}   color="#d97706"        icon={Clock} sub={`${stats?.pendingCount ?? 0} dépense${(stats?.pendingCount ?? 0) !== 1 ? 's' : ''}`} />
+        <KpiCard label="Récurrentes/mois" value={format(stats?.recurringMonthly ?? 0)} color="#0891b2"       icon={RefreshCw} />
       </div>
 
       {/* Tabs */}
@@ -263,7 +265,7 @@ export default function ExpensesPage() {
                       </td>
                       <td style={{ padding: '11px 14px', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{formatDate(exp.expenseDate)}</td>
                       <td style={{ padding: '11px 14px', color: 'var(--text-2)' }}>{PM_LABELS[exp.paymentMethod] ?? exp.paymentMethod}</td>
-                      <td style={{ padding: '11px 14px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-1)' }}>{formatXAF(exp.amountTtc)}</td>
+                      <td style={{ padding: '11px 14px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-1)' }}>{format(exp.amountTtc)}</td>
                       <td style={{ padding: '11px 14px', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{exp.submittedBy.firstName} {exp.submittedBy.lastName}</td>
                       <td style={{ padding: '11px 14px' }}><StatusBadge status={exp.status} /></td>
                       <td style={{ padding: '11px 14px' }} onClick={e => e.stopPropagation()}>

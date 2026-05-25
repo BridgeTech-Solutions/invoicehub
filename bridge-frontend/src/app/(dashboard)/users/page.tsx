@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Search, UserPlus, Loader2, Shield, Pencil, Trash2, KeyRound, X, AlertTriangle, ShieldCheck, ShieldOff, Users, UserCheck } from 'lucide-react'
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useRoles } from '@/features/users/hooks'
-import { useAuthStore } from '@/store/auth'
+import { usePermission } from '@/hooks/usePermission'
+import { useAuthStore } from '@/features/auth/store'
 import { formatDate, getInitials } from '@/lib/utils'
 import type { User, CreateUserPayload, UpdateUserPayload, UserStatus } from '@/features/users/types'
 import { ROUTES } from '@/lib/constants'
@@ -14,26 +15,35 @@ import type { AxiosError } from 'axios'
 
 // ─── Badges ───────────────────────────────────────────────────
 const ROLE_COLORS: { color: string; bg: string }[] = [
-  { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
-  { color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
-  { color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
-  { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
-  { color: '#ef4444', bg: 'rgba(239,68,68,0.1)'  },
-  { color: '#6366f1', bg: 'rgba(99,102,241,0.1)' },
+  { color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)' },
+  { color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
+  { color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
+  { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+  { color: '#ef4444', bg: 'rgba(239,68,68,0.12)'  },
+  { color: '#6366f1', bg: 'rgba(99,102,241,0.12)' },
 ]
+
+// Labels statiques en fallback — couvre admin/commercial/employee sans dépendre de l'API
+const STATIC_ROLE_LABELS: Record<string, string> = {
+  admin:      'Administrateur',
+  commercial: 'Commercial',
+  employee:   'Employé',
+}
 const STATUS_CFG: Record<UserStatus, { label: string; color: string; bg: string }> = {
   active:             { label: 'Actif',      color: '#10b981', bg: 'rgba(16,185,129,0.1)'  },
   suspended:          { label: 'Suspendu',   color: '#ef4444', bg: 'rgba(239,68,68,0.1)'   },
   pending_activation: { label: 'En attente', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)'  },
 }
 
-function RoleBadge({ role, displayName }: { role: string; displayName?: string }) {
-  const safeRole = role ?? ''
-  const idx = safeRole.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % ROLE_COLORS.length
+function RoleBadge({ role, displayName }: { role: string | null | undefined; displayName?: string }) {
+  const text = displayName
+    || (role && typeof role === 'string' ? (STATIC_ROLE_LABELS[role] ?? role) : null)
+  if (!text) return <span style={{ color: 'var(--text-3)', fontSize: 12 }}>—</span>
+  const idx = text.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % ROLE_COLORS.length
   const c = ROLE_COLORS[idx]!
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', padding: '3px 9px', borderRadius: 100, fontSize: 11.5, fontFamily: 'var(--font-display)', fontWeight: 700, background: c.bg, color: c.color }}>
-      {displayName ?? role}
+      {text}
     </span>
   )
 }
@@ -481,9 +491,9 @@ const TABLE_HEADERS: { label: string; srOnly?: boolean }[] = [
 
 // ─── Page ─────────────────────────────────────────────────────
 export default function UsersPage() {
-  const { user: me } = useAuthStore()
+  const { can } = usePermission()
+  const me      = useAuthStore((s) => s.user)
   const router  = useRouter()
-  const isAdmin = me?.role === 'admin'
   const [search,       setSearch]       = useState('')
   const [roleFilter,   setRoleFilter]   = useState('')
   const [statusFilter, setStatusFilter] = useState<UserStatus | ''>('')
@@ -497,7 +507,12 @@ export default function UsersPage() {
   const users      = data?.data       ?? []
   const total      = data?.total      ?? 0
   const totalPages = data?.totalPages ?? 1
-  const roleDisplayName = (name: string) => roles.find((r) => r.name === name)?.displayName ?? name
+  const roleDisplayName = (name: string | null | undefined): string | undefined => {
+    if (!name || typeof name !== 'string') return undefined
+    return roles.find((r) => r.name === name)?.displayName
+      ?? STATIC_ROLE_LABELS[name]
+      ?? name
+  }
 
   // Stats calculées depuis les utilisateurs visibles sur la page courante
   const activeCount = users.filter((u) => u.status === 'active').length
@@ -521,7 +536,7 @@ export default function UsersPage() {
             {total > 0 ? `${total} compte${total > 1 ? 's' : ''}` : 'Aucun utilisateur'}
           </p>
         </div>
-        {isAdmin && (
+        {can('user', 'manage') && (
           <button
             type="button"
             onClick={() => setShowCreate(true)}
@@ -658,7 +673,7 @@ export default function UsersPage() {
                         <time dateTime={u.createdAt}>{formatDate(u.createdAt)}</time>
                       </td>
                       <td style={{ padding: '12px 10px', width: 40 }} onClick={(e) => e.stopPropagation()}>
-                        {isAdmin && (
+                        {can('user', 'manage') && (
                           <UserRowActions
                             user={u}
                             onEdit={() => setEditUser(u)}

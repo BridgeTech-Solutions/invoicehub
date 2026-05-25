@@ -843,10 +843,15 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
     // Table des informations de paiement
     const hasBankInfo = params.btsBankName || params.btsBankAccount || params.btsBankIban;
     if (hasBankInfo || params.contactPerson) {
+      // Ligne banque : N° de compte + IBAN sur la même ligne (colonne valeur)
+      const bankValue = [
+        params.btsBankAccount ?? '',
+        params.btsBankIban ? `IBAN : ${params.btsBankIban}` : '',
+      ].filter(Boolean).join('&nbsp;&nbsp;|&nbsp;&nbsp;');
+
       bottomSection += `
         <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:11px;">
-          ${(params.btsBankName || params.btsBankAccount) ? `<tr><td style="${labelTd}width:34%;">Banque ${params.btsBankName ?? ''}</td><td style="${td}">${params.btsBankAccount ?? ''}</td></tr>` : ''}
-          ${params.btsBankIban    ? `<tr><td style="${labelTd}">IBAN</td><td style="${td}">${params.btsBankIban}</td></tr>` : ''}
+          ${(params.btsBankName || params.btsBankAccount || params.btsBankIban) ? `<tr><td style="${labelTd}width:34%;">Banque ${params.btsBankName ?? ''}</td><td style="${td}">${bankValue}</td></tr>` : ''}
           ${params.btsBankSwift   ? `<tr><td style="${labelTd}">SWIFT/BIC</td><td style="${td}">${params.btsBankSwift}</td></tr>` : ''}
           ${params.contactPerson  ? `<tr><td style="${labelTd}">Personne à contacter</td><td style="${td}">${params.contactPerson}</td></tr>` : ''}
         </table>`;

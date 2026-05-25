@@ -233,6 +233,9 @@ export function WorkflowRuleDrawer({ onClose }: WorkflowRuleDrawerProps) {
           transition: 'transform 0.28s cubic-bezier(0.4,0,0.2,1)',
         }}
       >
+        {/* Navy → primary gradient stripe */}
+        <div style={{ height: 3, background: 'linear-gradient(90deg,#0f2d4a 0%,#2D7DD2 100%)', flexShrink: 0 }} />
+
         {/* Header */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',

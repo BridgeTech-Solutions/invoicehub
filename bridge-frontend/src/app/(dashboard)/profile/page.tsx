@@ -629,18 +629,23 @@ function SessionsSection() {
 
 // ─── Notifications section ────────────────────────────────────
 const NOTIF_LABELS: Record<NotificationType, string> = {
-  proforma_sent:          'Proforma envoyée',
-  proforma_accepted:      'Proforma acceptée',
-  proforma_rejected:      'Proforma rejetée',
-  proforma_expired:       'Proforma expirée',
-  invoice_issued:         'Facture émise',
-  invoice_paid:           'Facture soldée',
-  invoice_partially_paid: 'Paiement partiel reçu',
-  invoice_overdue:        'Facture en retard',
-  payment_registered:     'Paiement enregistré',
-  reminder_sent:          'Relance envoyée',
-  user_created:           'Nouveau utilisateur',
-  system:                 'Événement système',
+  proforma_sent:           'Proforma envoyée',
+  proforma_accepted:       'Proforma acceptée',
+  proforma_rejected:       'Proforma rejetée',
+  proforma_expired:        'Proforma expirée',
+  invoice_issued:          'Facture émise',
+  invoice_paid:            'Facture soldée',
+  invoice_partially_paid:  'Paiement partiel reçu',
+  invoice_overdue:         'Facture en retard',
+  payment_registered:      'Paiement enregistré',
+  reminder_sent:           'Relance envoyée',
+  user_created:            'Nouveau utilisateur',
+  expense_submitted:       'Dépense soumise',
+  expense_approved:        'Dépense approuvée',
+  expense_rejected:        'Dépense rejetée',
+  purchase_order_received: 'Bon de commande reçu',
+  supplier_invoice_due:    'Facture fournisseur échue',
+  system:                  'Événement système',
 }
 
 const NOTIF_GROUPS: { label: string; types: NotificationType[] }[] = [

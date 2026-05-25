@@ -8,7 +8,8 @@ import {
   useSupplierInvoice, useApproveSupplierInvoice,
   useRecordSupplierPayment, useCancelSupplierInvoice,
 } from '@/features/supplier-invoices/hooks'
-import { formatXAF, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES, PAYMENT_METHODS } from '@/lib/constants'
 import type { SupplierInvoiceStatus } from '@/features/supplier-invoices/types'
 
@@ -88,6 +89,7 @@ function PaymentModal({ invoiceId, maxAmount, onClose }: { invoiceId: string; ma
 }
 
 export default function SupplierInvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { format } = useCurrency()
   const { id }          = use(params)
   const [showPayModal, setShowPayModal] = useState(false)
   const { data: inv, isLoading } = useSupplierInvoice(id)
@@ -162,11 +164,11 @@ export default function SupplierInvoiceDetailPage({ params }: { params: Promise<
         </div>
         <div className="card" style={{ padding: '16px 20px', borderLeft: '3px solid var(--primary)' }}>
           <p style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Total TTC</p>
-          <p style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-1)' }}>{formatXAF(inv.totalTtc)}</p>
+          <p style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-1)' }}>{format(inv.totalTtc)}</p>
         </div>
         <div className="card" style={{ padding: '16px 20px', borderLeft: `3px solid ${inv.balanceDue > 0 ? '#dc2626' : '#16a34a'}` }}>
           <p style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Solde dû</p>
-          <p style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', color: inv.balanceDue > 0 ? '#dc2626' : '#16a34a' }}>{formatXAF(inv.balanceDue)}</p>
+          <p style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', color: inv.balanceDue > 0 ? '#dc2626' : '#16a34a' }}>{format(inv.balanceDue)}</p>
           <div style={{ height: 4, borderRadius: 2, background: 'var(--border)', marginTop: 8, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${paidPct}%`, background: paidPct === 100 ? '#16a34a' : 'var(--primary)', borderRadius: 2, transition: 'width 0.3s' }} />
           </div>
@@ -243,7 +245,7 @@ export default function SupplierInvoiceDetailPage({ params }: { params: Promise<
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
           <div style={{ minWidth: 280, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {[['Sous-total HT', formatXAF(inv.subtotalHt)], ['TVA', formatXAF(inv.totalTax)]].map(([k, v]) => (
+            {[['Sous-total HT', format(inv.subtotalHt)], ['TVA', format(inv.totalTax)]].map(([k, v]) => (
               <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                 <span style={{ color: 'var(--text-3)' }}>{k}</span>
                 <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-1)' }}>{v}</span>
@@ -252,7 +254,7 @@ export default function SupplierInvoiceDetailPage({ params }: { params: Promise<
             <div style={{ height: 1, background: 'var(--border)' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--text-1)' }}>Total TTC</span>
-              <span style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>{formatXAF(inv.totalTtc)}</span>
+              <span style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>{format(inv.totalTtc)}</span>
             </div>
           </div>
         </div>
@@ -276,7 +278,7 @@ export default function SupplierInvoiceDetailPage({ params }: { params: Promise<
                   <td style={{ padding: '10px 12px', color: 'var(--text-2)' }}>{formatDate(p.paymentDate)}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--text-2)' }}>{PAYMENT_METHODS[p.method as keyof typeof PAYMENT_METHODS] ?? p.method}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--text-3)', fontSize: 12.5 }}>{p.reference ?? '—'}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#16a34a' }}>{formatXAF(p.amount)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#16a34a' }}>{format(p.amount)}</td>
                 </tr>
               ))}
             </tbody>

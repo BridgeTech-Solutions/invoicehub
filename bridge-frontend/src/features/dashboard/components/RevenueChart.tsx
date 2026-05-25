@@ -12,7 +12,7 @@ import {
   type TooltipProps,
 } from 'recharts'
 import { useDashboardKpis } from '../hooks'
-import { formatXAF } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import type { PeriodToggle, ChartDataPoint } from '../types'
 
 // ─── Month labels ──────────────────────────────────────────────
@@ -31,6 +31,7 @@ const QUARTER_LABELS: Record<string, string> = {
 
 // ─── Custom tooltip ────────────────────────────────────────────
 function CustomTooltip({ active, payload, label }: TooltipProps<number, string>) {
+  const { format } = useCurrency()
   if (!active || !payload?.length) return null
   return (
     <div style={{
@@ -44,7 +45,7 @@ function CustomTooltip({ active, payload, label }: TooltipProps<number, string>)
         {label}
       </p>
       <p className="amount" style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>
-        {formatXAF(payload[0].value ?? 0)}
+        {format(payload[0].value ?? 0)}
       </p>
     </div>
   )
@@ -65,6 +66,7 @@ function ChartSkeleton() {
 
 // ─── Component ────────────────────────────────────────────────
 export function RevenueChart() {
+  const { format } = useCurrency()
   const { data, isLoading } = useDashboardKpis()
   const [period, setPeriod] = useState<PeriodToggle>('month')
 
@@ -125,7 +127,7 @@ export function RevenueChart() {
             Évolution du chiffre d&apos;affaires
           </h2>
           <p style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>
-            Total : <span className="amount" style={{ color: 'var(--text-1)', fontWeight: 600 }}>{formatXAF(total)}</span>
+            Total : <span className="amount" style={{ color: 'var(--text-1)', fontWeight: 600 }}>{format(total)}</span>
           </p>
         </div>
 
@@ -235,7 +237,7 @@ export function RevenueChart() {
           {chartData.map((d) => (
             <tr key={d.label}>
               <td>{d.display}</td>
-              <td>{formatXAF(d.value)}</td>
+              <td>{format(d.value)}</td>
             </tr>
           ))}
         </tbody>

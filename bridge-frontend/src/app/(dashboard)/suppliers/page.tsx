@@ -11,7 +11,8 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import { useSuppliers, useDeleteSupplier, useExportSuppliersCsv } from '@/features/suppliers/hooks'
-import { formatXAF, formatDate, getInitials } from '@/lib/utils'
+import { formatDate, getInitials } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
 import type { SupplierListItem } from '@/features/suppliers/types'
 import { toast } from 'sonner'
@@ -79,6 +80,7 @@ function ConfirmDeleteModal({ supplier, onConfirm, onCancel }: {
 
 // ─── Page ─────────────────────────────────────────────────────
 export default function SuppliersPage() {
+  const { format } = useCurrency()
   const router    = useRouter()
   const searchId  = useId()
   const statusId  = useId()
@@ -250,11 +252,11 @@ export default function SuppliersPage() {
                       </div>
                     </td>
                     <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-2)', fontWeight: 500 }}>
-                      {formatXAF(supplier.totalPurchases ?? 0)}
+                      {format(supplier.totalPurchases ?? 0)}
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: (supplier.totalDue ?? 0) > 0 ? '#dc2626' : 'var(--text-3)' }}>
-                        {(supplier.totalDue ?? 0) > 0 ? formatXAF(supplier.totalDue!) : '—'}
+                        {(supplier.totalDue ?? 0) > 0 ? format(supplier.totalDue!) : '—'}
                       </span>
                     </td>
                     <td>

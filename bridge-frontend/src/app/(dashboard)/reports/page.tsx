@@ -17,7 +17,7 @@ import {
 } from '@/features/reports/hooks'
 import { downloadCsv, downloadPdf } from '@/features/reports/api'
 import { PageHeader } from '@/components/layout/PageHeader'
-import { formatDate, formatXAF, getInitials } from '@/lib/utils'
+import { formatDate, getInitials } from '@/lib/utils'
 import { ROUTES, STATUS_LABELS } from '@/lib/constants'
 import type { ReportRange } from '@/features/reports/types'
 import Link from 'next/link'

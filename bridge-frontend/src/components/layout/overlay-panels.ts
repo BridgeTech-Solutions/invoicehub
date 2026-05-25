@@ -3,18 +3,20 @@ import {
   CreditCard, Upload, ArrowLeftRight, GitMerge, Zap,
   List, Calendar, BookOpen, PenLine, Link2, BarChart3, Download, FileCheck,
   Shield, Key,
-  Building2, MapPin, Percent, Mail, Lock, BellRing, HardDrive,
-  Cloud, Webhook, Sliders, GitBranch,
+  Building2, Percent, Lock, BellRing, HardDrive,
+  GitBranch, Settings2, Image as ImageIcon,
   Warehouse, Package, Tag, BarChart2, AlertTriangle,
   Wallet, ReceiptText, PieChart,
+  KeyRound, Webhook, Sliders,
 } from 'lucide-react'
 import { ROUTES } from '@/lib/constants'
+import type { Resource, Action } from '@/hooks/usePermission'
 
 interface OverlayItem {
-  label:  string
-  href:   string
-  icon:   React.ElementType
-  roles?: string[]
+  label:       string
+  href:        string
+  icon:        React.ElementType
+  permission?: { resource: Resource; action: Action }
 }
 
 interface OverlaySection {
@@ -63,7 +65,7 @@ export const OVERLAY_PANELS: Record<string, OverlayPanel> = {
       {
         title: 'STOCK',
         items: [
-          { label: 'Inventaire', href: ROUTES.STOCK,          icon: Warehouse },
+          { label: 'Inventaire', href: ROUTES.STOCK,           icon: Warehouse },
           { label: 'Mouvements', href: ROUTES.STOCK_MOVEMENTS, icon: ArrowLeftRight },
           { label: 'Niveaux',    href: ROUTES.STOCK_LEVELS,    icon: BarChart2 },
           { label: 'Alertes',    href: ROUTES.STOCK_ALERTS,    icon: AlertTriangle },
@@ -78,26 +80,26 @@ export const OVERLAY_PANELS: Record<string, OverlayPanel> = {
       {
         title: 'COMPTES',
         items: [
-          { label: 'Mes comptes bancaires', href: ROUTES.BANK_ACCOUNTS,       icon: CreditCard },
+          { label: 'Mes comptes bancaires', href: ROUTES.BANK_ACCOUNTS,        icon: CreditCard },
         ],
       },
       {
         title: 'IMPORT',
         items: [
-          { label: 'Importer un relevé',    href: ROUTES.BANK_IMPORT,         icon: Upload },
+          { label: 'Importer un relevé',    href: ROUTES.BANK_IMPORT,          icon: Upload },
         ],
       },
       {
         title: 'TRANSACTIONS',
         items: [
-          { label: 'Transactions',          href: ROUTES.BANK_TRANSACTIONS,   icon: ArrowLeftRight },
+          { label: 'Transactions',          href: ROUTES.BANK_TRANSACTIONS,    icon: ArrowLeftRight },
         ],
       },
       {
         title: 'RAPPROCHEMENT',
         items: [
-          { label: 'Rapprochements',        href: ROUTES.BANK_RECONCILIATIONS, icon: GitMerge },
-          { label: 'Règles de matching',    href: ROUTES.BANK_MATCHING_RULES,  icon: Zap },
+          { label: 'Rapprochements',     href: ROUTES.BANK_RECONCILIATIONS, icon: GitMerge },
+          { label: 'Règles de matching', href: ROUTES.BANK_MATCHING_RULES,  icon: Zap },
         ],
       },
     ],
@@ -129,8 +131,8 @@ export const OVERLAY_PANELS: Record<string, OverlayPanel> = {
       {
         title: 'ÉTATS FINANCIERS',
         items: [
-          { label: 'Balance & Grand livre', href: ROUTES.ACCOUNTING_REPORTS,              icon: BarChart3 },
-          { label: 'Export Sage',           href: `${ROUTES.ACCOUNTING_REPORTS}/sage`,    icon: Download },
+          { label: 'Balance & Grand livre', href: ROUTES.ACCOUNTING_REPORTS,           icon: BarChart3 },
+          { label: 'Export Sage',           href: `${ROUTES.ACCOUNTING_REPORTS}/sage`, icon: Download },
         ],
       },
       {
@@ -148,8 +150,8 @@ export const OVERLAY_PANELS: Record<string, OverlayPanel> = {
       {
         title: 'ACCÈS & DROITS',
         items: [
-          { label: 'Gestion des rôles',       href: ROUTES.ROLES,            icon: Shield },
-          { label: 'Permissions disponibles', href: ROUTES.ROLES_PERMISSIONS, icon: Key },
+          { label: 'Gestion des rôles',       href: ROUTES.ROLES,             icon: Shield, permission: { resource: 'role', action: 'read' } },
+          { label: 'Permissions disponibles', href: ROUTES.ROLES_PERMISSIONS, icon: Key,    permission: { resource: 'role', action: 'read' } },
         ],
       },
     ],
@@ -161,41 +163,34 @@ export const OVERLAY_PANELS: Record<string, OverlayPanel> = {
       {
         title: 'ENTREPRISE',
         items: [
-          { label: 'Informations générales', href: ROUTES.SETTINGS_COMPANY,        icon: Building2, roles: ['admin'] },
-          { label: 'Bureaux',                href: ROUTES.SETTINGS_OFFICES,        icon: MapPin,    roles: ['admin'] },
-          { label: 'Taux de TVA',            href: ROUTES.SETTINGS_TAX_RATES,      icon: Percent,   roles: ['admin'] },
-        ],
-      },
-      {
-        title: 'DOCUMENTS',
-        items: [
-          { label: 'Templates email', href: ROUTES.SETTINGS_EMAIL_TEMPLATES, icon: Mail, roles: ['admin'] },
+          { label: 'Informations générales', href: ROUTES.SETTINGS_COMPANY,  icon: Building2,  permission: { resource: 'settings', action: 'update' } },
+          { label: 'Branding & Documents',   href: ROUTES.SETTINGS_BRANDING, icon: ImageIcon,  permission: { resource: 'settings', action: 'update' } },
+          { label: 'Finance & TVA',          href: ROUTES.SETTINGS_BILLING,  icon: Percent,    permission: { resource: 'settings', action: 'update' } },
         ],
       },
       {
         title: 'COMPTE & SÉCURITÉ',
         items: [
-          { label: 'Sécurité',      href: ROUTES.SETTINGS_SECURITY,      icon: Lock },
-          { label: 'Notifications', href: ROUTES.SETTINGS_NOTIFICATIONS,  icon: BellRing },
-          { label: 'Sauvegardes',   href: ROUTES.SETTINGS_BACKUPS,        icon: HardDrive, roles: ['admin'] },
+          { label: 'Sécurité',      href: ROUTES.SETTINGS_SECURITY,      icon: Lock,      permission: { resource: 'settings', action: 'read' } },
+          { label: 'Notifications', href: ROUTES.SETTINGS_NOTIFICATIONS,  icon: BellRing,  permission: { resource: 'settings', action: 'read' } },
+          { label: 'Sauvegardes',   href: ROUTES.SETTINGS_BACKUPS,        icon: HardDrive, permission: { resource: 'settings', action: 'update' } },
         ],
       },
       {
-        title: 'INTÉGRATIONS',
+        title: 'AUTOMATISATION',
         items: [
-          { label: 'Microsoft Outlook', href: ROUTES.SETTINGS_OUTLOOK, icon: Mail },
-          { label: 'OneDrive',          href: ROUTES.SETTINGS_BACKUPS, icon: Cloud },
+          { label: 'Workflows',       href: ROUTES.SETTINGS_WORKFLOWS,      icon: Settings2, permission: { resource: 'settings', action: 'update' } },
+          { label: 'Règles workflow', href: ROUTES.SETTINGS_WORKFLOW_RULES, icon: GitBranch, permission: { resource: 'settings', action: 'update' } },
         ],
       },
       {
-        title: 'AVANCÉ',
+        title: 'DÉVELOPPEUR',
         items: [
-          { label: 'Webhooks',        href: ROUTES.SETTINGS_WEBHOOKS,       icon: Webhook,   roles: ['admin'] },
-          { label: 'Clés API',        href: ROUTES.SETTINGS_API_KEYS,       icon: Key,       roles: ['admin'] },
-          { label: 'Champs perso.',   href: ROUTES.SETTINGS_CUSTOM_FIELDS,  icon: Sliders,   roles: ['admin'] },
-          { label: 'Règles workflow', href: ROUTES.SETTINGS_WORKFLOW_RULES, icon: GitBranch, roles: ['admin'] },
-          { label: 'Whitelist IP',    href: ROUTES.SETTINGS_IP_WHITELIST,   icon: Shield,    roles: ['admin'] },
-          { label: 'Exports',         href: ROUTES.SETTINGS_EXPORTS,        icon: Download,  roles: ['admin'] },
+          { label: 'Clés API',             href: ROUTES.SETTINGS_API_KEYS,      icon: KeyRound, permission: { resource: 'settings', action: 'update' } },
+          { label: 'Webhooks',             href: ROUTES.SETTINGS_WEBHOOKS,      icon: Webhook,  permission: { resource: 'settings', action: 'update' } },
+          { label: 'IP Whitelist',         href: ROUTES.SETTINGS_IP_WHITELIST,  icon: Shield,   permission: { resource: 'settings', action: 'update' } },
+          { label: 'Champs personnalisés', href: ROUTES.SETTINGS_CUSTOM_FIELDS, icon: Sliders,  permission: { resource: 'settings', action: 'update' } },
+          { label: 'Exports',              href: ROUTES.SETTINGS_EXPORTS,       icon: Download, permission: { resource: 'settings', action: 'update' } },
         ],
       },
     ],

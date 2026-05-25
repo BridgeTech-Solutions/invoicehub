@@ -5,7 +5,7 @@ import { Loader2, CreditCard, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { useCreatePayment } from '../hooks'
 import type { Invoice } from '../types'
-import { formatXAF } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { PAYMENT_METHODS } from '@/lib/constants'
 
 interface PaymentModalProps {
@@ -16,6 +16,7 @@ interface PaymentModalProps {
 const today = () => format(new Date(), 'yyyy-MM-dd')
 
 export function PaymentModal({ invoice, onClose }: PaymentModalProps) {
+  const { format } = useCurrency()
   const balanceDue = Number(invoice.balanceDue)
 
   const [amount,    setAmount]    = useState(balanceDue)
@@ -78,19 +79,19 @@ export function PaymentModal({ invoice, onClose }: PaymentModalProps) {
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'var(--font-display)', fontWeight: 600 }}>Total TTC</p>
             <p style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', margin: 0 }}>
-              {formatXAF(Number(invoice.totalTtc))}
+              {format(Number(invoice.totalTtc))}
             </p>
           </div>
           <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}>
             <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'var(--font-display)', fontWeight: 600 }}>Déjà payé</p>
             <p style={{ fontSize: 13.5, fontWeight: 700, color: '#10b981', fontFamily: 'var(--font-mono)', margin: 0 }}>
-              {formatXAF(Number(invoice.amountPaid))}
+              {format(Number(invoice.amountPaid))}
             </p>
           </div>
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'var(--font-display)', fontWeight: 600 }}>Solde dû</p>
             <p style={{ fontSize: 13.5, fontWeight: 700, color: '#ef4444', fontFamily: 'var(--font-mono)', margin: 0 }}>
-              {formatXAF(balanceDue)}
+              {format(balanceDue)}
             </p>
           </div>
         </div>
@@ -122,7 +123,7 @@ export function PaymentModal({ invoice, onClose }: PaymentModalProps) {
             )}
             {amount > 0 && !isPaidFull && (
               <p style={{ fontSize: 12, color: '#f59e0b', marginTop: 4 }}>
-                Solde restant après paiement : {formatXAF(Math.round(balanceDue - amount))}
+                Solde restant après paiement : {format(Math.round(balanceDue - amount))}
               </p>
             )}
           </div>

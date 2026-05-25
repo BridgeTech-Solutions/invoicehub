@@ -15,6 +15,7 @@ const PRESET_COLORS = ['#2D7DD2', '#16a34a', '#d97706', '#dc2626', '#7c3aed', '#
 
 interface CategoryFormData {
   name:              string
+  description:       string
   color:             string
   icon:              string
   accountingAccount: string
@@ -28,7 +29,7 @@ function CategoryModal({
   onClose:   () => void
   isPending: boolean
 }) {
-  const [form, setForm] = useState<CategoryFormData>(initial ?? { name: '', color: PRESET_COLORS[0], icon: '', accountingAccount: '' })
+  const [form, setForm] = useState<CategoryFormData>(initial ?? { name: '', description: '', color: PRESET_COLORS[0], icon: '', accountingAccount: '' })
   const inp: React.CSSProperties = { width: '100%', padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13.5, color: 'var(--text-1)', outline: 'none' }
 
   function handleSubmit(e: React.FormEvent) {
@@ -47,6 +48,13 @@ function CategoryModal({
           <div>
             <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--text-2)', marginBottom: 5, fontFamily: 'var(--font-display)' }}>Nom *</label>
             <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex : Transport, Repas, Fournitures…" style={inp}
+              onFocus={e => (e.target.style.borderColor = 'var(--primary)')} onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--text-2)', marginBottom: 5, fontFamily: 'var(--font-display)' }}>Description</label>
+            <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2}
+              placeholder="Décrivez les types de dépenses dans cette catégorie…"
+              style={{ ...inp, resize: 'vertical', lineHeight: 1.5 }}
               onFocus={e => (e.target.style.borderColor = 'var(--primary)')} onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
           </div>
           <div>
@@ -90,8 +98,9 @@ export default function ExpenseCategoriesPage() {
 
   function handleCreate(data: CategoryFormData) {
     createMutation.mutate({
-      name: data.name,
-      color: data.color || undefined,
+      name:              data.name,
+      description:       data.description || undefined,
+      color:             data.color || undefined,
       accountingAccount: data.accountingAccount || undefined,
     }, { onSuccess: () => setShowCreate(false) })
   }
@@ -100,7 +109,12 @@ export default function ExpenseCategoriesPage() {
     if (!editing) return
     updateMutation.mutate({
       id: editing.id,
-      data: { name: data.name, color: data.color || undefined, accountingAccount: data.accountingAccount || undefined },
+      data: {
+        name:              data.name,
+        description:       data.description || undefined,
+        color:             data.color || undefined,
+        accountingAccount: data.accountingAccount || undefined,
+      },
     }, { onSuccess: () => setEditing(null) })
   }
 
@@ -111,7 +125,7 @@ export default function ExpenseCategoriesPage() {
       )}
       {editing && (
         <CategoryModal
-          initial={{ name: editing.name, color: editing.color ?? PRESET_COLORS[0], icon: editing.icon ?? '', accountingAccount: editing.accountingAccount ?? '' }}
+          initial={{ name: editing.name, description: editing.description ?? '', color: editing.color ?? PRESET_COLORS[0], icon: editing.icon ?? '', accountingAccount: editing.accountingAccount ?? '' }}
           isPending={updateMutation.isPending}
           onClose={() => setEditing(null)}
           onSave={handleUpdate}
@@ -167,7 +181,12 @@ export default function ExpenseCategoriesPage() {
                     <td style={{ padding: '12px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <span style={{ width: 12, height: 12, borderRadius: '50%', background: cat.color ?? '#94a3b8', flexShrink: 0 }} />
-                        <span style={{ fontWeight: 600, color: 'var(--text-1)' }}>{cat.name}</span>
+                        <div>
+                          <span style={{ fontWeight: 600, color: 'var(--text-1)', display: 'block' }}>{cat.name}</span>
+                          {cat.description && (
+                            <span style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 1, display: 'block' }}>{cat.description}</span>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td style={{ padding: '12px 14px', fontFamily: 'var(--font-mono)', color: 'var(--text-2)', fontSize: 12.5 }}>

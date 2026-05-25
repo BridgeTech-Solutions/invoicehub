@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useId } from 'react'
+import { useState, useEffect, useCallback, useRef, useId } from 'react'
 import { X, Package, AlertCircle, Loader2 } from 'lucide-react'
 import { useAdjustStock } from '../hooks'
 import type { AdjustStockPayload, StockMovementType } from '../types'
@@ -64,6 +64,24 @@ export function AdjustStockDrawer({ productId, productName, currentQty, stockUni
   const notesId    = useId()
   const locId      = useId()
 
+  const [isVisible, setIsVisible] = useState(false)
+
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setIsVisible(true))
+    return () => cancelAnimationFrame(t)
+  }, [])
+
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
+  const handleClose = useCallback(() => {
+    setIsVisible(false)
+    setTimeout(onClose, 280)
+  }, [onClose])
+
   const [form, setForm] = useState<{
     type:        AdjustStockPayload['type']
     quantity:    string
@@ -89,10 +107,10 @@ export function AdjustStockDrawer({ productId, productName, currentQty, stockUni
 
   // Escape to close
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [handleClose])
 
   const isExit     = EXIT_TYPES.has(form.type)
   const needsCost  = ['purchase_receipt', 'initial_stock'].includes(form.type)
@@ -117,7 +135,7 @@ export function AdjustStockDrawer({ productId, productName, currentQty, stockUni
 
     try {
       await mutation.mutateAsync(payload)
-      onClose()
+      handleClose()
     } catch {
       // error shown via toast in hook
     }
@@ -128,10 +146,11 @@ export function AdjustStockDrawer({ productId, productName, currentQty, stockUni
       {/* Backdrop */}
       <div
         aria-hidden="true"
-        onClick={onClose}
+        onClick={handleClose}
         style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 900,
-          backdropFilter: 'blur(2px)',
+          position: 'fixed', inset: 0, zIndex: 300,
+          background: 'rgba(10,20,35,0.45)', backdropFilter: 'blur(2px)',
+          opacity: isVisible ? 1 : 0, transition: 'opacity 0.28s ease',
         }}
       />
 
@@ -143,12 +162,17 @@ export function AdjustStockDrawer({ productId, productName, currentQty, stockUni
         aria-label="Ajustement de stock"
         style={{
           position: 'fixed', top: 0, right: 0, bottom: 0,
-          width: 'min(440px, 100vw)', zIndex: 901,
+          width: 'min(440px, 100vw)', zIndex: 301,
           background: 'var(--surface)', borderLeft: '1px solid var(--border)',
-          boxShadow: '-12px 0 40px rgba(0,0,0,0.12)',
+          boxShadow: '-8px 0 40px rgba(10,20,35,0.18), -2px 0 8px rgba(10,20,35,0.08)',
           display: 'flex', flexDirection: 'column', overflowY: 'auto',
+          transform: isVisible ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 0.30s cubic-bezier(0.4,0,0.2,1)',
         }}
       >
+        {/* Navy → primary gradient stripe */}
+        <div style={{ height: 3, background: 'linear-gradient(90deg,#0f2d4a 0%,#2D7DD2 100%)', flexShrink: 0 }} />
+
         {/* Header */}
         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -164,7 +188,7 @@ export function AdjustStockDrawer({ productId, productName, currentQty, stockUni
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Fermer"
             style={{ width: 32, height: 32, borderRadius: 8, border: '1.5px solid var(--border)', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)' }}
           >
@@ -275,7 +299,7 @@ export function AdjustStockDrawer({ productId, productName, currentQty, stockUni
           <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               style={{
                 flex: 1, padding: '10px 0', borderRadius: 'var(--radius-md)',
                 border: '1.5px solid var(--border)', background: 'var(--surface)',

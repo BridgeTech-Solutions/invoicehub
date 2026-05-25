@@ -2,13 +2,14 @@
 
 import { TrendingUp, CreditCard, Clock, AlertTriangle } from 'lucide-react'
 import { useClientSummary } from '../hooks'
-import { formatXAF } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 
 interface ClientSummaryCardProps {
   clientId: string
 }
 
 export function ClientSummaryCard({ clientId }: ClientSummaryCardProps) {
+  const { format } = useCurrency()
   const { data, isLoading } = useClientSummary(clientId)
 
   if (isLoading) {
@@ -30,7 +31,7 @@ export function ClientSummaryCard({ clientId }: ClientSummaryCardProps) {
   const stats = [
     {
       label:  'Total facturé',
-      value:  formatXAF(data.totalInvoiced),
+      value:  format(data.totalInvoiced),
       sub:    `${data.invoiceCount} facture${data.invoiceCount !== 1 ? 's' : ''}`,
       icon:   TrendingUp,
       color:  '#2D7DD2',
@@ -38,7 +39,7 @@ export function ClientSummaryCard({ clientId }: ClientSummaryCardProps) {
     },
     {
       label:  'Total encaissé',
-      value:  formatXAF(data.totalPaid),
+      value:  format(data.totalPaid),
       sub:    data.totalInvoiced > 0
         ? `${Math.round((data.totalPaid / data.totalInvoiced) * 100)}% du total`
         : '—',
@@ -48,7 +49,7 @@ export function ClientSummaryCard({ clientId }: ClientSummaryCardProps) {
     },
     {
       label:  'Reste à payer',
-      value:  formatXAF(data.totalPending),
+      value:  format(data.totalPending),
       sub:    `${data.pendingInvoiceCount} facture${data.pendingInvoiceCount !== 1 ? 's' : ''} en attente`,
       icon:   Clock,
       color:  data.totalPending > 0 ? '#d97706' : '#22c55e',

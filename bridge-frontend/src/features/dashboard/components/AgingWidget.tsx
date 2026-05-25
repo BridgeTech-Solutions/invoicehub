@@ -1,7 +1,7 @@
 'use client'
 
 import { useDashboardAging } from '../hooks'
-import { formatXAF } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 
 interface BucketConfig {
   key:     string
@@ -35,6 +35,7 @@ function AgingSkeleton() {
 
 // ─── Component ────────────────────────────────────────────────
 export function AgingWidget() {
+  const { format } = useCurrency()
   const { data, isLoading } = useDashboardAging()
 
   if (isLoading) return <AgingSkeleton />
@@ -54,7 +55,7 @@ export function AgingWidget() {
           <p style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>
             Total en attente :{' '}
             <span className="amount" style={{ fontWeight: 600, color: 'var(--text-1)' }}>
-              {formatXAF(data.total.amount)}
+              {format(data.total.amount)}
             </span>
             {' '}— {data.total.count} facture{data.total.count !== 1 ? 's' : ''}
           </p>
@@ -100,7 +101,7 @@ export function AgingWidget() {
                 marginBottom: 4,
                 lineHeight: 1.2,
               }}>
-                {formatXAF(bucket.amount)}
+                {format(bucket.amount)}
               </p>
 
               {/* Mini bar */}

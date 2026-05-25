@@ -21,7 +21,7 @@ import type {
 } from '../types'
 import { lineToFormLine, makeBlankLine, computeDocumentTotals } from '@/lib/document-math'
 import { ROUTES } from '@/lib/constants'
-import { formatXAF } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { useSettings } from '@/features/settings/hooks'
 
 // ─── Types ─────────────────────────────────────────────────────
@@ -157,6 +157,7 @@ function ComputeWarnings({ warnings }: { warnings: ComputeWarning[] }) {
 // ─── Quick Fill Banner ──────────────────────────────────────────
 
 function QuickFillBanner({ clientId, onApply }: { clientId: string; onApply: (cond: string) => void }) {
+  const { format: formatCurrency } = useCurrency()
   const { data } = useClientQuickFill(clientId)
   if (!data) return null
 
@@ -184,7 +185,7 @@ function QuickFillBanner({ clientId, onApply }: { clientId: string; onApply: (co
         )}
         {data.unpaidBalance > 0 && (
           <p style={{ margin: '0 0 3px', color: '#d97706' }}>
-            Solde impayé existant : <strong>{formatXAF(data.unpaidBalance)}</strong>
+            Solde impayé existant : <strong>{formatCurrency(data.unpaidBalance)}</strong>
           </p>
         )}
         {data.lastPaymentConditions && (
@@ -253,6 +254,7 @@ function DueDateHint({ dueDate }: { dueDate: string }) {
 // ─── Main form ─────────────────────────────────────────────────
 
 export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProformaId, defaultParentInvoiceId }: InvoiceFormProps) {
+  const { format: formatCurrency } = useCurrency()
   const isEdit = !!invoice
 
   const [form, setForm]         = useState<FormState>(() => initForm(invoice, { defaultClientId, defaultType, defaultParentInvoiceId }))
@@ -703,7 +705,7 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                       <option value="">— 1er acompte (aucun lien) —</option>
                       {rootAcompteInvoices.map(inv => (
                           <option key={inv.id} value={inv.id}>
-                            {inv.number} — {formatXAF(Number(inv.totalTtc))} ({
+                            {inv.number} — {formatCurrency(Number(inv.totalTtc))} ({
                               inv.status === 'paid'           ? '✓ payé' :
                               inv.status === 'partially_paid' ? 'part. payé' :
                               inv.status === 'issued'         ? 'émis' : inv.status
@@ -798,7 +800,7 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                       <option value="">— Sélectionner l'acompte —</option>
                       {rootAcompteInvoices.map(inv => (
                           <option key={inv.id} value={inv.id}>
-                            {inv.number} — {formatXAF(Number(inv.totalTtc))} ({statusLabel(inv.status)})
+                            {inv.number} — {formatCurrency(Number(inv.totalTtc))} ({statusLabel(inv.status)})
                           </option>
                         ))}
                     </select>
@@ -826,7 +828,7 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                           </span>
                           <div style={{ textAlign: 'right' }}>
                             <span style={{ fontSize: 13, fontWeight: 700, color: '#0891b2', fontFamily: 'var(--font-mono)' }}>
-                              {formatXAF(Number(inv.amountPaid))}
+                              {formatCurrency(Number(inv.amountPaid))}
                             </span>
                             <span style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 4 }}>encaissé</span>
                           </div>
@@ -837,18 +839,18 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, padding: '10px 12px', background: 'rgba(8,145,178,0.08)', borderTop: '2px solid rgba(8,145,178,0.2)' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                           <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
-                            Facturé acompte : {formatXAF(totalFacture)}
+                            Facturé acompte : {formatCurrency(totalFacture)}
                           </span>
                           {balanceRestante > 0 && (
                             <span style={{ fontSize: 11.5, color: '#d97706', display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <AlertTriangle size={11} aria-hidden="true" /> Impayé acompte : {formatXAF(balanceRestante)}
+                              <AlertTriangle size={11} aria-hidden="true" /> Impayé acompte : {formatCurrency(balanceRestante)}
                             </span>
                           )}
                         </div>
                         <div style={{ textAlign: 'right' }}>
                           <p style={{ margin: 0, fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-display)', fontWeight: 700 }}>Total déduit</p>
                           <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#0891b2', fontFamily: 'var(--font-mono)' }}>
-                            {formatXAF(totalEncaisse)}
+                            {formatCurrency(totalEncaisse)}
                           </p>
                         </div>
                       </div>
@@ -861,12 +863,12 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                               Solde à facturer
                             </span>
                             <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
-                              Total TTC {formatXAF(docTotals.totalTtc)} − acomptes {formatXAF(totalEncaisse)}
+                              Total TTC {formatCurrency(docTotals.totalTtc)} − acomptes {formatCurrency(totalEncaisse)}
                             </span>
                           </div>
                           <div style={{ textAlign: 'right' }}>
                             <p style={{ margin: 0, fontSize: 20, fontWeight: 800, color: soldeTtc > 0 ? '#0891b2' : '#10b981', fontFamily: 'var(--font-mono)' }}>
-                              {formatXAF(soldeTtc)}
+                              {formatCurrency(soldeTtc)}
                             </p>
                             {soldeTtc === 0 && (
                               <p style={{ margin: '2px 0 0', fontSize: 11.5, color: '#10b981', display: 'flex', alignItems: 'center', gap: 4 }}><CheckCircle size={11} aria-hidden="true" /> Entièrement couvert</p>
@@ -914,7 +916,7 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                     <div style={{ padding: '9px 12px', background: 'rgba(245,158,11,0.07)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(245,158,11,0.25)', display: 'flex', gap: 8 }}>
                       <AlertTriangle size={14} style={{ color: '#d97706', flexShrink: 0, marginTop: 1 }} aria-hidden="true" />
                       <p style={{ fontSize: 12.5, color: '#92400e', margin: 0, lineHeight: 1.5 }}>
-                        L'acompte n'est pas entièrement encaissé ({formatXAF(balanceRestante)} restant). Seuls les paiements reçus seront déduits du solde.
+                        L'acompte n'est pas entièrement encaissé ({formatCurrency(balanceRestante)} restant). Seuls les paiements reçus seront déduits du solde.
                       </p>
                     </div>
                   )}

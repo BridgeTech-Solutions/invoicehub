@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { TrendingUp, FileText, Clock, AlertTriangle, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react'
 import { useDashboardKpis } from '../hooks'
-import { formatXAF } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import Link from 'next/link'
 import { ROUTES } from '@/lib/constants'
 
@@ -131,6 +131,7 @@ function KpiCard({ label, value, numericValue, formatter, sub, trend, icon: Icon
 
 // ─── Component ────────────────────────────────────────────────
 export function KpiCards() {
+  const { format } = useCurrency()
   const { data, isLoading } = useDashboardKpis()
 
   if (isLoading) {
@@ -146,9 +147,9 @@ export function KpiCards() {
   const cards: KpiCardProps[] = [
     {
       label:        'CA du mois',
-      value:        formatXAF(data.invoices.thisMonthAmount),
+      value:        format(data.invoices.thisMonthAmount),
       numericValue: data.invoices.thisMonthAmount,
-      formatter:    formatXAF,
+      formatter:    format,
       sub:          `${data.invoices.thisMonthCount} facture${data.invoices.thisMonthCount !== 1 ? 's' : ''} émise${data.invoices.thisMonthCount !== 1 ? 's' : ''}`,
       trend:        data.invoices.thisMonthAmount > 0 ? 'up' : 'neutral',
       icon:         TrendingUp,
@@ -169,9 +170,9 @@ export function KpiCards() {
     },
     {
       label:        'Créances en attente',
-      value:        formatXAF(data.pending.amount),
+      value:        format(data.pending.amount),
       numericValue: data.pending.amount,
-      formatter:    formatXAF,
+      formatter:    format,
       sub:          `${data.pending.count} facture${data.pending.count !== 1 ? 's' : ''}`,
       trend:        'neutral',
       icon:         Clock,
@@ -184,7 +185,7 @@ export function KpiCards() {
       value:        data.overdue.count.toString(),
       numericValue: data.overdue.count,
       formatter:    (n) => n.toString(),
-      sub:          formatXAF(data.overdue.amount),
+      sub:          format(data.overdue.amount),
       trend:        data.overdue.count > 0 ? 'down' : 'neutral',
       icon:         AlertTriangle,
       color:        '#ef4444',

@@ -9,7 +9,8 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { useSupplier } from '@/features/suppliers/hooks'
-import { formatXAF, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
 
 function InfoRow({ label, value }: { label: string; value?: string | null | number }) {
@@ -33,6 +34,7 @@ function StatCard({ label, value, color, href }: { label: string; value: string;
 }
 
 export default function SupplierDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { format } = useCurrency()
   const { id } = use(params)
   const router  = useRouter()
   const { data: supplier, isLoading } = useSupplier(id)
@@ -73,8 +75,8 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
 
       {/* KPI cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
-        <StatCard label="Total achats" value={formatXAF(supplier.totalPurchases ?? 0)} color="var(--primary)" href={`${ROUTES.PURCHASE_ORDERS}?supplierId=${id}`} />
-        <StatCard label="Solde dû" value={formatXAF(supplier.totalDue ?? 0)} color={(supplier.totalDue ?? 0) > 0 ? '#dc2626' : '#16a34a'} href={`${ROUTES.SUPPLIER_INVOICES}?supplierId=${id}`} />
+        <StatCard label="Total achats" value={format(supplier.totalPurchases ?? 0)} color="var(--primary)" href={`${ROUTES.PURCHASE_ORDERS}?supplierId=${id}`} />
+        <StatCard label="Solde dû" value={format(supplier.totalDue ?? 0)} color={(supplier.totalDue ?? 0) > 0 ? '#dc2626' : '#16a34a'} href={`${ROUTES.SUPPLIER_INVOICES}?supplierId=${id}`} />
         <StatCard label="Délai paiement" value={`${supplier.paymentTermDays} jours`} color="#d97706" />
       </div>
 

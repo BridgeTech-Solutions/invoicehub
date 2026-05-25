@@ -9,6 +9,8 @@ import {
   useNotificationSettings, useUpdateNotificationSettings,
 } from '@/features/notifications/hooks'
 import { useSettings, useUpdateSettings } from '@/features/settings/hooks'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { TEMPLATE_VARIABLES } from '@/features/email-templates/types'
 import type { NotificationType, NotificationChannel } from '@/features/notifications/types'
 import type { EmailTemplate } from '@/features/email-templates/types'
@@ -16,18 +18,23 @@ import type { UpdateSettingsPayload, ReminderEscalationLevel, CheckLevel } from 
 
 // ─── Notification type labels ─────────────────────────────────
 const NOTIF_LABELS: Record<NotificationType, string> = {
-  proforma_sent:          'Proforma envoyée',
-  proforma_accepted:      'Proforma acceptée',
-  proforma_rejected:      'Proforma rejetée',
-  proforma_expired:       'Proforma expirée',
-  invoice_issued:         'Facture émise',
-  invoice_paid:           'Facture soldée',
-  invoice_partially_paid: 'Paiement partiel reçu',
-  invoice_overdue:        'Facture en retard',
-  payment_registered:     'Paiement enregistré',
-  reminder_sent:          'Relance envoyée',
-  user_created:           'Nouveau utilisateur créé',
-  system:                 'Événement système',
+  proforma_sent:           'Proforma envoyée',
+  proforma_accepted:       'Proforma acceptée',
+  proforma_rejected:       'Proforma rejetée',
+  proforma_expired:        'Proforma expirée',
+  invoice_issued:          'Facture émise',
+  invoice_paid:            'Facture soldée',
+  invoice_partially_paid:  'Paiement partiel reçu',
+  invoice_overdue:         'Facture en retard',
+  payment_registered:      'Paiement enregistré',
+  reminder_sent:           'Relance envoyée',
+  user_created:            'Nouveau utilisateur créé',
+  expense_submitted:       'Dépense soumise pour approbation',
+  expense_approved:        'Dépense approuvée',
+  expense_rejected:        'Dépense rejetée',
+  purchase_order_received: 'Bon de commande reçu fournisseur',
+  supplier_invoice_due:    'Facture fournisseur à échéance',
+  system:                  'Événement système',
 }
 
 const inputCss: React.CSSProperties = {
@@ -68,6 +75,7 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: () =
 
 // ─── Notification settings section ───────────────────────────
 function NotifSettingsSection() {
+  const { can } = usePermission()
   const { data: settings = [], isLoading } = useNotificationSettings()
   const updateMut = useUpdateNotificationSettings()
   const [local, setLocal] = useState<Record<string, { channel: NotificationChannel; enabled: boolean }>>({})
@@ -112,7 +120,7 @@ function NotifSettingsSection() {
           <div aria-hidden="true" style={{ color: 'var(--primary)' }}><Mail size={15} /></div>
           <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0 }}>Préférences de notifications</h2>
         </div>
-        {dirty && (
+        {dirty && can('settings', 'update') && (
           <button type="button" onClick={handleSave} disabled={updateMut.isPending}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: '#fff', cursor: 'pointer', fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: updateMut.isPending ? 0.65 : 1 }}>
             {updateMut.isPending ? <Loader2 size={12} className="animate-spin" aria-hidden="true" /> : <Check size={12} aria-hidden="true" />} Sauvegarder
@@ -691,6 +699,9 @@ function EmailTemplatesSection() {
 
 // ─── Page ─────────────────────────────────────────────────────
 export default function NotificationsSettingsPage() {
+  const { can } = usePermission()
+  if (!can('settings', 'read')) return <AccessDenied />
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <NotifSettingsSection />

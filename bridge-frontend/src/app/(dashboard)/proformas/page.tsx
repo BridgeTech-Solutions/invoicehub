@@ -105,8 +105,8 @@ function RowActions({ p }: { p: ProformaListItem }) {
   const pdfM    = useDownloadProformaPdf()
   const [deleteTarget, setDeleteTarget] = useState<ProformaListItem | null>(null)
 
-  const canSend   = (p.status === 'draft' || p.status === 'rejected') && can('client', 'create')
-  const canDelete = p.status === 'draft' && can('client', 'create')
+  const canSend   = (p.status === 'draft' || p.status === 'rejected') && can('proforma', 'update')
+  const canDelete = p.status === 'draft' && can('proforma', 'delete')
 
   const items = [
     { label: 'Voir détail',     icon: Eye,      onClick: () => router.push(`${ROUTES.PROFORMAS}/${p.id}`) },
@@ -216,7 +216,7 @@ export default function ProformasPage() {
             >
               <Download size={14} aria-hidden="true" /> {exporting ? 'Export…' : 'Exporter CSV'}
             </button>
-            {can('client', 'create') && (
+            {can('proforma', 'create') && (
               <Link
                 href={`${ROUTES.PROFORMAS}/new`}
                 style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 44, padding: '8px 16px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', textDecoration: 'none', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, boxShadow: '0 4px 12px rgba(45,125,210,0.3)' }}
@@ -337,7 +337,7 @@ export default function ProformasPage() {
                     title="Envoyez votre premier devis"
                     description="Créez des proformas, envoyez-les à vos clients et convertissez-les en factures en un clic. Suivi des statuts en temps réel."
                     features={['Conversion 1 clic', 'Suivi statut', 'PDF avec cachet']}
-                    cta={can('client', 'create') ? { label: '+ Nouvelle proforma', href: `${ROUTES.PROFORMAS}/new` } : undefined}
+                    cta={can('proforma', 'create') ? { label: '+ Nouvelle proforma', href: `${ROUTES.PROFORMAS}/new` } : undefined}
                     secondaryCta={{ label: 'Voir le guide', href: ROUTES.GUIDE }}
                   />
           ) : (

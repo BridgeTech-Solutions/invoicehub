@@ -17,6 +17,7 @@ export const ROUTES = {
   SETTINGS:       '/settings',
   PRODUCT_CATEGORIES:     '/product-categories',
   SETTINGS_COMPANY:       '/settings/company',
+  SETTINGS_BRANDING:      '/settings/branding',
   SETTINGS_BILLING:       '/settings/billing',
   SETTINGS_SECURITY:      '/settings/security',
   SETTINGS_NOTIFICATIONS: '/settings/notifications',
@@ -64,18 +65,16 @@ export const ROUTES = {
   ROLES_PERMISSIONS:   '/roles/permissions',
   APPROVALS:           '/approvals',
 
-  // ── Paramètres avancés ──────────────────────────────────────────
-  SETTINGS_OFFICES:         '/settings/offices',
-  SETTINGS_TAX_RATES:       '/settings/tax-rates',
-  SETTINGS_EMAIL_TEMPLATES: '/settings/email-templates',
-  SETTINGS_WEBHOOKS:        '/settings/webhooks',
-  SETTINGS_API_KEYS:        '/settings/api-keys',
-  SETTINGS_CUSTOM_FIELDS:   '/settings/custom-fields',
+  // ── Automatisation ──────────────────────────────────────────────
   SETTINGS_WORKFLOW_RULES:  '/settings/workflow-rules',
   SETTINGS_WORKFLOWS:       '/settings/workflows',
-  SETTINGS_IP_WHITELIST:    '/settings/ip-whitelist',
-  SETTINGS_EXPORTS:         '/settings/exports',
-  SETTINGS_OUTLOOK:         '/settings/outlook',
+
+  // ── Paramètres avancés (développeur) ────────────────────────────
+  SETTINGS_API_KEYS:      '/settings/api-keys',
+  SETTINGS_WEBHOOKS:      '/settings/webhooks',
+  SETTINGS_IP_WHITELIST:  '/settings/ip-whitelist',
+  SETTINGS_CUSTOM_FIELDS: '/settings/custom-fields',
+  SETTINGS_EXPORTS:       '/settings/exports',
 } as const
 
 export const ROLES = {

@@ -6,6 +6,7 @@ export type ExpensePaymentMethod = 'cash' | 'bank_transfer' | 'mobile_money' | '
 export interface ExpenseCategory {
   id:                string
   name:              string
+  description:       string | null
   color:             string | null
   icon:              string | null
   accountingAccount: string | null
@@ -50,6 +51,10 @@ export interface Expense {
   approvedAt:        string | null
   paidAt:            string | null
   rejectionReason:   string | null
+  // Workflow d'approbation
+  requiresApproval:  boolean
+  approvalRequestId: string | null
+  approvalRequest:   { status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'expired'; currentStep: number; totalSteps: number } | null
   createdAt:         string
   updatedAt:         string
 }

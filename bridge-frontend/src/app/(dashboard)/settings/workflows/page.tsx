@@ -6,6 +6,8 @@ import { useApprovalWorkflows, useDeleteApprovalWorkflow, useUpdateApprovalWorkf
 import { WorkflowDrawer } from '@/features/approvals/components/WorkflowDrawer'
 import type { ApprovalWorkflow, CreateWorkflowPayload } from '@/features/approvals/types'
 import { DOCUMENT_TYPE_LABELS, OPERATOR_LABELS } from '@/features/approvals/types'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 
 // ─── WorkflowCard ─────────────────────────────────────────────────
 
@@ -217,6 +219,7 @@ function SkeletonCard() {
 // ─── Page ─────────────────────────────────────────────────────────
 
 export default function WorkflowsPage() {
+  const { can } = usePermission()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editing, setEditing] = useState<ApprovalWorkflow | undefined>()
 
@@ -228,6 +231,8 @@ export default function WorkflowsPage() {
 
   function openCreate() { setEditing(undefined); setDrawerOpen(true) }
   function openEdit(wf: ApprovalWorkflow) { setEditing(wf); setDrawerOpen(true) }
+
+  if (!can('settings', 'read')) return <AccessDenied />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -249,6 +254,7 @@ export default function WorkflowsPage() {
           </p>
         </div>
 
+        {can('settings', 'update') && (
         <button
           type="button"
           onClick={openCreate}
@@ -264,6 +270,7 @@ export default function WorkflowsPage() {
           <Plus size={15} strokeWidth={2.5} />
           Nouveau workflow
         </button>
+        )}
       </div>
 
       {/* Info banner */}

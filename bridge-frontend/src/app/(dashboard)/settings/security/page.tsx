@@ -6,6 +6,8 @@ import { useSettings, useUpdateSettings } from '@/features/settings/hooks'
 import { useSessions, useRevokeSession, useRevokeAllSessions } from '@/features/auth/hooks'
 import { formatDate } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/useMediaQuery'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import type { UpdateSettingsPayload } from '@/features/settings/types'
 import type { Session } from '@/features/auth/types'
 
@@ -201,6 +203,7 @@ function SessionCard({ session, onRevoke, isRevoking }: {
 
 // ─── Page ─────────────────────────────────────────────────────
 export default function SecuritySettingsPage() {
+  const { can }                                  = usePermission()
   const { data: settings, isLoading }           = useSettings()
   const updateMut                               = useUpdateSettings()
   const { data: sessions = [], isLoading: sessionsLoading } = useSessions()
@@ -279,6 +282,8 @@ export default function SecuritySettingsPage() {
     setShowConfirmAll(false)
     await revokeAllMut.mutateAsync()
   }
+
+  if (!can('settings', 'read')) return <AccessDenied />
 
   // C3: AT feedback during settings load
   if (isLoading) return (
@@ -493,7 +498,7 @@ export default function SecuritySettingsPage() {
               {saveError}
             </p>
           )}
-          <button
+          {can('settings', 'update') && <button
             type="submit"
             disabled={!dirty || updateMut.isPending}
             aria-busy={updateMut.isPending}
@@ -501,7 +506,7 @@ export default function SecuritySettingsPage() {
           >
             {updateMut.isPending ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : <Check size={15} aria-hidden="true" />}
             Enregistrer les modifications
-          </button>
+          </button>}
         </div>
       </form>
     </>

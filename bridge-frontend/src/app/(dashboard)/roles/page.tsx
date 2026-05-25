@@ -3,10 +3,11 @@
 import { useState, useRef, useEffect, useId } from 'react'
 import { Shield, Plus, Users, Lock, Layers, AlertTriangle, Loader2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
-import { useRoles, useDeleteRole } from '@/features/roles/hooks'
+import { useRoles, useDeleteRole, usePermissions } from '@/features/roles/hooks'
 import { RoleCard } from '@/features/roles/components/RoleCard'
 import { RoleDrawer } from '@/features/roles/components/RoleDrawer'
-import { useAuthStore } from '@/store/auth'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import type { RoleEntry } from '@/features/roles/types'
 
 // ─── Confirm delete modal ─────────────────────────────────────
@@ -124,22 +125,26 @@ function KpiCard({ icon, label, value, accent }: {
 
 // ─── Page ─────────────────────────────────────────────────────
 export default function RolesPage() {
-  const { user: me } = useAuthStore()
-  const canManage    = me?.role === 'admin'
+  const { can }   = usePermission()
+  const canManage = can('role', 'manage')
 
   const [drawerOpen,  setDrawerOpen]  = useState(false)
   const [editRole,    setEditRole]    = useState<RoleEntry | null>(null)
   const [deleteRole,  setDeleteRole]  = useState<RoleEntry | null>(null)
 
-  const { data: roles = [], isLoading } = useRoles()
+  const { data: roles = [], isLoading }  = useRoles()
+  const { data: allPerms = [] }          = usePermissions()
   const deleteMut = useDeleteRole()
 
-  const totalPerms  = roles.reduce((acc, r) => acc + (r.permissions.includes('*') ? 57 : r.permissions.length), 0)
+  const allPermsCount = allPerms.length
+  const totalPerms    = roles.reduce((acc, r) => acc + (r.permissions.includes('*') ? allPermsCount : r.permissions.length), 0)
   const systemCount = roles.filter((r) => r.isSystem).length
   const customCount = roles.filter((r) => !r.isSystem).length
 
   function openCreate() { setEditRole(null); setDrawerOpen(true) }
   function openEdit(r: RoleEntry) { setEditRole(r); setDrawerOpen(true) }
+
+  if (!can('role', 'read')) return <AccessDenied message="La gestion des rôles est réservée aux administrateurs." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -190,6 +195,7 @@ export default function RolesPage() {
             <RoleCard
               key={role.id}
               role={role}
+              totalPerms={allPermsCount}
               canManage={canManage}
               onEdit={openEdit}
               onDelete={(r) => setDeleteRole(r)}

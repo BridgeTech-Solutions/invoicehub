@@ -6,6 +6,8 @@ import { useAuditLogs, useAuditStats, useExportAuditCsv } from '@/features/audit
 import { useUsers } from '@/features/users/hooks'
 import { formatDate } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/useMediaQuery'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import type { AuditAction, ListAuditLogsParams } from '@/features/audit/types'
 
 // ─── Action badge config ───────────────────────────────────────
@@ -251,6 +253,7 @@ const TABLE_HEADERS = [
 const ENTITY_TYPES = ['invoice', 'proforma', 'payment', 'client', 'product', 'user', 'company_settings']
 
 export default function AuditPage() {
+  const { can } = usePermission()
   const [filters,     setFilters]     = useState<ListAuditLogsParams>({ page: 1, limit: 25 })
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
 
@@ -301,6 +304,8 @@ export default function AuditPage() {
   const topActionLabel = ACTION_CFG[topAction?.action as AuditAction]?.label ?? topAction?.action ?? '—'
 
   const hasActiveFilters = !!(filters.userId || filters.entityType || filters.action || filters.dateFrom || filters.dateTo)
+
+  if (!can('audit', 'read')) return <AccessDenied message="Le journal d'audit est réservé aux administrateurs." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

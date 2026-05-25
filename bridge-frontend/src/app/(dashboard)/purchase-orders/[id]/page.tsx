@@ -11,7 +11,8 @@ import {
   usePurchaseOrder, useApprovePurchaseOrder, useReceivePurchaseOrder,
   useCancelPurchaseOrder, useDuplicatePurchaseOrder,
 } from '@/features/purchase-orders/hooks'
-import { formatXAF, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
 import type { PurchaseOrderStatus } from '@/features/purchase-orders/types'
 
@@ -78,6 +79,7 @@ function ReceiveModal({ onConfirm, onClose, isPending }: {
 }
 
 export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { format } = useCurrency()
   const { id }    = use(params)
   const [showReceiveModal, setShowReceiveModal] = useState(false)
 
@@ -274,16 +276,16 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
           <div style={{ minWidth: 280, display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
               <span style={{ color: 'var(--text-3)' }}>Sous-total HT</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-1)' }}>{formatXAF(po.subtotalHt)}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-1)' }}>{format(po.subtotalHt)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
               <span style={{ color: 'var(--text-3)' }}>TVA</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-1)' }}>{formatXAF(po.totalTax)}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-1)' }}>{format(po.totalTax)}</span>
             </div>
             <div style={{ height: 1, background: 'var(--border)' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--text-1)' }}>Total TTC</span>
-              <span style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>{formatXAF(po.totalTtc)}</span>
+              <span style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>{format(po.totalTtc)}</span>
             </div>
           </div>
         </div>

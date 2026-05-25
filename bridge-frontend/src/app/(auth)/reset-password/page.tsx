@@ -3,10 +3,10 @@
 import { useState, useRef, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { Eye, EyeOff, Loader2, ChevronRight, ChevronLeft } from 'lucide-react'
+import { Eye, EyeOff, Loader2, AlertCircle, CheckCircle2, ChevronLeft } from 'lucide-react'
 import { useForgotPassword, useResetPassword } from '@/features/auth/hooks'
 import { ROUTES } from '@/lib/constants'
-import { TerminalLeftPanel } from '../_components/TerminalLeftPanel'
+import { AuthLeftPanel } from '../_components/AuthLeftPanel'
 import type { AxiosError } from 'axios'
 
 // ─── Formulaire mot de passe oublié ────────────────────────────
@@ -31,46 +31,38 @@ function ForgotForm() {
         ref={successRef}
         tabIndex={-1}
         style={{
-          display: 'flex', flexDirection: 'column', gap: 18,
-          outline: 'none', animation: 'term-in-up 0.35s ease both',
+          display: 'flex', flexDirection: 'column', gap: 20,
+          outline: 'none',
         }}
       >
-        {/* Status OK terminal */}
         <div style={{
-          padding: '14px 18px', borderRadius: 4,
-          background: 'rgba(0,255,136,0.06)', border: '1px solid rgba(0,255,136,0.2)',
+          padding: '16px 18px', borderRadius: 10,
+          background: '#f0fdf4', border: '1.5px solid #bbf7d0',
           display: 'flex', gap: 12, alignItems: 'flex-start',
         }}>
-          <span style={{
-            color: 'var(--t-green)', fontWeight: 700, fontSize: 10,
-            padding: '1px 6px', background: 'rgba(0,255,136,0.1)',
-            borderRadius: 3, border: '1px solid rgba(0,255,136,0.2)',
-            flexShrink: 0, fontFamily: 'var(--t-mono)',
-          }}>OK</span>
+          <CheckCircle2 size={18} aria-hidden style={{ color: '#16a34a', flexShrink: 0, marginTop: 1 }} />
           <div>
-            <p style={{ margin: '0 0 4px', fontSize: 13, color: '#E8F4FF', fontFamily: 'var(--t-mono)', fontWeight: 600 }}>
+            <p style={{ margin: '0 0 5px', fontSize: 14, color: '#15803d', fontFamily: 'var(--font-display)', fontWeight: 700 }}>
               Email envoyé
             </p>
-            <p style={{ margin: 0, fontSize: 11.5, color: 'rgba(255,255,255,0.4)', lineHeight: 1.6, fontFamily: 'var(--t-mono)' }}>
-              Si un compte existe pour <span style={{ color: 'var(--t-electric)' }}>{email}</span>,
-              un lien de réinitialisation sera envoyé dans quelques minutes.
+            <p style={{ margin: 0, fontSize: 13, color: '#166534', lineHeight: 1.6, fontFamily: 'var(--font-body)' }}>
+              Si un compte existe pour <strong>{email}</strong>, un lien de réinitialisation vous sera envoyé sous peu.
             </p>
           </div>
         </div>
-
         <Link
           href={ROUTES.LOGIN}
           style={{
-            fontSize: 11, color: 'rgba(0,191,255,0.45)', textDecoration: 'none',
-            fontFamily: 'var(--t-mono)', letterSpacing: '0.04em',
-            display: 'inline-flex', alignItems: 'center', gap: 4,
-            transition: 'color 0.15s',
+            fontSize: 13, color: 'var(--primary)',
+            textDecoration: 'none', fontFamily: 'var(--font-body)',
+            fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 5,
+            transition: 'opacity 0.15s',
           }}
-          onMouseEnter={e => (e.currentTarget.style.color = 'var(--t-electric)')}
-          onMouseLeave={e => (e.currentTarget.style.color = 'rgba(0,191,255,0.45)')}
+          onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
+          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
         >
-          <ChevronLeft size={12} aria-hidden />
-          retour connexion
+          <ChevronLeft size={14} aria-hidden />
+          Retour à la connexion
         </Link>
       </div>
     )
@@ -81,11 +73,11 @@ function ForgotForm() {
     : null
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
         <label htmlFor="forgot-email" style={{
-          fontSize: 10, fontWeight: 500, color: 'rgba(0,191,255,0.48)',
-          fontFamily: 'var(--t-mono)', letterSpacing: '0.1em', textTransform: 'uppercase',
+          fontSize: 13.5, fontWeight: 600,
+          color: '#374151', fontFamily: 'var(--font-display)',
         }}>
           Email professionnel
         </label>
@@ -97,19 +89,20 @@ function ForgotForm() {
           placeholder="nom@bts.cm"
           required
           autoComplete="email"
-          className="term-input"
+          className="auth-input"
           style={{ padding: '11px 14px' }}
         />
       </div>
 
       {forgotError && (
         <div role="alert" aria-live="assertive" style={{
-          fontSize: 12, color: 'var(--t-red)',
-          background: 'rgba(255,107,107,0.07)', border: '1px solid rgba(255,107,107,0.22)',
-          borderRadius: 4, padding: '10px 14px', fontFamily: 'var(--t-mono)',
-          display: 'flex', gap: 10,
+          padding: '12px 14px', borderRadius: 8,
+          background: '#fef2f2', border: '1.5px solid #fecaca',
+          fontSize: 13.5, color: '#dc2626',
+          fontFamily: 'var(--font-body)',
+          display: 'flex', alignItems: 'flex-start', gap: 10,
         }}>
-          <span style={{ color: 'rgba(255,107,107,0.55)', fontWeight: 700, fontSize: 10, padding: '1px 5px', background: 'rgba(255,107,107,0.1)', borderRadius: 3, border: '1px solid rgba(255,107,107,0.2)', flexShrink: 0 }}>ERR</span>
+          <AlertCircle size={16} aria-hidden style={{ flexShrink: 0, marginTop: 1 }} />
           {forgotError}
         </div>
       )}
@@ -118,24 +111,11 @@ function ForgotForm() {
         type="submit"
         disabled={mutation.isPending}
         aria-busy={mutation.isPending}
-        className="term-btn"
-        style={{
-          marginTop: 6, padding: '12px 20px', borderRadius: 4,
-          background: 'rgba(0,191,255,0.07)',
-          color: 'var(--t-electric)',
-          border: '1px solid rgba(0,191,255,0.28)',
-          cursor: mutation.isPending ? 'not-allowed' : 'pointer',
-          fontFamily: 'var(--t-mono)', fontWeight: 700, fontSize: 12.5,
-          width: '100%', minHeight: 44,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          letterSpacing: '0.08em', textTransform: 'uppercase',
-          transition: 'all 0.2s ease',
-          opacity: mutation.isPending ? 0.6 : 1,
-        }}
+        className="auth-btn"
       >
         {mutation.isPending
-          ? <><Loader2 size={14} className="animate-spin" aria-hidden /> Envoi...</>
-          : <><ChevronRight size={14} aria-hidden /> Envoyer le lien</>
+          ? <><Loader2 size={16} className="animate-spin" aria-hidden /> Envoi en cours…</>
+          : 'Envoyer le lien de réinitialisation'
         }
       </button>
     </form>
@@ -152,8 +132,8 @@ function ResetForm({ token }: { token: string }) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (pwd.length < 8)         { setValidErr('Minimum 8 caractères'); return }
-    if (!/[A-Z]/.test(pwd))     { setValidErr('Au moins une majuscule requise'); return }
+    if (pwd.length < 8)         { setValidErr('Minimum 8 caractères requis'); return }
+    if (!/[A-Z]/.test(pwd))     { setValidErr('Au moins une lettre majuscule requise'); return }
     if (!/[0-9]/.test(pwd))     { setValidErr('Au moins un chiffre requis'); return }
     if (pwd !== confirm)         { setValidErr('Les mots de passe ne correspondent pas'); return }
     setValidErr('')
@@ -162,23 +142,18 @@ function ResetForm({ token }: { token: string }) {
 
   if (mutation.isSuccess) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 18, animation: 'term-in-up 0.35s ease both' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <div style={{
-          padding: '14px 18px', borderRadius: 4,
-          background: 'rgba(0,255,136,0.06)', border: '1px solid rgba(0,255,136,0.2)',
+          padding: '16px 18px', borderRadius: 10,
+          background: '#f0fdf4', border: '1.5px solid #bbf7d0',
           display: 'flex', gap: 12, alignItems: 'flex-start',
         }}>
-          <span style={{
-            color: 'var(--t-green)', fontWeight: 700, fontSize: 10,
-            padding: '1px 6px', background: 'rgba(0,255,136,0.1)',
-            borderRadius: 3, border: '1px solid rgba(0,255,136,0.2)',
-            flexShrink: 0, fontFamily: 'var(--t-mono)',
-          }}>OK</span>
+          <CheckCircle2 size={18} aria-hidden style={{ color: '#16a34a', flexShrink: 0, marginTop: 1 }} />
           <div>
-            <p style={{ margin: '0 0 4px', fontSize: 13, color: '#E8F4FF', fontFamily: 'var(--t-mono)', fontWeight: 600 }}>
+            <p style={{ margin: '0 0 5px', fontSize: 14, color: '#15803d', fontFamily: 'var(--font-display)', fontWeight: 700 }}>
               Mot de passe réinitialisé
             </p>
-            <p style={{ margin: 0, fontSize: 11.5, color: 'rgba(255,255,255,0.4)', lineHeight: 1.6, fontFamily: 'var(--t-mono)' }}>
+            <p style={{ margin: 0, fontSize: 13, color: '#166534', lineHeight: 1.6, fontFamily: 'var(--font-body)' }}>
               Vous pouvez maintenant vous connecter avec votre nouveau mot de passe.
             </p>
           </div>
@@ -186,27 +161,32 @@ function ResetForm({ token }: { token: string }) {
         <Link
           href={ROUTES.LOGIN}
           style={{
-            fontSize: 11, color: 'rgba(0,191,255,0.45)', textDecoration: 'none',
-            fontFamily: 'var(--t-mono)', letterSpacing: '0.04em',
-            display: 'inline-flex', alignItems: 'center', gap: 4,
-            transition: 'color 0.15s',
+            fontSize: 13, color: 'var(--primary)',
+            textDecoration: 'none', fontFamily: 'var(--font-body)',
+            fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 5,
+            transition: 'opacity 0.15s',
           }}
-          onMouseEnter={e => (e.currentTarget.style.color = 'var(--t-electric)')}
-          onMouseLeave={e => (e.currentTarget.style.color = 'rgba(0,191,255,0.45)')}
+          onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
+          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
         >
-          <ChevronLeft size={12} aria-hidden />
-          retour connexion
+          <ChevronLeft size={14} aria-hidden />
+          Se connecter
         </Link>
       </div>
     )
   }
 
+  const apiError = mutation.isError
+    ? ((mutation.error as AxiosError<{ error?: string }>)?.response?.data?.error ?? 'Lien expiré ou invalide.')
+    : null
+
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Nouveau mot de passe */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
         <label htmlFor="new-password" style={{
-          fontSize: 10, fontWeight: 500, color: 'rgba(0,191,255,0.48)',
-          fontFamily: 'var(--t-mono)', letterSpacing: '0.1em', textTransform: 'uppercase',
+          fontSize: 13.5, fontWeight: 600,
+          color: '#374151', fontFamily: 'var(--font-display)',
         }}>
           Nouveau mot de passe
         </label>
@@ -216,10 +196,10 @@ function ResetForm({ token }: { token: string }) {
             type={showPwd ? 'text' : 'password'}
             value={pwd}
             onChange={e => { setPwd(e.target.value); setValidErr('') }}
-            placeholder="Min. 8 car. · majuscule · chiffre"
+            placeholder="Min. 8 caractères · majuscule · chiffre"
             required
             autoComplete="new-password"
-            className="term-input"
+            className="auth-input"
             style={{ padding: '11px 44px 11px 14px' }}
           />
           <button
@@ -227,23 +207,25 @@ function ResetForm({ token }: { token: string }) {
             onClick={() => setShowPwd(s => !s)}
             aria-label={showPwd ? 'Masquer' : 'Afficher'}
             style={{
-              position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+              position: 'absolute', right: 12, top: '50%',
+              transform: 'translateY(-50%)',
               background: 'none', border: 'none', cursor: 'pointer',
-              color: 'rgba(0,191,255,0.3)', padding: 4, display: 'flex',
+              color: '#94a3b8', padding: 4, display: 'flex',
               transition: 'color 0.15s',
             }}
-            onMouseEnter={e => (e.currentTarget.style.color = 'rgba(0,191,255,0.7)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(0,191,255,0.3)')}
+            onMouseEnter={e => (e.currentTarget.style.color = '#475569')}
+            onMouseLeave={e => (e.currentTarget.style.color = '#94a3b8')}
           >
-            {showPwd ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
+            {showPwd ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
           </button>
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {/* Confirmer */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
         <label htmlFor="confirm-password" style={{
-          fontSize: 10, fontWeight: 500, color: 'rgba(0,191,255,0.48)',
-          fontFamily: 'var(--t-mono)', letterSpacing: '0.1em', textTransform: 'uppercase',
+          fontSize: 13.5, fontWeight: 600,
+          color: '#374151', fontFamily: 'var(--font-display)',
         }}>
           Confirmer le mot de passe
         </label>
@@ -255,23 +237,22 @@ function ResetForm({ token }: { token: string }) {
           placeholder="••••••••"
           required
           autoComplete="new-password"
-          className="term-input"
-          style={{
-            padding: '11px 14px',
-            borderColor: validErr && confirm ? 'rgba(255,107,107,0.45) !important' : undefined,
-          }}
+          className={`auth-input${validErr && confirm ? ' auth-input-error' : ''}`}
+          style={{ padding: '11px 14px' }}
         />
       </div>
 
-      {validErr && (
+      {/* Erreur (validation ou API) */}
+      {(validErr || apiError) && (
         <div role="alert" aria-live="assertive" style={{
-          fontSize: 12, color: 'var(--t-red)',
-          background: 'rgba(255,107,107,0.07)', border: '1px solid rgba(255,107,107,0.22)',
-          borderRadius: 4, padding: '10px 14px', fontFamily: 'var(--t-mono)',
-          display: 'flex', gap: 10,
+          padding: '12px 14px', borderRadius: 8,
+          background: '#fef2f2', border: '1.5px solid #fecaca',
+          fontSize: 13.5, color: '#dc2626',
+          fontFamily: 'var(--font-body)',
+          display: 'flex', alignItems: 'flex-start', gap: 10,
         }}>
-          <span style={{ color: 'rgba(255,107,107,0.55)', fontWeight: 700, fontSize: 10, padding: '1px 5px', background: 'rgba(255,107,107,0.1)', borderRadius: 3, border: '1px solid rgba(255,107,107,0.2)', flexShrink: 0 }}>WARN</span>
-          {validErr}
+          <AlertCircle size={16} aria-hidden style={{ flexShrink: 0, marginTop: 1 }} />
+          {validErr || apiError}
         </div>
       )}
 
@@ -279,24 +260,11 @@ function ResetForm({ token }: { token: string }) {
         type="submit"
         disabled={mutation.isPending}
         aria-busy={mutation.isPending}
-        className="term-btn"
-        style={{
-          marginTop: 6, padding: '12px 20px', borderRadius: 4,
-          background: 'rgba(0,191,255,0.07)',
-          color: 'var(--t-electric)',
-          border: '1px solid rgba(0,191,255,0.28)',
-          cursor: mutation.isPending ? 'not-allowed' : 'pointer',
-          fontFamily: 'var(--t-mono)', fontWeight: 700, fontSize: 12.5,
-          width: '100%', minHeight: 44,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          letterSpacing: '0.08em', textTransform: 'uppercase',
-          transition: 'all 0.2s ease',
-          opacity: mutation.isPending ? 0.6 : 1,
-        }}
+        className="auth-btn"
       >
         {mutation.isPending
-          ? <><Loader2 size={14} className="animate-spin" aria-hidden /> Réinitialisation...</>
-          : <><ChevronRight size={14} aria-hidden /> Réinitialiser</>
+          ? <><Loader2 size={16} className="animate-spin" aria-hidden /> Réinitialisation…</>
+          : 'Réinitialiser le mot de passe'
         }
       </button>
     </form>
@@ -307,54 +275,62 @@ function ResetForm({ token }: { token: string }) {
 function ResetPasswordContent() {
   const searchParams = useSearchParams()
   const token        = searchParams.get('token')
-  const [mounted, setMounted] = useState(false)
+  const [mounted,    setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: 'var(--t-noir)', overflow: 'hidden', position: 'relative' }}>
-      <div className="t-scanline" aria-hidden="true" />
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      <AuthLeftPanel />
 
-      <TerminalLeftPanel />
-
+      {/* ── Panneau droit ──────────────────────────────────────── */}
       <main style={{
-        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'var(--t-noir)', padding: '40px 24px', position: 'relative',
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#fff',
+        padding: '40px 24px',
+        overflow: 'auto',
       }}>
-        <div aria-hidden style={{
-          position: 'absolute', top: '50%', left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 360, height: 360, pointerEvents: 'none',
-          background: 'radial-gradient(circle, rgba(0,191,255,0.04) 0%, transparent 65%)',
-        }} />
-
         <div style={{
-          width: '100%', maxWidth: 360, position: 'relative', zIndex: 1,
-          opacity:   mounted ? 1 : 0,
-          animation: mounted ? 'term-in 0.5s cubic-bezier(0.22,1,0.36,1) 0.12s both' : 'none',
+          width: '100%',
+          maxWidth: 400,
+          opacity:    mounted ? 1 : 0,
+          transform:  mounted ? 'none' : 'translateY(18px)',
+          transition: 'opacity 0.42s ease, transform 0.42s ease',
         }}>
-          {/* Header */}
-          <div style={{ marginBottom: 28 }}>
+
+          {/* En-tête */}
+          <div style={{ marginBottom: 32 }}>
+            {/* Badge contextuel */}
             <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 8,
-              padding: '5px 12px', borderRadius: 4,
-              background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.15)',
-              marginBottom: 20,
+              display: 'inline-flex', alignItems: 'center', gap: 7,
+              padding: '5px 12px', borderRadius: 100,
+              background: token ? 'rgba(245,158,11,0.08)' : 'rgba(45,125,210,0.08)',
+              border: `1.5px solid ${token ? 'rgba(245,158,11,0.22)' : 'rgba(45,125,210,0.18)'}`,
+              marginBottom: 18,
             }}>
-              <span style={{ fontSize: 10, color: 'var(--t-amber)', fontFamily: 'var(--t-mono)', letterSpacing: '0.08em' }}>
-                AUTH · RESET PASSWORD
+              <span style={{
+                fontSize: 12, fontWeight: 600,
+                color: token ? '#d97706' : 'var(--primary)',
+                fontFamily: 'var(--font-display)', letterSpacing: '0.02em',
+              }}>
+                {token ? 'Réinitialisation' : 'Mot de passe oublié'}
               </span>
             </div>
 
             <h1 style={{
-              fontFamily: 'var(--t-brico)', fontWeight: 700, fontSize: 22,
-              color: '#E8F4FF', letterSpacing: '-0.02em', margin: '0 0 6px',
+              fontSize: 24, fontWeight: 800,
+              fontFamily: 'var(--font-display)',
+              color: '#0f172a', letterSpacing: '-0.025em',
+              margin: '0 0 7px',
             }}>
-              {token ? 'Nouveau mot de passe' : 'Mot de passe oublié'}
+              {token ? 'Nouveau mot de passe' : 'Mot de passe oublié ?'}
             </h1>
-            <p style={{ fontSize: 11.5, color: 'rgba(0,191,255,0.4)', margin: 0, fontFamily: 'var(--t-mono)', letterSpacing: '0.04em' }}>
+            <p style={{ fontSize: 14, color: '#64748b', margin: 0, fontFamily: 'var(--font-body)' }}>
               {token
-                ? 'DÉFINIR UN NOUVEAU MOT DE PASSE SÉCURISÉ'
-                : 'SAISIR L\'EMAIL · LIEN DE RÉINITIALISATION'
+                ? 'Choisissez un nouveau mot de passe sécurisé pour votre compte'
+                : 'Saisissez votre email pour recevoir un lien de réinitialisation'
               }
             </p>
           </div>
@@ -362,19 +338,20 @@ function ResetPasswordContent() {
           {token ? <ResetForm token={token} /> : <ForgotForm />}
 
           {/* Retour */}
-          <div style={{ marginTop: 24, textAlign: 'center' }}>
+          <div style={{ marginTop: 28, textAlign: 'center' }}>
             <Link
               href={ROUTES.LOGIN}
               style={{
-                fontSize: 11, color: 'rgba(255,255,255,0.18)', textDecoration: 'none',
+                fontSize: 13, color: '#94a3b8',
+                textDecoration: 'none', fontFamily: 'var(--font-body)',
                 display: 'inline-flex', alignItems: 'center', gap: 4,
-                fontFamily: 'var(--t-mono)', minHeight: 44, transition: 'color 0.15s',
+                minHeight: 44, transition: 'color 0.15s',
               }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'rgba(0,191,255,0.5)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.18)')}
+              onMouseEnter={e => (e.currentTarget.style.color = '#475569')}
+              onMouseLeave={e => (e.currentTarget.style.color = '#94a3b8')}
             >
-              <ChevronLeft size={12} aria-hidden />
-              retour connexion
+              <ChevronLeft size={14} aria-hidden />
+              Retour à la connexion
             </Link>
           </div>
         </div>

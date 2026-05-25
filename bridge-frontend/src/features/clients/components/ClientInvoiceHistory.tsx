@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { FileText } from 'lucide-react'
 import { ROUTES, STATUS_LABELS } from '@/lib/constants'
-import { formatXAF, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 
 // Types allégés (seront alignés sur les types factures en Phase 6)
 interface InvoiceRow {
@@ -31,6 +32,7 @@ const STATUS_BADGE_CLS: Record<string, string> = {
 }
 
 export function ClientInvoiceHistory({ invoices, isLoading, clientId }: ClientInvoiceHistoryProps) {
+  const { format } = useCurrency()
   if (isLoading) {
     return (
       <div className="card" style={{ overflow: 'hidden' }}>
@@ -95,7 +97,7 @@ export function ClientInvoiceHistory({ invoices, isLoading, clientId }: ClientIn
                   <td style={{ color: 'var(--text-3)', fontSize: 13 }}>{formatDate(inv.issueDate)}</td>
                   <td style={{ color: 'var(--text-3)', fontSize: 13 }}>{formatDate(inv.dueDate)}</td>
                   <td>
-                    <span className="amount" style={{ fontSize: 13 }}>{formatXAF(inv.totalTtc)}</span>
+                    <span className="amount" style={{ fontSize: 13 }}>{format(inv.totalTtc)}</span>
                   </td>
                   <td>
                     <span className={`badge ${cls}`}>

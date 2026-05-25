@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { ROUTES } from '@/lib/constants'
 import { useGuideVideos, useUploadGuideVideo, useDeleteGuideVideo } from '@/features/guide/hooks'
-import { useAuthStore } from '@/features/auth/store'
+import { usePermission } from '@/hooks/usePermission'
 
 const BASE_MEDIA_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api').replace('/api', '')
 
@@ -300,8 +300,8 @@ function SectionDivider() {
 
 function VideoPlaceholder({ section, title, caption }: { section: string; title: string; caption: string }) {
   const { data: videos = {} } = useGuideVideos()
-  const user = useAuthStore((s) => s.user)
-  const isAdmin = user?.role === 'admin'
+  const { can } = usePermission()
+  const isAdmin = can('settings', 'update')
 
   const uploadMut  = useUploadGuideVideo(section)
   const deleteMut  = useDeleteGuideVideo()

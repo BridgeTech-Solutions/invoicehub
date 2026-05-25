@@ -1,11 +1,15 @@
 'use client'
 
 import { useState, useId, useRef, useEffect } from 'react'
-import { Percent, Building, Plus, Pencil, Trash2, Check, X, Loader2, Star, Hash } from 'lucide-react'
+import { Percent, Building, Plus, Pencil, Trash2, Check, X, Loader2, Star, Hash, Banknote } from 'lucide-react'
 import { useTaxRates, useCreateTaxRate, useUpdateTaxRate, useDeleteTaxRate } from '@/features/tax-rates/hooks'
 import { useOffices, useCreateOffice, useUpdateOffice, useDeleteOffice } from '@/features/offices/hooks'
+import { useSettings, useUpdateSettings } from '@/features/settings/hooks'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import type { TaxRate, CreateTaxRatePayload } from '@/features/tax-rates/types'
 import type { Office, CreateOfficePayload } from '@/features/offices/types'
+import type { UpdateSettingsPayload } from '@/features/settings/types'
 
 const inputCss: React.CSSProperties = {
   padding: '8px 11px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)',
@@ -72,6 +76,134 @@ function ConfirmDeleteModal({
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── Global finance section ───────────────────────────────────
+function GlobalFinanceSection() {
+  const { can } = usePermission()
+  const { data: settings, isLoading } = useSettings()
+  const updateMut = useUpdateSettings()
+  const uid = useId()
+  const id  = (s: string) => `${uid}-${s}`
+
+  const [form, setForm] = useState<Pick<UpdateSettingsPayload, 'defaultCurrency' | 'defaultTaxRate' | 'defaultProformaValidityDays' | 'defaultInvoiceDueDays'>>({})
+  const [dirty, setDirty] = useState(false)
+
+  useEffect(() => {
+    if (!settings) return
+    setForm({
+      defaultCurrency:             settings.defaultCurrency,
+      defaultTaxRate:              settings.defaultTaxRate,
+      defaultProformaValidityDays: settings.defaultProformaValidityDays,
+      defaultInvoiceDueDays:       settings.defaultInvoiceDueDays,
+    })
+    setDirty(false)
+  }, [settings])
+
+  function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }))
+    setDirty(true)
+  }
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault()
+    await updateMut.mutateAsync(form)
+    setDirty(false)
+  }
+
+  return (
+    <div className="card">
+      <SectionHeader icon={<Banknote size={15} />} title="Paramètres financiers" />
+      <p style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '0 0 16px' }}>
+        Valeurs par défaut appliquées à chaque nouveau document BTS.
+      </p>
+      {isLoading
+        ? <div aria-hidden="true" style={{ height: 140, background: 'var(--border)', borderRadius: 'var(--radius-md)' }} className="animate-pulse" />
+        : (
+          <form onSubmit={handleSave} noValidate>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label htmlFor={id('currency')} style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)', display: 'block', marginBottom: 4 }}>
+                    Devise par défaut
+                  </label>
+                  <select
+                    id={id('currency')}
+                    value={form.defaultCurrency ?? 'XAF'}
+                    onChange={(e) => set('defaultCurrency', e.target.value)}
+                    style={{ ...inputCss, cursor: 'pointer' }}
+                  >
+                    <option value="XAF">XAF (Franc CFA)</option>
+                    <option value="EUR">EUR (Euro)</option>
+                    <option value="USD">USD (Dollar US)</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor={id('taxRate')} style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)', display: 'block', marginBottom: 4 }}>
+                    Taux TVA par défaut (%)
+                  </label>
+                  <input
+                    id={id('taxRate')}
+                    type="number" min={0} max={100} step={0.01}
+                    value={form.defaultTaxRate ?? 19.25}
+                    onChange={(e) => set('defaultTaxRate', parseFloat(e.target.value))}
+                    style={inputCss}
+                    placeholder="19.25"
+                  />
+                  <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '3px 0 0' }}>SYSCOHADA — TVA Cameroun : 19,25 %</p>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label htmlFor={id('proformaValidity')} style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)', display: 'block', marginBottom: 4 }}>
+                    Validité proformas (jours)
+                  </label>
+                  <input
+                    id={id('proformaValidity')}
+                    type="number" min={1} max={365}
+                    value={form.defaultProformaValidityDays ?? 30}
+                    onChange={(e) => set('defaultProformaValidityDays', parseInt(e.target.value, 10))}
+                    style={inputCss}
+                  />
+                </div>
+                <div>
+                  <label htmlFor={id('invoiceDue')} style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)', display: 'block', marginBottom: 4 }}>
+                    Échéance factures (jours)
+                  </label>
+                  <input
+                    id={id('invoiceDue')}
+                    type="number" min={1} max={365}
+                    value={form.defaultInvoiceDueDays ?? 30}
+                    onChange={(e) => set('defaultInvoiceDueDays', parseInt(e.target.value, 10))}
+                    style={inputCss}
+                  />
+                </div>
+              </div>
+            </div>
+            {dirty && can('settings', 'update') && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                <button
+                  type="submit"
+                  disabled={updateMut.isPending}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '9px 22px', borderRadius: 'var(--radius-md)',
+                    border: 'none', background: 'var(--primary)', color: '#fff',
+                    cursor: updateMut.isPending ? 'not-allowed' : 'pointer',
+                    fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 700,
+                    opacity: updateMut.isPending ? 0.65 : 1,
+                  }}
+                >
+                  {updateMut.isPending ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <Check size={14} aria-hidden="true" />}
+                  Enregistrer
+                </button>
+              </div>
+            )}
+          </form>
+        )
+      }
     </div>
   )
 }
@@ -396,8 +528,20 @@ function DocumentSequencesSection() {
 
 // ─── Page ─────────────────────────────────────────────────────
 export default function BillingSettingsPage() {
+  const { can } = usePermission()
+  if (!can('settings', 'read')) return <AccessDenied />
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div>
+        <h1 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--text-1)' }}>
+          Finance &amp; TVA
+        </h1>
+        <p style={{ margin: 0, fontSize: 13.5, color: 'var(--text-3)', fontFamily: 'var(--font-body)' }}>
+          Paramètres financiers, taux de TVA, bureaux et séquences de numérotation SYSCOHADA
+        </p>
+      </div>
+      <GlobalFinanceSection />
       <TaxRatesSection />
       <OfficesSection />
       <DocumentSequencesSection />

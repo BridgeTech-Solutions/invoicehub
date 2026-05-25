@@ -6,6 +6,8 @@ import { useWorkflowRules } from '@/features/workflow-rules/hooks'
 import { WorkflowRuleCard } from '@/features/workflow-rules/components/WorkflowRuleCard'
 import { WorkflowRuleDrawer } from '@/features/workflow-rules/components/WorkflowRuleDrawer'
 import { WORKFLOW_MODULES } from '@/features/workflow-rules/types'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 
 // ─── Module filter pills ──────────────────────────────────────
 const ALL_MODULES = [
@@ -103,6 +105,7 @@ function EmptyState({ filtered, onCreate }: { filtered: boolean; onCreate: () =>
 
 // ─── Page ─────────────────────────────────────────────────────
 export default function WorkflowRulesPage() {
+  const { can } = usePermission()
   const [drawerOpen,    setDrawerOpen]    = useState(false)
   const [activeModule,  setActiveModule]  = useState('')
 
@@ -112,6 +115,8 @@ export default function WorkflowRulesPage() {
     activeModule ? rules.filter((r) => r.module === activeModule) : rules,
     [rules, activeModule],
   )
+
+  if (!can('settings', 'read')) return <AccessDenied />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -131,6 +136,7 @@ export default function WorkflowRulesPage() {
           </p>
         </div>
 
+        {can('settings', 'update') && (
         <button
           type="button"
           onClick={() => setDrawerOpen(true)}
@@ -149,6 +155,7 @@ export default function WorkflowRulesPage() {
           <Plus size={15} strokeWidth={2.5} aria-hidden="true" />
           Nouvelle règle
         </button>
+        )}
       </div>
 
       {/* ── Info banner ───────────────────────────────────────── */}

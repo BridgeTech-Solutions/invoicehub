@@ -14,7 +14,8 @@ import {
   usePurchaseOrders, usePurchaseOrderStats, useApprovePurchaseOrder,
   useCancelPurchaseOrder, useDuplicatePurchaseOrder, useDeletePurchaseOrder,
 } from '@/features/purchase-orders/hooks'
-import { formatXAF, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
 import type { PurchaseOrderListItem, PurchaseOrderStatus } from '@/features/purchase-orders/types'
 
@@ -73,6 +74,7 @@ function Pagination({ page, totalPages, onChange }: { page: number; totalPages: 
 
 // ─── Page ─────────────────────────────────────────────────────
 export default function PurchaseOrdersPage() {
+  const { format } = useCurrency()
   const router   = useRouter()
   const searchId = useId()
 
@@ -216,7 +218,7 @@ export default function PurchaseOrdersPage() {
                         {overdueDelivery && <span style={{ fontSize: 10, marginLeft: 4, background: '#fef2f2', color: '#dc2626', padding: '1px 5px', borderRadius: 4, fontWeight: 600 }}>En retard</span>}
                       </td>
                       <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: 'var(--text-1)' }}>
-                        {formatXAF(order.totalTtc)}
+                        {format(order.totalTtc)}
                       </td>
                       <td><StatusBadge status={order.status} /></td>
                       <td><ActionMenu items={actions} /></td>

@@ -12,7 +12,8 @@ import { ProformaForm } from '@/features/proformas/components/ProformaForm'
 import { StatusTimeline } from '@/features/proformas/components/StatusTimeline'
 import { TotalsPanel } from '@/components/document/TotalsPanel'
 import { lineToFormLine } from '@/lib/document-math'
-import { formatDate, formatXAF, getInitials } from '@/lib/utils'
+import { formatDate, getInitials } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES, STATUS_LABELS } from '@/lib/constants'
 import type { ProformaStatus, DiscountType } from '@/features/proformas/types'
 
@@ -52,6 +53,7 @@ function Skeleton() {
 // ─── Detail view ────────────────────────────────────────────────
 
 function ProformaDetailView({ id }: { id: string }) {
+  const { format } = useCurrency()
   const { data: proforma, isLoading } = useProforma(id)
 
   if (isLoading) return <Skeleton />
@@ -107,7 +109,7 @@ function ProformaDetailView({ id }: { id: string }) {
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: '0 0 4px', fontFamily: 'var(--font-display)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Total TTC</p>
             <p style={{ fontSize: 24, fontWeight: 800, color: 'var(--primary)', fontFamily: 'var(--font-mono)', margin: 0, letterSpacing: '-0.01em' }}>
-              {formatXAF(Number(proforma.totalTtc))}
+              {format(Number(proforma.totalTtc))}
             </p>
           </div>
         </div>
@@ -165,7 +167,7 @@ function ProformaDetailView({ id }: { id: string }) {
                       <td style={{ padding: '11px 10px', textAlign: 'right', fontSize: 12.5, color: Number(line.discountValue) > 0 ? '#d97706' : 'var(--text-3)' }}>
                         {line.discountType === 'none' ? '—' :
                           line.discountType === 'percentage' ? `${Number(line.discountValue)}%` :
-                          formatXAF(Number(line.discountValue))
+                          format(Number(line.discountValue))
                         }
                       </td>
                       <td style={{ padding: '11px 10px', textAlign: 'right', fontSize: 12.5, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>

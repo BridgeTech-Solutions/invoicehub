@@ -9,7 +9,7 @@ import { useRecurringList, useActivateRecurring, useDeactivateRecurring, useDele
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
-import { formatDate, formatXAF, getInitials } from '@/lib/utils'
+import { formatDate, getInitials } from '@/lib/utils'
 import { computeLineValues } from '@/lib/document-math'
 import { ROUTES } from '@/lib/constants'
 import type { RecurringTemplate, RecurringInterval, ListRecurringParams } from '@/features/recurring/types'

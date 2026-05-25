@@ -55,6 +55,10 @@ export interface PurchaseOrder {
   totalTax:         number
   totalTtc:         number
   lines:            PurchaseOrderLine[]
+  // Workflow d'approbation
+  requiresApproval:  boolean
+  approvalRequestId: string | null
+  approvalRequest:   { status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'expired'; currentStep: number; totalSteps: number } | null
   createdAt:        string
   updatedAt:        string
 }

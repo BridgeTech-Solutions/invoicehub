@@ -423,6 +423,7 @@ function Step2({
   const [preview,    setPreview]    = useState<ImportPreviewResult | null>(null)
   const [loading,    setLoading]    = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [showAll,    setShowAll]    = useState(false)
   const confirmMutation = useConfirmImport()
 
   const loadPreview = useCallback(async () => {
@@ -500,7 +501,7 @@ function Step2({
             </tr>
           </thead>
           <tbody>
-            {(preview.rows ?? []).slice(0, 10).map((row, i) => (
+            {(showAll ? preview.rows ?? [] : (preview.rows ?? []).slice(0, 10)).map((row, i) => (
               <tr key={i}>
                 <td style={{ fontSize: 12.5, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{row.date}</td>
                 <td style={{ fontSize: 13, maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</td>
@@ -518,8 +519,16 @@ function Step2({
           </tbody>
         </table>
         {preview.totalRows > 10 && (
-          <div style={{ padding: '8px 16px', fontSize: 12, color: 'var(--text-3)', borderTop: '1px solid var(--border)', textAlign: 'center' }}>
-            +{preview.totalRows - 10} autres transactions non affichées
+          <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', textAlign: 'center' }}>
+            <button
+              type="button"
+              onClick={() => setShowAll(v => !v)}
+              style={{ fontSize: 12.5, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-display)', fontWeight: 600, padding: '2px 0' }}
+            >
+              {showAll
+                ? 'Réduire l\'aperçu'
+                : `Voir toutes les ${preview.totalRows} lignes (+${preview.totalRows - 10} masquées)`}
+            </button>
           </div>
         )}
       </div>

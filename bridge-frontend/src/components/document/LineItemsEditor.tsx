@@ -8,7 +8,7 @@ import { useProductLineDefaults } from '@/features/products/hooks'
 import type { FormLine, DiscountType } from '@/features/proformas/types'
 import type { Product } from '@/features/products/types'
 import { computeLineValues, makeBlankLine } from '@/lib/document-math'
-import { formatXAF } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { ProductDrawer } from '@/features/products/components/ProductDrawer'
 
 // ─── Constants ─────────────────────────────────────────────────

@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef, useId } from 'react'
-import { Building2, MapPin, Banknote, Image as ImageIcon, Loader2, Check, Upload } from 'lucide-react'
-import { useSettings, useUpdateSettings, useUploadAsset } from '@/features/settings/hooks'
+import { useState, useEffect, useId } from 'react'
+import { Building2, MapPin, Loader2, Check } from 'lucide-react'
+import { useSettings, useUpdateSettings } from '@/features/settings/hooks'
 import { useIsMobile } from '@/hooks/useMediaQuery'
-import type { UpdateSettingsPayload, AssetType } from '@/features/settings/types'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
+import type { UpdateSettingsPayload } from '@/features/settings/types'
 
 // ─── Shared styles ────────────────────────────────────────────
 const inputCss: React.CSSProperties = {
@@ -39,74 +41,9 @@ function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string })
   )
 }
 
-// ─── Asset upload tile ────────────────────────────────────────
-function AssetTile({
-  label, hint, currentPath, assetType, accept,
-}: {
-  label: string; hint: string; currentPath: string | null | undefined
-  assetType: AssetType; accept?: string
-}) {
-  const uploadMut = useUploadAsset()
-  const fileRef   = useRef<HTMLInputElement>(null)
-  const uploading = uploadMut.isPending && (uploadMut.variables as { type: AssetType } | undefined)?.type === assetType
-
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') ?? 'http://localhost:3000'
-  const imgSrc  = currentPath ? `${baseUrl}/${currentPath}` : null
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <span
-        aria-hidden="true"
-        style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)', display: 'block' }}
-      >
-        {label}
-      </span>
-      <button
-        type="button"
-        aria-label={imgSrc ? `Changer ${label}` : `Ajouter ${label}`}
-        aria-busy={uploading}
-        onClick={() => fileRef.current?.click()}
-        style={{
-          width: '100%', minHeight: 90,
-          border: '2px dashed var(--border)', borderRadius: 'var(--radius-md)',
-          background: 'var(--surface)',
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16,
-          cursor: 'pointer', transition: 'border-color 0.15s',
-        }}
-        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary)' }}
-        onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
-        onFocus={(e)      => { e.currentTarget.style.borderColor = 'var(--primary)' }}
-        onBlur={(e)       => { e.currentTarget.style.borderColor = 'var(--border)' }}
-      >
-        {imgSrc ? (
-          <img src={imgSrc} alt={label} style={{ maxHeight: 60, maxWidth: '100%', objectFit: 'contain' }} />
-        ) : (
-          <Upload size={20} style={{ color: 'var(--text-3)' }} aria-hidden="true" />
-        )}
-        {uploading
-          ? <Loader2 size={13} className="animate-spin" style={{ color: 'var(--primary)' }} aria-hidden="true" />
-          : <span style={{ fontSize: 12, color: 'var(--text-3)', textAlign: 'center' }} aria-hidden="true">{hint}</span>
-        }
-      </button>
-      <input
-        ref={fileRef}
-        type="file"
-        aria-label={`Sélectionner un fichier pour ${label}`}
-        accept={accept ?? 'image/png,image/jpeg,image/webp'}
-        style={{ display: 'none' }}
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (file) uploadMut.mutate({ type: assetType, file })
-          e.target.value = ''
-        }}
-      />
-    </div>
-  )
-}
-
 // ─── Page ─────────────────────────────────────────────────────
 export default function CompanySettingsPage() {
+  const { can }   = usePermission()
   const { data: settings, isLoading } = useSettings()
   const updateMut = useUpdateSettings()
   const isMobile  = useIsMobile()
@@ -122,22 +59,18 @@ export default function CompanySettingsPage() {
   useEffect(() => {
     if (!settings) return
     setForm({
-      companyName:  settings.companyName,
-      legalForm:    settings.legalForm   ?? '',
-      taxNumber:    settings.taxNumber   ?? '',
-      rccm:         settings.rccm        ?? '',
-      address:      settings.address,
-      city:         settings.city        ?? '',
-      country:      settings.country     ?? '',
-      postalBox:    settings.postalBox   ?? '',
-      phone:        settings.phone,
-      email:        settings.email,
-      website:      settings.website     ?? '',
-      companyCode:             settings.companyCode,
-      defaultCurrency:             settings.defaultCurrency,
-      defaultTaxRate:              settings.defaultTaxRate,
-      defaultProformaValidityDays: settings.defaultProformaValidityDays,
-      defaultInvoiceDueDays:       settings.defaultInvoiceDueDays,
+      companyName: settings.companyName,
+      legalForm:   settings.legalForm ?? '',
+      taxNumber:   settings.taxNumber ?? '',
+      rccm:        settings.rccm      ?? '',
+      companyCode: settings.companyCode,
+      address:     settings.address,
+      city:        settings.city    ?? '',
+      country:     settings.country ?? '',
+      postalBox:   settings.postalBox ?? '',
+      phone:       settings.phone,
+      email:       settings.email,
+      website:     settings.website ?? '',
     })
     setDirty(false)
   }, [settings])
@@ -153,6 +86,8 @@ export default function CompanySettingsPage() {
     setDirty(false)
   }
 
+  if (!can('settings', 'read')) return <AccessDenied />
+
   if (isLoading) {
     return (
       <div aria-hidden="true" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -167,6 +102,16 @@ export default function CompanySettingsPage() {
 
   return (
     <form onSubmit={handleSave} noValidate aria-busy={updateMut.isPending} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* Page header */}
+      <div>
+        <h1 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--text-1)' }}>
+          Informations générales
+        </h1>
+        <p style={{ margin: 0, fontSize: 13.5, color: 'var(--text-3)', fontFamily: 'var(--font-body)' }}>
+          Identité légale et coordonnées de l&apos;entreprise — apparaissent sur tous les documents SYSCOHADA
+        </p>
+      </div>
 
       {/* Row 1 — Identité légale + Coordonnées */}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
@@ -190,6 +135,27 @@ export default function CompanySettingsPage() {
             <div>
               <Label htmlFor={id('rccm')}>RCCM</Label>
               <input id={id('rccm')} value={form.rccm ?? ''} onChange={(e) => set('rccm', e.target.value)} style={inputCss} placeholder="RC/DLA/2020/B/01234" />
+            </div>
+            <div>
+              <Label htmlFor={id('companyCode')} required>Code entreprise</Label>
+              <input
+                id={id('companyCode')}
+                value={form.companyCode ?? 'BTS'}
+                onChange={(e) => set('companyCode', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                maxLength={10}
+                style={inputCss}
+                placeholder="BTS"
+                required
+                aria-required="true"
+              />
+              <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '3px 0 0' }}>
+                Préfixe de numérotation SYSCOHADA — ex&nbsp;: <span style={{ fontFamily: 'var(--font-mono)' }}>{form.companyCode ?? 'BTS'}/DC/2026/01/FAC001</span>
+              </p>
+              {(form.companyCode ?? '') !== (settings?.companyCode ?? 'BTS') && (
+                <p style={{ fontSize: 11, color: '#f59e0b', margin: '4px 0 0' }}>
+                  ⚠ Ce changement s&apos;applique aux futurs documents uniquement.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -228,99 +194,8 @@ export default function CompanySettingsPage() {
         </div>
       </div>
 
-      {/* Row 2 — Branding + Paramètres financiers */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
-
-        {/* Branding */}
-        <div className="card">
-          <SectionTitle icon={<ImageIcon size={15} />} title="Branding & Documents" />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <AssetTile
-              label="Logo de l'entreprise"
-              hint="Affiché sur les factures et proformas — Cliquer pour changer le logo"
-              currentPath={settings?.logoPath}
-              assetType="logo"
-            />
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-              <AssetTile label="En-tête PDF" hint="+ Image en-tête PDF" currentPath={settings?.headerImagePath} assetType="header" />
-              <AssetTile label="Pied de page PDF" hint="+ Image pied de page PDF" currentPath={settings?.footerImagePath} assetType="footer" />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-              <AssetTile label="Cachet / Tampon" hint="+ Cachet" currentPath={settings?.stampPath} assetType="stamp" />
-              <AssetTile label="Signature" hint="+ Signature" currentPath={settings?.signaturePath} assetType="signature" />
-            </div>
-          </div>
-        </div>
-
-        {/* Paramètres financiers */}
-        <div className="card">
-          <SectionTitle icon={<Banknote size={15} />} title="Paramètres financiers" />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div>
-              <Label htmlFor={id('currency')}>Devise par défaut</Label>
-              <select id={id('currency')} value={form.defaultCurrency ?? 'XAF'} onChange={(e) => set('defaultCurrency', e.target.value)} style={{ ...inputCss, cursor: 'pointer' }}>
-                <option value="XAF">XAF (Franc CFA)</option>
-                <option value="EUR">EUR (Euro)</option>
-                <option value="USD">USD (Dollar US)</option>
-              </select>
-            </div>
-            <div>
-              <Label htmlFor={id('taxRate')}>Taux TVA par défaut (%)</Label>
-              <input
-                id={id('taxRate')}
-                type="number" min={0} max={100} step={0.01}
-                value={form.defaultTaxRate ?? 19.25}
-                onChange={(e) => set('defaultTaxRate', parseFloat(e.target.value))}
-                style={inputCss} placeholder="19.25"
-              />
-              <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '3px 0 0' }}>SYSCOHADA — TVA Cameroun : 19,25%</p>
-            </div>
-            <div>
-              <Label htmlFor={id('companyCode')}>Code entreprise (numérotation)</Label>
-              <input
-                id={id('companyCode')}
-                value={form.companyCode ?? 'BTS'}
-                onChange={(e) => set('companyCode', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                maxLength={10}
-                style={inputCss}
-                placeholder="BTS"
-              />
-              <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '3px 0 0' }}>
-                Utilisé dans la numérotation {form.companyCode ?? 'BTS'}/DC/… — lettres majuscules et chiffres uniquement.
-              </p>
-              {(form.companyCode ?? '') !== (settings?.companyCode ?? 'BTS') && (
-                <p style={{ fontSize: 11, color: '#f59e0b', margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  ⚠ Modifier ce code change la numérotation des futurs documents uniquement.
-                </p>
-              )}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-              <div>
-                <Label htmlFor={id('proformaValidity')}>Validité proformas (jours)</Label>
-                <input
-                  id={id('proformaValidity')}
-                  type="number" min={1} max={365}
-                  value={form.defaultProformaValidityDays ?? 30}
-                  onChange={(e) => set('defaultProformaValidityDays', parseInt(e.target.value, 10))}
-                  style={inputCss}
-                />
-              </div>
-              <div>
-                <Label htmlFor={id('invoiceDue')}>Échéance factures (jours)</Label>
-                <input
-                  id={id('invoiceDue')}
-                  type="number" min={1} max={365}
-                  value={form.defaultInvoiceDueDays ?? 30}
-                  onChange={(e) => set('defaultInvoiceDueDays', parseInt(e.target.value, 10))}
-                  style={inputCss}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Save bar */}
+      {can('settings', 'update') && (
       <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 4 }}>
         <button
           type="submit"
@@ -340,6 +215,7 @@ export default function CompanySettingsPage() {
           Enregistrer les modifications
         </button>
       </div>
+      )}
     </form>
   )
 }

@@ -2,11 +2,12 @@ import { useAuthStore } from '@/features/auth/store'
 import type { Role } from '@/lib/constants'
 
 // ─── Permissions matrix ───────────────────────────────────────
-type Action = 'create' | 'read' | 'update' | 'delete' | 'cancel' | 'issue' | 'export' | '*'
-type Resource =
+export type Action = 'create' | 'read' | 'update' | 'delete' | 'cancel' | 'issue' | 'export' | 'manage' | '*'
+export type Resource =
   | 'invoice' | 'proforma' | 'payment' | 'client'
   | 'product' | 'user' | 'settings' | 'audit'
   | 'report'  | 'recurring' | 'notification'
+  | 'accounting' | 'bank' | 'role' | 'approval'
 
 type PermissionMap = Partial<Record<Resource, Action[] | ['*']>>
 
@@ -23,6 +24,10 @@ const PERMISSIONS: Record<Role, PermissionMap> = {
     report:       ['*'],
     recurring:    ['*'],
     notification: ['*'],
+    accounting:   ['*'],
+    bank:         ['*'],
+    role:         ['*'],
+    approval:     ['*'],
   },
   commercial: {
     invoice:      ['create', 'read', 'update', 'cancel', 'issue', 'export'],
@@ -36,6 +41,10 @@ const PERMISSIONS: Record<Role, PermissionMap> = {
     report:       ['read', 'export'],
     recurring:    ['create', 'read', 'update'],
     notification: ['read'],
+    accounting:   ['create', 'read', 'update'],
+    bank:         ['create', 'read', 'update'],
+    role:         [],
+    approval:     ['read'],
   },
   employee: {
     invoice:      ['read'],
@@ -49,6 +58,10 @@ const PERMISSIONS: Record<Role, PermissionMap> = {
     report:       ['read'],
     recurring:    ['read'],
     notification: ['read'],
+    accounting:   ['read'],
+    bank:         ['read'],
+    role:         [],
+    approval:     [],
   },
 }
 

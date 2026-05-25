@@ -64,6 +64,10 @@ export interface SupplierInvoice {
   lines:               SupplierInvoiceLine[]
   payments:            SupplierInvoicePayment[]
   createdBy:           SupplierInvoiceUser
+  // Workflow d'approbation
+  requiresApproval:    boolean
+  approvalRequestId:   string | null
+  approvalRequest:     { status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'expired'; currentStep: number; totalSteps: number } | null
   createdAt:           string
   updatedAt:           string
 }

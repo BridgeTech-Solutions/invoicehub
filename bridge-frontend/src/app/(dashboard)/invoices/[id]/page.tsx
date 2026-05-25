@@ -14,10 +14,11 @@ import { InvoiceForm } from '@/features/invoices/components/InvoiceForm'
 import { InvoiceStatusTimeline } from '@/features/invoices/components/StatusTimeline'
 import { TotalsPanel } from '@/components/document/TotalsPanel'
 import { lineToFormLine } from '@/lib/document-math'
-import { formatDate, formatXAF, getInitials } from '@/lib/utils'
+import { formatDate, getInitials } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES, STATUS_LABELS, INVOICE_TYPES, PAYMENT_METHODS } from '@/lib/constants'
 import type { InvoiceStatus, InvoiceType, DiscountType } from '@/features/invoices/types'
-import { useAuthStore } from '@/store/auth'
+import { usePermission } from '@/hooks/usePermission'
 
 // ─── Status / type badges ────────────────────────────────────────
 
@@ -59,6 +60,7 @@ function TypeBadge({ type }: { type: InvoiceType }) {
 // ─── Payment progress bar ────────────────────────────────────────
 
 function PaymentProgress({ totalTtc, amountPaid, balanceDue }: { totalTtc: number; amountPaid: number; balanceDue: number }) {
+  const { format } = useCurrency()
   const pct = totalTtc > 0 ? Math.min(100, Math.round(amountPaid / totalTtc * 100)) : 0
   return (
     <div style={{ padding: '16px 18px', background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
@@ -72,11 +74,11 @@ function PaymentProgress({ totalTtc, amountPaid, balanceDue }: { totalTtc: numbe
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <div>
           <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-display)', fontWeight: 600 }}>Payé</p>
-          <p style={{ fontSize: 14, fontWeight: 700, color: '#10b981', fontFamily: 'var(--font-mono)', margin: 0 }}>{formatXAF(amountPaid)}</p>
+          <p style={{ fontSize: 14, fontWeight: 700, color: '#10b981', fontFamily: 'var(--font-mono)', margin: 0 }}>{format(amountPaid)}</p>
         </div>
         <div>
           <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-display)', fontWeight: 600 }}>Solde dû</p>
-          <p style={{ fontSize: 14, fontWeight: 700, color: balanceDue > 0 ? '#ef4444' : '#10b981', fontFamily: 'var(--font-mono)', margin: 0 }}>{formatXAF(balanceDue)}</p>
+          <p style={{ fontSize: 14, fontWeight: 700, color: balanceDue > 0 ? '#ef4444' : '#10b981', fontFamily: 'var(--font-mono)', margin: 0 }}>{format(balanceDue)}</p>
         </div>
       </div>
     </div>
@@ -189,11 +191,11 @@ function Skeleton() {
 // ─── Detail view ─────────────────────────────────────────────────
 
 function InvoiceDetailView({ id }: { id: string }) {
+  const { format } = useCurrency()
   const { data: invoice, isLoading } = useInvoice(id)
   const deleteMutation  = useDeletePayment()
   const receiptMutation = useDownloadReceipt()
-  const { user }        = useAuthStore()
-  const isAdmin         = user?.role === 'admin'
+  const { can }         = usePermission()
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
   if (isLoading) return <Skeleton />
@@ -250,8 +252,8 @@ function InvoiceDetailView({ id }: { id: string }) {
             </p>
             <p style={{ fontSize: 24, fontWeight: 800, color: invoice.type === 'acompte' ? '#7c3aed' : invoice.type === 'solde' ? '#0891b2' : 'var(--primary)', fontFamily: 'var(--font-mono)', margin: 0 }}>
               {invoice.type === 'solde'
-                ? formatXAF(Number(invoice.amountDue))
-                : formatXAF(Number(invoice.totalTtc))}
+                ? format(Number(invoice.amountDue))
+                : format(Number(invoice.totalTtc))}
             </p>
           </div>
         </div>
@@ -319,7 +321,7 @@ function InvoiceDetailView({ id }: { id: string }) {
                         {new Intl.NumberFormat('fr-FR').format(Number(line.unitPriceHt))}
                       </td>
                       <td style={{ padding: '11px 10px', textAlign: 'right', fontSize: 12.5, color: Number(line.discountValue) > 0 ? '#d97706' : 'var(--text-3)' }}>
-                        {line.discountType === 'none' ? '—' : line.discountType === 'percentage' ? `${Number(line.discountValue)}%` : formatXAF(Number(line.discountValue))}
+                        {line.discountType === 'none' ? '—' : line.discountType === 'percentage' ? `${Number(line.discountValue)}%` : format(Number(line.discountValue))}
                       </td>
                       <td style={{ padding: '11px 10px', textAlign: 'right', fontSize: 12.5, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{Number(line.taxRate)}%</td>
                       <td style={{ padding: '11px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>
@@ -370,7 +372,7 @@ function InvoiceDetailView({ id }: { id: string }) {
                       </td>
                       <td style={{ padding: '10px', fontSize: 12.5, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{pay.reference ?? '—'}</td>
                       <td style={{ padding: '10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13.5, fontWeight: 700, color: '#10b981', whiteSpace: 'nowrap' }}>
-                        +{formatXAF(Number(pay.amount))}
+                        +{format(Number(pay.amount))}
                       </td>
                       <td style={{ padding: '10px', textAlign: 'right', width: 72 }}>
                         <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
@@ -379,7 +381,7 @@ function InvoiceDetailView({ id }: { id: string }) {
                             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--primary)' }}>
                             {receiptMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <FileDown size={13} />}
                           </button>
-                          {isAdmin && (
+                          {can('payment', 'delete') && (
                             pendingDeleteId === pay.id ? (
                               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                 <button type="button" onClick={() => { setPendingDeleteId(null); deleteMutation.mutate(pay.id) }} style={{ padding: '2px 8px', borderRadius: 4, background: '#ef4444', color: '#fff', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Confirmer</button>
@@ -485,7 +487,7 @@ function InvoiceDetailView({ id }: { id: string }) {
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>Montant</span>
                       <span style={{ fontSize: 12.5, color: '#d97706', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                        {formatXAF(Number(invoice.escompteAmount))}
+                        {format(Number(invoice.escompteAmount))}
                       </span>
                     </div>
                   </div>

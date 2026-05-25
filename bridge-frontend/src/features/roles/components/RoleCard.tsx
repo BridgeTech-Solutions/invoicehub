@@ -5,8 +5,6 @@ import { Shield, Users, Lock, Pencil, Trash2 } from 'lucide-react'
 import type { RoleEntry } from '../types'
 import { ROUTES } from '@/lib/constants'
 
-const ALL_PERMS_COUNT = 57
-
 const ROLE_PALETTE: Array<{ accent: string; bg: string; border: string }> = [
   { accent: '#2D7DD2', bg: 'rgba(45,125,210,0.06)',  border: 'rgba(45,125,210,0.18)'  },
   { accent: '#8b5cf6', bg: 'rgba(139,92,246,0.06)',  border: 'rgba(139,92,246,0.18)'  },
@@ -23,18 +21,19 @@ function getPalette(name: string, isSystem: boolean) {
 }
 
 interface Props {
-  role:     RoleEntry
-  onEdit:   (r: RoleEntry) => void
-  onDelete: (r: RoleEntry) => void
-  canManage: boolean
+  role:       RoleEntry
+  totalPerms: number
+  onEdit:     (r: RoleEntry) => void
+  onDelete:   (r: RoleEntry) => void
+  canManage:  boolean
 }
 
-export function RoleCard({ role, onEdit, onDelete, canManage }: Props) {
+export function RoleCard({ role, totalPerms, onEdit, onDelete, canManage }: Props) {
   const router  = useRouter()
   const palette = getPalette(role.name, role.isSystem)
   const hasAll  = role.permissions.includes('*')
-  const count   = hasAll ? ALL_PERMS_COUNT : role.permissions.length
-  const pct     = Math.min(100, Math.round((count / ALL_PERMS_COUNT) * 100))
+  const count   = hasAll ? totalPerms : role.permissions.length
+  const pct     = totalPerms > 0 ? Math.min(100, Math.round((count / totalPerms) * 100)) : 0
   const users   = role._count?.users ?? 0
 
   return (

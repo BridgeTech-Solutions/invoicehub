@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Package, AlertTriangle, TrendingDown, BarChart3 } from 'lucide-react'
 import { useStockSummary } from '../hooks'
-import { formatXAF } from '@/lib/utils'
+import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
 import Link from 'next/link'
 
@@ -96,6 +96,7 @@ function KpiCard({ label, numericValue, formatter, sub, icon: Icon, color, bg, h
 }
 
 export function StockKpiCards() {
+  const { format } = useCurrency()
   const { data, isLoading } = useStockSummary()
 
   if (isLoading) {
@@ -112,7 +113,7 @@ export function StockKpiCards() {
     {
       label:        'Valeur totale stock',
       numericValue: data.totalStockValue,
-      formatter:    formatXAF,
+      formatter:    format,
       sub:          `${data.totalTrackedProducts} produit${data.totalTrackedProducts !== 1 ? 's' : ''} suivi${data.totalTrackedProducts !== 1 ? 's' : ''}`,
       icon:         BarChart3,
       color:        '#2D7DD2',

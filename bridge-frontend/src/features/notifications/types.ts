@@ -11,6 +11,12 @@ export type NotificationType =
   | 'payment_registered'
   | 'reminder_sent'
   | 'user_created'
+  // Modules achats / dépenses
+  | 'expense_submitted'
+  | 'expense_approved'
+  | 'expense_rejected'
+  | 'purchase_order_received'
+  | 'supplier_invoice_due'
   | 'system'
 
 export interface Notification {
