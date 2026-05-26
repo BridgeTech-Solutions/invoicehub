@@ -2,7 +2,7 @@
 
 export type AccountType    = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense'
 export type AccountClass   = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
-export type JournalType    = 'purchase' | 'sale' | 'bank' | 'cash' | 'od' | 'opening'
+export type JournalType    = 'purchases' | 'sales' | 'bank' | 'cash' | 'operations'
 export type PeriodStatus   = 'open' | 'current' | 'closed' | 'archived'
 export type EntrySource    = 'manual' | 'invoice' | 'payment' | 'expense' | 'purchase_order'
 export type TaxDeclStatus  = 'draft' | 'submitted' | 'validated' | 'to_pay'
@@ -25,29 +25,47 @@ export interface Account {
   createdAt:      string
 }
 
+export type AccountNature = 'debit_normal' | 'credit_normal'
+
 export interface AccountListItem {
-  id:             string
-  number:         string
-  name:           string
-  type:           AccountType
-  normalBalance:  'debit' | 'credit'
-  class:          AccountClass
-  parentId:       string | null
-  isLeaf:         boolean
-  isActive:       boolean
-  openingBalance: number
+  id:                   string
+  number:               string
+  name:                 string
+  shortName:            string | null
+  type:                 AccountType
+  accountNature:        AccountNature
+  normalBalance:        'debit' | 'credit'
+  class:                AccountClass
+  parentId:             string | null
+  isLeaf:               boolean
+  isDetailAccount:      boolean
+  isActive:             boolean
+  allowsReconciliation: boolean
+  openingBalance:       number
 }
 
 export interface CreateAccountPayload {
-  number:          string
-  name:            string
-  type:            AccountType
-  normalBalance:   'debit' | 'credit'
-  parentId?:       string
-  openingBalance?: number
+  accountNumber:        string
+  name:                 string
+  shortName?:           string
+  parentAccountNumber?: string
+  accountNature?:       AccountNature
+  isDetailAccount?:     boolean
+  allowsReconciliation?: boolean
+  description?:         string
+  notes?:               string
 }
 
-export type UpdateAccountPayload = Partial<CreateAccountPayload>
+export interface UpdateAccountPayload {
+  name?:                string
+  shortName?:           string
+  accountNature?:       AccountNature
+  isDetailAccount?:     boolean
+  allowsReconciliation?: boolean
+  description?:         string
+  notes?:               string
+  isActive?:            boolean
+}
 
 // ─── Fiscal Period ────────────────────────────────────────────
 
@@ -168,19 +186,19 @@ export interface ListEntriesParams {
 }
 
 export interface FormEntryLine {
-  accountId:  string
-  accountNum: string
-  accountName:string
-  label:      string
-  debit:      number
-  credit:     number
+  accountId:   string
+  accountNum:  string
+  accountName: string
+  label:       string
+  debit:       number
+  credit:      number
 }
 
 export interface CreateEntryPayload {
-  journalId:      string
-  date:           string
-  label:          string
-  lines:          { accountId: string; label: string; debit: number; credit: number }[]
+  journalId:       string
+  entryDate:       string
+  label:           string
+  lines:           { accountNumber: string; label: string; debit: number; credit: number }[]
   attachmentPath?: string
 }
 

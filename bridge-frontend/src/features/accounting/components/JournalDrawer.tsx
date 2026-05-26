@@ -14,19 +14,18 @@ interface Props {
 }
 
 const JOURNAL_TYPES: { value: JournalType; label: string; color: string }[] = [
-  { value: 'purchase', label: 'Achats (AC)',       color: '#7c3aed' },
-  { value: 'sale',     label: 'Ventes (VE)',       color: '#16a34a' },
-  { value: 'bank',     label: 'Banque (BQ)',       color: '#2D7DD2' },
-  { value: 'cash',     label: 'Caisse (CA)',       color: '#d97706' },
-  { value: 'od',       label: 'Op. Diverses (OD)',  color: '#0891b2' },
-  { value: 'opening',  label: 'À-nouveaux (AN)',    color: '#94a3b8' },
+  { value: 'purchases',   label: 'Achats (ACH)',       color: '#7c3aed' },
+  { value: 'sales',       label: 'Ventes (VTE)',       color: '#16a34a' },
+  { value: 'bank',        label: 'Banque (BQ)',        color: '#2D7DD2' },
+  { value: 'cash',        label: 'Caisse (CAI)',       color: '#d97706' },
+  { value: 'operations',  label: 'Op. Diverses (OD)', color: '#0891b2' },
 ]
 
 export function JournalDrawer({ open, onClose, editing }: Props) {
   const [visible, setVisible] = useState(false)
   const [code, setCode]       = useState('')
   const [name, setName]       = useState('')
-  const [type, setType]       = useState<JournalType>('purchase')
+  const [type, setType]       = useState<JournalType>('purchases')
   const [defaultAccountId, setDefaultAccountId] = useState<string | null>(null)
 
   const create = useCreateJournal()

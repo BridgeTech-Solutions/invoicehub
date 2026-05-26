@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { X, BookOpen } from 'lucide-react'
+import { X, BookOpen, Info } from 'lucide-react'
 import { useCreateAccount, useUpdateAccount } from '../hooks'
 import { toast } from 'sonner'
-import type { AccountListItem, AccountType, CreateAccountPayload } from '../types'
+import type { AccountListItem, AccountNature } from '../types'
 
 interface Props {
   open:      boolean
@@ -13,28 +13,50 @@ interface Props {
   parentId?: string | null
 }
 
-const TYPES: { value: AccountType; label: string }[] = [
-  { value: 'asset',     label: 'Actif' },
-  { value: 'liability', label: 'Passif' },
-  { value: 'equity',    label: 'Capitaux propres' },
-  { value: 'revenue',   label: 'Produit' },
-  { value: 'expense',   label: 'Charge' },
-]
+// Nature auto-suggérée selon la classe SYSCOHADA
+function suggestNature(number: string): AccountNature {
+  const d = number.trim().charAt(0)
+  return d === '7' ? 'credit_normal' : 'debit_normal'
+}
 
-const TYPE_COLOR: Record<AccountType, string> = {
-  asset: '#2D7DD2', liability: '#7c3aed', equity: '#0891b2', revenue: '#16a34a', expense: '#dc2626',
+// Libellé de classe SYSCOHADA
+const CLASS_LABEL: Record<string, string> = {
+  '1': 'Classe 1 — Ressources durables',
+  '2': 'Classe 2 — Actif immobilisé',
+  '3': 'Classe 3 — Actif circulant (stocks)',
+  '4': 'Classe 4 — Tiers',
+  '5': 'Classe 5 — Trésorerie',
+  '6': 'Classe 6 — Charges',
+  '7': 'Classe 7 — Produits',
+  '8': 'Classe 8 — Autres charges et produits',
 }
 
 export function AccountDrawer({ open, onClose, editing, parentId }: Props) {
-  const [visible, setVisible] = useState(false)
-  const [number, setNumber]   = useState('')
-  const [name, setName]       = useState('')
-  const [type, setType]       = useState<AccountType>('asset')
-  const [normalBalance, setNormalBalance] = useState<'debit' | 'credit'>('debit')
-  const [openingBalance, setOpeningBalance] = useState(0)
+  const [visible, setVisible]  = useState(false)
+  const [number, setNumber]    = useState('')
+  const [name, setName]        = useState('')
+  const [shortName, setShortName]  = useState('')
+  const [nature, setNature]        = useState<AccountNature>('debit_normal')
+  const [isDetail, setIsDetail]    = useState(true)
+  const [allowsRec, setAllowsRec]  = useState(false)
+  const [description, setDescription] = useState('')
+  const [notes, setNotes]          = useState('')
 
   const create = useCreateAccount()
   const update = useUpdateAccount()
+
+  const classDigit   = number.trim().charAt(0)
+  const classLabel   = CLASS_LABEL[classDigit] ?? ''
+
+  // Suggestion de nature quand le numéro change (mode création seulement)
+  useEffect(() => {
+    if (!editing && number.length >= 1) {
+      setNature(suggestNature(number))
+      // Les comptes 401, 411 : suggérer réconciliation automatiquement
+      const n = number.trim()
+      setAllowsRec(n.startsWith('401') || n.startsWith('411') || n.startsWith('512') || n.startsWith('521'))
+    }
+  }, [number, editing])
 
   useEffect(() => {
     if (open) {
@@ -42,11 +64,15 @@ export function AccountDrawer({ open, onClose, editing, parentId }: Props) {
       if (editing) {
         setNumber(editing.number)
         setName(editing.name)
-        setType(editing.type)
-        setNormalBalance(editing.normalBalance)
-        setOpeningBalance(editing.openingBalance)
+        setShortName(editing.shortName ?? '')
+        setNature(editing.accountNature)
+        setIsDetail(editing.isDetailAccount)
+        setAllowsRec(editing.allowsReconciliation)
+        setDescription('')
+        setNotes('')
       } else {
-        setNumber(''); setName(''); setType('asset'); setNormalBalance('debit'); setOpeningBalance(0)
+        setNumber(''); setName(''); setShortName(''); setNature('debit_normal')
+        setIsDetail(true); setAllowsRec(false); setDescription(''); setNotes('')
       }
     }
   }, [open, editing])
@@ -64,21 +90,45 @@ export function AccountDrawer({ open, onClose, editing, parentId }: Props) {
   }, [open, handleClose])
 
   useEffect(() => {
-    if (open) { document.body.style.overflow = 'hidden' }
-    else { document.body.style.overflow = '' }
+    document.body.style.overflow = open ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [open])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const payload: CreateAccountPayload = { number, name, type, normalBalance, openingBalance }
-    if (parentId) payload.parentId = parentId
+    if (!number.trim()) { toast.error('Le numéro de compte est obligatoire'); return }
+    if (!name.trim())   { toast.error("L'intitulé est obligatoire"); return }
+    if (!classDigit || !CLASS_LABEL[classDigit]) {
+      toast.error('Numéro invalide — le 1er chiffre doit être entre 1 et 8'); return
+    }
+
     try {
       if (editing) {
-        await update.mutateAsync({ id: editing.id, data: payload })
+        await update.mutateAsync({
+          id: editing.number,
+          data: {
+            name:                 name.trim(),
+            shortName:            shortName.trim() || undefined,
+            accountNature:        nature,
+            isDetailAccount:      isDetail,
+            allowsReconciliation: allowsRec,
+            description:          description.trim() || undefined,
+            notes:                notes.trim() || undefined,
+          },
+        })
         toast.success('Compte mis à jour')
       } else {
-        await create.mutateAsync(payload)
+        await create.mutateAsync({
+          accountNumber:        number.trim(),
+          name:                 name.trim(),
+          shortName:            shortName.trim() || undefined,
+          parentAccountNumber:  parentId ?? undefined,
+          accountNature:        nature,
+          isDetailAccount:      isDetail,
+          allowsReconciliation: allowsRec,
+          description:          description.trim() || undefined,
+          notes:                notes.trim() || undefined,
+        })
         toast.success('Compte créé')
       }
       handleClose()
@@ -88,116 +138,148 @@ export function AccountDrawer({ open, onClose, editing, parentId }: Props) {
   }
 
   if (!open && !visible) return null
-
   const isPending = create.isPending || update.isPending
 
   return (
     <>
-      <div
-        onClick={handleClose}
-        style={{
-          position: 'fixed', inset: 0, zIndex: 300,
-          background: 'rgba(10,20,35,0.45)', backdropFilter: 'blur(2px)',
-          opacity: visible ? 1 : 0, transition: 'opacity 0.28s var(--ease-smooth)',
-        }}
-      />
-      <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 301,
-        width: 480, background: 'var(--surface)',
-        boxShadow: '-8px 0 40px rgba(10,20,35,0.18)',
-        transform: visible ? 'translateX(0)' : 'translateX(100%)',
-        transition: 'transform 0.30s cubic-bezier(0.4,0,0.2,1)',
-        display: 'flex', flexDirection: 'column',
-      }}>
-        {/* stripe */}
+      <div onClick={handleClose} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(10,20,35,0.45)', backdropFilter: 'blur(2px)', opacity: visible ? 1 : 0, transition: 'opacity 0.28s' }} />
+      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 301, width: 520, background: 'var(--surface)', boxShadow: '-8px 0 40px rgba(10,20,35,0.18)', transform: visible ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.30s cubic-bezier(0.4,0,0.2,1)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ height: 4, background: 'linear-gradient(90deg,#2D7DD2 0%,#0891b2 50%,#22d3ee 100%)' }} />
-        {/* header */}
+
+        {/* Header */}
         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(45,125,210,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <BookOpen size={16} style={{ color: 'var(--primary)' }} />
           </div>
           <div style={{ flex: 1 }}>
             <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0 }}>
-              {editing ? 'Modifier le compte' : 'Nouveau compte'}
+              {editing ? 'Modifier le compte' : 'Nouveau compte OHADA'}
             </h2>
-            <p style={{ fontSize: 12, color: 'var(--text-3)', margin: 0 }}>Plan comptable OHADA</p>
+            <p style={{ fontSize: 12, color: 'var(--text-3)', margin: 0 }}>Plan comptable SYSCOHADA révisé</p>
           </div>
           <button onClick={handleClose} aria-label="Fermer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, border: '1.5px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--text-3)' }}>
             <X size={16} />
           </button>
         </div>
 
-        {/* body */}
-        <form onSubmit={handleSubmit} style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {/* Body */}
+        <form id="account-form" onSubmit={handleSubmit} style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
+          {/* Numéro + Intitulé */}
+          <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <h3 style={sectionTitle}>Identification</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 12 }}>
               <div>
-                <label style={labelStyle}>Numéro <span style={{ color: 'var(--s-overdue)' }}>*</span></label>
-                <input value={number} onChange={e => setNumber(e.target.value)} required placeholder="ex: 401"
-                  style={inputStyle} />
+                <label style={lbl}>Numéro <span style={{ color: 'var(--s-overdue)' }}>*</span></label>
+                <input
+                  value={number} onChange={e => setNumber(e.target.value.replace(/\D/g, ''))}
+                  required placeholder="ex : 4011"
+                  disabled={!!editing}
+                  style={{ ...inp, fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.1em', fontSize: 15, opacity: editing ? 0.6 : 1 }}
+                />
+                {classLabel && (
+                  <p style={{ marginTop: 4, fontSize: 11, color: 'var(--primary)', fontWeight: 500 }}>{classLabel}</p>
+                )}
               </div>
               <div>
-                <label style={labelStyle}>Intitulé <span style={{ color: 'var(--s-overdue)' }}>*</span></label>
-                <input value={name} onChange={e => setName(e.target.value)} required placeholder="ex: Fournisseurs"
-                  style={inputStyle} />
+                <label style={lbl}>Intitulé long <span style={{ color: 'var(--s-overdue)' }}>*</span></label>
+                <input value={name} onChange={e => setName(e.target.value)} required
+                  placeholder="ex : Fournisseurs, dettes en compte" style={inp} />
               </div>
             </div>
 
             <div>
-              <label style={labelStyle}>Type de compte <span style={{ color: 'var(--s-overdue)' }}>*</span></label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                {TYPES.map(t => (
-                  <button key={t.value} type="button"
-                    onClick={() => setType(t.value)}
-                    style={{
-                      padding: '8px 6px', borderRadius: 8, border: `1.5px solid ${type === t.value ? TYPE_COLOR[t.value] : 'var(--border)'}`,
-                      background: type === t.value ? `${TYPE_COLOR[t.value]}15` : 'transparent',
-                      cursor: 'pointer', fontSize: 12.5, fontWeight: type === t.value ? 600 : 400,
-                      color: type === t.value ? TYPE_COLOR[t.value] : 'var(--text-2)',
-                      transition: 'all 0.15s',
-                    }}>
-                    {t.label}
+              <label style={lbl}>Intitulé court <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optionnel)</span></label>
+              <input value={shortName} onChange={e => setShortName(e.target.value)} maxLength={100}
+                placeholder="ex : Fournisseurs" style={inp} />
+              <p style={{ marginTop: 4, fontSize: 11, color: 'var(--text-3)' }}>Affiché dans les listes et les rapports abrégés.</p>
+            </div>
+          </section>
+
+          {/* Nature comptable */}
+          <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <h3 style={sectionTitle}>Nature comptable</h3>
+
+            <div>
+              <label style={lbl}>Sens normal du solde</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {([
+                  { value: 'debit_normal',  label: 'Débit normal', sub: 'Actif, Charges (cl. 6)', color: 'var(--acc-debit)' },
+                  { value: 'credit_normal', label: 'Crédit normal', sub: 'Passif, Produits (cl. 7)', color: 'var(--acc-credit)' },
+                ] as const).map(opt => (
+                  <button key={opt.value} type="button" onClick={() => setNature(opt.value)}
+                    style={{ padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${nature === opt.value ? opt.color : 'var(--border)'}`, background: nature === opt.value ? `${opt.color}12` : 'transparent', cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: nature === opt.value ? opt.color : 'var(--text-1)' }}>{opt.label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>{opt.sub}</div>
                   </button>
                 ))}
               </div>
             </div>
 
-            <div>
-              <label style={labelStyle}>Sens normal</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {(['debit', 'credit'] as const).map(b => (
-                  <button key={b} type="button"
-                    onClick={() => setNormalBalance(b)}
-                    style={{
-                      flex: 1, padding: '8px 0', borderRadius: 8,
-                      border: `1.5px solid ${normalBalance === b ? (b === 'debit' ? 'var(--acc-debit)' : 'var(--acc-credit)') : 'var(--border)'}`,
-                      background: normalBalance === b ? (b === 'debit' ? 'var(--acc-debit-bg)' : 'var(--acc-credit-bg)') : 'transparent',
-                      cursor: 'pointer', fontSize: 13, fontWeight: normalBalance === b ? 600 : 400,
-                      color: normalBalance === b ? (b === 'debit' ? 'var(--acc-debit)' : 'var(--acc-credit)') : 'var(--text-2)',
-                      transition: 'all 0.15s',
-                    }}>
-                    {b === 'debit' ? 'Débit' : 'Crédit'}
-                  </button>
-                ))}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {/* Compte détail / regroupement */}
+              <button type="button" onClick={() => setIsDetail(v => !v)}
+                style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${isDetail ? 'var(--primary)' : 'var(--border)'}`, background: isDetail ? 'rgba(45,125,210,0.06)' : 'transparent', cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s' }}>
+                <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${isDetail ? 'var(--primary)' : 'var(--border)'}`, background: isDetail ? 'var(--primary)' : 'transparent', flexShrink: 0, marginTop: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {isDetail && <span style={{ color: '#fff', fontSize: 10, lineHeight: 1 }}>✓</span>}
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-1)' }}>Compte de détail</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 1 }}>Saisie d'écritures autorisée</div>
+                </div>
+              </button>
+
+              {/* Lettrage / réconciliation */}
+              <button type="button" onClick={() => setAllowsRec(v => !v)}
+                style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${allowsRec ? '#7c3aed' : 'var(--border)'}`, background: allowsRec ? 'rgba(124,58,237,0.06)' : 'transparent', cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s' }}>
+                <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${allowsRec ? '#7c3aed' : 'var(--border)'}`, background: allowsRec ? '#7c3aed' : 'transparent', flexShrink: 0, marginTop: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {allowsRec && <span style={{ color: '#fff', fontSize: 10, lineHeight: 1 }}>✓</span>}
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-1)' }}>Lettrage actif</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 1 }}>Réconciliation débit/crédit</div>
+                </div>
+              </button>
+            </div>
+
+            {/* Hint */}
+            {(number.startsWith('401') || number.startsWith('411')) && (
+              <div style={{ display: 'flex', gap: 8, padding: '8px 12px', background: 'rgba(124,58,237,0.06)', borderRadius: 8, border: '1px solid rgba(124,58,237,0.15)' }}>
+                <Info size={13} style={{ color: '#7c3aed', flexShrink: 0, marginTop: 1 }} />
+                <p style={{ fontSize: 11.5, color: '#7c3aed', margin: 0, lineHeight: 1.5 }}>
+                  Les comptes {number.startsWith('401') ? '401 (Fournisseurs)' : '411 (Clients)'} nécessitent généralement le lettrage activé pour la réconciliation.
+                </p>
               </div>
+            )}
+          </section>
+
+          {/* Description + Notes */}
+          <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <h3 style={sectionTitle}>Informations complémentaires</h3>
+
+            <div>
+              <label style={lbl}>Description</label>
+              <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2}
+                placeholder="Description du rôle de ce compte dans le plan OHADA…"
+                style={{ ...inp, height: 'auto', padding: '8px 10px', resize: 'vertical', lineHeight: 1.5 }} />
             </div>
 
             <div>
-              <label style={labelStyle}>Solde d'ouverture (XAF)</label>
-              <input type="number" value={openingBalance} onChange={e => setOpeningBalance(Number(e.target.value))}
-                placeholder="0" style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }} />
+              <label style={lbl}>Notes internes</label>
+              <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+                placeholder="Commentaires comptables, consignes d'utilisation…"
+                style={{ ...inp, height: 'auto', padding: '8px 10px', resize: 'vertical', lineHeight: 1.5, background: 'rgba(245,158,11,0.03)', borderColor: notes ? 'rgba(245,158,11,0.5)' : undefined }} />
             </div>
-          </div>
+          </section>
         </form>
 
-        {/* footer */}
+        {/* Footer */}
         <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button type="button" onClick={handleClose} style={btnSecondary}>Annuler</button>
+          <button type="button" onClick={handleClose} style={btnSec}>Annuler</button>
           <button
-            type="submit" form="account-form" disabled={isPending || !number.trim() || !name.trim()}
-            onClick={handleSubmit}
-            style={{ ...btnPrimary, opacity: isPending || !number.trim() || !name.trim() ? 0.6 : 1 }}>
+            form="account-form" type="submit" onClick={handleSubmit}
+            disabled={isPending || !number.trim() || !name.trim()}
+            style={{ ...btnPri, opacity: isPending || !number.trim() || !name.trim() ? 0.6 : 1 }}>
             {isPending ? 'Enregistrement…' : editing ? 'Mettre à jour' : 'Créer le compte'}
           </button>
         </div>
@@ -206,21 +288,26 @@ export function AccountDrawer({ open, onClose, editing, parentId }: Props) {
   )
 }
 
-const labelStyle: React.CSSProperties = {
+const sectionTitle: React.CSSProperties = {
+  fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
+  color: 'var(--text-3)', fontFamily: 'var(--font-display)', margin: 0,
+  paddingBottom: 6, borderBottom: '1px solid var(--border)',
+}
+const lbl: React.CSSProperties = {
   display: 'block', marginBottom: 5, fontSize: 13, fontWeight: 500,
   color: 'var(--text-2)', fontFamily: 'var(--font-display)',
 }
-const inputStyle: React.CSSProperties = {
+const inp: React.CSSProperties = {
   width: '100%', height: 38, padding: '0 10px', borderRadius: 'var(--radius-md)',
   border: '1.5px solid var(--border-strong)', background: 'var(--surface)',
-  fontSize: 13.5, color: 'var(--text-1)', outline: 'none',
+  fontSize: 13.5, color: 'var(--text-1)', outline: 'none', boxSizing: 'border-box',
 }
-const btnSecondary: React.CSSProperties = {
+const btnSec: React.CSSProperties = {
   height: 38, padding: '0 18px', borderRadius: 'var(--radius-md)',
   border: '1.5px solid var(--border-strong)', background: 'transparent',
   fontSize: 13.5, fontWeight: 500, color: 'var(--text-2)', cursor: 'pointer',
 }
-const btnPrimary: React.CSSProperties = {
+const btnPri: React.CSSProperties = {
   height: 38, padding: '0 20px', borderRadius: 'var(--radius-md)',
   border: 'none', background: 'var(--primary)',
   fontSize: 13.5, fontWeight: 600, color: '#fff', cursor: 'pointer',

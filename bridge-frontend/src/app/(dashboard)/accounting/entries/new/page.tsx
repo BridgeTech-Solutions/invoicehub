@@ -21,7 +21,7 @@ export default function NewEntryPage() {
   const { can } = usePermission()
   const router = useRouter()
   const [journalId, setJournalId]   = useState('')
-  const [date, setDate]             = useState(new Date().toISOString().slice(0, 10))
+  const [entryDate, setEntryDate]   = useState(new Date().toISOString().slice(0, 10))
   const [label, setLabel]           = useState('')
   const [lines, setLines]           = useState<FormEntryLine[]>([makeBlankLine(), makeBlankLine()])
 
@@ -54,29 +54,29 @@ export default function NewEntryPage() {
   }
 
   const handleSubmit = useCallback(async () => {
-    if (!journalId) { toast.error('Sélectionnez un journal'); return }
-    if (!date)      { toast.error('Sélectionnez une date'); return }
+    if (!journalId)    { toast.error('Sélectionnez un journal'); return }
+    if (!entryDate)    { toast.error('Sélectionnez une date'); return }
     if (!label.trim()) { toast.error('Saisissez un libellé'); return }
-    if (!isBalanced) { toast.error(`Déséquilibre de ${format(diff)} — corrigez avant d'enregistrer`); return }
-    const invalidLines = lines.filter(l => !l.accountId || (l.debit === 0 && l.credit === 0))
+    if (!isBalanced)   { toast.error(`Déséquilibre de ${format(diff)} — corrigez avant d'enregistrer`); return }
+    const invalidLines = lines.filter(l => !l.accountNum || (l.debit === 0 && l.credit === 0))
     if (invalidLines.length) { toast.error('Chaque ligne doit avoir un compte et un montant (débit ou crédit)'); return }
 
     try {
       await create.mutateAsync({
-        journalId, date, label,
+        journalId, entryDate, label,
         lines: lines.map(l => ({
-          accountId: l.accountId,
-          label: l.label || label,
-          debit: l.debit || 0,
-          credit: l.credit || 0,
+          accountNumber: l.accountNum,
+          label:         l.label || label,
+          debit:         l.debit  || 0,
+          credit:        l.credit || 0,
         })),
       })
       toast.success('Écriture enregistrée')
       router.push(ROUTES.ACCOUNTING_ENTRIES)
     } catch (e: unknown) { toast.error((e as Error).message) }
-  }, [journalId, date, label, lines, isBalanced, diff, create, router])
+  }, [journalId, entryDate, label, lines, isBalanced, diff, create, router])
 
-  const selectedJournal = journals.find(j => j.id === journalId)
+  const selectedJournal  = journals.find(j => j.id === journalId)
 
   if (!can('accounting', 'create')) return <AccessDenied message="Vous n'avez pas la permission de créer des écritures comptables." />
 
@@ -113,7 +113,7 @@ export default function NewEntryPage() {
               </div>
               <div>
                 <label style={lbl}>Date <span style={{ color: 'var(--s-overdue)' }}>*</span></label>
-                <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inp} />
+                <input type="date" value={entryDate} onChange={e => setEntryDate(e.target.value)} style={inp} />
               </div>
               <div style={{ gridColumn: '1/-1' }}>
                 <label style={lbl}>Libellé général <span style={{ color: 'var(--s-overdue)' }}>*</span></label>
@@ -219,7 +219,7 @@ export default function NewEntryPage() {
             <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Récapitulatif</h3>
             {[
               { label: 'Journal', value: selectedJournal ? `${selectedJournal.code} — ${selectedJournal.name}` : '—' },
-              { label: 'Date', value: date ? new Date(date).toLocaleDateString('fr-FR') : '—' },
+              { label: 'Date', value: entryDate ? new Date(entryDate).toLocaleDateString('fr-FR') : '—' },
               { label: 'Lignes', value: `${lines.length} ligne${lines.length > 1 ? 's' : ''}` },
             ].map(({ label: l, value: v }) => (
               <div key={l} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13 }}>
@@ -234,7 +234,7 @@ export default function NewEntryPage() {
             style={{ height: 38, borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border-strong)', background: 'transparent', fontSize: 13.5, fontWeight: 500, color: 'var(--text-2)', cursor: 'pointer' }}>
             Annuler
           </button>
-          <button onClick={handleSubmit} disabled={create.isPending || !isBalanced || !journalId || !label.trim()}
+          <button onClick={handleSubmit} disabled={create.isPending || !isBalanced || !journalId || !entryDate || !label.trim()}
             style={{ height: 42, borderRadius: 'var(--radius-md)', border: 'none', background: isBalanced ? 'var(--primary)' : '#94a3b8', fontSize: 14, fontWeight: 700, color: '#fff', cursor: 'pointer', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s', opacity: create.isPending ? 0.8 : 1 }}>
             {create.isPending ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Enregistrement…</> : 'Enregistrer l\'écriture'}
           </button>

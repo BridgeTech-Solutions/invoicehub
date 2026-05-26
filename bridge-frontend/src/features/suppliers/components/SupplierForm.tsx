@@ -71,11 +71,11 @@ type FormState = {
   taxNumber:          string
   rccm:               string
   website:            string
-  paymentTermDays:    number
+  defaultDueDays:     number
   currency:           string
+  status:             'active' | 'inactive' | 'blacklisted'
   accountingAccount:  string
-  notes:              string
-  isActive:           boolean
+  internalNotes:      string
 }
 
 export function SupplierForm({ supplier, onClose, wide = false }: SupplierFormProps) {
@@ -94,10 +94,11 @@ export function SupplierForm({ supplier, onClose, wide = false }: SupplierFormPr
   const idTaxNumber         = useId()
   const idRccm              = useId()
   const idWebsite           = useId()
-  const idPaymentTermDays   = useId()
+  const idDefaultDueDays    = useId()
   const idCurrency          = useId()
+  const idStatus            = useId()
   const idAccountingAccount = useId()
-  const idNotes             = useId()
+  const idInternalNotes     = useId()
 
   const [form, setForm] = useState<FormState>({
     name:              supplier?.name               ?? '',
@@ -109,11 +110,11 @@ export function SupplierForm({ supplier, onClose, wide = false }: SupplierFormPr
     taxNumber:         supplier?.taxNumber          ?? '',
     rccm:              supplier?.rccm               ?? '',
     website:           supplier?.website            ?? '',
-    paymentTermDays:   supplier?.paymentTermDays    ?? 30,
+    defaultDueDays:    supplier?.defaultDueDays     ?? 30,
     currency:          supplier?.currency           ?? 'XAF',
+    status:            supplier?.status             ?? 'active',
     accountingAccount: supplier?.accountingAccount  ?? '401000',
-    notes:             supplier?.notes              ?? '',
-    isActive:          supplier?.isActive           ?? true,
+    internalNotes:     supplier?.internalNotes      ?? '',
   })
 
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({})
@@ -148,13 +149,14 @@ export function SupplierForm({ supplier, onClose, wide = false }: SupplierFormPr
       taxNumber:         form.taxNumber          || undefined,
       rccm:              form.rccm               || undefined,
       website:           form.website            || undefined,
-      paymentTermDays:   Number(form.paymentTermDays),
+      defaultDueDays:    Number(form.defaultDueDays),
       currency:          form.currency,
+      status:            form.status,
       accountingAccount: form.accountingAccount  || undefined,
-      notes:             form.notes              || undefined,
+      internalNotes:     form.internalNotes      || undefined,
     }
     if (isEdit) {
-      updateMutation.mutate({ ...payload, isActive: form.isActive }, { onSuccess: onClose })
+      updateMutation.mutate(payload, { onSuccess: onClose })
     } else {
       createMutation.mutate(payload)
     }
@@ -273,10 +275,10 @@ export function SupplierForm({ supplier, onClose, wide = false }: SupplierFormPr
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <SectionTitle>Conditions commerciales</SectionTitle>
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 12 }}>
-        <Field label="Délai de paiement (jours)" htmlFor={idPaymentTermDays}>
-          <input id={idPaymentTermDays} name="paymentTermDays" type="number" min={0} max={365}
-            value={form.paymentTermDays}
-            onChange={e => set('paymentTermDays', Number(e.target.value))}
+        <Field label="Délai de paiement (jours)" htmlFor={idDefaultDueDays}>
+          <input id={idDefaultDueDays} name="defaultDueDays" type="number" min={0} max={365}
+            value={form.defaultDueDays}
+            onChange={e => set('defaultDueDays', Number(e.target.value))}
             placeholder="30" style={inputStyle} {...focus} />
         </Field>
         <Field label="Devise" htmlFor={idCurrency}>
@@ -305,16 +307,16 @@ export function SupplierForm({ supplier, onClose, wide = false }: SupplierFormPr
           Notes internes — confidentiel
         </span>
       </div>
-      <Field label="Notes internes" htmlFor={idNotes}>
+      <Field label="Notes internes" htmlFor={idInternalNotes}>
         <textarea
-          id={idNotes}
-          value={form.notes}
-          onChange={e => set('notes', e.target.value)}
+          id={idInternalNotes}
+          value={form.internalNotes}
+          onChange={e => set('internalNotes', e.target.value)}
           placeholder="Informations confidentielles réservées au staff"
           rows={2}
-          style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6, background: 'rgba(245,158,11,0.03)', borderColor: form.notes ? 'rgba(245,158,11,0.5)' : 'rgba(245,158,11,0.2)' }}
+          style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6, background: 'rgba(245,158,11,0.03)', borderColor: form.internalNotes ? 'rgba(245,158,11,0.5)' : 'rgba(245,158,11,0.2)' }}
           onFocus={e => { e.target.style.borderColor = '#f59e0b'; e.target.style.boxShadow = '0 0 0 3px rgba(245,158,11,0.12)' }}
-          onBlur={e  => { e.target.style.borderColor = form.notes ? 'rgba(245,158,11,0.5)' : 'rgba(245,158,11,0.2)'; e.target.style.boxShadow = 'none' }}
+          onBlur={e  => { e.target.style.borderColor = form.internalNotes ? 'rgba(245,158,11,0.5)' : 'rgba(245,158,11,0.2)'; e.target.style.boxShadow = 'none' }}
         />
       </Field>
       <p style={{ fontSize: 11, color: '#b45309', margin: 0 }}>Visible uniquement par les administrateurs et commerciaux.</p>
@@ -323,13 +325,19 @@ export function SupplierForm({ supplier, onClose, wide = false }: SupplierFormPr
 
   // ─── Statut (edit only) ──────────────────────────────────────
   const sectionStatut = isEdit ? (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', width: 'fit-content' }}>
-      <input type="checkbox" checked={form.isActive} onChange={e => set('isActive', e.target.checked)}
-        style={{ width: 16, height: 16, cursor: 'pointer' }} />
-      <span style={{ fontSize: 13.5, color: 'var(--text-1)', fontFamily: 'var(--font-body)' }}>
-        Fournisseur actif
-      </span>
-    </label>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      <label htmlFor={idStatus} style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)' }}>
+        Statut
+      </label>
+      <select id={idStatus} name="status" value={form.status}
+        onChange={e => set('status', e.target.value as FormState['status'])}
+        style={{ ...inputStyle, cursor: 'pointer', width: 'fit-content', minWidth: 180 }}
+        {...focus}>
+        <option value="active">Actif</option>
+        <option value="inactive">Inactif</option>
+        <option value="blacklisted">Liste noire</option>
+      </select>
+    </div>
   ) : null
 
   // ─── Error banner ────────────────────────────────────────────

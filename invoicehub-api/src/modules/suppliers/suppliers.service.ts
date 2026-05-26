@@ -63,13 +63,59 @@ export class SuppliersService {
       if (!exists) break;
       supplierCode = generateSupplierCode();
     }
-    return this.prisma.supplier.create({ data: { ...(data as any), supplierCode, createdById } });
+    return this.prisma.supplier.create({
+      data: {
+        name:            data.name,
+        type:            data.type,
+        email:           data.email,
+        phone:           data.phone,
+        address:         data.address,
+        city:            data.city,
+        country:         data.country,
+        taxNumber:         data.taxNumber,
+        rccm:              data.rccm,
+        website:           data.website,
+        currency:          data.currency,
+        defaultDueDays:    data.defaultDueDays,
+        paymentMethod:     data.paymentMethod as any,
+        status:            data.status as any,
+        category:          data.category,
+        rating:            data.rating,
+        bankName:          data.bankName,
+        bankAccount:       data.bankAccount,
+        accountingAccount: data.accountingAccount,
+        internalNotes:     data.internalNotes,
+        supplierCode,
+        createdById,
+      },
+    });
   }
 
   async updateSupplier(id: string, data: UpdateSupplierInput) {
     const supplier = await this.prisma.supplier.findFirst({ where: { id, deletedAt: null } });
     if (!supplier) throw AppError.notFound('Fournisseur introuvable');
-    return this.prisma.supplier.update({ where: { id }, data: data as any });
+    const patch: Record<string, unknown> = {};
+    if (data.name           !== undefined) patch['name']           = data.name;
+    if (data.type           !== undefined) patch['type']           = data.type;
+    if (data.email          !== undefined) patch['email']          = data.email;
+    if (data.phone          !== undefined) patch['phone']          = data.phone;
+    if (data.address        !== undefined) patch['address']        = data.address;
+    if (data.city           !== undefined) patch['city']           = data.city;
+    if (data.country        !== undefined) patch['country']        = data.country;
+    if (data.taxNumber         !== undefined) patch['taxNumber']         = data.taxNumber;
+    if (data.rccm              !== undefined) patch['rccm']              = data.rccm;
+    if (data.website           !== undefined) patch['website']           = data.website;
+    if (data.currency          !== undefined) patch['currency']          = data.currency;
+    if (data.defaultDueDays !== undefined) patch['defaultDueDays'] = data.defaultDueDays;
+    if (data.paymentMethod  !== undefined) patch['paymentMethod']  = data.paymentMethod;
+    if (data.status         !== undefined) patch['status']         = data.status;
+    if (data.category       !== undefined) patch['category']       = data.category;
+    if (data.rating         !== undefined) patch['rating']         = data.rating;
+    if (data.bankName       !== undefined) patch['bankName']       = data.bankName;
+    if (data.bankAccount       !== undefined) patch['bankAccount']       = data.bankAccount;
+    if (data.accountingAccount !== undefined) patch['accountingAccount'] = data.accountingAccount;
+    if (data.internalNotes     !== undefined) patch['internalNotes']     = data.internalNotes;
+    return this.prisma.supplier.update({ where: { id }, data: patch as any });
   }
 
   async deleteSupplier(id: string) {

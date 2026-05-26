@@ -20,7 +20,8 @@ export class AccountingService {
   async getChartOfAccounts(params: { search?: string; accountClass?: string; isActive?: boolean }) {
     const where: Prisma.ChartOfAccountWhereInput = {};
     if (params.isActive !== undefined) where.isActive = params.isActive;
-    if (params.accountClass) where.accountClass = params.accountClass as never;
+    // Le frontend envoie class=1..9 ; l'enum Prisma attend c1..c9
+    if (params.accountClass) where.accountClass = `c${params.accountClass}` as never;
     if (params.search) {
       where.OR = [
         { accountNumber: { contains: params.search, mode: 'insensitive' } },
@@ -33,14 +34,29 @@ export class AccountingService {
   async createChartAccount(data: CreateChartAccountInput) {
     const existing = await this.prisma.chartOfAccount.findUnique({ where: { accountNumber: data.accountNumber } });
     if (existing) throw AppError.conflict(`Le compte ${data.accountNumber} existe déjà`);
+
+    // Auto-dériver la classe depuis le 1er chiffre si non fournie
+    const classDigit  = data.accountNumber.trim().charAt(0);
+    const accountClass = (data.accountClass ?? (`c${classDigit}` as any));
+
+    // Auto-dériver la nature SYSCOHADA si non fournie :
+    // Classes 6 (charges) → débit normal ; Classes 7 (produits) → crédit normal
+    // Classes 1-5 → débit normal par défaut (actif, trésorerie, stocks…)
+    const autoNature = classDigit === '7' ? 'credit_normal' : 'debit_normal';
+    const accountNature = (data.accountNature ?? autoNature) as any;
+
     return this.prisma.chartOfAccount.create({
       data: {
-        accountNumber:       data.accountNumber,
-        name:                data.name,
-        parentAccountNumber: data.parentAccountNumber ?? undefined,
-        accountClass:        data.accountClass as never ?? undefined,
-        isDetailAccount:     data.isDetailAccount,
-        notes:               data.notes ?? undefined,
+        accountNumber:        data.accountNumber,
+        name:                 data.name,
+        shortName:            data.shortName ?? undefined,
+        parentAccountNumber:  data.parentAccountNumber ?? undefined,
+        accountClass,
+        accountNature,
+        isDetailAccount:      data.isDetailAccount ?? true,
+        allowsReconciliation: data.allowsReconciliation ?? false,
+        description:          data.description ?? undefined,
+        notes:                data.notes ?? undefined,
       },
     });
   }
@@ -224,8 +240,24 @@ export class AccountingService {
   }
 
   async createJournalEntry(data: CreateJournalEntryInput, userId: string) {
-    const period = await this.prisma.fiscalPeriod.findUnique({ where: { id: data.fiscalPeriodId } });
-    if (!period) throw AppError.notFound('Période introuvable');
+    const entryDate = data.entryDate;
+
+    // Auto-détecter la période fiscale si non fournie
+    let period;
+    if (data.fiscalPeriodId) {
+      period = await this.prisma.fiscalPeriod.findUnique({ where: { id: data.fiscalPeriodId } });
+      if (!period) throw AppError.notFound('Période introuvable');
+    } else {
+      period = await this.prisma.fiscalPeriod.findFirst({
+        where: {
+          startDate: { lte: entryDate },
+          endDate:   { gte: entryDate },
+          status:    { in: ['open', 'current'] as any[] },
+        },
+        orderBy: { startDate: 'asc' },
+      });
+      if (!period) throw AppError.notFound(`Aucune période fiscale ouverte pour la date ${entryDate.toLocaleDateString('fr-FR')}`);
+    }
     if (period.status === 'locked') throw AppError.forbidden("Impossible d'écrire dans une période verrouillée");
     if (period.status === 'closed') throw AppError.forbidden("Impossible d'écrire dans une période clôturée");
 
@@ -240,7 +272,6 @@ export class AccountingService {
       this.prisma.$queryRaw<[{ nextval: string }]>`SELECT (EXTRACT(EPOCH FROM NOW()) * 1000)::bigint AS nextval`
     );
 
-    const entryDate      = data.entryDate;
     const entryNumber    = `JNL-${entryDate.getFullYear()}-${String(seqRow.nextval).slice(-6).padStart(6, '0')}`;
     const accountingDate = data.accountingDate ?? entryDate;
 
@@ -248,7 +279,7 @@ export class AccountingService {
       return tx.journalEntry.create({
         data: {
           journalId:      data.journalId,
-          fiscalPeriodId: data.fiscalPeriodId,
+          fiscalPeriodId: period.id,
           entryDate,
           accountingDate,
           label:          data.label,
@@ -385,9 +416,14 @@ export class AccountingService {
     const entryWhere: Prisma.JournalEntryWhereInput = { status: { in: ['validated', 'locked'] as never[] } };
     if (params.fiscalPeriodId) entryWhere.fiscalPeriodId = params.fiscalPeriodId;
 
+    const lineWhere: Prisma.JournalEntryLineWhereInput = { journalEntry: entryWhere };
+    if (params.accountClass) {
+      lineWhere.account = { accountClass: `c${params.accountClass}` as never };
+    }
+
     const lines = await this.prisma.journalEntryLine.groupBy({
       by:      ['accountNumber'],
-      where:   { journalEntry: entryWhere },
+      where:   lineWhere,
       _sum:    { debit: true, credit: true },
       orderBy: { accountNumber: 'asc' },
     });

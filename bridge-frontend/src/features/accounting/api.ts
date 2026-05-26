@@ -13,6 +13,23 @@ import type {
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api'
 
+// Prisma retourne accountNumber comme PK (pas id) + accountClass "c4" (pas 4)
+// → on normalise pour que le reste du frontend reste stable
+function normalizeAccount(a: any) {
+  return {
+    ...a,
+    id:             a.accountNumber,
+    number:         a.accountNumber,
+    class:          parseInt((a.accountClass ?? 'c0').replace('c', ''), 10) as any,
+    normalBalance:  a.accountNature === 'credit_normal' ? 'credit' : 'debit',
+    isLeaf:         a.isDetailAccount ?? true,
+    openingBalance: 0,
+    shortName:      a.shortName ?? null,
+    accountNature:  a.accountNature ?? 'debit_normal',
+    allowsReconciliation: a.allowsReconciliation ?? false,
+  }
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
   const res = await fetch(`${BASE}${path}`, {
@@ -35,15 +52,19 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 export const accountingApi = {
 
   // Chart of accounts
-  listAccounts: (params?: { class?: AccountClass; search?: string; active?: boolean }) => {
+  listAccounts: async (params?: { class?: AccountClass; search?: string; active?: boolean }) => {
     const q = new URLSearchParams()
     if (params?.class)  q.set('class', String(params.class))
     if (params?.search) q.set('search', params.search)
     if (params?.active !== undefined) q.set('active', String(params.active))
-    return req<AccountListItem[]>(`/accounting/accounts${q.toString() ? `?${q}` : ''}`)
+    const raw = await req<any[]>(`/accounting/accounts${q.toString() ? `?${q}` : ''}`)
+    return raw.map(normalizeAccount) as AccountListItem[]
   },
 
-  getAccount: (id: string) => req<Account>(`/accounting/accounts/${id}`),
+  getAccount: async (id: string) => {
+    const raw = await req<any>(`/accounting/accounts/${id}`)
+    return normalizeAccount(raw) as Account
+  },
 
   createAccount: (data: CreateAccountPayload) =>
     req<Account>('/accounting/accounts', { method: 'POST', body: JSON.stringify(data) }),

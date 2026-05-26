@@ -96,8 +96,7 @@ export default function SuppliersPage() {
   const params = useMemo(() => ({
     page, limit: 25,
     ...(search && { search }),
-    ...(statusFilter === 'active'   && { isActive: true }),
-    ...(statusFilter === 'inactive' && { isActive: false }),
+    ...(statusFilter !== 'all' && { status: statusFilter }),
   }), [page, search, statusFilter])
 
   const { data, isLoading } = useSuppliers(params)

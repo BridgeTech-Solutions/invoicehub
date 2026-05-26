@@ -1,18 +1,27 @@
 import { z } from 'zod';
 
 export const createChartAccountSchema = z.object({
-  accountNumber:       z.string().min(2).max(20),
-  parentAccountNumber: z.string().max(20).optional().nullable(),
-  name:                z.string().min(2).max(255),
-  accountClass:        z.enum(['c1','c2','c3','c4','c5','c6','c7','c8']).optional(),
-  isDetailAccount:     z.boolean().default(true),
-  notes:               z.string().optional().nullable(),
+  accountNumber:        z.string().min(2).max(20),
+  parentAccountNumber:  z.string().max(20).optional().nullable(),
+  name:                 z.string().min(2).max(255),
+  shortName:            z.string().max(100).optional().nullable(),
+  accountClass:         z.enum(['c1','c2','c3','c4','c5','c6','c7','c8']).optional(),
+  accountNature:        z.enum(['debit_normal','credit_normal']).optional(),
+  isDetailAccount:      z.boolean().default(true),
+  allowsReconciliation: z.boolean().default(false),
+  description:          z.string().optional().nullable(),
+  notes:                z.string().optional().nullable(),
 });
 
 export const updateChartAccountSchema = z.object({
-  name:     z.string().min(2).max(255).optional(),
-  notes:    z.string().optional().nullable(),
-  isActive: z.boolean().optional(),
+  name:                 z.string().min(2).max(255).optional(),
+  shortName:            z.string().max(100).optional().nullable(),
+  accountNature:        z.enum(['debit_normal','credit_normal']).optional(),
+  isDetailAccount:      z.boolean().optional(),
+  allowsReconciliation: z.boolean().optional(),
+  description:          z.string().optional().nullable(),
+  notes:                z.string().optional().nullable(),
+  isActive:             z.boolean().optional(),
 });
 
 export const createFiscalPeriodSchema = z.object({
@@ -48,7 +57,7 @@ const entryLineSchema = z.object({
 
 export const createJournalEntrySchema = z.object({
   journalId:      z.string().uuid(),
-  fiscalPeriodId: z.string().uuid(),
+  fiscalPeriodId: z.string().uuid().optional().nullable(),
   entryDate:      z.coerce.date(),
   accountingDate: z.coerce.date().optional(),
   label:          z.string().min(2).max(500),

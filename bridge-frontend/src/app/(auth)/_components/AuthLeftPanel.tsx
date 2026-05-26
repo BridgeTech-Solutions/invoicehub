@@ -16,7 +16,7 @@ function AuthCharacter() {
         <ellipse cx="145" cy="155" rx="68" ry="60" fill="rgba(45,125,210,0.07)" />
 
         {/* ── Carte facture flottante (droite) ── */}
-        <g style={{ animation: 'authDocFloat 4.2s ease-in-out infinite', transformOrigin: '234px 80px' }}>
+        <g style={{ animation: 'authDocFloat 5.8s ease-in-out infinite', transformOrigin: '234px 80px' }}>
           <rect x="196" y="34" width="82" height="92" rx="10"
             fill="rgba(255,255,255,0.10)" stroke="rgba(255,255,255,0.20)" strokeWidth="1" />
           {/* Entête carte */}
@@ -35,7 +35,7 @@ function AuthCharacter() {
         </g>
 
         {/* ── Widget graphique (gauche) ── */}
-        <g style={{ animation: 'authChartFloat 3.8s ease-in-out 0.5s infinite', transformOrigin: '50px 80px' }}>
+        <g style={{ animation: 'authChartFloat 5.2s ease-in-out 0.5s infinite', transformOrigin: '50px 80px' }}>
           <rect x="8" y="40" width="90" height="82" rx="10"
             fill="rgba(255,255,255,0.07)" stroke="rgba(255,255,255,0.13)" strokeWidth="1" />
           <rect x="16" y="50" width="42" height="5" rx="2.5" fill="rgba(255,255,255,0.45)" />
@@ -59,7 +59,7 @@ function AuthCharacter() {
         </g>
 
         {/* ── Badge notification (haut centre, pulsant) ── */}
-        <g style={{ animation: 'authNotifPulse 2.4s ease-in-out infinite', transformOrigin: '145px 16px' }}>
+        <g style={{ animation: 'authNotifPulse 3.6s ease-in-out infinite', transformOrigin: '145px 16px' }}>
           <rect x="110" y="5" width="70" height="22" rx="11" fill="rgba(45,125,210,0.88)" />
           <circle cx="122" cy="16" r="5.5" fill="#ef4444" />
           <text x="122" y="19.5" textAnchor="middle" fill="white" fontSize="7" fontWeight="bold" fontFamily="sans-serif">3</text>
@@ -68,18 +68,18 @@ function AuthCharacter() {
         </g>
 
         {/* ── Pièce XAF (bas gauche) ── */}
-        <g style={{ animation: 'authCoinSpin 3.2s ease-in-out 0.8s infinite', transformOrigin: '28px 196px' }}>
+        <g style={{ animation: 'authCoinSpin 4.4s ease-in-out 0.8s infinite', transformOrigin: '28px 196px' }}>
           <circle cx="28" cy="196" r="16" fill="rgba(245,158,11,0.72)" />
           <circle cx="28" cy="196" r="12" fill="rgba(245,158,11,0.0)" stroke="rgba(255,255,255,0.35)" strokeWidth="1" />
           <text x="28" y="200" textAnchor="middle" fill="white" fontSize="8" fontWeight="bold" fontFamily="sans-serif">XAF</text>
         </g>
-        <g style={{ animation: 'authCoinSpin 3.2s ease-in-out 1.3s infinite', transformOrigin: '54px 208px' }}>
+        <g style={{ animation: 'authCoinSpin 4.4s ease-in-out 1.3s infinite', transformOrigin: '54px 208px' }}>
           <circle cx="54" cy="208" r="11" fill="rgba(245,158,11,0.50)" />
           <text x="54" y="211.5" textAnchor="middle" fill="white" fontSize="6" fontWeight="bold" fontFamily="sans-serif">XAF</text>
         </g>
 
         {/* ══ Personnage (groupe principal flottant) ══ */}
-        <g style={{ animation: 'authCharBob 3.6s ease-in-out infinite' }}>
+        <g style={{ animation: 'authCharBob 4.8s ease-in-out infinite' }}>
           {/* Ombre au sol */}
           <ellipse cx="145" cy="228" rx="40" ry="7" fill="rgba(0,0,0,0.13)" />
 

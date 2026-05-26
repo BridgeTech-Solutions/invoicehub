@@ -207,8 +207,9 @@
 
 /* ── Auth page animations ─────────────────────────────── */
 @keyframes authCharBob {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-9px); }
+  0%        { transform: translateY(0px); }
+  40%, 60%  { transform: translateY(-8px); }
+  100%      { transform: translateY(0px); }
 }
 @keyframes authDocFloat {
   0%, 100% { transform: translateY(0px) rotate(-3deg); }

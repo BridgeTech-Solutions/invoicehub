@@ -82,7 +82,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
         <StatCard label="Total achats" value={format(supplier.totalPurchases ?? 0)} color="var(--primary)" href={`${ROUTES.PURCHASE_ORDERS}?supplierId=${id}`} />
         <StatCard label="Solde dû" value={format(supplier.totalDue ?? 0)} color={(supplier.totalDue ?? 0) > 0 ? '#dc2626' : '#16a34a'} href={`${ROUTES.SUPPLIER_INVOICES}?supplierId=${id}`} />
-        <StatCard label="Délai paiement" value={`${supplier.paymentTermDays} jours`} color="#d97706" />
+        <StatCard label="Délai paiement" value={`${supplier.defaultDueDays} jours`} color="#d97706" />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
@@ -96,7 +96,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
             <InfoRow label="RCCM" value={supplier.rccm} />
             <InfoRow label="Devise" value={supplier.currency} />
             <InfoRow label="Compte SYSCOHADA" value={supplier.accountingAccount} />
-            <InfoRow label="Statut" value={supplier.isActive ? 'Actif' : 'Inactif'} />
+            <InfoRow label="Statut" value={supplier.status === 'active' ? 'Actif' : supplier.status === 'blacklisted' ? 'Liste noire' : 'Inactif'} />
             <InfoRow label="Créé le" value={formatDate(supplier.createdAt)} />
           </div>
         </div>
@@ -156,7 +156,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
         {[
           { label: 'Bons de commande', icon: ShoppingCart, href: `${ROUTES.PURCHASE_ORDERS}?supplierId=${id}`, count: supplier._count?.purchaseOrders },
-          { label: 'Factures fournisseur', icon: FileInput, href: `${ROUTES.SUPPLIER_INVOICES}?supplierId=${id}`, count: supplier._count?.supplierInvoices },
+          { label: 'Factures fournisseur', icon: FileInput, href: `${ROUTES.SUPPLIER_INVOICES}?supplierId=${id}`, count: supplier._count?.invoices },
           { label: 'Nouvelle commande', icon: ShoppingCart, href: `${ROUTES.PURCHASE_ORDERS}/new?supplierId=${id}`, count: undefined, primary: true },
         ].map(({ label, icon: Icon, href, count, primary }) => (
           <Link key={label} href={href} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderRadius: 'var(--radius-lg)', border: `1.5px solid ${primary ? 'var(--primary)' : 'var(--border)'}`, background: primary ? 'rgba(45,125,210,0.05)' : 'var(--surface)', textDecoration: 'none', transition: 'all 0.15s' }}
@@ -174,10 +174,10 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
       </div>
 
       {/* Notes */}
-      {supplier.notes && (
+      {supplier.internalNotes && (
         <div className="card" style={{ padding: '16px 20px' }}>
-          <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>Notes</h3>
-          <p style={{ fontSize: 13.5, color: 'var(--text-2)', lineHeight: 1.6 }}>{supplier.notes}</p>
+          <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>Notes internes</h3>
+          <p style={{ fontSize: 13.5, color: 'var(--text-2)', lineHeight: 1.6 }}>{supplier.internalNotes}</p>
         </div>
       )}
     </div>

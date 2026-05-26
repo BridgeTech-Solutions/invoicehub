@@ -12,8 +12,10 @@
  * 7.  Clients (8) — données nettoyées
  * 8.  Comptes bancaires BTS (2 comptes propres)
  * 9.  Catégories de dépenses (8)
- * 10. Journaux comptables SYSCOHADA — insérés par le script SQL v3
+ * 10. Périodes fiscales (3 années : N-1 fermé, N et N+1 ouvert)
  * 11. Email templates (12)
+ *
+ * NB : chart_of_accounts et accounting_journals sont insérés par invoicehub_schema_v3.sql
  *
  * Usage :
  * pnpm prisma:seed
@@ -865,6 +867,38 @@ const EMAIL_TEMPLATES: {
   },
 ];
 
+// ─── 10. Périodes fiscales (année courante + suivante) ─────────────────────────
+// NB : chart_of_accounts et accounting_journals sont insérés par invoicehub_schema_v3.sql
+
+async function seedFiscalPeriods() {
+  const currentYear = new Date().getFullYear();
+  const years = [currentYear - 1, currentYear, currentYear + 1];
+
+  for (const year of years) {
+    for (let month = 0; month < 12; month++) {
+      const start = new Date(year, month, 1);
+      const end   = new Date(year, month + 1, 0); // dernier jour du mois
+      const name  = `${start.toLocaleString('fr-FR', { month: 'long' })} ${year}`;
+
+      const existing = await prisma.fiscalPeriod.findFirst({
+        where: { fiscalYear: year, periodType: 'month', startDate: start },
+      });
+      if (existing) {
+        console.log(`  ↩  période ${name} déjà présente`);
+        continue;
+      }
+
+      // Années passées → closed, année courante → open, future → open
+      const status = year < currentYear ? 'closed' : 'open';
+
+      await prisma.fiscalPeriod.create({
+        data: { name, fiscalYear: year, periodType: 'month', startDate: start, endDate: end, status: status as any },
+      });
+      console.log(`  ✓ période ${name} (${status})`);
+    }
+  }
+}
+
 async function seedEmailTemplates() {
   for (const tpl of EMAIL_TEMPLATES) {
     await prisma.emailTemplate.upsert({
@@ -919,10 +953,23 @@ async function main() {
   console.log('⑨  Catégories de dépenses…');
   await seedExpenseCategories();
 
-  console.log('⑩  Journaux comptables — insérés par le SQL v3 (INSERT INTO accounting_journals)');
+  // NB : chart_of_accounts et accounting_journals sont insérés par invoicehub_schema_v3.sql
+
+  console.log('⑩  Périodes fiscales…');
+  await seedFiscalPeriods();
 
   console.log('⑪  Email templates…');
   await seedEmailTemplates();
+
+  // Vérification plan comptable
+  const coaCount = await prisma.chartOfAccount.count();
+  if (coaCount === 0) {
+    console.log('\n⚠️  ATTENTION : le plan comptable SYSCOHADA est vide !');
+    console.log('   Exécutez le script SQL pour l\'initialiser :');
+    console.log('   psql -U postgres -d invoicehub -f invoicehub_schema_v3.sql\n');
+  } else {
+    console.log(`  ✓ plan comptable SYSCOHADA (${coaCount} comptes présents)`);
+  }
 
   console.log('\n✅ Seed terminé avec succès !\n');
   console.log('─── Comptes créés ───────────────────────────────────────');
