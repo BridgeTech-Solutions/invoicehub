@@ -1,5 +1,8 @@
 import { JournalType, PrismaClient } from '@prisma/client';
 
+const logErr = (fn: string, err: unknown) =>
+  console.error(`[accountingEngine.${fn}]`, err instanceof Error ? err.message : err);
+
 type Tx = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
 
 async function getDefaultJournal(tx: Tx, type: JournalType) {
@@ -211,9 +214,7 @@ export async function onInvoiceIssued(invoiceId: string, tx: Tx): Promise<void> 
         lines: { create: lineItems },
       },
     });
-  } catch {
-    // Silencieux — ne bloque pas l'émission
-  }
+  } catch (e) { logErr('onInvoiceIssued', e); }
 }
 
 // ── Étape 2.3 — onPaymentReceived : banque dynamique + compte client dynamique ──
@@ -309,12 +310,8 @@ export async function onPaymentReceived(paymentId: string, tx: Tx): Promise<void
           }
         }
       }
-    } catch {
-      // Silencieux — le lettrage auto ne bloque pas l'encaissement
-    }
-  } catch {
-    // Silencieux
-  }
+    } catch (e) { logErr('onPaymentReceived.lettering', e); }
+  } catch (e) { logErr('engine', e); }
 }
 
 // ── Extourne paiement client supprimé ────────────────────────────────────────
@@ -366,9 +363,7 @@ export async function onPaymentDeleted(paymentId: string, tx: Tx): Promise<void>
       where: { id: original.id },
       data:  { status: 'cancelled' },
     });
-  } catch {
-    // Silencieux — ne bloque pas la suppression
-  }
+  } catch (e) { logErr('onPaymentDeleted', e); }
 }
 
 // ── Étape 3.1 — onSupplierInvoiceValidated : fournisseur + compte achat dynamiques
@@ -420,9 +415,7 @@ export async function onSupplierInvoiceValidated(supplierInvoiceId: string, tx: 
         },
       },
     });
-  } catch {
-    // Silencieux
-  }
+  } catch (e) { logErr('engine', e); }
 }
 
 // ── Étape 3.2 — onSupplierPaymentMade : banque + fournisseur dynamiques ──────────
@@ -502,12 +495,8 @@ export async function onSupplierPaymentMade(supplierPaymentId: string, tx: Tx): 
           });
         }
       }
-    } catch {
-      // Silencieux
-    }
-  } catch {
-    // Silencieux
-  }
+    } catch (e) { logErr('engine.inner', e); }
+  } catch (e) { logErr('engine', e); }
 }
 
 // ── Étape 4 — onInvoiceCancelled : contre-passation avoir ───────────────────────
@@ -578,9 +567,7 @@ export async function onInvoiceCancelled(invoiceId: string, tx: Tx): Promise<voi
         lines: { create: counterLines },
       },
     });
-  } catch {
-    // Silencieux
-  }
+  } catch (e) { logErr('engine', e); }
 }
 
 // ── onExpensePaid — inchangé sauf nextEntryNumber atomique ──────────────────────
@@ -634,9 +621,7 @@ export async function onExpensePaid(expenseId: string, tx: Tx): Promise<void> {
         },
       },
     });
-  } catch {
-    // Silencieux
-  }
+  } catch (e) { logErr('engine', e); }
 }
 
 // ── onStockMovement — SYSCOHADA : écriture mouvements de stock ────────────────
@@ -741,9 +726,7 @@ export async function onStockMovement(params: {
         },
       },
     });
-  } catch {
-    // Silencieux — ne bloque jamais le mouvement de stock
-  }
+  } catch (e) { logErr('onStockMovement', e); }
 }
 
 // ── onEscompteAccorde — escompte de règlement accordé (compte 673) ─────────────
@@ -807,8 +790,6 @@ export async function onEscompteAccorde(params: {
         },
       },
     });
-  } catch {
-    // Silencieux — ne pas bloquer le paiement si l'écriture échoue
-  }
+  } catch (e) { logErr('onEscompteAccorde', e); }
 }
 

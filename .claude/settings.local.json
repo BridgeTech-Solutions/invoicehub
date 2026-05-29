@@ -77,7 +77,9 @@
       "Bash(Write-Host \"Cache cleared\")",
       "Bash(Select-Object Name)",
       "Bash(pnpm add *)",
-      "Bash(echo \"EXIT:$?\")"
+      "Bash(echo \"EXIT:$?\")",
+      "PowerShell(Get-ChildItem -Path \"D:\\\\Bel\\\\projets\\\\BRIDGE\\\\bridge-frontend\\\\src\\\\app\" -Recurse -Directory | Where-Object { $_.Name -match 'client|supplier|tiers|contact|fournisseur' } | Select-Object FullName)",
+      "PowerShell(Start-Process \"D:\\\\Bel\\\\projets\\\\BRIDGE\\\\invoicehub-api\\\\test-pdf-few-lines.pdf\"; Start-Process \"D:\\\\Bel\\\\projets\\\\BRIDGE\\\\invoicehub-api\\\\test-pdf-many-lines.pdf\")"
     ]
   },
   "mcpServers": {
