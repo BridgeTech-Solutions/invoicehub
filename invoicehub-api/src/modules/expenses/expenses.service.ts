@@ -156,7 +156,7 @@ export class ExpensesService {
         for (const admin of admins) {
           await this.notificationsService.create(
             admin.id,
-            'system' as any,
+            'budget_exceeded' as any,
             notif.title,
             notif.message,
             { budgetId: budget.id, categoryId, threshold: notif.threshold, percentUsed: Math.round(newPct) },

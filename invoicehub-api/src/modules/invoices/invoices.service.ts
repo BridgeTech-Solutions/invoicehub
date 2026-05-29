@@ -8,11 +8,11 @@ import { AppError } from '../../common/errors/app-error';
 import { generateDocumentNumber, getDefaultOfficeId } from '../../lib/documentNumber';
 import { generatePdf, buildDocumentHtml, imgToBase64, resolveDocumentAssets } from '../../lib/pdf';
 import { DashboardCacheService } from '../../common/services/dashboard-cache.service';
-import { EventsGateway } from '../../gateway/events.gateway';
 import { computeLine, computeTotals } from '../../lib/document-math';
 import { PaymentsService } from '../payments/payments.service';
 import { ApprovalsService } from '../approvals/approvals.service';
 import * as accountingEngine from '../../lib/accountingEngine';
+import { broadcastNotification } from '../../lib/broadcast';
 import { StockService } from '../stock/stock.service';
 import type { EmailJobData, NotificationJobData } from '../../jobs/job-types';
 import type { CreateInvoiceInput, UpdateInvoiceInput, ListInvoicesInput, CreateAvoirInput, ComputeInvoiceInput } from './invoices.schema';
@@ -22,7 +22,6 @@ export class InvoicesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: DashboardCacheService,
-    private readonly events: EventsGateway,
     private readonly emitter: EventEmitter2,
     private readonly payments: PaymentsService,
     private readonly approvals: ApprovalsService,
@@ -276,11 +275,11 @@ export class InvoicesService {
       : created.type === 'solde' ? 'solde'
       : created.type === 'avoir' ? "note d'avoir"
       : 'facture';
-    this.events.server.emit('notification', {
-      type: 'system',
-      title: `Nouvelle ${typeLabel} : ${created.number}`,
+    void broadcastNotification(this.prisma as any, this.notifQueue, {
+      type:    'invoice_issued',
+      title:   `Nouvelle ${typeLabel} : ${created.number}`,
       message: `La ${typeLabel} ${created.number} a été créée pour ${created.client.name}.`,
-      data: { invoiceId: created.id, invoiceNumber: created.number },
+      data:    { invoiceId: created.id, invoiceNumber: created.number },
     });
 
     return created;
@@ -446,12 +445,20 @@ export class InvoicesService {
       return inv;
     });
 
-    this.events.server.emit('notification', {
-      type: 'invoice_issued',
-      title: `Facture émise : ${invoice.number}`,
-      message: `La facture ${invoice.number} pour ${invoice.client.name} a été émise. Échéance : ${new Date(invoice.dueDate).toLocaleDateString('fr-FR')}.`,
-      data: { invoiceId: invoice.id, invoiceNumber: invoice.number },
-    });
+    void broadcastNotification(this.prisma as any, this.notifQueue, {
+      type:    'invoice_issued',
+      title:   `Facture émise : ${invoice.number}`,
+      message: `La facture ${invoice.number} pour ${(invoice as any).client?.name} — ${Number(invoice.totalTtc).toLocaleString('fr-FR')} XAF — a été émise. Échéance : ${new Date(invoice.dueDate).toLocaleDateString('fr-FR')}.`,
+      data:    {
+        invoiceId:     invoice.id,
+        invoiceNumber: invoice.number,
+        clientName:    (invoice as any).client?.name ?? '',
+        totalTtc:      Number(invoice.totalTtc).toLocaleString('fr-FR'),
+        dueDate:       new Date(invoice.dueDate).toLocaleDateString('fr-FR'),
+        invoiceLink:   `${process.env.APP_URL ?? 'http://localhost:3001'}/invoices/${invoice.id}`,
+        issuedBy:      userId,
+      },
+    }, { excludeUserId: userId });
 
     void this.prisma.$transaction((tx) => accountingEngine.onInvoiceIssued(id, tx));
     void this.emitter.emit('invoice.issued', { invoiceId: id, amount: Number(invoice.totalTtc), clientId: invoice.clientId, userId });
@@ -532,12 +539,12 @@ export class InvoicesService {
 
       return { cancelled, avoirId: avoirCreated.id, avoirNumber: avoirCreated.number };
     }).then(async ({ cancelled, avoirId, avoirNumber }) => {
-      this.events.server.emit('notification', {
-        type: 'system',
-        title: `Facture annulée : ${invoice.number}`,
-        message: `La facture ${invoice.number} pour ${invoice.client.name} a été annulée. Avoir ${avoirNumber} généré automatiquement.`,
-        data: { invoiceId: invoice.id, invoiceNumber: invoice.number, avoirId, avoirNumber, reason },
-      });
+      void broadcastNotification(this.prisma as any, this.notifQueue, {
+        type:    'invoice_issued',
+        title:   `Facture annulée : ${invoice.number}`,
+        message: `La facture ${invoice.number} pour ${(invoice as any).client?.name} a été annulée. Avoir ${avoirNumber} généré automatiquement.`,
+        data:    { invoiceId: invoice.id, invoiceNumber: invoice.number, avoirId, avoirNumber },
+      }, { excludeUserId: userId });
       void this.emitter.emit('invoice.cancelled', { invoiceId: invoice.id, userId });
       void this.prisma.$transaction((tx) => accountingEngine.onInvoiceCancelled(id, tx));
       await this.cache.invalidate();
@@ -699,11 +706,11 @@ export class InvoicesService {
       return created;
     });
 
-    this.events.server.emit('notification', {
-      type: 'system',
-      title: `Avoir créé : ${avoir.number}`,
-      message: `Un avoir ${avoir.number} a été créé sur la facture ${invoice.number} pour ${invoice.client.name}. Motif : ${input.reason}`,
-      data: { invoiceId: invoice.id, avoirId: avoir.id, avoirNumber: avoir.number },
+    void broadcastNotification(this.prisma as any, this.notifQueue, {
+      type:    'invoice_issued',
+      title:   `Avoir créé : ${avoir.number}`,
+      message: `Un avoir ${avoir.number} a été créé sur la facture ${invoice.number} pour ${(invoice as any).client?.name}. Motif : ${input.reason}`,
+      data:    { invoiceId: invoice.id, avoirId: avoir.id, avoirNumber: avoir.number },
     });
 
     void this.prisma.$transaction((tx) => accountingEngine.onInvoiceCancelled(avoir.id, tx));

@@ -36,7 +36,7 @@ export class ApprovalProcessor extends WorkerHost {
 
       await this.notificationQueue.add('notification', {
         userId:  req.requestedById,
-        type:    'system',
+        type:    'approval_expired',
         title:   `Demande d'approbation expirée`,
         message: `La demande pour le document "${req.documentNumber ?? req.id}" a expiré sans réponse.`,
         data:    { requestId: req.id },

@@ -57,9 +57,10 @@ export class ReminderProcessor extends WorkerHost {
 
     // Récupérer la config escalade depuis company_settings
     const settings = await this.prisma.companySettings.findFirst();
-    const escalationConfig = (settings as any)?.reminderEscalation ?? DEFAULT_ESCALATION;
-    const checkLevels: CheckLevel[]      = (settings as any)?.checkLevels      ?? DEFAULT_CHECK_LEVELS;
-    const draftCheckLevels: CheckLevel[] = (settings as any)?.draftCheckLevels ?? DEFAULT_DRAFT_CHECK_LEVELS;
+    const reminderEscalation = (settings as any)?.reminderEscalation ?? {};
+    const escalationConfig = reminderEscalation.levels?.length ? reminderEscalation : DEFAULT_ESCALATION;
+    const checkLevels: CheckLevel[]      = reminderEscalation.checkLevels      ?? DEFAULT_CHECK_LEVELS;
+    const draftCheckLevels: CheckLevel[] = reminderEscalation.draftCheckLevels ?? DEFAULT_DRAFT_CHECK_LEVELS;
 
     // Managers pour notifications urgentes
     const managers = await this.prisma.user.findMany({

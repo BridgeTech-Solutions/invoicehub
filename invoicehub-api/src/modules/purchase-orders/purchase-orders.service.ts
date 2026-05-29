@@ -13,17 +13,22 @@ interface LineInput {
   designation: string;
   description?: string | null;
   quantity: number;
-  unitPrice: number;
+  // Frontend envoie `unitPriceHt` ; ancien nom `unitPrice` conservé pour rétrocompat
+  unitPriceHt?: number;
+  unitPrice?: number;
   discountPercent?: number;
   taxRate?: number;
   unit?: string | null;
-  notes?: string | null;
+  sortOrder?: number;
+  // notes: absent du modèle PurchaseOrderLine — ignoré
 }
 
 function computeLines(lines: LineInput[]) {
   let totalSubtotalHt = 0, totalTax = 0;
   const computed = lines.map((l) => {
-    const subtotalHt     = l.quantity * l.unitPrice;
+    // Accepte les deux noms de champ
+    const price          = l.unitPriceHt ?? l.unitPrice ?? 0;
+    const subtotalHt     = l.quantity * price;
     const discountValue  = l.discountPercent ?? 0;
     const discountAmount = subtotalHt * (discountValue / 100);
     const netHt          = subtotalHt - discountAmount;
@@ -34,7 +39,7 @@ function computeLines(lines: LineInput[]) {
     return {
       designation: l.designation, description: l.description ?? undefined,
       productId:   l.productId ?? undefined, unit: l.unit as any ?? undefined,
-      quantityOrdered: l.quantity, unitPriceHt: l.unitPrice,
+      quantityOrdered: l.quantity, unitPriceHt: price,
       discountValue, discountAmount, taxRate, subtotalHt, netHt, taxAmount,
       totalTtc: netHt + taxAmount,
     };
@@ -120,8 +125,24 @@ export class PurchaseOrdersService {
   }
 
   async create(data: CreatePurchaseOrderInput, userId: string) {
-    const { lines, supplierId, officeId, ...rest } = data;
+    const {
+      lines, supplierId, officeId,
+      // Normalise les alias front → noms Prisma
+      expectedDate, expectedDeliveryDate,
+      reference, internalRef,
+      paymentTermDays,
+      ...rest
+    } = data;
     const { lines: computed, subtotalHt, totalHt, totalTax, totalTtc } = computeLines(lines);
+
+    // Résolution des alias : préférer le nom canonique s'il est fourni
+    const resolvedExpectedDeliveryDate = expectedDeliveryDate ?? expectedDate ?? undefined;
+    // `reference` / `internalRef` → stocké dans `supplierReference` (texte libre)
+    const resolvedSupplierReference    = internalRef ?? reference ?? undefined;
+    // `paymentTermDays` → stocké dans `paymentConditions` sous forme de texte
+    const resolvedPaymentConditions    = paymentTermDays != null
+      ? `${paymentTermDays} jours`
+      : (rest as any).paymentConditions ?? undefined;
 
     const officeIdResolved: string | undefined = officeId ?? (
       await this.prisma.agencyOffice.findFirst({ where: { deletedAt: null }, select: { id: true } })
@@ -135,6 +156,9 @@ export class PurchaseOrdersService {
       const po = await tx.purchaseOrder.create({
         data: {
           ...(rest as any), supplierId, officeId: officeIdResolved!,
+          expectedDeliveryDate: resolvedExpectedDeliveryDate,
+          supplierReference:    resolvedSupplierReference,
+          paymentConditions:    resolvedPaymentConditions,
           number: orderNumber.fn_next_document_number,
           status: 'draft' as any,
           subtotalHt, totalHt, totalTax, totalTtc, createdById: userId,
@@ -152,18 +176,39 @@ export class PurchaseOrdersService {
     if (!po) throw AppError.notFound('Bon de commande introuvable');
     if (po.status !== 'draft') throw AppError.badRequest('Seuls les brouillons peuvent être modifiés');
 
-    const { lines, ...rest } = data;
+    const {
+      lines,
+      expectedDate, expectedDeliveryDate,
+      reference, internalRef,
+      paymentTermDays,
+      ...rest
+    } = data;
+
+    // Normalise les alias front → noms Prisma
+    const resolvedExpectedDeliveryDate = expectedDeliveryDate ?? expectedDate ?? undefined;
+    const resolvedSupplierReference    = internalRef ?? reference ?? undefined;
+    const resolvedPaymentConditions    = paymentTermDays != null
+      ? `${paymentTermDays} jours`
+      : (rest as any).paymentConditions ?? undefined;
+
+    const normalised = {
+      ...(rest as any),
+      ...(resolvedExpectedDeliveryDate !== undefined ? { expectedDeliveryDate: resolvedExpectedDeliveryDate } : {}),
+      ...(resolvedSupplierReference    !== undefined ? { supplierReference:    resolvedSupplierReference    } : {}),
+      ...(resolvedPaymentConditions    !== undefined ? { paymentConditions:    resolvedPaymentConditions    } : {}),
+    };
+
     return this.prisma.$transaction(async (tx) => {
       if (lines) {
         await tx.purchaseOrderLine.deleteMany({ where: { purchaseOrderId: id } });
         const { lines: computed, subtotalHt, totalHt, totalTax, totalTtc } = computeLines(lines);
         return tx.purchaseOrder.update({
           where: { id },
-          data: { ...(rest as any), subtotalHt, totalHt, totalTax, totalTtc, lines: { create: computed.map((l, i) => ({ ...l, sortOrder: i + 1 })) } },
+          data: { ...normalised, subtotalHt, totalHt, totalTax, totalTtc, lines: { create: computed.map((l, i) => ({ ...l, sortOrder: i + 1 })) } },
           include: { lines: true },
         });
       }
-      return tx.purchaseOrder.update({ where: { id }, data: rest as any });
+      return tx.purchaseOrder.update({ where: { id }, data: normalised });
     });
   }
 
