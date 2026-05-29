@@ -513,7 +513,7 @@ export interface DocumentHtmlParams {
 // ─── Constantes visuelles ─────────────────────────────────────────────────────
 
 /** Bleu BTS (headers / labels de tableaux) */
-const BLUE     = '#2196F3';
+const BLUE     = '#0071bf';
 /** Couleur de texte pour les en-têtes bleus */
 const BLUE_TXT = '#ffffff';
 /** Beige/tan BTS (lignes de totaux) */
@@ -968,7 +968,7 @@ export function buildReceiptHtml(params: ReceiptParams): string {
   const fmt = (n: number) =>
     new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(n));
 
-  const BLUE_R     = '#2196F3';
+  const BLUE_R     = '#0071bf';
   const BLUE_TXT_R = '#ffffff';
   const TAN_R      = '#C8B87A';
   const BORDER_R   = '#d4d4d4';
