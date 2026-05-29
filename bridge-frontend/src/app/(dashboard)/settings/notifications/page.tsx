@@ -21,23 +21,43 @@ import type { UpdateSettingsPayload, ReminderEscalationLevel, CheckLevel } from 
 
 // ─── Notification type labels ─────────────────────────────────
 const NOTIF_LABELS: Record<NotificationType, string> = {
-  proforma_sent:           'Proforma envoyée',
-  proforma_accepted:       'Proforma acceptée',
-  proforma_rejected:       'Proforma rejetée',
-  proforma_expired:        'Proforma expirée',
-  invoice_issued:          'Facture émise',
-  invoice_paid:            'Facture soldée',
-  invoice_partially_paid:  'Paiement partiel reçu',
-  invoice_overdue:         'Facture en retard',
-  payment_registered:      'Paiement enregistré',
-  reminder_sent:           'Relance envoyée',
-  user_created:            'Nouveau utilisateur créé',
-  expense_submitted:       'Dépense soumise pour approbation',
-  expense_approved:        'Dépense approuvée',
-  expense_rejected:        'Dépense rejetée',
-  purchase_order_received: 'Bon de commande reçu fournisseur',
-  supplier_invoice_due:    'Facture fournisseur à échéance',
-  system:                  'Événement système',
+  // Proformas
+  proforma_sent:              'Proforma envoyée',
+  proforma_accepted:          'Proforma acceptée',
+  proforma_rejected:          'Proforma rejetée',
+  proforma_expired:           'Proforma expirée',
+  // Factures
+  invoice_issued:             'Facture émise',
+  invoice_paid:               'Facture soldée',
+  invoice_partially_paid:     'Paiement partiel reçu',
+  invoice_overdue:            'Facture en retard',
+  payment_registered:         'Paiement enregistré',
+  reminder_sent:              'Relance envoyée',
+  // Utilisateurs / Système
+  user_created:               'Nouveau utilisateur créé',
+  system:                     'Événement système',
+  role_changed:               'Rôle utilisateur modifié',
+  // Approbations
+  approval_requested:         'Approbation demandée',
+  approval_approved:          'Approbation validée',
+  approval_rejected:          'Approbation rejetée',
+  approval_expired:           "Demande d'approbation expirée",
+  approval_delegated:         'Approbation déléguée',
+  // Dépenses
+  expense_submitted:          'Dépense soumise pour approbation',
+  expense_approved:           'Dépense approuvée',
+  expense_rejected:           'Dépense rejetée',
+  budget_exceeded:            'Budget dépassé',
+  // Achats fournisseurs
+  purchase_order_created:     'Bon de commande créé',
+  purchase_order_approved:    'Bon de commande approuvé',
+  purchase_order_rejected:    'Bon de commande rejeté',
+  supplier_invoice_received:  'Facture fournisseur reçue',
+  supplier_invoice_due:       'Facture fournisseur à échéance',
+  // Stock / Banque / Fiscal
+  low_stock_alert:            'Alerte stock bas',
+  bank_reconciliation_pending:'Rapprochement bancaire en attente',
+  fiscal_period_closing:      'Clôture de période fiscale',
 }
 
 const inputCss: React.CSSProperties = {
@@ -260,15 +280,15 @@ function CheckLevelCard({
 
 // Valeurs par défaut côté frontend (miroir des DEFAULT_*_LEVELS backend)
 const DEFAULT_CHECK_LEVELS: CheckLevel[] = [
-  { daysSince: 3,  notifyManagers: false, sendEmail: false },
-  { daysSince: 7,  notifyManagers: false, sendEmail: true  },
-  { daysSince: 15, notifyManagers: true,  sendEmail: true  },
+  { daysSince: 3,  level: 1, notifyManagers: false, sendEmail: false },
+  { daysSince: 7,  level: 2, notifyManagers: false, sendEmail: true  },
+  { daysSince: 15, level: 3, notifyManagers: true,  sendEmail: true  },
 ]
 
 const DEFAULT_DRAFT_CHECK_LEVELS: CheckLevel[] = [
-  { daysSince: 1, notifyManagers: false, sendEmail: false },
-  { daysSince: 3, notifyManagers: false, sendEmail: false },
-  { daysSince: 7, notifyManagers: true,  sendEmail: true  },
+  { daysSince: 1, level: 1, notifyManagers: false, sendEmail: false },
+  { daysSince: 3, level: 2, notifyManagers: false, sendEmail: false },
+  { daysSince: 7, level: 3, notifyManagers: true,  sendEmail: true  },
 ]
 
 // ─── Rappels & escalade section ───────────────────────────────
@@ -322,7 +342,7 @@ function RappelsSection() {
     setField('reminderEscalation', {
       ...form.reminderEscalation,
       levels,
-      checkLevels: [...checkLevels, { daysSince: 30, notifyManagers: false, sendEmail: false }],
+      checkLevels: [...checkLevels, { daysSince: 30, level: checkLevels.length + 1, notifyManagers: false, sendEmail: false }],
     })
   }
   function updateCheckLevel(i: number, patch: Partial<CheckLevel>) {
@@ -338,7 +358,7 @@ function RappelsSection() {
     setField('reminderEscalation', {
       ...form.reminderEscalation,
       levels,
-      draftCheckLevels: [...draftCheckLevels, { daysSince: 14, notifyManagers: false, sendEmail: false }],
+      draftCheckLevels: [...draftCheckLevels, { daysSince: 14, level: draftCheckLevels.length + 1, notifyManagers: false, sendEmail: false }],
     })
   }
   function updateDraftCheckLevel(i: number, patch: Partial<CheckLevel>) {

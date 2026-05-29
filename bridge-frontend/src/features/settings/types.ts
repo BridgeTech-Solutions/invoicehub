@@ -9,6 +9,7 @@ export interface ReminderEscalationLevel {
 /** Niveau de vérification active (issued/sent) ou brouillon */
 export interface CheckLevel {
   daysSince:      number
+  level:          number   // index 1-based utilisé par reminder.processor pour la progression
   notifyManagers: boolean
   sendEmail:      boolean
 }

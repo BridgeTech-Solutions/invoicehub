@@ -11,14 +11,14 @@ export const notificationsApi = {
     return data
   },
 
-  /** PUT /notifications/:id/read */
+  /** PATCH /notifications/:id/read */
   async markRead(id: string): Promise<void> {
-    await apiClient.put(`/notifications/${id}/read`)
+    await apiClient.patch(`/notifications/${id}/read`)
   },
 
-  /** PUT /notifications/read-all */
+  /** POST /notifications/mark-all-read */
   async markAllRead(): Promise<void> {
-    await apiClient.put('/notifications/read-all')
+    await apiClient.post('/notifications/mark-all-read')
   },
 
   /** GET /notifications/settings */
@@ -27,21 +27,21 @@ export const notificationsApi = {
     return data
   },
 
-  /** PUT /notifications/settings */
+  /** POST /notifications/settings */
   async updateSettings(settings: NotificationSetting[]): Promise<NotificationSetting[]> {
-    const { data } = await apiClient.put<NotificationSetting[]>('/notifications/settings', { settings })
+    const { data } = await apiClient.post<NotificationSetting[]>('/notifications/settings', { settings })
     return data
   },
 
-  /** PUT /notifications/settings/disable-all */
+  /** POST /notifications/settings/disable-all */
   async disableAll(): Promise<NotificationSetting[]> {
-    const { data } = await apiClient.put<NotificationSetting[]>('/notifications/settings/disable-all')
+    const { data } = await apiClient.post<NotificationSetting[]>('/notifications/settings/disable-all')
     return data
   },
 
-  /** PUT /notifications/settings/enable-all */
+  /** POST /notifications/settings/enable-all */
   async enableAll(): Promise<NotificationSetting[]> {
-    const { data } = await apiClient.put<NotificationSetting[]>('/notifications/settings/enable-all')
+    const { data } = await apiClient.post<NotificationSetting[]>('/notifications/settings/enable-all')
     return data
   },
 

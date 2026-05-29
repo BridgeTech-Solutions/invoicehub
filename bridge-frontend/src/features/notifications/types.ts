@@ -11,13 +11,28 @@ export type NotificationType =
   | 'payment_registered'
   | 'reminder_sent'
   | 'user_created'
+  | 'system'
+  // Approbations
+  | 'approval_requested'
+  | 'approval_approved'
+  | 'approval_rejected'
+  | 'approval_expired'
+  | 'approval_delegated'
   // Modules achats / dépenses
   | 'expense_submitted'
   | 'expense_approved'
   | 'expense_rejected'
-  | 'purchase_order_received'
+  | 'purchase_order_created'
+  | 'purchase_order_approved'
+  | 'purchase_order_rejected'
+  | 'supplier_invoice_received'
   | 'supplier_invoice_due'
-  | 'system'
+  // Modules stock / banque / fiscal
+  | 'low_stock_alert'
+  | 'bank_reconciliation_pending'
+  | 'fiscal_period_closing'
+  | 'role_changed'
+  | 'budget_exceeded'
 
 export interface Notification {
   id:        string
