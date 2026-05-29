@@ -232,6 +232,55 @@ export async function generatePdf(html: string, footerSafeZonePx?: number, compa
       footer?.style.setProperty('display', 'none');
     });
 
+
+    // ── Détection débordement cachet ────────────────────────────────────────
+    // Si le cachet dépasse la page courante des conditions → overlay à taille fixe.
+    // Le cachet peut survoler les infos complémentaires ET la zone footer
+    // (y compris les infos entreprise en bas de page).
+    // La marge basse est réduite dynamiquement pour que le cachet soit entièrement
+    // rendu — le footer (pdf-lib, couche derrière) reste visible autour du cachet.
+    const contentHeightPx = (297 - headerMm - marginBottomMm) * 3.7795;
+
+    const overflowMm = await page.evaluate((contentH: number) => {
+      const sealEl    = document.querySelector('.seal-block')         as HTMLElement | null;
+      const anchorEl  = (document.querySelector('.conditions-wrapper')
+                      ?? document.querySelector('.totals-block'))     as HTMLElement | null;
+      const wrapperEl = document.querySelector('.lines-table-wrapper') as HTMLElement | null;
+      if (!sealEl || !anchorEl || !wrapperEl) return 0;
+
+      const anchorPage = Math.floor(anchorEl.offsetTop / contentH);
+      const sealPage   = Math.floor((sealEl.offsetTop + sealEl.offsetHeight) / contentH);
+      if (sealPage <= anchorPage) return 0; // flux normal
+
+      // Positionner le cachet au niveau des conditions (ou des totaux)
+      const sealTopRel = anchorEl.offsetTop - wrapperEl.offsetTop;
+      // En mode overlay : masquer le texte "Le Service Commercial"
+      const labelEl = sealEl.querySelector('p') as HTMLElement | null;
+      if (labelEl) labelEl.style.display = 'none';
+
+      wrapperEl.style.position = 'relative';
+      wrapperEl.appendChild(sealEl);
+      sealEl.style.position = 'absolute';
+      sealEl.style.top      = `${sealTopRel}px`;
+      sealEl.style.right    = '30px';
+      sealEl.style.zIndex   = '2';
+      sealEl.style.margin   = '0';
+
+      // Retourner le dépassement en px pour ajuster la marge basse
+      const pageStart  = anchorPage * contentH;
+      const pageEnd    = pageStart + contentH;
+      const sealBottom = anchorEl.offsetTop + sealEl.offsetHeight;
+      return Math.max(0, sealBottom - pageEnd);
+    }, contentHeightPx);
+
+    // Réduire la marge basse pour que le cachet ne soit pas clipé par Puppeteer
+    // (minimum 3mm pour ne pas coller au bord physique de la page)
+    let effectiveMarginBottomMm = marginBottomMm;
+    if (overflowMm > 0) {
+      const overflowInMm = overflowMm / 3.7795;
+      effectiveMarginBottomMm = Math.max(marginBottomMm - overflowInMm - 2, 3);
+    }
+
     // Styles de reset pour le headerTemplate uniquement
     const tplStyle = `<style>
       *{margin:0!important;padding:0!important;box-sizing:border-box;}
@@ -260,13 +309,13 @@ export async function generatePdf(html: string, footerSafeZonePx?: number, compa
       footerTemplate,
       margin: {
         top:    `${headerMm}mm`,
-        bottom: `${marginBottomMm}mm`,
+        bottom: `${effectiveMarginBottomMm}mm`,
         left:   '0',
         right:  '0',
       },
     });
 
-    logger.debug('PDF puppeteer done', { size: pdf.length, headerMm, marginBottomMm, companyInfoMm, bottomWhiteMm, footerFullMm });
+    logger.debug('PDF puppeteer done', { size: pdf.length, headerMm, marginBottomMm: effectiveMarginBottomMm, companyInfoMm, bottomWhiteMm, footerFullMm });
 
     // ── Post-traitement pdf-lib : footer en fond de chaque page ──────────────
     // On insère l'image footer AVANT le contenu de chaque page via pdf-lib,
@@ -777,25 +826,32 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
   const ptWidth    = '13%';
   const refWidth   = hasLineDiscount ? '12%' : '14%';
 
+  // Table unique lignes + totaux — structure originale.
+  // Le wrapper div sert d'ancrage pour le cachet en mode overlay.
+  // Les totaux sont dans un <tbody> séparé avec break-inside:avoid :
+  // ils restent groupés mais s'insèrent naturellement dans l'espace disponible
+  // (y compris la zone décorative du footer) sans sauter à la page suivante.
   const linesTable = `
-    <table style="width:100%;border-collapse:collapse;margin-bottom:18px;font-size:11px;">
-      <thead>
-        <tr>
-          ${allService ? '' : (isFacture ? `<th style="${thStyle}text-align:center;width:${refWidth};">Référence</th>` : '')}
-          <th style="${thStyle}text-align:left;${allService ? 'width:82%;' : `width:${desigWidth};`}">Désignation</th>
-          ${allService ? '' : `<th style="${thStyle}text-align:right;width:${puWidth};">PU</th>`}
-          ${allService ? '' : `<th style="${thStyle}text-align:center;width:${qtWidth};">Qté / Unité</th>`}
-          ${hasLineDiscount ? `<th style="${thStyle}text-align:center;width:${rmWidth};">Remise</th>` : ''}
-          <th style="${thStyle}text-align:right;width:${ptWidth};">PT</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${linesRows}
-      </tbody>
-      <tbody style="break-inside:avoid;page-break-inside:avoid;">
-        ${totalRows}
-      </tbody>
-    </table>`;
+    <div class="lines-table-wrapper">
+      <table style="width:100%;border-collapse:collapse;margin-bottom:18px;font-size:11px;">
+        <thead>
+          <tr>
+            ${allService ? '' : (isFacture ? `<th style="${thStyle}text-align:center;width:${refWidth};">Référence</th>` : '')}
+            <th style="${thStyle}text-align:left;${allService ? 'width:82%;' : `width:${desigWidth};`}">Désignation</th>
+            ${allService ? '' : `<th style="${thStyle}text-align:right;width:${puWidth};">PU</th>`}
+            ${allService ? '' : `<th style="${thStyle}text-align:center;width:${qtWidth};">Qté / Unité</th>`}
+            ${hasLineDiscount ? `<th style="${thStyle}text-align:center;width:${rmWidth};">Remise</th>` : ''}
+            <th style="${thStyle}text-align:right;width:${ptWidth};">PT</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${linesRows}
+        </tbody>
+        <tbody class="totals-block" style="break-inside:avoid;page-break-inside:avoid;">
+          ${totalRows}
+        </tbody>
+      </table>
+    </div>`;
 
   // ── Section bas (conditions proforma ou infos paiement facture) ──────────────
   let bottomSection = '';
@@ -804,19 +860,20 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
     const hasConditions = params.deliveryDelay || params.warranty || params.paymentConditions;
     if (hasConditions) {
       bottomSection += `
-        <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:11px;">
-          ${params.deliveryDelay     ? `<tr><td style="${labelTd}width:28%;">Délai de livraison</td>
-              <td style="${td}">${params.deliveryDelay}</td></tr>` : ''}
-          ${params.warranty          ? `<tr><td style="${labelTd}">Garantie</td>
-              <td style="${td}">${params.warranty}</td></tr>` : ''}
-          ${params.paymentConditions ? `<tr><td style="${labelTd}">Modalité de Paiement</td>
-              <td style="${td}">${params.paymentConditions}</td></tr>` : ''}
-        </table>`;
+        <div class="conditions-wrapper">
+          <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:11px;">
+            ${params.deliveryDelay     ? `<tr><td style="${labelTd}width:28%;">Délai de livraison</td>
+                <td style="${td}">${params.deliveryDelay}</td></tr>` : ''}
+            ${params.warranty          ? `<tr><td style="${labelTd}">Garantie</td>
+                <td style="${td}">${params.warranty}</td></tr>` : ''}
+            ${params.paymentConditions ? `<tr><td style="${labelTd}">Modalité de Paiement</td>
+                <td style="${td}">${params.paymentConditions}</td></tr>` : ''}
+          </table>
+        </div>`;
     }
-    // Cachet et signature (proforma uniquement)
     if (sealImg) {
       bottomSection += `
-        <div style="text-align:right;margin-top:10px;padding-right:30px;">
+        <div class="seal-block" style="text-align:right;margin-top:10px;padding-right:30px;">
           <div style="display:inline-block;text-align:center;width:240px;">
             <p style="font-weight:bold;font-size:12px;margin-bottom:12px;text-decoration:underline;">Le Service Commercial</p>
             <img src="${sealImg}" style="width:240px;" alt="cachet BTS" />
