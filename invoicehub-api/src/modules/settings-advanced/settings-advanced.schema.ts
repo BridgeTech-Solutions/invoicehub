@@ -52,9 +52,9 @@ export const createWorkflowRuleSchema = z.object({
 });
 
 export const createIpWhitelistSchema = z.object({
-  ipAddress:   z.string().min(7).max(50),
-  description: z.string().max(255).optional().nullable(),
-  isActive:    z.boolean().default(true),
+  ipAddress: z.string().min(7).max(50),
+  label:     z.string().max(255).optional().nullable(),
+  isActive:  z.boolean().default(true),
 });
 
 export const createExportJobSchema = z.object({

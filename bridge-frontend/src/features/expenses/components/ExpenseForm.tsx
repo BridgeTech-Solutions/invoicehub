@@ -18,6 +18,7 @@ const PM_LABELS: Record<ExpensePaymentMethod, string> = {
   mobile_money:  'Mobile Money',
   card:          'Carte bancaire',
   check:         'Chèque',
+  other:         'Autre',
 }
 
 const PM_REF_PLACEHOLDER: Record<ExpensePaymentMethod, string> = {
@@ -26,6 +27,7 @@ const PM_REF_PLACEHOLDER: Record<ExpensePaymentMethod, string> = {
   mobile_money:  'ID transaction (ex : CM-xxxxx)',
   card:          'N° terminal / autorisation',
   check:         'N° chèque',
+  other:         'Référence (facultatif)',
 }
 
 // Modes qui impliquent l'utilisation d'un compte bancaire BTS
@@ -137,6 +139,7 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
       supplierName:      supplierName      || undefined,
       expenseDate,
       paymentMethod,
+      bankAccountId:     (needsBank && bankAccountId) ? bankAccountId : undefined,
       amountHt:          Number(amountHt),
       taxRate:           Number(taxRate),
       accountingAccount: accountingAccount || undefined,

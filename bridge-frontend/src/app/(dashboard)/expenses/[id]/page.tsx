@@ -16,15 +16,17 @@ import { ROUTES } from '@/lib/constants'
 import type { ExpenseStatus } from '@/features/expenses/types'
 
 const STATUS_CONFIG: Record<ExpenseStatus, { label: string; color: string; bg: string }> = {
-  draft:     { label: 'Brouillon', color: '#64748b', bg: '#f1f5f9' },
-  submitted: { label: 'En attente',color: '#d97706', bg: '#fffbeb' },
-  approved:  { label: 'Approuvée', color: '#2D7DD2', bg: '#eff6ff' },
-  paid:      { label: 'Payée',     color: '#16a34a', bg: '#f0fdf4' },
-  rejected:  { label: 'Rejetée',   color: '#dc2626', bg: '#fef2f2' },
+  draft:     { label: 'Brouillon',  color: '#64748b', bg: '#f1f5f9' },
+  submitted: { label: 'En attente', color: '#d97706', bg: '#fffbeb' },
+  approved:  { label: 'Approuvée',  color: '#2D7DD2', bg: '#eff6ff' },
+  paid:      { label: 'Payée',      color: '#16a34a', bg: '#f0fdf4' },
+  rejected:  { label: 'Rejetée',    color: '#dc2626', bg: '#fef2f2' },
+  cancelled: { label: 'Annulée',    color: '#94a3b8', bg: '#f8fafc' },
 }
 
 const PM_LABELS: Record<string, string> = {
-  cash: 'Espèces', bank_transfer: 'Virement', mobile_money: 'Mobile Money', card: 'Carte', check: 'Chèque',
+  cash: 'Espèces', bank_transfer: 'Virement', mobile_money: 'Mobile Money',
+  card: 'Carte', check: 'Chèque', other: 'Autre',
 }
 
 function RejectModal({ onConfirm, onClose, isPending }: { onConfirm: (reason: string) => void; onClose: () => void; isPending: boolean }) {

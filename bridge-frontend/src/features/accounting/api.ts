@@ -1,5 +1,6 @@
 // ─── Accounting feature — API ──────────────────────────────────
 
+import apiClient from '@/lib/api-client'
 import type {
   Account, AccountListItem, CreateAccountPayload, UpdateAccountPayload,
   FiscalYear, FiscalPeriod, CreateFiscalYearPayload,
@@ -11,178 +12,299 @@ import type {
   AccountingStats, ExportConfig, AccountClass,
 } from './types'
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api'
+// ── Normalizers ──────────────────────────────────────────────────
 
-// Prisma retourne accountNumber comme PK (pas id) + accountClass "c4" (pas 4)
-// → on normalise pour que le reste du frontend reste stable
-function normalizeAccount(a: any) {
+function accountTypeFromClass(cls: number): string {
+  if (cls === 1) return 'equity'
+  if (cls === 2 || cls === 3 || cls === 5) return 'asset'
+  if (cls === 4) return 'liability'
+  if (cls === 6) return 'expense'
+  if (cls === 7) return 'revenue'
+  return 'asset'
+}
+
+function normalizeAccount(a: any): AccountListItem {
+  const cls = parseInt((a.accountClass ?? 'c0').replace('c', ''), 10)
   return {
     ...a,
-    id:             a.accountNumber,
-    number:         a.accountNumber,
-    class:          parseInt((a.accountClass ?? 'c0').replace('c', ''), 10) as any,
-    normalBalance:  a.accountNature === 'credit_normal' ? 'credit' : 'debit',
-    isLeaf:         a.isDetailAccount ?? true,
-    openingBalance: 0,
-    shortName:      a.shortName ?? null,
-    accountNature:  a.accountNature ?? 'debit_normal',
+    id:                   a.accountNumber,
+    number:               a.accountNumber,
+    class:                cls as any,
+    type:                 accountTypeFromClass(cls) as any,
+    normalBalance:        a.accountNature === 'credit_normal' ? 'credit' : 'debit',
+    isLeaf:               a.isDetailAccount ?? true,
+    openingBalance:       0,
+    shortName:            a.shortName ?? null,
+    accountNature:        a.accountNature ?? 'debit_normal',
     allowsReconciliation: a.allowsReconciliation ?? false,
+    parentId:             a.parentAccountNumber ?? null,
+    isActive:             a.isActive ?? true,
+    isDetailAccount:      a.isDetailAccount ?? true,
   }
 }
 
-async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-  const res = await fetch(`${BASE}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init?.headers,
-    },
-  })
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body?.message ?? `HTTP ${res.status}`)
+function normalizeJournal(j: any): AccountingJournal {
+  return {
+    id:           j.id,
+    code:         j.code,
+    name:         j.name,
+    type:         j.type,
+    description:  j.description ?? null,
+    isActive:     j.isActive,
+    entriesCount: j._count?.journalEntries ?? 0,
+    createdAt:    typeof j.createdAt === 'string' ? j.createdAt : new Date(j.createdAt).toISOString(),
   }
-  return res.json()
 }
 
-// ─── Accounts ─────────────────────────────────────────────────
+function normalizeEntryListItem(e: any): AccountingEntryListItem {
+  return {
+    id:          e.id,
+    number:      e.entryNumber,
+    journalId:   e.journalId,
+    journal:     e.journal,
+    date:        typeof e.entryDate === 'string'
+      ? e.entryDate.split('T')[0]
+      : new Date(e.entryDate).toISOString().split('T')[0],
+    label:       e.label,
+    source:      e.sourceType ?? null,
+    status:      e.status,
+    sourceId:    e.sourceId ?? null,
+    totalDebit:  Number(e.totalDebit),
+    totalCredit: Number(e.totalCredit),
+    isBalanced:  Math.abs(Number(e.totalDebit) - Number(e.totalCredit)) < 0.01,
+    createdAt:   typeof e.createdAt === 'string' ? e.createdAt : new Date(e.createdAt).toISOString(),
+  }
+}
+
+// ── API ──────────────────────────────────────────────────────────
 
 export const accountingApi = {
 
-  // Chart of accounts
-  listAccounts: async (params?: { class?: AccountClass; search?: string; active?: boolean }) => {
+  // ─── Chart of accounts ──────────────────────────────────────
+
+  listAccounts: async (params?: { class?: AccountClass; search?: string; active?: boolean }): Promise<AccountListItem[]> => {
     const q = new URLSearchParams()
-    if (params?.class)  q.set('class', String(params.class))
-    if (params?.search) q.set('search', params.search)
+    if (params?.class  !== undefined) q.set('class', String(params.class))
+    if (params?.search)               q.set('search', params.search)
     if (params?.active !== undefined) q.set('active', String(params.active))
-    const raw = await req<any[]>(`/accounting/accounts${q.toString() ? `?${q}` : ''}`)
-    return raw.map(normalizeAccount) as AccountListItem[]
+    const raw = await apiClient.get<any[]>(`/accounting/accounts${q.toString() ? `?${q}` : ''}`).then(r => r.data)
+    return raw.map(normalizeAccount)
   },
 
-  getAccount: async (id: string) => {
-    const raw = await req<any>(`/accounting/accounts/${id}`)
-    return normalizeAccount(raw) as Account
+  getAccount: async (id: string): Promise<Account> => {
+    const raw = await apiClient.get<any>(`/accounting/accounts/${id}`).then(r => r.data)
+    return normalizeAccount(raw) as unknown as Account
   },
 
   createAccount: (data: CreateAccountPayload) =>
-    req<Account>('/accounting/accounts', { method: 'POST', body: JSON.stringify(data) }),
+    apiClient.post<Account>('/accounting/accounts', data).then(r => r.data),
 
   updateAccount: (id: string, data: UpdateAccountPayload) =>
-    req<Account>(`/accounting/accounts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    apiClient.put<Account>(`/accounting/accounts/${id}`, data).then(r => r.data),
 
   toggleAccount: (id: string, isActive: boolean) =>
-    req<Account>(`/accounting/accounts/${id}`, { method: 'PUT', body: JSON.stringify({ isActive }) }),
+    apiClient.put<Account>(`/accounting/accounts/${id}`, { isActive }).then(r => r.data),
 
   deleteAccount: (id: string) =>
-    req<void>(`/accounting/accounts/${id}`, { method: 'DELETE' }),
+    apiClient.delete<void>(`/accounting/accounts/${id}`).then(r => r.data),
 
   // ─── Fiscal years & periods ─────────────────────────────────
 
-  listFiscalYears: () => req<FiscalYear[]>('/accounting/fiscal-years'),
+  listFiscalYears: async (): Promise<FiscalYear[]> => {
+    const raw = await apiClient.get<any[]>('/accounting/fiscal-years').then(r => r.data)
+    const yearMap = new Map<number, FiscalPeriod[]>()
+    for (const p of raw) {
+      const yr = p.fiscalYear as number
+      if (!yearMap.has(yr)) yearMap.set(yr, [])
+      const month = new Date(p.startDate).getUTCMonth() + 1
+      const period: FiscalPeriod = {
+        id:         p.id,
+        yearId:     String(yr),
+        year:       yr,
+        month,
+        fiscalYear: yr,
+        startDate:  typeof p.startDate === 'string' ? p.startDate.split('T')[0] : new Date(p.startDate).toISOString().split('T')[0],
+        endDate:    typeof p.endDate   === 'string' ? p.endDate.split('T')[0]   : new Date(p.endDate).toISOString().split('T')[0],
+        status:     p.status,
+        createdAt:  typeof p.createdAt === 'string' ? p.createdAt : new Date(p.createdAt).toISOString(),
+      }
+      yearMap.get(yr)!.push(period)
+    }
+    return Array.from(yearMap.entries())
+      .sort(([a], [b]) => b - a)
+      .map(([yr, periods]) => ({
+        id:        String(yr),
+        year:      yr,
+        startDate: periods[0]?.startDate ?? '',
+        endDate:   periods[periods.length - 1]?.endDate ?? '',
+        status:    (periods.some(p => p.status === 'open') ? 'open'
+          : periods.some(p => p.status === 'closed') ? 'closed' : 'locked') as any,
+        periods,
+        createdAt: periods[0]?.createdAt ?? '',
+      }))
+  },
 
   createFiscalYear: (data: CreateFiscalYearPayload) =>
-    req<FiscalYear>('/accounting/fiscal-years', { method: 'POST', body: JSON.stringify(data) }),
+    apiClient.post<FiscalPeriod>('/accounting/fiscal-years', data).then(r => r.data),
 
   closePeriod: (id: string) =>
-    req<FiscalPeriod>(`/accounting/periods/${id}/close`, { method: 'POST' }),
+    apiClient.post<FiscalPeriod>(`/accounting/periods/${id}/close`).then(r => r.data),
 
   reopenPeriod: (id: string) =>
-    req<FiscalPeriod>(`/accounting/periods/${id}/reopen`, { method: 'POST' }),
+    apiClient.post<FiscalPeriod>(`/accounting/periods/${id}/reopen`).then(r => r.data),
 
   // ─── Journals ───────────────────────────────────────────────
 
-  listJournals: () => req<AccountingJournal[]>('/accounting/journals'),
+  listJournals: async (): Promise<AccountingJournal[]> => {
+    const raw = await apiClient.get<any[]>('/accounting/journals').then(r => r.data)
+    return raw.map(normalizeJournal)
+  },
 
-  createJournal: (data: CreateJournalPayload) =>
-    req<AccountingJournal>('/accounting/journals', { method: 'POST', body: JSON.stringify(data) }),
+  createJournal: async (data: CreateJournalPayload): Promise<AccountingJournal> => {
+    const raw = await apiClient.post<any>('/accounting/journals', data).then(r => r.data)
+    return normalizeJournal(raw)
+  },
 
-  updateJournal: (id: string, data: UpdateJournalPayload) =>
-    req<AccountingJournal>(`/accounting/journals/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  updateJournal: async (id: string, data: UpdateJournalPayload): Promise<AccountingJournal> => {
+    const raw = await apiClient.put<any>(`/accounting/journals/${id}`, data).then(r => r.data)
+    return normalizeJournal(raw)
+  },
 
   toggleJournal: (id: string, isActive: boolean) =>
-    req<AccountingJournal>(`/accounting/journals/${id}`, { method: 'PUT', body: JSON.stringify({ isActive }) }),
+    apiClient.put<AccountingJournal>(`/accounting/journals/${id}`, { isActive }).then(r => r.data),
 
   deleteJournal: (id: string) =>
-    req<void>(`/accounting/journals/${id}`, { method: 'DELETE' }),
+    apiClient.delete<void>(`/accounting/journals/${id}`).then(r => r.data),
 
   // ─── Entries ────────────────────────────────────────────────
 
-  listEntries: (params: ListEntriesParams = {}) => {
+  listEntries: async (params: ListEntriesParams = {}): Promise<PaginatedEntries> => {
     const q = new URLSearchParams()
     Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== '') q.set(k, String(v)) })
-    return req<PaginatedEntries>(`/accounting/entries?${q}`)
+    const res = await apiClient.get<{ data: any[]; total: number; page: number; limit: number; totalPages: number }>(
+      `/accounting/entries?${q}`
+    ).then(r => r.data)
+    return {
+      data:       res.data.map(normalizeEntryListItem),
+      total:      res.total,
+      page:       res.page,
+      limit:      res.limit,
+      totalPages: res.totalPages,
+    }
   },
 
-  getEntry: (id: string) => req<AccountingEntry>(`/accounting/entries/${id}`),
+  getEntry: (id: string) =>
+    apiClient.get<AccountingEntry>(`/accounting/entries/${id}`).then(r => r.data),
 
   createEntry: (data: CreateEntryPayload) =>
-    req<AccountingEntry>('/accounting/entries', { method: 'POST', body: JSON.stringify(data) }),
+    apiClient.post<AccountingEntry>('/accounting/entries', data).then(r => r.data),
+
+  validateEntry: (id: string) =>
+    apiClient.post<AccountingEntry>(`/accounting/entries/${id}/validate`).then(r => r.data),
 
   cancelEntry: (id: string) =>
-    req<AccountingEntry>(`/accounting/entries/${id}/cancel`, { method: 'POST' }),
+    apiClient.post<AccountingEntry>(`/accounting/entries/${id}/cancel`).then(r => r.data),
+
+  reverseEntry: (id: string) =>
+    apiClient.post<AccountingEntry>(`/accounting/entries/${id}/reverse`).then(r => r.data),
 
   // ─── Balance & Grand livre ──────────────────────────────────
 
-  getBalance: (params: { periodId?: string; class?: AccountClass; includeEmpty?: boolean }) => {
+  getBalance: async (params: { periodId?: string; class?: AccountClass; includeEmpty?: boolean }): Promise<AccountBalance[]> => {
     const q = new URLSearchParams()
     if (params.periodId)     q.set('periodId', params.periodId)
-    if (params.class)        q.set('class', String(params.class))
+    if (params.class)        q.set('class',    String(params.class))
     if (params.includeEmpty) q.set('includeEmpty', 'true')
-    return req<AccountBalance[]>(`/accounting/reports/balance?${q}`)
+    const raw = await apiClient.get<any[]>(`/accounting/reports/balance?${q}`).then(r => r.data)
+    return raw.map((b: any) => ({
+      accountId:   b.accountNumber,
+      account:     b.account ? normalizeAccount(b.account) : null as any,
+      debitTotal:  b.totalDebit,
+      creditTotal: b.totalCredit,
+      balance:     b.balance,
+    }))
   },
 
-  getGeneralLedger: (accountId: string, params: { periodId?: string; dateFrom?: string; dateTo?: string } = {}) => {
-    const q = new URLSearchParams({ accountId })
+  getGeneralLedger: async (
+    accountId: string,
+    params: { periodId?: string; dateFrom?: string; dateTo?: string } = {}
+  ): Promise<GeneralLedgerLine[]> => {
+    const q = new URLSearchParams({ accountNumber: accountId })
     if (params.periodId) q.set('periodId', params.periodId)
     if (params.dateFrom) q.set('dateFrom', params.dateFrom)
-    if (params.dateTo)   q.set('dateTo', params.dateTo)
-    return req<GeneralLedgerLine[]>(`/accounting/reports/ledger?${q}`)
+    if (params.dateTo)   q.set('dateTo',   params.dateTo)
+    const raw = await apiClient.get<any>(`/accounting/reports/ledger?${q}`).then(r => r.data)
+    const lines: any[] = raw.lines ?? raw ?? []
+    let running = 0
+    return lines.map((l: any) => {
+      running += Number(l.debit) - Number(l.credit)
+      return {
+        entryId:     l.journalEntryId ?? l.id,
+        entryNum:    l.journalEntry?.entryNumber ?? '',
+        journalCode: l.journalEntry?.journal?.code ?? '',
+        date:        l.journalEntry?.entryDate
+          ? (typeof l.journalEntry.entryDate === 'string'
+              ? l.journalEntry.entryDate.split('T')[0]
+              : new Date(l.journalEntry.entryDate).toISOString().split('T')[0])
+          : '',
+        label:      l.label,
+        debit:      Number(l.debit),
+        credit:     Number(l.credit),
+        runningBal: running,
+        letterCode: l.letteringCode ?? null,
+      } as GeneralLedgerLine
+    })
   },
 
-  exportSage: (config: ExportConfig) =>
-    fetch(`${BASE}/accounting/reports/export`, {
-      method: 'POST',
+  exportSage: (config: ExportConfig) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('bts_access_token') : ''
+    const base  = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api'
+    return fetch(`${base}/accounting/reports/export`, {
+      method:  'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('access_token') ?? ''}`,
+        Authorization:  `Bearer ${token ?? ''}`,
       },
       body: JSON.stringify(config),
-    }),
+    })
+  },
 
   // ─── Lettering ─────────────────────────────────────────────
 
   getLetterableLines: (accountId: string, periodId?: string) => {
     const q = new URLSearchParams({ accountId })
     if (periodId) q.set('periodId', periodId)
-    return req<{ unlettered: LetterableEntryLine[]; lettered: LetteredGroup[] }>(`/accounting/lettering?${q}`)
+    return apiClient.get<{ unlettered: LetterableEntryLine[]; lettered: LetteredGroup[] }>(`/accounting/lettering?${q}`).then(r => r.data)
   },
 
-  letterLines: (lineIds: string[]) =>
-    req<LetteredGroup>('/accounting/lettering', { method: 'POST', body: JSON.stringify({ lineIds }) }),
+  letterLines: (lineIds: string[], accountNumber?: string) =>
+    apiClient.post<void>('/accounting/lettering', { lineIds, ...(accountNumber ? { accountNumber } : {}) }).then(r => r.data),
 
-  unletterGroup: (letterCode: string, accountId: string) =>
-    req<void>(`/accounting/lettering/${letterCode}?accountId=${accountId}`, { method: 'DELETE' }),
+  unletterGroup: (letterCode: string, accountNumber: string) =>
+    apiClient.delete<void>(`/accounting/lettering/${letterCode}?accountNumber=${encodeURIComponent(accountNumber)}`).then(r => r.data),
 
   // ─── Tax declarations ───────────────────────────────────────
 
-  listTaxDeclarations: (params?: { periodId?: string; status?: string }) => {
+  listTaxDeclarations: async (params?: { periodId?: string; status?: string }): Promise<TaxDeclaration[]> => {
     const q = new URLSearchParams()
     if (params?.periodId) q.set('periodId', params.periodId)
-    if (params?.status)   q.set('status', params.status)
-    return req<TaxDeclaration[]>(`/accounting/tax-declarations${q.toString() ? `?${q}` : ''}`)
+    if (params?.status)   q.set('type',     params.status)
+    const res = await apiClient.get<{ data: TaxDeclaration[] }>(
+      `/accounting/tax-declarations${q.toString() ? `?${q}` : ''}`
+    ).then(r => r.data)
+    return res.data
   },
 
-  getTaxDeclaration: (id: string) => req<TaxDeclaration & { detail: TaxDeclarationDetail }>(`/accounting/tax-declarations/${id}`),
+  getTaxDeclaration: (id: string) =>
+    apiClient.get<TaxDeclaration & { detail: TaxDeclarationDetail }>(`/accounting/tax-declarations/${id}`).then(r => r.data),
 
   createTaxDeclaration: (data: CreateTaxDeclPayload) =>
-    req<TaxDeclaration>('/accounting/tax-declarations', { method: 'POST', body: JSON.stringify(data) }),
+    apiClient.post<TaxDeclaration>('/accounting/tax-declarations', data).then(r => r.data),
 
   submitTaxDeclaration: (id: string) =>
-    req<TaxDeclaration>(`/accounting/tax-declarations/${id}/submit`, { method: 'POST' }),
+    apiClient.post<TaxDeclaration>(`/accounting/tax-declarations/${id}/submit`).then(r => r.data),
 
   // ─── Dashboard stats ─────────────────────────────────────────
 
-  getStats: () => req<AccountingStats>('/accounting/stats'),
+  getStats: () => apiClient.get<AccountingStats>('/accounting/stats').then(r => r.data),
 }

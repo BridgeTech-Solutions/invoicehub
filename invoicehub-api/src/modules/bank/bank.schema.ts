@@ -10,6 +10,7 @@ export const createBankAccountSchema = z.object({
   currency:          z.string().length(3).default('XAF'),
   openingBalance:    z.number().default(0),
   isDefault:         z.boolean().default(false),
+  accountType:       z.enum(['checking','savings','petty_cash','mobile_money','term_deposit']).default('checking').optional(),
   accountingAccount: z.string().max(20).optional().nullable(),
   color:             z.string().length(7).optional().nullable(),
   notes:             z.string().optional().nullable(),
@@ -78,3 +79,41 @@ export type ReconcileInput          = z.infer<typeof reconcileTransactionSchema>
 export type OpenReconciliationInput = z.infer<typeof openReconciliationSchema>;
 export type ImportCsvInput          = z.infer<typeof importCsvSchema>;
 export type DetectFormatInput       = z.infer<typeof detectFormatSchema>;
+
+// ── Import profiles ───────────────────────────────────────────────────────────
+
+export const createImportProfileSchema = z.object({
+  name:          z.string().min(1).max(255),
+  bankName:      z.string().max(255).optional().nullable(),
+  fileFormat:    z.string().max(50).optional().nullable(),
+  encoding:      z.string().max(20).optional().nullable(),
+  delimiter:     z.string().max(5).optional().nullable(),
+  dateFormat:    z.string().max(50).optional().nullable(),
+  numberFormat:  z.record(z.any()).optional(),
+  columnMapping: z.record(z.any()).optional(),
+  country:       z.string().max(100).optional().nullable(),
+});
+
+export const updateImportProfileSchema = createImportProfileSchema.partial();
+
+export type CreateImportProfileInput = z.infer<typeof createImportProfileSchema>;
+export type UpdateImportProfileInput = z.infer<typeof updateImportProfileSchema>;
+
+// ── Matching rules ────────────────────────────────────────────────────────────
+
+export const createMatchingRuleSchema = z.object({
+  name:            z.string().min(1).max(255),
+  labelContains:   z.string().max(255).optional().nullable(),
+  amountMin:       z.number().optional().nullable(),
+  amountMax:       z.number().optional().nullable(),
+  transactionType: z.enum(['debit', 'credit']).optional().nullable(),
+  entityType:      z.string().max(100).optional().nullable(),
+  entityId:        z.string().uuid().optional().nullable(),
+  priority:        z.number().int().optional().nullable(),
+  isActive:        z.boolean().optional(),
+});
+
+export const updateMatchingRuleSchema = createMatchingRuleSchema.partial();
+
+export type CreateMatchingRuleInput = z.infer<typeof createMatchingRuleSchema>;
+export type UpdateMatchingRuleInput = z.infer<typeof updateMatchingRuleSchema>;

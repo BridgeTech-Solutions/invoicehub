@@ -67,7 +67,7 @@ function initForm(si?: SupplierInvoice, opts?: { defaultSupplierId?: string; def
     return {
       supplierId:          si.supplierId,
       purchaseOrderId:     si.purchaseOrderId   ?? '',
-      supplierRef:         si.supplierRef        ?? '',
+      supplierRef:         si.supplierInvoiceNumber ?? '',
       invoiceDate:         si.invoiceDate.slice(0, 10),
       dueDate:             si.dueDate?.slice(0, 10) ?? '',
       accountingAccount:   si.accountingAccount  ?? '401000',
@@ -172,7 +172,7 @@ export function SupplierInvoiceForm({ si, defaultSupplierId }: SupplierInvoiceFo
     if (!validate()) return
     const payload = {
       supplierId:        form.supplierId,
-      supplierRef:       form.supplierRef       || undefined,
+      supplierInvoiceRef: form.supplierRef       || undefined,
       purchaseOrderId:   form.purchaseOrderId   || undefined,
       invoiceDate:       form.invoiceDate,
       dueDate:           form.dueDate           || undefined,
@@ -184,7 +184,7 @@ export function SupplierInvoiceForm({ si, defaultSupplierId }: SupplierInvoiceFo
         description: l.description || undefined,
         unit:        l.unit || 'U',
         quantity:    Number(l.quantity),
-        unitPriceHt: Number(l.unitPriceHt),
+        unitPrice:   Number(l.unitPriceHt),
         taxRate:     Number(l.taxRate),
         sortOrder:   i + 1,
       })),

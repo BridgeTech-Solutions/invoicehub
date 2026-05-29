@@ -11,12 +11,14 @@ import { toast } from 'sonner'
 import type { AccountingJournal, JournalType } from '@/features/accounting/types'
 
 const JOURNAL_CFG: Record<JournalType, { label: string; color: string; bg: string; desc: string }> = {
-  purchase: { label: 'Achats',          color: '#7c3aed', bg: 'rgba(124,58,237,0.1)', desc: 'Factures fournisseurs et bons de commande' },
-  sale:     { label: 'Ventes',          color: '#16a34a', bg: 'rgba(22,163,74,0.1)',  desc: 'Factures clients et avoirs' },
-  bank:     { label: 'Banque',          color: '#2D7DD2', bg: 'rgba(45,125,210,0.1)', desc: 'Opérations bancaires et virements' },
-  cash:     { label: 'Caisse',          color: '#d97706', bg: 'rgba(217,119,6,0.1)',  desc: 'Encaissements et décaissements espèces' },
-  od:       { label: 'Op. Diverses',    color: '#0891b2', bg: 'rgba(8,145,178,0.1)',  desc: 'Opérations de régularisation et OD' },
-  opening:  { label: 'À-nouveaux',      color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', desc: "Reprise des soldes d'ouverture d'exercice" },
+  purchases:  { label: 'Achats',          color: '#7c3aed', bg: 'rgba(124,58,237,0.1)', desc: 'Factures fournisseurs et bons de commande' },
+  sales:      { label: 'Ventes',          color: '#16a34a', bg: 'rgba(22,163,74,0.1)',  desc: 'Factures clients et avoirs' },
+  bank:       { label: 'Banque',          color: '#2D7DD2', bg: 'rgba(45,125,210,0.1)', desc: 'Opérations bancaires et virements' },
+  cash:       { label: 'Caisse',          color: '#d97706', bg: 'rgba(217,119,6,0.1)',  desc: 'Encaissements et décaissements espèces' },
+  operations: { label: 'Op. Diverses',    color: '#0891b2', bg: 'rgba(8,145,178,0.1)',  desc: 'Opérations de régularisation et OD' },
+  misc:       { label: 'Divers',          color: '#64748b', bg: 'rgba(100,116,139,0.1)', desc: 'Écritures diverses et reclassements' },
+  opening:    { label: 'À-nouveaux',      color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', desc: "Reprise des soldes d'ouverture d'exercice" },
+  closing:    { label: 'Clôture',         color: '#475569', bg: 'rgba(71,85,105,0.1)',  desc: "Écritures de clôture d'exercice" },
 }
 
 function JournalCard({ journal, onEdit }: { journal: AccountingJournal; onEdit: () => void }) {

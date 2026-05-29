@@ -151,6 +151,19 @@ enum AuditAction {
   EXPORT
   APPROVAL_REQUESTED
   APPROVAL_DECISION
+  APPROVED
+  REJECTED
+  RECONCILED
+  STOCK_ADJUSTED
+  JOURNAL_ENTRY_CREATED
+  JOURNAL_ENTRY_VALIDATED
+  FISCAL_PERIOD_CLOSED
+  ROLE_PERMISSION_CHANGED
+  WEBHOOK_TRIGGERED
+  BANK_IMPORT
+  EXPENSE_SUBMITTED
+  EXPENSE_APPROVED
+  EXPENSE_REJECTED
 
   @@map("audit_action")
 }
@@ -181,6 +194,19 @@ enum NotificationStatus {
   approval_rejected
   approval_expired
   approval_delegated
+  purchase_order_created
+  purchase_order_approved
+  purchase_order_rejected
+  supplier_invoice_received
+  supplier_invoice_due
+  expense_submitted
+  expense_approved
+  expense_rejected
+  low_stock_alert
+  bank_reconciliation_pending
+  fiscal_period_closing
+  role_changed
+  budget_exceeded
 
   @@map("notification_status")
 }
@@ -603,7 +629,6 @@ model User {
   createdUsers         User[]      @relation("UserCreatedBy")
   rolesCreated                     Role[]                       @relation("RoleCreatedBy")
   suppliersCreated                 Supplier[]                   @relation("SupplierCreatedBy")
-  supplierContactsCreated          SupplierContact[]            @relation("SupplierContactCreatedBy")
   purchaseOrdersCreated            PurchaseOrder[]              @relation("POCreatedBy")
   purchaseOrdersAssigned           PurchaseOrder[]              @relation("POAssignedTo")
   purchaseOrdersApproved           PurchaseOrder[]              @relation("POApprovedBy")
@@ -659,6 +684,7 @@ model User {
   approvalDelegationsReceived      ApprovalDecision[]           @relation("ApprovalDelegate")
 
   emailTemplateVersions   EmailTemplateVersion[]
+  emailTemplatesUpdated   EmailTemplate[]        @relation("EmailTemplateUpdatedBy")
 
   refreshTokens           RefreshToken[]
   loginHistory            LoginHistory[]
@@ -1130,16 +1156,21 @@ model RecurringInvoiceTemplateLine {
 }
 
 model Notification {
-  id         String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  userId     String             @map("user_id") @db.Uuid
-  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type       NotificationStatus
-  title      String             @db.VarChar(255)
-  message    String
-  data       Json               @default("{}") @map("metadata")
-  isRead     Boolean            @default(false) @map("is_read")
-  readAt     DateTime?          @map("read_at") @db.Timestamptz()
-  createdAt  DateTime           @default(now()) @map("created_at") @db.Timestamptz()
+  id           String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId       String             @map("user_id") @db.Uuid
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         NotificationStatus
+  title        String             @db.VarChar(255)
+  message      String
+  data         Json               @default("{}") @map("metadata")
+  entityType   String?            @map("entity_type") @db.VarChar(50)
+  entityId     String?            @map("entity_id") @db.Uuid
+  entityLabel  String?            @map("entity_label") @db.VarChar(255)
+  isRead       Boolean            @default(false) @map("is_read")
+  readAt       DateTime?          @map("read_at") @db.Timestamptz()
+  emailSent    Boolean            @default(false) @map("email_sent")
+  emailSentAt  DateTime?          @map("email_sent_at") @db.Timestamptz()
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz()
 
   @@map("notifications")
 }
@@ -1157,16 +1188,19 @@ model NotificationSetting {
 }
 
 model EmailTemplate {
-  id        String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  type      NotificationStatus
-  locale    String             @default("fr") @db.VarChar(5)
-  name      String             @db.VarChar(255)
-  subject   String             @db.VarChar(500)
-  bodyHtml  String             @map("body_html")
-  variables Json               @default("[]")
-  isActive  Boolean            @default(true) @map("is_active")
-  createdAt DateTime           @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+  id            String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  type          NotificationStatus
+  locale        String             @default("fr") @db.VarChar(5)
+  name          String             @db.VarChar(255)
+  subject       String             @db.VarChar(500)
+  bodyHtml      String             @map("body_html")
+  bodyText      String?            @map("body_text")
+  variables     Json               @default("[]")
+  isActive      Boolean            @default(true) @map("is_active")
+  updatedById   String?            @map("updated_by") @db.Uuid
+  updatedBy     User?              @relation("EmailTemplateUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
   versions  EmailTemplateVersion[]
 
@@ -1302,8 +1336,6 @@ model SupplierContact {
   notes       String?
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
-  createdById String?   @map("created_by") @db.Uuid
-  createdBy   User?     @relation("SupplierContactCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@map("supplier_contacts")
 }

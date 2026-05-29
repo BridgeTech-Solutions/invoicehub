@@ -3,6 +3,7 @@
 export interface Supplier {
   id:                  string
   name:                string
+  type:                'individual' | 'company' | 'government' | 'ngo' | 'other'
   email:               string | null
   phone:               string | null
   address:             string | null

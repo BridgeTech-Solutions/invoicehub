@@ -86,17 +86,16 @@ export interface CreateCustomFieldPayload {
 export interface IpWhitelistEntry {
   id:          string
   ipAddress:   string
-  label:       string | null
-  description: string | null
+  label:       string
   isActive:    boolean
   createdAt:   string
   createdById: string | null
 }
 
 export interface CreateIpWhitelistPayload {
-  ipAddress:    string
-  description?: string | null
-  isActive?:    boolean
+  ipAddress: string
+  label?:    string | null
+  isActive?: boolean
 }
 
 // ── Export Jobs ───────────────────────────────────────────────────
@@ -105,16 +104,20 @@ export type ExportFormat     = 'csv' | 'excel' | 'pdf' | 'sage_csv' | 'ciel_csv'
 export type ExportStatus     = 'pending' | 'processing' | 'completed' | 'failed'
 
 export interface ExportJob {
-  id:          string
-  module:      ExportEntityType
-  format:      ExportFormat
-  filters:     Record<string, unknown>
-  status:      ExportStatus
-  filePath:    string | null
-  errorMsg:    string | null
-  expiresAt:   string
-  createdAt:   string
-  createdById: string
+  id:           string
+  module:       ExportEntityType
+  format:       ExportFormat
+  filters:      Record<string, unknown>
+  status:       ExportStatus
+  filePath:     string | null
+  errorMessage: string | null
+  progress:     number
+  fileSizeBytes:number | null
+  startedAt:    string | null
+  completedAt:  string | null
+  expiresAt:    string
+  createdAt:    string
+  createdById:  string
 }
 
 export interface CreateExportPayload {

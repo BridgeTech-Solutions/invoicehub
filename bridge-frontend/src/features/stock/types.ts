@@ -86,7 +86,8 @@ export interface ProductStockHistory {
     stockMaxLevel: number | null
     stockUnit?:    string | null
   }
-  movements:  StockMovement[]
+  // History movements don't include the product relation (redundant — product is the outer field)
+  movements:  Omit<StockMovement, 'product'>[]
   total:      number
   page:       number
   limit:      number
@@ -110,13 +111,14 @@ export interface PaginatedMovements {
 }
 
 export interface AdjustStockPayload {
-  productId:   string
-  quantity:    number
-  type:        'adjustment_in' | 'adjustment_out' | 'write_off' | 'initial_stock' | 'return_customer' | 'return_supplier' | 'purchase_receipt'
-  unitCostHt?: number | null
-  notes:       string
-  location?:   string | null
+  productId:    string
+  quantity:     number
+  type:         'adjustment_in' | 'adjustment_out' | 'write_off' | 'initial_stock' | 'return_customer' | 'return_supplier' | 'purchase_receipt'
+  unitCostHt?:  number | null
+  notes:        string
+  location?:    string | null
   sourceLabel?: string | null
+  supplierId?:  string | null
 }
 
 export interface ListMovementsParams {

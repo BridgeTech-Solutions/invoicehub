@@ -85,9 +85,9 @@ export default function TaxDeclarationsPage() {
   // Latest declaration for KPIs (most recent)
   const latest = filtered[0] as TaxDeclaration | undefined
 
-  const totalCollected  = filtered.reduce((s: number, d: TaxDeclaration) => s + d.vatCollected, 0)
-  const totalDeductible = filtered.reduce((s: number, d: TaxDeclaration) => s + d.vatDeductible, 0)
-  const totalNet        = filtered.reduce((s: number, d: TaxDeclaration) => s + d.vatNet, 0)
+  const totalCollected  = filtered.reduce((s: number, d: TaxDeclaration) => s + d.tvaCollected, 0)
+  const totalDeductible = filtered.reduce((s: number, d: TaxDeclaration) => s + d.tvaDeductible, 0)
+  const totalNet        = filtered.reduce((s: number, d: TaxDeclaration) => s + d.tvaCredit, 0)
 
   // Real detail breakdown from API (comptes 4455x / 4452x)
   const { data: latestDetail, isLoading: detailLoading } = useTaxDeclaration(latest?.id ?? null)
@@ -188,7 +188,7 @@ export default function TaxDeclarationsPage() {
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#16a34a' }} />
               <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)' }}>Détail TVA Collectée</p>
-              <span style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 700, color: '#16a34a', fontFamily: 'var(--font-mono)' }}>{format(latest.vatCollected)}</span>
+              <span style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 700, color: '#16a34a', fontFamily: 'var(--font-mono)' }}>{format(latest.tvaCollected)}</span>
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
@@ -218,7 +218,7 @@ export default function TaxDeclarationsPage() {
               <tfoot>
                 <tr style={{ background: 'var(--surface-2)', borderTop: '2px solid var(--border)' }}>
                   <td colSpan={2} style={{ padding: '8px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text-2)', fontFamily: 'var(--font-display)' }}>TOTAL COLLECTÉ</td>
-                  <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 700, color: '#16a34a', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{format(latest.vatCollected)}</td>
+                  <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 700, color: '#16a34a', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{format(latest.tvaCollected)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -229,7 +229,7 @@ export default function TaxDeclarationsPage() {
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#2D7DD2' }} />
               <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)' }}>Détail TVA Déductible</p>
-              <span style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 700, color: '#2D7DD2', fontFamily: 'var(--font-mono)' }}>{format(latest.vatDeductible)}</span>
+              <span style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 700, color: '#2D7DD2', fontFamily: 'var(--font-mono)' }}>{format(latest.tvaDeductible)}</span>
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
@@ -259,7 +259,7 @@ export default function TaxDeclarationsPage() {
               <tfoot>
                 <tr style={{ background: 'var(--surface-2)', borderTop: '2px solid var(--border)' }}>
                   <td colSpan={2} style={{ padding: '8px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text-2)', fontFamily: 'var(--font-display)' }}>TOTAL DÉDUCTIBLE</td>
-                  <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 700, color: '#2D7DD2', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{format(latest.vatDeductible)}</td>
+                  <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 700, color: '#2D7DD2', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{format(latest.tvaDeductible)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -311,7 +311,7 @@ export default function TaxDeclarationsPage() {
                 (filtered as TaxDeclaration[]).map((decl, i) => {
                   const period = decl.period
                   const periodLabel = period ? `${MONTHS[period.month - 1]} ${period.year}` : '—'
-                  const netColor = decl.vatNet > 0 ? '#d97706' : decl.vatNet < 0 ? '#16a34a' : 'var(--text-2)'
+                  const netColor = decl.tvaCredit > 0 ? '#d97706' : decl.tvaCredit < 0 ? '#16a34a' : 'var(--text-2)'
                   return (
                     <tr key={decl.id}
                       style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 1 ? 'var(--surface-2)' : 'transparent', transition: 'background 0.1s' }}
@@ -319,13 +319,13 @@ export default function TaxDeclarationsPage() {
                       onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = i % 2 === 1 ? 'var(--surface-2)' : 'transparent'}>
                       <td style={{ padding: '9px 12px', fontSize: 13, color: 'var(--text-1)', fontWeight: 600, whiteSpace: 'nowrap' }}>{periodLabel}</td>
                       <td style={{ padding: '9px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 600, color: '#16a34a', whiteSpace: 'nowrap' }}>
-                        {format(decl.vatCollected)}
+                        {format(decl.tvaCollected)}
                       </td>
                       <td style={{ padding: '9px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 600, color: '#2D7DD2', whiteSpace: 'nowrap' }}>
-                        {format(decl.vatDeductible)}
+                        {format(decl.tvaDeductible)}
                       </td>
                       <td style={{ padding: '9px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 700, color: netColor, whiteSpace: 'nowrap' }}>
-                        {decl.vatNet > 0 ? '+' : ''}{format(decl.vatNet)}
+                        {decl.tvaCredit > 0 ? '+' : ''}{format(decl.tvaCredit)}
                       </td>
                       <td style={{ padding: '9px 12px' }}>
                         <StatusBadge status={decl.status} />

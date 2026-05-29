@@ -13,9 +13,9 @@ import { formatDate } from '@/lib/utils'
 import { ROUTES } from '@/lib/constants'
 
 const STATUS_CONFIG = {
-  open:      { label: 'En cours',  color: '#3b82f6', bg: '#dbeafe' },
-  completed: { label: 'Terminé',   color: '#16a34a', bg: '#dcfce7' },
-  cancelled: { label: 'Annulé',    color: '#64748b', bg: '#f1f5f9' },
+  in_progress: { label: 'En cours',  color: '#3b82f6', bg: '#dbeafe' },
+  completed:   { label: 'Terminé',   color: '#16a34a', bg: '#dcfce7' },
+  cancelled:   { label: 'Annulé',    color: '#64748b', bg: '#f1f5f9' },
 }
 
 function SessionStatusBadge({ status }: { status: BankReconciliation['status'] }) {
@@ -194,7 +194,7 @@ export default function ReconciliationsPage() {
               </thead>
               <tbody>
                 {sessions.map(session => {
-                  const diff = session.difference ?? null
+                  const diff = session.closingBalanceStatement - session.closingBalanceSystem
                   const account = accounts.find(a => a.id === session.bankAccountId)
                   return (
                     <tr key={session.id}>
@@ -207,13 +207,13 @@ export default function ReconciliationsPage() {
                         {formatDate(session.periodStart)} → {formatDate(session.periodEnd)}
                       </td>
                       <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13 }}>
-                        {session.statementOpenBalance.toLocaleString('fr-FR')}
+                        {session.closingBalanceStatement.toLocaleString('fr-FR')}
                       </td>
                       <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13 }}>
                         {session.openingBalance.toLocaleString('fr-FR')}
                       </td>
                       <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: diff === 0 ? '#16a34a' : '#dc2626' }}>
-                        {diff === null ? '—' : diff === 0
+                        {diff === 0
                           ? <span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}><CheckCircle2 size={13} />0</span>
                           : `${diff > 0 ? '+' : ''}${diff.toLocaleString('fr-FR')}`}
                       </td>
@@ -226,7 +226,7 @@ export default function ReconciliationsPage() {
                           onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.color = 'var(--primary)' }}
                           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)';  e.currentTarget.style.color = 'var(--text-2)' }}
                         >
-                          {session.status === 'open' ? 'Continuer' : 'Voir'}
+                          {session.status === 'in_progress' ? 'Continuer' : 'Voir'}
                         </Link>
                       </td>
                     </tr>

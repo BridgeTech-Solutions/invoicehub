@@ -27,7 +27,7 @@ interface ProductFormProps {
   onPendingChange?: (pending: boolean) => void
 }
 
-const UNITS = ['heure', 'jour', 'mois', 'forfait', 'unité', 'licence', 'poste', 'm²', 'km']
+const UNITS = ['heure', 'jour', 'forfait', 'piece', 'licence', 'mois', 'annee']
 const STOCK_UNITS = ['pièce', 'unité', 'carton', 'lot', 'kg', 'g', 'litre', 'ml', 'm', 'm²', 'm³']
 
 // ─── Field wrapper ─────────────────────────────────────────────

@@ -52,7 +52,7 @@ export default function SageExportPage() {
   const { data: journals = [] }    = useJournals()
   const { data: fiscalYears = [] } = useFiscalYears()
 
-  const currentYear = fiscalYears.find(y => y.status === 'open' || y.status === 'current') ?? fiscalYears[0]
+  const currentYear = fiscalYears.find(y => y.status === 'open') ?? fiscalYears[0]
 
   const [dateFrom, setDateFrom]     = useState(currentYear ? `${currentYear.year}-01-01` : '')
   const [dateTo, setDateTo]         = useState(currentYear ? `${currentYear.year}-12-31` : '')

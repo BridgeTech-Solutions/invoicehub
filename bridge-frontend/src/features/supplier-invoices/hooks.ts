@@ -14,7 +14,6 @@ export const SI_KEYS = {
   all:    ['supplier-invoices'] as const,
   list:   (p?: ListSupplierInvoicesParams) => ['supplier-invoices', 'list', p] as const,
   detail: (id: string)                     => ['supplier-invoices', 'detail', id] as const,
-  stats:  ['supplier-invoices', 'stats']   as const,
 }
 
 export function useSupplierInvoices(params?: ListSupplierInvoicesParams) {
@@ -30,14 +29,6 @@ export function useSupplierInvoice(id: string) {
     queryKey: SI_KEYS.detail(id),
     queryFn:  () => supplierInvoicesApi.get(id),
     enabled:  !!id,
-  })
-}
-
-export function useSupplierInvoiceStats() {
-  return useQuery({
-    queryKey: SI_KEYS.stats,
-    queryFn:  supplierInvoicesApi.stats,
-    staleTime: 60_000,
   })
 }
 
@@ -70,16 +61,30 @@ export function useUpdateSupplierInvoice(id: string) {
   })
 }
 
-export function useApproveSupplierInvoice() {
+export function useValidateSupplierInvoice() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => supplierInvoicesApi.approve(id),
+    mutationFn: (id: string) => supplierInvoicesApi.validate(id),
     onSuccess: (_, id) => {
       qc.invalidateQueries({ queryKey: SI_KEYS.detail(id) })
       qc.invalidateQueries({ queryKey: SI_KEYS.all })
-      toast.success('Facture approuvée')
+      toast.success('Facture validée')
     },
-    onError: () => toast.error('Erreur lors de l\'approbation'),
+    onError: () => toast.error('Erreur lors de la validation'),
+  })
+}
+
+export function useDisputeSupplierInvoice() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      supplierInvoicesApi.dispute(id, reason),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: SI_KEYS.detail(id) })
+      qc.invalidateQueries({ queryKey: SI_KEYS.all })
+      toast.success('Facture contestée')
+    },
+    onError: () => toast.error('Erreur lors de la contestation'),
   })
 }
 
@@ -87,26 +92,13 @@ export function useRecordSupplierPayment(invoiceId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: RecordSupplierPaymentPayload) =>
-      supplierInvoicesApi.recordPayment(invoiceId, data),
+      supplierInvoicesApi.pay(invoiceId, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: SI_KEYS.detail(invoiceId) })
       qc.invalidateQueries({ queryKey: SI_KEYS.all })
       toast.success('Paiement enregistré')
     },
     onError: () => toast.error('Erreur lors de l\'enregistrement'),
-  })
-}
-
-export function useCancelSupplierInvoice() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (id: string) => supplierInvoicesApi.cancel(id),
-    onSuccess: (_, id) => {
-      qc.invalidateQueries({ queryKey: SI_KEYS.detail(id) })
-      qc.invalidateQueries({ queryKey: SI_KEYS.all })
-      toast.success('Facture annulée')
-    },
-    onError: () => toast.error('Erreur lors de l\'annulation'),
   })
 }
 

@@ -261,7 +261,7 @@ export default function TransactionsPage() {
     ...(dateFrom  && { dateFrom }),
     ...(dateTo    && { dateTo }),
     ...(tab !== 'all' && {
-      reconciled: tab === 'reconciled' ? true : tab === 'pending' ? false : undefined,
+      reconciled: tab === 'reconciled' ? true : false,
     }),
   }), [page, accountId, search, type, dateFrom, dateTo, tab])
 

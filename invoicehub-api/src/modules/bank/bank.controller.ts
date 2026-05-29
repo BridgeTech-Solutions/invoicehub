@@ -16,6 +16,8 @@ import {
   createTransactionSchema, reconcileTransactionSchema,
   openReconciliationSchema, importCsvSchema,
   detectFormatSchema, confirmImportSchema, saveProfileOverrideSchema,
+  createImportProfileSchema, updateImportProfileSchema,
+  createMatchingRuleSchema, updateMatchingRuleSchema,
 } from './bank.schema';
 import type { JwtPayload } from '../../common/types/jwt-payload.type';
 import { AppError } from '../../common/errors/app-error';
@@ -255,6 +257,19 @@ export class BankController {
     return this.bank.rollbackImport(id);
   }
 
+  @Get('imports')
+  @Permission('bank:read')
+  @SkipResponseWrapper()
+  async listImports(
+    @Query('page')  page  = '1',
+    @Query('limit') limit = '20',
+  ) {
+    const p = Math.max(1, parseInt(page));
+    const l = Math.min(100, Math.max(1, parseInt(limit)));
+    const { data, total } = await this.bank.listImports(p, l);
+    return { success: true, data, meta: { total, page: p, limit: l, totalPages: Math.ceil(total / l) } };
+  }
+
   // Route dépréciée
   @Post('import')
   @Permission('bank:import-confirm')
@@ -295,7 +310,7 @@ export class BankController {
   @Permission('bank:import-parse')
   @HttpCode(HttpStatus.CREATED)
   async createImportProfile(
-    @Body() body: any,
+    @Body(new ZodValidationPipe(createImportProfileSchema)) body: any,
     @CurrentUser() user: JwtPayload,
   ) {
     return this.bank.createImportProfile(body, user.sub);
@@ -311,7 +326,7 @@ export class BankController {
   @Permission('bank:manage')
   async updateImportProfile(
     @Param('id') id: string,
-    @Body() body: any,
+    @Body(new ZodValidationPipe(updateImportProfileSchema)) body: any,
   ) {
     return this.bank.updateImportProfile(id, body);
   }
@@ -342,7 +357,7 @@ export class BankController {
   @Permission('bank:rules')
   @HttpCode(HttpStatus.CREATED)
   async createMatchingRule(
-    @Body() body: any,
+    @Body(new ZodValidationPipe(createMatchingRuleSchema)) body: any,
     @CurrentUser() user: JwtPayload,
   ) {
     return this.bank.createMatchingRule(body, user.sub);
@@ -350,7 +365,10 @@ export class BankController {
 
   @Put('matching-rules/:id')
   @Permission('bank:rules')
-  async updateMatchingRule(@Param('id') id: string, @Body() body: any) {
+  async updateMatchingRule(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateMatchingRuleSchema)) body: any,
+  ) {
     return this.bank.updateMatchingRule(id, body);
   }
 

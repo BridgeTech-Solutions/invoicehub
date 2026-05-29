@@ -17,7 +17,7 @@ export type ImportFormat = 'csv' | 'ofx' | 'mt940'
 
 export type ImportStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
 
-export type ReconciliationSessionStatus = 'open' | 'completed' | 'cancelled'
+export type ReconciliationSessionStatus = 'in_progress' | 'completed' | 'cancelled'
 
 // ─── Bank Account ───────────────────────────────────────────────────────────
 
@@ -73,7 +73,7 @@ export interface BankTransaction {
   reference:            string | null
   amount:               number
   type:                 TransactionType
-  runningBalance:       number | null
+  balanceAfter:         number | null
   reconciliationStatus: ReconciliationStatus
   matchedEntityType:    MatchedEntityType | null
   matchedEntityId:      string | null
@@ -154,14 +154,11 @@ export interface BankStatementImport {
   id:               string
   bankAccountId:    string
   bankAccount?:     Pick<BankAccount, 'id' | 'name'>
-  fileOriginalName: string | null
+  filename:         string
   fileFormat:       ImportFormat | null
-  encoding:         string | null
   periodStart:      string | null
   periodEnd:        string | null
-  totalRows:        number | null
-  importedRows:     number | null
-  skippedRows:      number | null
+  nbTransactions:   number | null
   status:           ImportStatus
   errorMessage:     string | null
   jobId:            string | null
@@ -229,6 +226,7 @@ export interface CreateImportProfilePayload {
   name:                string
   bankName?:           string
   country?:            string
+  fileFormat?:         ImportFormat
   encoding?:           string
   delimiter?:          string
   dateFormat?:         string
@@ -315,12 +313,10 @@ export interface BankReconciliation {
   bankAccount?:          Pick<BankAccount, 'id' | 'name' | 'currency'>
   periodStart:           string
   periodEnd:             string
-  openingBalance:        number
-  closingBalance:        number | null
-  statementOpenBalance:  number
-  statementCloseBalance: number | null
-  difference:            number | null
-  status:                ReconciliationSessionStatus
+  openingBalance:          number
+  closingBalanceStatement: number
+  closingBalanceSystem:    number
+  status:                  ReconciliationSessionStatus
   notes:                 string | null
   completedAt:           string | null
   createdAt:             string
@@ -337,9 +333,9 @@ export interface OpenReconciliationPayload {
 }
 
 export interface AutoMatchResult {
-  matched:    number
-  skipped:    number
-  pairs:      Array<{ transactionId: string; entityType: string; entityId: string; score: number }>
+  applied: number
+  high:    Array<{ txId: string; entityType: string; entityId: string; score: number }>
+  medium:  Array<{ txId: string; entityType: string; entityId: string; score: number }>
 }
 
 export interface PaginatedReconciliations {
@@ -359,7 +355,7 @@ export interface BankMatchingRule {
   id:             string
   bankAccountId:  string | null
   bankAccount?:   Pick<BankAccount, 'id' | 'name'> | null
-  labelPattern:   string
+  labelContains:  string
   entityType:     MatchedEntityType
   entityId:       string | null
   entityLabel:    string | null
@@ -368,7 +364,7 @@ export interface BankMatchingRule {
   confidence:     number          // 0–100
   autoApply:      boolean
   isActive:       boolean
-  usageCount:     number
+  usageCount?:    number
   notes:          string | null
   createdAt:      string
   createdBy?:     { id: string; firstName: string; lastName: string } | null
@@ -376,7 +372,7 @@ export interface BankMatchingRule {
 
 export interface CreateMatchingRulePayload {
   bankAccountId?: string | null
-  labelPattern:   string
+  labelContains:  string
   entityType:     MatchedEntityType
   entityId?:      string | null
   amountMin?:     number | null

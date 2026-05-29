@@ -43,7 +43,7 @@ export function useCreateCategory() {
 export function useUpdateCategory() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...payload }: { id: string } & Partial<CreateCategoryPayload & { sortOrder?: number }>) =>
+    mutationFn: ({ id, ...payload }: { id: string } & Partial<CreateCategoryPayload>) =>
       productsApi.updateCategory(id, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: PRODUCTS_KEYS.categories })

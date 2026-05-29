@@ -719,7 +719,15 @@ export class BankService {
     const confidenceScore  = fmt.confidence;
     const needsMapping     = confidenceScore < 80 && !override;
 
-    return { ...fmt, fileFormat, confidenceScore, needsMapping };
+    return {
+      format:          fileFormat,
+      detectedBank:    fmt.profileName ?? null,
+      confidence:      confidenceScore >= 80 ? 'high' : confidenceScore >= 50 ? 'medium' : 'low',
+      confidenceScore,
+      warnings:        [],
+      needsMapping,
+      detectedMapping: { ...fmt, fileFormat, needsMapping },
+    };
   }
 
   async previewImport(
@@ -729,7 +737,7 @@ export class BankService {
     encodingHint?: DetectFormatInput['encoding'],
     formatOverride?: DetectedFormat,
     columnMappingOverride?: object,
-  ): Promise<{ importId: string; preview: ImportPreview }> {
+  ): Promise<{ importId: string; rows: any[]; totalRows: number; skippedRows: number; duplicates: number; periodStart: string | null; periodEnd: string | null; format: any; detectedBank: string | null }> {
     const account = await this.prisma.bankAccount.findFirst({ where: { id: bankAccountId, deletedAt: null } });
     if (!account) throw AppError.notFound('Compte bancaire introuvable');
 
@@ -818,7 +826,24 @@ export class BankService {
       },
     });
 
-    return { importId: importRecord.id, preview };
+    return {
+      importId:    importRecord.id,
+      rows:        uniqueTxns.slice(0, 10).map((t: any) => ({
+        date:      t.transactionDate instanceof Date ? t.transactionDate.toISOString().split('T')[0] : t.transactionDate,
+        label:     t.label,
+        debit:     t.type === 'debit'  ? t.amount : null,
+        credit:    t.type === 'credit' ? t.amount : null,
+        balance:   t.balanceAfter ?? null,
+        reference: t.reference   ?? null,
+      })),
+      totalRows:   preview.totalRows   ?? 0,
+      skippedRows: preview.errorRows   ?? 0,
+      duplicates:  duplicateRows,
+      periodStart: preview.dateRange.min ? (preview.dateRange.min as Date).toISOString().split('T')[0] : null,
+      periodEnd:   preview.dateRange.max ? (preview.dateRange.max as Date).toISOString().split('T')[0] : null,
+      format:      (result.fileFormat === 'unknown' ? 'csv' : result.fileFormat) as any,
+      detectedBank: detectedFormat.profileName ?? null,
+    };
   }
 
   async confirmImport(importId: string, userId: string): Promise<{
@@ -960,6 +985,19 @@ export class BankService {
       nbUnmatched: record.nbUnmatched, processedAt: record.processedAt,
       errorMessage: record.errorMessage,
     };
+  }
+
+  async listImports(page = 1, limit = 20) {
+    const [data, total] = await Promise.all([
+      this.prisma.bankStatementImport.findMany({
+        skip:    (page - 1) * limit,
+        take:    limit,
+        orderBy: { importedAt: 'desc' },
+        include: { bankAccount: { select: { id: true, name: true } } },
+      }),
+      this.prisma.bankStatementImport.count(),
+    ]);
+    return { data, total };
   }
 
   async getImportConfig(accountId: string) {

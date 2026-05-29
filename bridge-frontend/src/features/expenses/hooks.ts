@@ -115,7 +115,7 @@ export function useApproveExpense() {
 export function useRejectExpense() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason?: string }) => expensesApi.reject(id, reason),
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => expensesApi.reject(id, reason),
     onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: EXPENSE_KEYS.detail(id) })
       qc.invalidateQueries({ queryKey: EXPENSE_KEYS.all })

@@ -5,22 +5,21 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { usePermission } from '@/hooks/usePermission'
 import { AccessDenied } from '@/components/ui/AccessDenied'
-import { Plus, Search, AlertTriangle, Clock, CreditCard, TrendingDown, MoreHorizontal, Pencil, CheckCircle2, Banknote, XCircle, Trash2, ExternalLink } from 'lucide-react'
+import { Plus, Search, MoreHorizontal, Pencil, CheckCircle2, Banknote, Trash2, ExternalLink } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
-import { useSupplierInvoices, useSupplierInvoiceStats, useDeleteSupplierInvoice, useApproveSupplierInvoice, useCancelSupplierInvoice } from '@/features/supplier-invoices/hooks'
+import { useSupplierInvoices, useDeleteSupplierInvoice, useValidateSupplierInvoice } from '@/features/supplier-invoices/hooks'
 import { formatDate, buildPageRange } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
 import type { SupplierInvoiceStatus, SupplierInvoiceListItem } from '@/features/supplier-invoices/types'
 
 const STATUS_CONFIG: Record<SupplierInvoiceStatus, { label: string; color: string; bg: string }> = {
-  draft:            { label: 'Brouillon',   color: '#64748b', bg: '#f1f5f9' },
-  pending_approval: { label: 'En attente',  color: '#d97706', bg: '#fffbeb' },
-  approved:         { label: 'Approuvée',   color: '#2D7DD2', bg: '#eff6ff' },
-  partially_paid:   { label: 'Part. payée', color: '#d97706', bg: '#fffbeb' },
-  paid:             { label: 'Payée',       color: '#16a34a', bg: '#f0fdf4' },
-  overdue:          { label: 'En retard',   color: '#dc2626', bg: '#fef2f2' },
-  cancelled:        { label: 'Annulée',     color: '#94a3b8', bg: '#f8fafc' },
+  received:       { label: 'Reçue',        color: '#2563eb', bg: 'rgba(59,130,246,0.1)' },
+  validated:      { label: 'Validée',      color: '#2D7DD2', bg: '#eff6ff' },
+  partially_paid: { label: 'Part. payée',  color: '#d97706', bg: '#fffbeb' },
+  paid:           { label: 'Payée',        color: '#16a34a', bg: '#f0fdf4' },
+  disputed:       { label: 'Contestée',    color: '#dc2626', bg: '#fef2f2' },
+  cancelled:      { label: 'Annulée',      color: '#94a3b8', bg: '#f8fafc' },
 }
 
 function StatusBadge({ status }: { status: SupplierInvoiceStatus }) {
@@ -49,15 +48,13 @@ function KpiCard({ label, value, sub, color, icon: Icon }: { label: string; valu
 
 function ActionMenu({ inv }: { inv: SupplierInvoiceListItem }) {
   const [open, setOpen] = useState(false)
-  const router          = useRouter()
-  const approveMutation = useApproveSupplierInvoice()
-  const cancelMutation  = useCancelSupplierInvoice()
-  const deleteMutation  = useDeleteSupplierInvoice()
+  const router           = useRouter()
+  const validateMutation = useValidateSupplierInvoice()
+  const deleteMutation   = useDeleteSupplierInvoice()
 
-  const canApprove = inv.status === 'pending_approval'
-  const canCancel  = !['paid', 'cancelled'].includes(inv.status)
-  const canDelete  = inv.status === 'draft'
-  const canEdit    = ['draft', 'pending_approval'].includes(inv.status)
+  const canValidate = inv.status === 'received'
+  const canDelete   = ['received'].includes(inv.status)
+  const canEdit     = inv.status === 'received'
 
   return (
     <div style={{ position: 'relative' }}>
@@ -70,13 +67,12 @@ function ActionMenu({ inv }: { inv: SupplierInvoiceListItem }) {
           <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setOpen(false)} />
           <div style={{ position: 'absolute', right: 0, top: 32, zIndex: 50, width: 200, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 4, display: 'flex', flexDirection: 'column', gap: 1 }}>
             {[
-              { show: true, icon: ExternalLink, label: 'Voir la facture', action: () => router.push(`${ROUTES.SUPPLIER_INVOICES}/${inv.id}`) },
-              { show: canEdit,    icon: Pencil,       label: 'Modifier',     action: () => router.push(`${ROUTES.SUPPLIER_INVOICES}/${inv.id}/edit`) },
-              { show: canApprove, icon: CheckCircle2, label: 'Approuver',    action: () => { approveMutation.mutate(inv.id); setOpen(false) } },
-              { show: inv.status === 'approved' || inv.status === 'partially_paid' || inv.status === 'overdue',
-                icon: Banknote,    label: 'Enregistrer paiement', action: () => router.push(`${ROUTES.SUPPLIER_INVOICES}/${inv.id}?pay=1`) },
-              { show: canCancel,  icon: XCircle,      label: 'Annuler',      action: () => { cancelMutation.mutate(inv.id); setOpen(false) }, danger: true },
-              { show: canDelete,  icon: Trash2,       label: 'Supprimer',    action: () => { if (confirm('Supprimer cette facture ?')) { deleteMutation.mutate(inv.id); setOpen(false) } }, danger: true },
+              { show: true,        icon: ExternalLink, label: 'Voir la facture',      action: () => router.push(`${ROUTES.SUPPLIER_INVOICES}/${inv.id}`) },
+              { show: canEdit,     icon: Pencil,       label: 'Modifier',             action: () => router.push(`${ROUTES.SUPPLIER_INVOICES}/${inv.id}/edit`) },
+              { show: canValidate, icon: CheckCircle2, label: 'Valider',              action: () => { validateMutation.mutate(inv.id); setOpen(false) } },
+              { show: ['validated', 'partially_paid'].includes(inv.status),
+                                   icon: Banknote,     label: 'Enregistrer paiement', action: () => router.push(`${ROUTES.SUPPLIER_INVOICES}/${inv.id}?pay=1`) },
+              { show: canDelete,   icon: Trash2,       label: 'Supprimer',            action: () => { if (confirm('Supprimer cette facture ?')) { deleteMutation.mutate(inv.id); setOpen(false) } }, danger: true },
             ].filter(a => a.show).map(({ icon: Icon, label, action, danger }) => (
               <button key={label} onClick={() => { action(); setOpen(false) }}
                 style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 6, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: danger ? '#dc2626' : 'var(--text-1)', fontFamily: 'var(--font-body)', textAlign: 'left', width: '100%' }}
@@ -114,10 +110,9 @@ export default function SupplierInvoicesPage() {
   const [page,     setPage]     = useState(1)
 
   const params = { search: search || undefined, status: status || undefined, page, limit: 20 }
-  const { data, isLoading }  = useSupplierInvoices(params)
-  const { data: stats }      = useSupplierInvoiceStats()
-  const invoices             = data?.data ?? []
-  const totalPages           = data?.totalPages ?? 1
+  const { data, isLoading } = useSupplierInvoices(params)
+  const invoices            = data?.data ?? []
+  const totalPages          = data?.totalPages ?? 1
 
   if (!can('supplier', 'read')) return <AccessDenied message="Vous n'avez pas accès aux factures fournisseurs." />
 
@@ -133,14 +128,6 @@ export default function SupplierInvoicesPage() {
           </Link>
         }
       />
-
-      {/* KPI cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
-        <KpiCard label="Total à payer"       value={format(stats?.totalDue ?? 0)}      color="var(--primary)"  icon={CreditCard} />
-        <KpiCard label="En retard"           value={format(stats?.overdueAmount ?? 0)} color="#dc2626"          icon={AlertTriangle} sub={`${stats?.overdueCount ?? 0} facture${(stats?.overdueCount ?? 0) !== 1 ? 's' : ''}`} />
-        <KpiCard label="À payer sous 7j"     value={format(stats?.dueSoon ?? 0)}       color="#d97706"          icon={Clock} />
-        <KpiCard label="Total du mois"       value={format(0)}                          color="#16a34a"          icon={TrendingDown} />
-      </div>
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: 10 }}>
@@ -194,7 +181,6 @@ export default function SupplierInvoicesPage() {
                     </tr>
                   )
                   : invoices.map(inv => {
-                    const isOverdue  = inv.status === 'overdue'
                     const hasDue     = inv.balanceDue > 0
                     return (
                       <tr key={inv.id} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background 0.1s' }}
@@ -210,9 +196,9 @@ export default function SupplierInvoicesPage() {
                             {inv.supplier.name}
                           </Link>
                         </td>
-                        <td style={{ padding: '11px 14px', color: 'var(--text-3)', fontSize: 12.5 }}>{inv.supplierRef ?? '—'}</td>
+                        <td style={{ padding: '11px 14px', color: 'var(--text-3)', fontSize: 12.5 }}>{inv.supplierInvoiceNumber ?? '—'}</td>
                         <td style={{ padding: '11px 14px', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{formatDate(inv.invoiceDate)}</td>
-                        <td style={{ padding: '11px 14px', whiteSpace: 'nowrap', color: isOverdue ? '#dc2626' : 'var(--text-2)', fontWeight: isOverdue ? 600 : 400 }}>
+                        <td style={{ padding: '11px 14px', whiteSpace: 'nowrap', color: 'var(--text-2)' }}>
                           {inv.dueDate ? formatDate(inv.dueDate) : '—'}
                         </td>
                         <td style={{ padding: '11px 14px', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--text-1)', fontWeight: 600 }}>{format(inv.totalTtc)}</td>

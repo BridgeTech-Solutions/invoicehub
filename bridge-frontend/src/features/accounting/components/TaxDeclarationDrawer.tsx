@@ -22,8 +22,9 @@ export default function TaxDeclarationDrawer({ open, onClose }: Props) {
   const { data: fiscalYears = [] } = useFiscalYears()
   const create = useCreateTaxDeclaration()
 
-  const selectedYear  = fiscalYears.find(y => y.id === yearId)
-  const openPeriods   = selectedYear?.periods.filter(p => p.status !== 'archived') ?? []
+  const selectedYear    = fiscalYears.find(y => y.id === yearId)
+  const openPeriods     = selectedYear?.periods.filter(p => p.status !== 'locked') ?? []
+  const selectedPeriod  = openPeriods.find(p => p.id === periodId) ?? null
 
   useEffect(() => {
     if (open) { setTimeout(() => setVisible(true), 10) }
@@ -42,9 +43,17 @@ export default function TaxDeclarationDrawer({ open, onClose }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!periodId) { toast.error('Sélectionnez une période'); return }
+    if (!periodId || !selectedPeriod) { toast.error('Sélectionnez une période'); return }
     try {
-      await create.mutateAsync({ periodId, notes: notes || undefined })
+      await create.mutateAsync({
+        declarationType:  'vat_monthly',
+        periodStart:      selectedPeriod.startDate,
+        periodEnd:        selectedPeriod.endDate,
+        tvaCollected:     0,
+        tvaDeductible:    0,
+        fiscalPeriodId:   periodId,
+        notes:            notes || undefined,
+      })
       toast.success('Déclaration TVA créée')
       handleClose()
     } catch (err: unknown) { toast.error((err as Error).message) }

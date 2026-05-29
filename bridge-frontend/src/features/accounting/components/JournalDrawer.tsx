@@ -36,9 +36,9 @@ export function JournalDrawer({ open, onClose, editing }: Props) {
       setVisible(true)
       if (editing) {
         setCode(editing.code); setName(editing.name); setType(editing.type)
-        setDefaultAccountId(editing.defaultAccountId)
+        setDefaultAccountId(editing.defaultAccountId ?? null)
       } else {
-        setCode(''); setName(''); setType('purchase'); setDefaultAccountId(null)
+        setCode(''); setName(''); setType('purchases'); setDefaultAccountId(null)
       }
     }
   }, [open, editing])

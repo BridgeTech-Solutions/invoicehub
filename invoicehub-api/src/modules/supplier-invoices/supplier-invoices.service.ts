@@ -91,7 +91,7 @@ export class SupplierInvoicesService {
       }),
       this.prisma.supplierInvoice.count({ where }),
     ]);
-    return { data, total };
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async findById(id: string) {

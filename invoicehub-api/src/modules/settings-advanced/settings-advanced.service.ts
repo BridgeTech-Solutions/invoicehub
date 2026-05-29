@@ -178,7 +178,7 @@ export class SettingsAdvancedService {
     return this.prisma.ipWhitelist.findMany({ orderBy: { createdAt: 'desc' } });
   }
 
-  async addIpWhitelist(data: { ipAddress: string; label?: string; isActive: boolean }, userId: string) {
+  async addIpWhitelist(data: { ipAddress: string; label?: string | null; isActive: boolean }, userId: string) {
     return this.prisma.ipWhitelist.create({
       data: { ipAddress: data.ipAddress, label: data.label ?? data.ipAddress, isActive: data.isActive, createdById: userId },
     });

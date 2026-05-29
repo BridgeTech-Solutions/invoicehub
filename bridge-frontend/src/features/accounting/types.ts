@@ -2,8 +2,8 @@
 
 export type AccountType    = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense'
 export type AccountClass   = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
-export type JournalType    = 'purchases' | 'sales' | 'bank' | 'cash' | 'operations'
-export type PeriodStatus   = 'open' | 'current' | 'closed' | 'archived'
+export type JournalType    = 'purchases' | 'sales' | 'bank' | 'cash' | 'operations' | 'misc' | 'opening' | 'closing'
+export type PeriodStatus   = 'open' | 'closed' | 'locked'
 export type EntrySource    = 'manual' | 'invoice' | 'payment' | 'expense' | 'purchase_order'
 export type TaxDeclStatus  = 'draft' | 'submitted' | 'validated' | 'to_pay'
 
@@ -80,20 +80,23 @@ export interface FiscalYear {
 }
 
 export interface FiscalPeriod {
-  id:        string
-  yearId:    string
-  year:      number
-  month:     number
-  startDate: string
-  endDate:   string
-  status:    PeriodStatus
-  createdAt: string
+  id:         string
+  yearId:     string
+  year:       number
+  month:      number
+  fiscalYear?: number
+  startDate:  string
+  endDate:    string
+  status:     PeriodStatus
+  createdAt:  string
 }
 
 export interface CreateFiscalYearPayload {
-  year:      number
-  startDate: string
-  endDate:   string
+  name:        string
+  fiscalYear:  number
+  startDate:   string
+  endDate:     string
+  periodType?: string
 }
 
 // ─── Journal ─────────────────────────────────────────────────
@@ -103,32 +106,42 @@ export interface AccountingJournal {
   code:             string
   name:             string
   type:             JournalType
-  defaultAccountId: string | null
-  defaultAccount:   { id: string; number: string; name: string } | null
+  description?:     string | null
+  defaultAccountId?: string | null
+  defaultAccount?:  { id: string; number: string; name: string } | null
   isActive:         boolean
   entriesCount:     number
   createdAt:        string
 }
 
 export interface CreateJournalPayload {
-  code:              string
-  name:              string
-  type:              JournalType
-  defaultAccountId?: string
+  code:             string
+  name:             string
+  type:             JournalType
+  description?:     string
+  defaultAccountId?: string | null
 }
 
-export type UpdateJournalPayload = Partial<CreateJournalPayload>
+export interface UpdateJournalPayload {
+  name?:             string
+  type?:             JournalType
+  description?:      string
+  isActive?:         boolean
+  defaultAccountId?: string | null
+}
 
 // ─── Entry ───────────────────────────────────────────────────
 
 export interface EntryLine {
-  id:         string
-  accountId:  string
-  account:    { id: string; number: string; name: string }
-  label:      string
-  debit:      number
-  credit:     number
-  letterCode: string | null
+  id:             string
+  accountId:      string
+  account:        { id: string; number: string; name: string }
+  label:          string
+  debit:          number
+  credit:         number
+  letteringCode:  string | null
+  analyticAxis1?: string | null
+  analyticAxis2?: string | null
 }
 
 export interface AccountingEntry {
@@ -141,6 +154,7 @@ export interface AccountingEntry {
   date:           string
   label:          string
   source:         EntrySource
+  status:         'draft' | 'validated' | 'locked' | 'cancelled'
   sourceId:       string | null
   lines:          EntryLine[]
   attachmentPath: string | null
@@ -151,18 +165,19 @@ export interface AccountingEntry {
 }
 
 export interface AccountingEntryListItem {
-  id:         string
-  number:     string
-  journalId:  string
-  journal:    { code: string; name: string; type: JournalType }
-  date:       string
-  label:      string
-  source:     EntrySource
-  sourceId:   string | null
-  totalDebit: number
-  totalCredit:number
-  isBalanced: boolean
-  createdAt:  string
+  id:          string
+  number:      string
+  journalId:   string
+  journal:     { code: string; name: string; type: JournalType }
+  date:        string
+  label:       string
+  source:      string | null
+  status:      'draft' | 'validated' | 'locked' | 'cancelled'
+  sourceId:    string | null
+  totalDebit:  number
+  totalCredit: number
+  isBalanced:  boolean
+  createdAt:   string
 }
 
 export interface PaginatedEntries {
@@ -179,7 +194,7 @@ export interface ListEntriesParams {
   journalId?: string
   periodId?:  string
   accountId?: string
-  source?:    EntrySource | ''
+  status?:    string | ''
   dateFrom?:  string
   dateTo?:    string
   search?:    string
@@ -250,17 +265,20 @@ export interface LetteredGroup {
 // ─── Tax Declaration ─────────────────────────────────────────
 
 export interface TaxDeclaration {
-  id:             string
-  periodId:       string
-  period:         FiscalPeriod
-  vatCollected:   number
-  vatDeductible:  number
-  vatNet:         number
-  status:         TaxDeclStatus
-  submittedAt:    string | null
-  notes:          string | null
-  createdAt:      string
-  updatedAt:      string
+  id:              string
+  declarationType: string
+  periodStart:     string
+  periodEnd:       string
+  fiscalPeriodId:  string | null
+  period:          FiscalPeriod | null
+  tvaCollected:    number
+  tvaDeductible:   number
+  tvaCredit:       number
+  status:          TaxDeclStatus
+  submittedAt:     string | null
+  notes:           string | null
+  createdAt:       string
+  updatedAt:       string
 }
 
 export interface TaxDeclarationDetail {
@@ -269,8 +287,14 @@ export interface TaxDeclarationDetail {
 }
 
 export interface CreateTaxDeclPayload {
-  periodId:  string
-  notes?:    string
+  declarationType: string
+  periodStart:     string
+  periodEnd:       string
+  tvaCollected:    number
+  tvaDeductible:   number
+  tvaCredit?:      number
+  fiscalPeriodId?: string
+  notes?:          string
 }
 
 // ─── Dashboard stats ─────────────────────────────────────────

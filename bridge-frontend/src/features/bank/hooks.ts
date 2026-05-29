@@ -260,7 +260,7 @@ export function useAutoMatch(reconciliationId: string) {
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ['bank', 'transactions'] })
       qc.invalidateQueries({ queryKey: BANK_KEYS.reconciliation(reconciliationId) })
-      toast.success(`${result.matched} transaction(s) rapprochée(s) automatiquement`)
+      toast.success(`${result.applied} transaction(s) rapprochée(s) automatiquement`)
     },
     onError: () => toast.error("Erreur lors de l'auto-matching"),
   })

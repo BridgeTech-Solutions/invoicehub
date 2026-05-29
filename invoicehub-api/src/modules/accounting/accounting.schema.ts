@@ -35,13 +35,13 @@ export const createFiscalPeriodSchema = z.object({
 export const createJournalSchema = z.object({
   code:        z.string().min(2).max(20).toUpperCase(),
   name:        z.string().min(2).max(100),
-  type:        z.enum(['sales', 'purchases', 'bank', 'cash', 'operations']),
+  type:        z.enum(['sales', 'purchases', 'bank', 'cash', 'operations', 'misc', 'opening', 'closing']),
   description: z.string().optional().nullable(),
 });
 
 export const updateJournalSchema = z.object({
   name:        z.string().min(2).max(100).optional(),
-  type:        z.enum(['sales', 'purchases', 'bank', 'cash', 'operations']).optional(),
+  type:        z.enum(['sales', 'purchases', 'bank', 'cash', 'operations', 'misc', 'opening', 'closing']).optional(),
   description: z.string().optional().nullable(),
   isActive:    z.boolean().optional(),
 });

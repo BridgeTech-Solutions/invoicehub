@@ -185,6 +185,8 @@ function Step1({ accountId, setAccountId, file, setFile, accounts, onNext }: Ste
         await createProfile.mutateAsync({
           name:         profileName,
           bankName:     profileBank || undefined,
+          country:      undefined,
+          fileFormat:   detected?.format,
           encoding:     detected?.detectedMapping?.encoding ?? 'utf-8',
           delimiter:    detected?.detectedMapping?.delimiter ?? ';',
           dateFormat,
@@ -200,15 +202,11 @@ function Step1({ accountId, setAccountId, file, setFile, accounts, onNext }: Ste
     // Construire le formatOverride à passer au preview si mapping manuel
     const customMapping = needsMapping
       ? {
-          profileId:    null,
-          profileName:  profileName || 'Mapping manuel',
           delimiter:    detected?.detectedMapping?.delimiter ?? ';',
           encoding:     detected?.detectedMapping?.encoding ?? 'utf-8',
           dateFormat,
           numberFormat,
           columnMapping: mapping,
-          confidence:   0,
-          source:       'user' as const,
           headerRow:    detected?.detectedMapping?.headerRow ?? 0,
         }
       : undefined

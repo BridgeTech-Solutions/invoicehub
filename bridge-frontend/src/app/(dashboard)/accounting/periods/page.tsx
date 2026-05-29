@@ -12,10 +12,9 @@ import type { FiscalYear, FiscalPeriod, PeriodStatus } from '@/features/accounti
 const MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
 
 const PERIOD_CFG: Record<PeriodStatus, { label: string; color: string; bg: string }> = {
-  open:     { label: 'Ouvert',    color: 'var(--s-acc-open)',     bg: 'var(--s-acc-open-bg)' },
-  current:  { label: 'En cours', color: 'var(--s-acc-current)',  bg: 'var(--s-acc-current-bg)' },
-  closed:   { label: 'Clôturée', color: 'var(--s-acc-closed)',   bg: 'var(--s-acc-closed-bg)' },
-  archived: { label: 'Archivée', color: 'var(--s-acc-archived)', bg: 'var(--s-acc-archived-bg)' },
+  open:   { label: 'Ouvert',      color: 'var(--s-acc-open)',   bg: 'var(--s-acc-open-bg)' },
+  closed: { label: 'Clôturée',    color: 'var(--s-acc-closed)', bg: 'var(--s-acc-closed-bg)' },
+  locked: { label: 'Verrouillée', color: '#64748b',             bg: '#f1f5f9' },
 }
 
 function PeriodBadge({ status }: { status: PeriodStatus }) {
@@ -26,7 +25,7 @@ function PeriodBadge({ status }: { status: PeriodStatus }) {
 }
 
 function isCloseToEnd(period: FiscalPeriod): boolean {
-  if (period.status !== 'current' && period.status !== 'open') return false
+  if (period.status !== 'open') return false
   const end = new Date(period.endDate)
   const now  = new Date()
   const diff = Math.ceil((end.getTime() - now.getTime()) / 86400000)
@@ -34,8 +33,8 @@ function isCloseToEnd(period: FiscalPeriod): boolean {
 }
 
 function ProgressBar({ periods }: { periods: FiscalPeriod[] }) {
-  const closed   = periods.filter(p => p.status === 'closed' || p.status === 'archived').length
-  const current  = periods.find(p => p.status === 'current')
+  const closed   = periods.filter(p => p.status === 'closed' || p.status === 'locked').length
+  const current  = periods.find(p => p.status === 'open')
   const pct      = Math.round((closed / 12) * 100)
 
   return (
@@ -97,7 +96,7 @@ function FiscalYearCard({ year, expanded, onToggle }: { year: FiscalYear; expand
           {(year.periods ?? []).map(period => {
             const pcfg  = PERIOD_CFG[period.status]
             const warn  = isCloseToEnd(period)
-            const canClose  = period.status === 'current' || period.status === 'open'
+            const canClose  = period.status === 'open'
             const canReopen = period.status === 'closed'
 
             return (

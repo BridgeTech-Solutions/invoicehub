@@ -14,8 +14,14 @@ import { toast } from 'sonner'
 import type { ListEntriesParams, JournalType, EntrySource } from '@/features/accounting/types'
 
 const JOURNAL_COLOR: Record<JournalType, string> = {
-  purchase: '#7c3aed', sale: '#16a34a', bank: '#2D7DD2',
-  cash: '#d97706', od: '#0891b2', opening: '#94a3b8',
+  purchases:  '#7c3aed',
+  sales:      '#16a34a',
+  bank:       '#2D7DD2',
+  cash:       '#d97706',
+  operations: '#0891b2',
+  misc:       '#64748b',
+  opening:    '#94a3b8',
+  closing:    '#475569',
 }
 
 const SOURCE_LABEL: Record<EntrySource, string> = {
@@ -169,7 +175,7 @@ export default function EntriesPage() {
                         {entry.label}
                       </td>
                       <td style={{ padding: '8px 10px' }}>
-                        <span style={{ fontSize: 11, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{SOURCE_LABEL[entry.source] ?? entry.source}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{entry.source ? (SOURCE_LABEL[entry.source as EntrySource] ?? entry.source) : '—'}</span>
                       </td>
                       <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 600, color: entry.totalDebit > 0 ? 'var(--acc-debit)' : 'var(--text-3)', whiteSpace: 'nowrap' }}>
                         {entry.totalDebit > 0 ? format(entry.totalDebit) : '—'}

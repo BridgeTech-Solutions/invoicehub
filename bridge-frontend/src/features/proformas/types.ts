@@ -21,6 +21,7 @@ export interface ProformaLineBase {
   netHt: number
   taxAmount: number
   totalTtc: number
+  hideDetails: boolean
 }
 
 export interface ProformaClient {
@@ -111,6 +112,7 @@ export interface CreateProformaLinePayload {
   discountType?: DiscountType
   discountValue?: number
   taxRate?: number
+  hideDetails?: boolean
 }
 
 export interface CreateProformaPayload {

@@ -15,25 +15,25 @@ import type {
 // ─── Catégories ────────────────────────────────────────────────
 
 export async function listCategories(): Promise<ProductCategory[]> {
-  const { data } = await apiClient.get('/product-categories')
+  const { data } = await apiClient.get('/categories')
   return data
 }
 
 export async function createCategory(payload: CreateCategoryPayload): Promise<ProductCategory> {
-  const { data } = await apiClient.post('/product-categories', payload)
+  const { data } = await apiClient.post('/categories', payload)
   return data
 }
 
 export async function updateCategory(
   id: string,
-  payload: Partial<CreateCategoryPayload & { sortOrder?: number; isActive?: boolean }>,
+  payload: Partial<CreateCategoryPayload>,
 ): Promise<ProductCategory> {
-  const { data } = await apiClient.put(`/product-categories/${id}`, payload)
+  const { data } = await apiClient.put(`/categories/${id}`, payload)
   return data
 }
 
 export async function deleteCategory(id: string): Promise<void> {
-  await apiClient.delete(`/product-categories/${id}`)
+  await apiClient.delete(`/categories/${id}`)
 }
 
 // ─── Produits ──────────────────────────────────────────────────

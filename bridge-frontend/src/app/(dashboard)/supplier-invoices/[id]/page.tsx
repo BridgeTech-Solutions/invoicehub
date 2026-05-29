@@ -2,13 +2,13 @@
 
 import { use, useState } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, CheckCircle2, XCircle, Banknote, Building2, Calendar, Hash, Loader2 } from 'lucide-react'
+import { ChevronLeft, CheckCircle2, XCircle, Banknote, Building2, Calendar, Hash, Loader2, Trash2 } from 'lucide-react'
 import { usePermission } from '@/hooks/usePermission'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
-  useSupplierInvoice, useApproveSupplierInvoice,
-  useRecordSupplierPayment, useCancelSupplierInvoice,
+  useSupplierInvoice, useValidateSupplierInvoice,
+  useRecordSupplierPayment, useDeleteSupplierInvoice,
 } from '@/features/supplier-invoices/hooks'
 import { formatDate } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
@@ -16,20 +16,19 @@ import { ROUTES, PAYMENT_METHODS } from '@/lib/constants'
 import type { SupplierInvoiceStatus } from '@/features/supplier-invoices/types'
 
 const STATUS_CONFIG: Record<SupplierInvoiceStatus, { label: string; color: string; bg: string }> = {
-  draft:            { label: 'Brouillon',   color: '#64748b', bg: '#f1f5f9' },
-  pending_approval: { label: 'En attente',  color: '#d97706', bg: '#fffbeb' },
-  approved:         { label: 'Approuvée',   color: '#2D7DD2', bg: '#eff6ff' },
-  partially_paid:   { label: 'Part. payée', color: '#d97706', bg: '#fffbeb' },
-  paid:             { label: 'Payée',       color: '#16a34a', bg: '#f0fdf4' },
-  overdue:          { label: 'En retard',   color: '#dc2626', bg: '#fef2f2' },
-  cancelled:        { label: 'Annulée',     color: '#94a3b8', bg: '#f8fafc' },
+  received:       { label: 'Reçue',       color: '#2563eb', bg: 'rgba(59,130,246,0.1)' },
+  validated:      { label: 'Validée',     color: '#2D7DD2', bg: '#eff6ff' },
+  partially_paid: { label: 'Part. payée', color: '#d97706', bg: '#fffbeb' },
+  paid:           { label: 'Payée',       color: '#16a34a', bg: '#f0fdf4' },
+  disputed:       { label: 'Contestée',   color: '#dc2626', bg: '#fef2f2' },
+  cancelled:      { label: 'Annulée',     color: '#94a3b8', bg: '#f8fafc' },
 }
 
 function PaymentModal({ invoiceId, maxAmount, onClose }: { invoiceId: string; maxAmount: number; onClose: () => void }) {
   const recordMutation = useRecordSupplierPayment(invoiceId)
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10))
   const [amount,      setAmount]      = useState(maxAmount)
-  const [method,      setMethod]      = useState('virement')
+  const [method,      setMethod]      = useState<'bank_transfer' | 'cash' | 'check' | 'mobile_money' | 'other'>('bank_transfer')
   const [reference,   setReference]  = useState('')
   const [notes,       setNotes]       = useState('')
 
@@ -61,7 +60,7 @@ function PaymentModal({ invoiceId, maxAmount, onClose }: { invoiceId: string; ma
           </div>
           <div>
             <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--text-2)', marginBottom: 4, fontFamily: 'var(--font-display)' }}>Mode de paiement</label>
-            <select value={method} onChange={e => setMethod(e.target.value)} style={{ ...inp, cursor: 'pointer' }}
+            <select value={method} onChange={e => setMethod(e.target.value as typeof method)} style={{ ...inp, cursor: 'pointer' }}
               onFocus={e => (e.target.style.borderColor = 'var(--primary)')} onBlur={e => (e.target.style.borderColor = 'var(--border)')}>
               {Object.entries(PAYMENT_METHODS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
@@ -96,8 +95,8 @@ export default function SupplierInvoiceDetailPage({ params }: { params: Promise<
   const { id }          = use(params)
   const [showPayModal, setShowPayModal] = useState(false)
   const { data: inv, isLoading } = useSupplierInvoice(id)
-  const approveMutation = useApproveSupplierInvoice()
-  const cancelMutation  = useCancelSupplierInvoice()
+  const validateMutation = useValidateSupplierInvoice()
+  const deleteMutation   = useDeleteSupplierInvoice()
 
   if (isLoading) {
     return (
@@ -111,10 +110,10 @@ export default function SupplierInvoiceDetailPage({ params }: { params: Promise<
 
   if (!inv) return null
 
-  const cfg       = STATUS_CONFIG[inv.status]
-  const canApprove = inv.status === 'pending_approval'
-  const canPay     = ['approved', 'partially_paid', 'overdue'].includes(inv.status)
-  const canCancel  = !['paid', 'cancelled'].includes(inv.status)
+  const cfg          = STATUS_CONFIG[inv.status]
+  const canValidate  = inv.status === 'received'
+  const canPay       = ['validated', 'partially_paid'].includes(inv.status)
+  const canDelete    = inv.status === 'received'
   const paidPct    = inv.totalTtc > 0 ? Math.min(100, Math.round((inv.amountPaid / inv.totalTtc) * 100)) : 0
 
   if (!can('supplier', 'read')) return <AccessDenied message="Vous n'avez pas accès aux factures fournisseurs." />
@@ -136,10 +135,10 @@ export default function SupplierInvoiceDetailPage({ params }: { params: Promise<
           description={`Facture fournisseur · ${formatDate(inv.invoiceDate)}`}
           actions={
             <div style={{ display: 'flex', gap: 8 }}>
-              {canApprove && (
-                <button onClick={() => approveMutation.mutate(id)} disabled={approveMutation.isPending}
+              {canValidate && (
+                <button onClick={() => validateMutation.mutate(id)} disabled={validateMutation.isPending}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-                  <CheckCircle2 size={13} /> Approuver
+                  <CheckCircle2 size={13} /> Valider
                 </button>
               )}
               {canPay && (
@@ -148,10 +147,10 @@ export default function SupplierInvoiceDetailPage({ params }: { params: Promise<
                   <Banknote size={13} /> Payer
                 </button>
               )}
-              {canCancel && (
-                <button onClick={() => cancelMutation.mutate(id)} disabled={cancelMutation.isPending}
+              {canDelete && (
+                <button onClick={() => { if (confirm('Supprimer cette facture ?')) deleteMutation.mutate(id) }} disabled={deleteMutation.isPending}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid #dc2626', background: 'transparent', color: '#dc2626', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-                  <XCircle size={13} /> Annuler
+                  <XCircle size={13} /> Supprimer
                 </button>
               )}
             </div>
@@ -205,7 +204,7 @@ export default function SupplierInvoiceDetailPage({ params }: { params: Promise<
             {[
               { icon: Calendar, label: 'Date facture',   value: formatDate(inv.invoiceDate) },
               { icon: Calendar, label: 'Échéance',       value: inv.dueDate ? formatDate(inv.dueDate) : '—' },
-              { icon: Hash,     label: 'Réf. fournisseur', value: inv.supplierRef ?? '—' },
+              { icon: Hash,     label: 'Réf. fournisseur', value: inv.supplierInvoiceNumber ?? '—' },
               { icon: Hash,     label: 'Compte SYSCO.',  value: inv.accountingAccount ?? '—' },
               ...(inv.purchaseOrderNumber ? [{ icon: Hash, label: 'Bon de commande', value: inv.purchaseOrderNumber }] : []),
             ].map(({ icon: Icon, label, value }) => (

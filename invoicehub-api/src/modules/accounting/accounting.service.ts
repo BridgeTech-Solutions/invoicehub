@@ -222,7 +222,7 @@ export class AccountingService {
       }),
       this.prisma.journalEntry.count({ where }),
     ]);
-    return { data, total };
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async getEntryById(id: string) {
@@ -252,7 +252,7 @@ export class AccountingService {
         where: {
           startDate: { lte: entryDate },
           endDate:   { gte: entryDate },
-          status:    { in: ['open', 'current'] as any[] },
+          status:    { in: ['open'] as any[] },
         },
         orderBy: { startDate: 'asc' },
       });
@@ -428,8 +428,15 @@ export class AccountingService {
       orderBy: { accountNumber: 'asc' },
     });
 
+    const accountNumbers = lines.map((l) => l.accountNumber);
+    const accounts       = await this.prisma.chartOfAccount.findMany({
+      where: { accountNumber: { in: accountNumbers } },
+    });
+    const accountMap = new Map(accounts.map((a) => [a.accountNumber, a]));
+
     return lines.map((l) => ({
       accountNumber: l.accountNumber,
+      account:       accountMap.get(l.accountNumber) ?? null,
       totalDebit:    Number(l._sum?.debit  ?? 0),
       totalCredit:   Number(l._sum?.credit ?? 0),
       balance:       Number(l._sum?.debit  ?? 0) - Number(l._sum?.credit ?? 0),
@@ -530,6 +537,7 @@ export class AccountingService {
   // ── Déclarations fiscales ───────────────────────────────────────────────────
 
   async listTaxDeclarations(params: { page: number; limit: number; declarationType?: string }) {
+    const { page, limit } = params;
     const where: Prisma.TaxDeclarationWhereInput = {};
     if (params.declarationType) where.declarationType = params.declarationType;
     const [data, total] = await Promise.all([
@@ -541,7 +549,7 @@ export class AccountingService {
       }),
       this.prisma.taxDeclaration.count({ where }),
     ]);
-    return { data, total };
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async createTaxDeclaration(data: CreateTaxDeclarationInput, userId: string) {
@@ -695,5 +703,58 @@ export class AccountingService {
     const totalCredit = data.reduce((s, l) => s + Number(l.credit), 0);
 
     return { data, total, page, limit, totalPages: Math.ceil(total / limit), totalDebit, totalCredit, balance: totalDebit - totalCredit };
+  }
+
+  async getLeteredGroups(accountNumber: string, dateFrom?: string, dateTo?: string) {
+    // Récupère les lignes lettrées pour ce compte, groupées par letteringCode
+    const lines = await this.prisma.journalEntryLine.findMany({
+      where: {
+        account: { accountNumber },
+        letteringCode: { not: null },
+        ...(dateFrom || dateTo ? {
+          journalEntry: {
+            entryDate: {
+              ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+              ...(dateTo   ? { lte: new Date(dateTo)   } : {}),
+            }
+          }
+        } : {}),
+      },
+      include: {
+        journalEntry: { select: { id: true, entryNumber: true, journalId: true, journal: { select: { code: true } }, entryDate: true } },
+      },
+      orderBy: [{ letteringCode: 'asc' }, { journalEntry: { entryDate: 'asc' } }],
+    });
+
+    // Groupe par letteringCode
+    const groups = new Map<string, any[]>();
+    for (const line of lines) {
+      const code = line.letteringCode!;
+      if (!groups.has(code)) groups.set(code, []);
+      groups.get(code)!.push(line);
+    }
+
+    return Array.from(groups.entries()).map(([letterCode, grpLines]) => {
+      const totalDebit  = grpLines.reduce((s: number, l: any) => s + Number(l.debit),  0);
+      const totalCredit = grpLines.reduce((s: number, l: any) => s + Number(l.credit), 0);
+      return {
+        letterCode,
+        lines: grpLines.map((l: any) => ({
+          id:          l.id,
+          entryId:     l.journalEntryId,
+          entryNumber: l.journalEntry?.entryNumber ?? '',
+          journalCode: l.journalEntry?.journal?.code ?? '',
+          date:        l.journalEntry?.entryDate?.toISOString().split('T')[0] ?? '',
+          label:       l.label,
+          debit:       Number(l.debit),
+          credit:      Number(l.credit),
+          letterCode:  l.letteringCode,
+        })),
+        totalDebit,
+        totalCredit,
+        balance:    totalDebit - totalCredit,
+        letteredAt: grpLines[0]?.letteredAt?.toISOString() ?? new Date().toISOString(),
+      };
+    });
   }
 }

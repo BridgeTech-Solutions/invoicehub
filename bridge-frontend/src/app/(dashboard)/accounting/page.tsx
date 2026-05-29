@@ -41,10 +41,9 @@ function KpiCard({
 
 // ─── Period status badge ──────────────────────────────────────
 const PERIOD_CFG: Record<PeriodStatus, { label: string; color: string; bg: string }> = {
-  open:     { label: 'Ouvert',    color: 'var(--s-acc-open)',     bg: 'var(--s-acc-open-bg)' },
-  current:  { label: 'En cours', color: 'var(--s-acc-current)',  bg: 'var(--s-acc-current-bg)' },
-  closed:   { label: 'Clôturée', color: 'var(--s-acc-closed)',   bg: 'var(--s-acc-closed-bg)' },
-  archived: { label: 'Archivée', color: 'var(--s-acc-archived)', bg: 'var(--s-acc-archived-bg)' },
+  open:   { label: 'Ouvert',      color: 'var(--s-acc-open)',   bg: 'var(--s-acc-open-bg)' },
+  closed: { label: 'Clôturée',    color: 'var(--s-acc-closed)', bg: 'var(--s-acc-closed-bg)' },
+  locked: { label: 'Verrouillée', color: '#64748b',             bg: '#f1f5f9' },
 }
 
 const MONTHS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
@@ -84,7 +83,7 @@ export default function AccountingDashboard() {
   const { data: entriesData, isLoading: entriesLoading } = useEntries({ limit: 5, page: 1 })
 
   const recentEntries = entriesData?.data ?? []
-  const currentYear = fiscalYears.find(y => y.status === 'open' || y.status === 'current') ?? fiscalYears[0]
+  const currentYear = fiscalYears.find(y => y.status === 'open') ?? fiscalYears[0]
 
   const chartData = (stats?.trend ?? []).map(t => ({
     name: MONTHS[new Date(t.month).getMonth()] ?? t.month,
@@ -250,7 +249,7 @@ export default function AccountingDashboard() {
                     </td>
                     <td style={{ padding: '9px 10px', fontSize: 13, color: 'var(--text-1)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.label}</td>
                     <td style={{ padding: '9px 10px' }}>
-                      <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{ENTRY_SOURCE_LABEL[entry.source] ?? entry.source}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{ENTRY_SOURCE_LABEL[entry.source ?? ''] ?? entry.source}</span>
                     </td>
                     <td style={{ padding: '9px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 600, color: entry.totalDebit > 0 ? 'var(--acc-debit)' : 'var(--text-3)', whiteSpace: 'nowrap' }}>
                       {entry.totalDebit > 0 ? format(entry.totalDebit) : '—'}

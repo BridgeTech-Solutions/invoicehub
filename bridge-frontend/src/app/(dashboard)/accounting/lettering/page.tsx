@@ -60,7 +60,7 @@ export default function LetteringPage() {
   const [showLettered, setShowLettered]       = useState(false)
 
   const { data: fiscalYears = [] } = useFiscalYears()
-  const currentPeriod = fiscalYears.find(y => y.status === 'open' || y.status === 'current')?.periods?.find(p => p.status === 'current')
+  const currentPeriod = fiscalYears.find(y => y.status === 'open')?.periods?.find(p => p.status === 'open')
 
   const { data, isLoading, refetch } = useLetterableLines(selectedAccount?.id ?? null, currentPeriod?.id)
 
@@ -103,7 +103,7 @@ export default function LetteringPage() {
 
   async function handleLetter() {
     try {
-      await letter.mutateAsync(Array.from(selectedIds))
+      await letter.mutateAsync({ lineIds: Array.from(selectedIds) })
       setSelectedIds(new Set())
       toast.success('Lignes lettrées avec succès')
     } catch (e: unknown) { toast.error((e as Error).message) }
@@ -112,7 +112,7 @@ export default function LetteringPage() {
   async function handleUnletter(code: string) {
     if (!selectedAccount || !confirm(`Délettrer le groupe ${code} ?`)) return
     try {
-      await unletter.mutateAsync({ letterCode: code, accountId: selectedAccount.id })
+      await unletter.mutateAsync({ letterCode: code, accountNumber: selectedAccount.number })
       toast.success(`Groupe ${code} délettré`)
     } catch (e: unknown) { toast.error((e as Error).message) }
   }

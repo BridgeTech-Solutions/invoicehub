@@ -37,7 +37,7 @@ function RuleDrawer({ rule, accounts, onClose }: {
   const [isVisible, setIsVisible] = useState(false)
   const [form, setForm] = useState<CreateMatchingRulePayload>({
     bankAccountId: rule?.bankAccountId ?? null,
-    labelPattern:  rule?.labelPattern  ?? '',
+    labelContains:  rule?.labelContains  ?? '',
     entityType:    rule?.entityType    ?? 'payment',
     amountMin:     rule?.amountMin     ?? null,
     amountMax:     rule?.amountMax     ?? null,
@@ -132,8 +132,8 @@ function RuleDrawer({ rule, accounts, onClose }: {
           </Field>
 
           <Field label="Pattern du libellé" required htmlFor="rule-pattern">
-            <input id="rule-pattern" type="text" required value={form.labelPattern}
-              onChange={e => set('labelPattern', e.target.value)}
+            <input id="rule-pattern" type="text" required value={form.labelContains}
+              onChange={e => set('labelContains', e.target.value)}
               onFocus={focusStyle} onBlur={blurStyle}
               placeholder="ex: VIREMENT AFRILAND* ou FRAIS TENUE*"
               style={{ ...INPUT_STYLE, fontFamily: 'var(--font-mono)' }} />
@@ -215,7 +215,7 @@ export default function MatchingRulesPage() {
   const updateMutation                      = useUpdateMatchingRule()
 
   const filtered = rules.filter(r =>
-    !search || r.labelPattern.toLowerCase().includes(search.toLowerCase())
+    !search || r.labelContains.toLowerCase().includes(search.toLowerCase())
   )
 
   const handleEdit = (rule: BankMatchingRule) => {
@@ -227,7 +227,7 @@ export default function MatchingRulesPage() {
     setTimeout(() => setEditingRule(null), 300)
   }
   const handleDelete = async (rule: BankMatchingRule) => {
-    if (!confirm(`Supprimer la règle "${rule.labelPattern}" ?`)) return
+    if (!confirm(`Supprimer la règle "${rule.labelContains}" ?`)) return
     await deleteMutation.mutateAsync(rule.id)
   }
   const handleToggleAutoApply = async (rule: BankMatchingRule) => {
@@ -320,7 +320,7 @@ export default function MatchingRulesPage() {
                           background: 'var(--surface-2)', border: '1px solid var(--border)',
                           color: 'var(--primary)', fontFamily: 'var(--font-mono)', fontWeight: 500,
                         }}>
-                          {rule.labelPattern}
+                          {rule.labelContains}
                         </code>
                       </td>
                       <td>
@@ -357,7 +357,7 @@ export default function MatchingRulesPage() {
                         </button>
                       </td>
                       <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-2)' }}>
-                        {rule.usageCount.toLocaleString('fr-FR')}
+                        {(rule.usageCount ?? 0).toLocaleString('fr-FR')}
                       </td>
                       <td style={{ fontSize: 12.5, color: 'var(--text-3)' }}>{formatDate(rule.createdAt)}</td>
                       <td>

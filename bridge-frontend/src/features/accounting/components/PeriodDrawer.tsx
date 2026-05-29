@@ -44,9 +44,10 @@ export function PeriodDrawer({ open, onClose }: Props) {
     e.preventDefault()
     try {
       await create.mutateAsync({
-        year,
-        startDate: `${year}-01-01`,
-        endDate:   `${year}-12-31`,
+        name:       String(year),
+        fiscalYear: year,
+        startDate:  `${year}-01-01`,
+        endDate:    `${year}-12-31`,
       })
       toast.success(`Exercice ${year} créé`)
       handleClose()

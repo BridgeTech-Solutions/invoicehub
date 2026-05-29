@@ -25,6 +25,7 @@ export interface InvoiceLineBase {
   netHt: number
   taxAmount: number
   totalTtc: number
+  hideDetails: boolean
 }
 
 export interface InvoiceClient {
@@ -237,20 +238,32 @@ export type ComputeWarningType =
   | 'DUPLICATE_CLIENT_REFERENCE'
 
 export interface ComputeWarning {
-  type: ComputeWarningType
-  message: string
-  data?: Record<string, unknown>
+  code:     ComputeWarningType
+  severity: 'info' | 'warning' | 'error'
+  message:  string
+  data?:    Record<string, unknown>
 }
 
 export interface ComputeResult {
   totals: {
-    subtotalHt: number
+    subtotalHt:           number
     globalDiscountAmount: number
-    totalHt: number
-    totalTax: number
-    totalTtc: number
+    totalHt:              number
+    totalTax:             number
+    totalTtc:             number
   }
-  warnings: ComputeWarning[]
+  lines: Array<{
+    quantity:       number
+    unitPriceHt:    number
+    subtotalHt:     number
+    discountAmount: number
+    netHt:          number
+    taxAmount:      number
+    totalTtc:       number
+  }>
+  warnings:    ComputeWarning[]
+  hasErrors:   boolean
+  hasWarnings: boolean
 }
 
 export interface CancelInvoicePayload {
@@ -285,12 +298,13 @@ export interface BankAccountOption {
 }
 
 export interface ListPaymentsParams {
-  page?: number
-  limit?: number
-  invoiceId?: string
-  method?: PaymentMethod
-  dateFrom?: string
-  dateTo?: string
+  page?:       number
+  limit?:      number
+  invoiceId?:  string
+  method?:     PaymentMethod
+  dateFrom?:   string
+  dateTo?:     string
+  reconciled?: boolean
 }
 
 // ─── Local form types (source of truth = proformas/types) ──────

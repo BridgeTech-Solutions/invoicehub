@@ -232,10 +232,10 @@ export class AccountingController {
   @Get('reports/ledger')
   @Permission('accounting:read')
   getLedger(
-    @Query('accountId') accountNumber?: string,
-    @Query('periodId')  periodId?: string,
-    @Query('page')      page  = '1',
-    @Query('limit')     limit = '50',
+    @Query('accountNumber') accountNumber?: string,
+    @Query('periodId')      periodId?: string,
+    @Query('page')          page  = '1',
+    @Query('limit')         limit = '50',
   ) {
     if (!accountNumber) return [];
     return this.svc.getAccountLedger(accountNumber, {
@@ -268,18 +268,24 @@ export class AccountingController {
 
   @Get('lettering')
   @Permission('accounting:read')
-  getLetterableLines(
+  async getLetterableLines(
     @Query('accountId') accountNumber?: string,
     @Query('periodId')  periodId?: string,
+    @Query('dateFrom')  dateFrom?: string,
+    @Query('dateTo')    dateTo?: string,
   ) {
     if (!accountNumber) return { unlettered: [], lettered: [] };
-    return this.svc.getUnletteredLines({
-      accountNumber,
-      dateFrom: undefined,
-      dateTo:   undefined,
-      page:     1,
-      limit:    200,
-    });
+    const [unletteredResult, letteredGroups] = await Promise.all([
+      this.svc.getUnletteredLines({
+        accountNumber,
+        dateFrom,
+        dateTo,
+        page:  1,
+        limit: 200,
+      }),
+      this.svc.getLeteredGroups(accountNumber, dateFrom, dateTo),
+    ]);
+    return { unlettered: unletteredResult.data ?? [], lettered: letteredGroups };
   }
 
   @Post('lettering')
@@ -297,9 +303,9 @@ export class AccountingController {
   @HttpCode(HttpStatus.OK)
   deleteLettering(
     @Param('code') code: string,
-    @Query('accountId') accountId?: string,
+    @Query('accountNumber') accountNumber?: string,
   ) {
-    return this.svc.deleteLettering(code, accountId ?? '');
+    return this.svc.deleteLettering(code, accountNumber ?? '');
   }
 
   // ── Déclarations fiscales ───────────────────────────────────────────────────

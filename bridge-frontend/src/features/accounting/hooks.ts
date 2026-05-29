@@ -218,7 +218,8 @@ export function useLetterableLines(accountId: string | null, periodId?: string) 
 export function useLetterLines() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (lineIds: string[]) => accountingApi.letterLines(lineIds),
+    mutationFn: ({ lineIds, accountNumber }: { lineIds: string[]; accountNumber?: string }) =>
+      accountingApi.letterLines(lineIds, accountNumber),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['accounting-lettering'] }),
   })
 }
@@ -226,8 +227,8 @@ export function useLetterLines() {
 export function useUnletterGroup() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ letterCode, accountId }: { letterCode: string; accountId: string }) =>
-      accountingApi.unletterGroup(letterCode, accountId),
+    mutationFn: ({ letterCode, accountNumber }: { letterCode: string; accountNumber: string }) =>
+      accountingApi.unletterGroup(letterCode, accountNumber),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['accounting-lettering'] }),
   })
 }

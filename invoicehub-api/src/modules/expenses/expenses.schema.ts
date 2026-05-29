@@ -52,7 +52,6 @@ export const rejectExpenseSchema = z.object({
 
 export const createBudgetSchema = z.object({
   categoryId:  z.string().uuid().optional().nullable(),
-  officeId:    z.string().uuid().optional().nullable(),
   year:        z.number().int().min(2020).max(2100),
   month:       z.number().int().min(1).max(12).optional().nullable(),
   amount:      z.number().positive(),  // frontend field → DB budgetAmount

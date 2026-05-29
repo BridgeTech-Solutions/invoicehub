@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Put,
+  Controller, Get, Post, Put, Delete,
   Body, Param, Query, HttpCode, HttpStatus,
 } from '@nestjs/common';
 import { ExpensesService } from './expenses.service';
@@ -16,12 +16,10 @@ export class ExpenseBudgetsController {
   async list(
     @Query('year')       year?: string,
     @Query('categoryId') categoryId?: string,
-    @Query('officeId')   officeId?: string,
   ) {
     return this.svc.listBudgets({
       year:       year       ? parseInt(year, 10) : undefined,
       categoryId: categoryId ?? undefined,
-      officeId:   officeId   ?? undefined,
     });
   }
 
@@ -39,5 +37,13 @@ export class ExpenseBudgetsController {
     @Body(new ZodValidationPipe(updateBudgetSchema)) body: any,
   ) {
     return this.svc.updateBudget(id, body);
+  }
+
+  @Delete(':id')
+  @Permission('expenses:write')
+  @HttpCode(HttpStatus.OK)
+  async remove(@Param('id') id: string) {
+    await this.svc.deleteBudget(id);
+    return { message: 'Budget supprimé' };
   }
 }

@@ -13,7 +13,7 @@ function AddIpModal({ onClose }: { onClose: () => void }) {
   const id = (s: string) => `${uid}-${s}`
   const addMut = useAddIp()
 
-  const [form, setForm] = useState({ ipAddress: '', description: '' })
+  const [form, setForm] = useState({ ipAddress: '', label: '' })
   const [error, setError] = useState('')
 
   function validateIp(ip: string): boolean {
@@ -29,8 +29,8 @@ function AddIpModal({ onClose }: { onClose: () => void }) {
     if (!validateIp(form.ipAddress.trim())) { setError('Format d\'adresse IP invalide (IPv4, IPv6 ou CIDR).'); return }
 
     await addMut.mutateAsync({
-      ipAddress:   form.ipAddress.trim(),
-      description: form.description.trim() || null,
+      ipAddress: form.ipAddress.trim(),
+      label:     form.label.trim() || null,
     })
     onClose()
   }
@@ -82,13 +82,13 @@ function AddIpModal({ onClose }: { onClose: () => void }) {
 
           <div style={{ marginBottom: error ? 12 : 20 }}>
             <label htmlFor={id('desc')} style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)', display: 'block', marginBottom: 4 }}>
-              Description (optionnel)
+              Libellé (optionnel)
             </label>
             <input
               id={id('desc')}
               type="text"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              value={form.label}
+              onChange={(e) => setForm({ ...form, label: e.target.value })}
               placeholder="Ex : Serveur de production, Bureau Douala..."
               style={inputCss}
             />
@@ -145,9 +145,9 @@ function IpRow({ entry }: { entry: IpWhitelistEntry }) {
         {entry.ipAddress}
       </code>
 
-      {/* Description */}
-      <span style={{ fontSize: 13, color: entry.description ? 'var(--text-2)' : 'var(--text-3)', fontFamily: 'var(--font-body)' }}>
-        {entry.description ?? '—'}
+      {/* Label */}
+      <span style={{ fontSize: 13, color: 'var(--text-2)', fontFamily: 'var(--font-body)' }}>
+        {entry.label}
       </span>
 
       {/* Status */}

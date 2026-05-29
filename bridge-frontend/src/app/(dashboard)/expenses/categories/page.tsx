@@ -104,6 +104,7 @@ export default function ExpenseCategoriesPage() {
       name:              data.name,
       description:       data.description || undefined,
       color:             data.color || undefined,
+      icon:              data.icon || undefined,
       accountingAccount: data.accountingAccount || undefined,
     }, { onSuccess: () => setShowCreate(false) })
   }
@@ -116,6 +117,7 @@ export default function ExpenseCategoriesPage() {
         name:              data.name,
         description:       data.description || undefined,
         color:             data.color || undefined,
+        icon:              data.icon || undefined,
         accountingAccount: data.accountingAccount || undefined,
       },
     }, { onSuccess: () => setEditing(null) })

@@ -1,22 +1,25 @@
 // ─── Supplier Invoices feature — types ───────────────────────
 
 export type SupplierInvoiceStatus =
-  | 'draft' | 'pending_approval' | 'approved'
-  | 'partially_paid' | 'paid' | 'overdue' | 'cancelled'
+  | 'received' | 'validated' | 'partially_paid' | 'paid' | 'disputed' | 'cancelled'
 
 export interface SupplierInvoiceLine {
-  id:           string
-  sortOrder:    number
-  productId:    string | null
-  designation:  string
-  description:  string | null
-  unit:         string
-  quantity:     number
-  unitPriceHt:  number
-  taxRate:      number
-  subtotalHt:   number
-  taxAmount:    number
-  totalTtc:     number
+  id:                   string
+  sortOrder:            number
+  purchaseOrderLineId:  string | null
+  productId:            string | null
+  designation:          string
+  description:          string | null
+  unit:                 string
+  quantity:             number
+  unitPriceHt:          number
+  discountValue:        number
+  discountAmount:       number
+  taxRate:              number
+  subtotalHt:           number
+  netHt:                number
+  taxAmount:            number
+  totalTtc:             number
 }
 
 export interface SupplierInvoiceSupplier {
@@ -44,7 +47,7 @@ export interface SupplierInvoicePayment {
 export interface SupplierInvoice {
   id:                  string
   number:              string
-  supplierRef:         string | null
+  supplierInvoiceNumber: string | null
   status:              SupplierInvoiceStatus
   supplierId:          string
   supplier:            SupplierInvoiceSupplier
@@ -75,7 +78,7 @@ export interface SupplierInvoice {
 export interface SupplierInvoiceListItem {
   id:                  string
   number:              string
-  supplierRef:         string | null
+  supplierInvoiceNumber: string | null
   status:              SupplierInvoiceStatus
   supplierId:          string
   supplier:            SupplierInvoiceSupplier
@@ -108,22 +111,26 @@ export interface ListSupplierInvoicesParams {
 }
 
 export interface CreateSILine {
-  productId?:    string
-  designation:   string
-  description?:  string
-  unit?:         string
-  quantity:      number
-  unitPriceHt:   number
-  taxRate?:      number
-  sortOrder?:    number
+  purchaseOrderLineId?: string
+  productId?:           string
+  designation:          string
+  description?:         string
+  unit?:                string
+  quantity:             number
+  unitPrice:            number
+  discountPercent?:     number
+  taxRate?:             number
+  sortOrder?:           number
 }
 
 export interface CreateSupplierInvoicePayload {
   supplierId:          string
-  supplierRef?:        string
+  supplierInvoiceRef?: string
   purchaseOrderId?:    string
+  officeId?:           string
   invoiceDate:         string
   dueDate?:            string
+  currency?:           string
   notes?:              string
   accountingAccount?:  string
   lines:               CreateSILine[]
@@ -132,11 +139,12 @@ export interface CreateSupplierInvoicePayload {
 export type UpdateSupplierInvoicePayload = Partial<CreateSupplierInvoicePayload>
 
 export interface RecordSupplierPaymentPayload {
-  paymentDate:  string
-  amount:       number
-  method:       string
-  reference?:   string
-  notes?:       string
+  paymentDate:   string
+  amount:        number
+  method:        'bank_transfer' | 'cash' | 'check' | 'mobile_money' | 'other'
+  reference?:    string
+  bankAccountId?: string
+  notes?:        string
 }
 
 export interface SupplierInvoiceStats {

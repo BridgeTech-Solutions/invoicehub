@@ -258,7 +258,7 @@ function ExportJobsTable() {
                 </button>
               )}
               {job.status === 'failed' && (
-                <span style={{ fontSize: 11.5, color: '#ef4444' }}>{job.errorMsg ?? 'Erreur'}</span>
+                <span style={{ fontSize: 11.5, color: '#ef4444' }}>{job.errorMessage ?? 'Erreur'}</span>
               )}
             </div>
           </div>

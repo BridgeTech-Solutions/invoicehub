@@ -49,12 +49,23 @@ export class ExpensesService {
     });
   }
 
+  // Prisma enum (French) ↔ frontend/API values (English)
+  private static readonly PM_TO_DB: Record<string, string> = {
+    cash: 'especes', bank_transfer: 'virement', check: 'cheque',
+    mobile_money: 'mobile_money', card: 'autre', other: 'autre',
+  };
+  private static readonly PM_FROM_DB: Record<string, string> = {
+    especes: 'cash', virement: 'bank_transfer', cheque: 'check',
+    mobile_money: 'mobile_money', autre: 'other',
+  };
+
   // Maps DB field names → frontend field names expected by the frontend Expense type
   private formatExpense(expense: any) {
     if (!expense) return expense;
     const {
       title, beneficiaryName, reference,
       attachmentPaths, createdBy, submittedBy,
+      paymentMethod,
       ...rest
     } = expense;
     return {
@@ -63,18 +74,19 @@ export class ExpensesService {
       supplierName:   beneficiaryName ?? null,
       analyticalAxis: reference       ?? null,
       attachmentPath: Array.isArray(attachmentPaths) ? (attachmentPaths[0] ?? null) : null,
-      // submittedBy peut être null jusqu'à la soumission ; on retombe sur createdBy
+      paymentMethod:  paymentMethod ? (ExpensesService.PM_FROM_DB[String(paymentMethod)] ?? String(paymentMethod)) : null,
       submittedBy:    submittedBy ?? createdBy ?? null,
     };
   }
 
   // Maps input frontend field names → DB field names for create/update
   private mapInputToDb(data: Record<string, unknown>): Record<string, unknown> {
-    const { designation, supplierName, analyticalAxis, parentId, period, ...rest } = data as any;
+    const { designation, supplierName, analyticalAxis, parentId, period, paymentMethod, ...rest } = data as any;
     const mapped: Record<string, unknown> = { ...rest };
-    if (designation  !== undefined) mapped['title']           = designation;
-    if (supplierName !== undefined) mapped['beneficiaryName'] = supplierName;
-    if (analyticalAxis !== undefined) mapped['reference']     = analyticalAxis;
+    if (designation    !== undefined) mapped['title']           = designation;
+    if (supplierName   !== undefined) mapped['beneficiaryName'] = supplierName;
+    if (analyticalAxis !== undefined) mapped['reference']       = analyticalAxis;
+    if (paymentMethod  !== undefined) mapped['paymentMethod']   = ExpensesService.PM_TO_DB[paymentMethod] ?? paymentMethod;
     // parentId et period sont ignorés (pas en DB)
     return mapped;
   }
@@ -425,11 +437,10 @@ export class ExpensesService {
 
   // ── Budgets ───────────────────────────────────────────────────────────────────
 
-  async listBudgets(params: { year?: number; categoryId?: string; officeId?: string }) {
+  async listBudgets(params: { year?: number; categoryId?: string }) {
     const where: Record<string, unknown> = {};
     if (params.year)       where['year']       = params.year;
     if (params.categoryId) where['categoryId'] = params.categoryId;
-    if (params.officeId)   where['officeId']   = params.officeId;
 
     const budgets = await this.prisma.expenseBudget.findMany({
       where, orderBy: [{ year: 'desc' }, { month: 'asc' }],
@@ -467,7 +478,7 @@ export class ExpensesService {
   }
 
   async createBudget(data: CreateBudgetInput) {
-    const { amount, label, period, ...rest } = data as any;
+    const { amount, label, period, officeId, ...rest } = data as any; // officeId ignoré (pas en DB)
     const notes = label ?? rest.notes ?? undefined;
     return this.prisma.expenseBudget.create({
       data: {
@@ -476,6 +487,12 @@ export class ExpensesService {
         notes,
       },
     });
+  }
+
+  async deleteBudget(id: string) {
+    const budget = await this.prisma.expenseBudget.findUnique({ where: { id } });
+    if (!budget) throw AppError.notFound('Budget introuvable');
+    await this.prisma.expenseBudget.delete({ where: { id } });
   }
 
   async updateBudget(id: string, data: Partial<CreateBudgetInput>) {

@@ -100,8 +100,8 @@ export const exportsApi = {
   },
 
   create: async (payload: CreateExportPayload): Promise<ExportJob> => {
-    const { data } = await apiClient.post<ExportJob>('/exports', payload)
-    return data
+    const { data } = await apiClient.post<{ data: ExportJob; message: string }>('/exports', payload)
+    return data.data
   },
 
   download: async (id: string, filename: string): Promise<void> => {

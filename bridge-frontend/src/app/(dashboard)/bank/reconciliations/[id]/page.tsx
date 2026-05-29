@@ -135,13 +135,13 @@ function AutoMatchModal({
   onClose,
 }: { reconciliationId: string; onClose: () => void }) {
   const [applied,  setApplied]  = useState(false)
-  const [result,   setResult]   = useState<{ matched: number; skipped: number } | null>(null)
+  const [result,   setResult]   = useState<{ applied: number; skipped: number } | null>(null)
   const [highOnly, setHighOnly] = useState(true)
   const autoMatch = useAutoMatch(reconciliationId)
 
   const handleApply = async () => {
     const res = await autoMatch.mutateAsync(highOnly)
-    setResult(res)
+    setResult({ applied: res.applied, skipped: (res.medium?.length ?? 0) })
     setApplied(true)
   }
 
@@ -223,10 +223,10 @@ function AutoMatchModal({
                 <CheckCircle2 size={28} style={{ color: '#16a34a' }} />
               </div>
               <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-1)', marginBottom: 6 }}>
-                {result.matched}
+                {result.applied}
               </div>
               <div style={{ fontSize: 14, color: 'var(--text-2)', marginBottom: 20, lineHeight: 1.5 }}>
-                transaction{result.matched !== 1 ? 's' : ''} rapprochée{result.matched !== 1 ? 's' : ''} automatiquement.
+                transaction{result.applied !== 1 ? 's' : ''} rapprochée{result.applied !== 1 ? 's' : ''} automatiquement.
                 {result.skipped > 0 && <><br /><span style={{ color: 'var(--text-3)', fontSize: 12.5 }}>{result.skipped} ignorée{result.skipped !== 1 ? 's' : ''} (confiance insuffisante)</span></>}
               </div>
               <button type="button" onClick={onClose}
@@ -746,7 +746,7 @@ export default function ReconciliationWorkspacePage() {
               <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)' }}>
                 Rapprochement — {session.bankAccount?.name ?? 'Compte'}
               </span>
-              {session.status !== 'open' && (
+              {session.status !== 'in_progress' && (
                 <span style={{
                   fontSize: 11, padding: '2px 8px', borderRadius: 99,
                   background: session.status === 'completed' ? '#dcfce7' : '#f1f5f9',
@@ -793,9 +793,9 @@ export default function ReconciliationWorkspacePage() {
 
       {/* ── Balance bar ──────────────────────────────────────────── */}
       <BalanceBar
-        statementBalance={session.statementOpenBalance}
+        statementBalance={session.closingBalanceStatement}
         systemBalance={session.openingBalance}
-        difference={session.difference}
+        difference={session.closingBalanceStatement - session.closingBalanceSystem}
         currency={session.bankAccount?.currency ?? 'XAF'}
         matchedCount={reconciledTx.length}
         pendingCount={pendingTx.length}
@@ -890,7 +890,7 @@ export default function ReconciliationWorkspacePage() {
       {completeOpen && (
         <CompleteModal
           sessionId={params.id}
-          difference={session.difference}
+          difference={session.closingBalanceStatement - session.closingBalanceSystem}
           onClose={() => setCompleteOpen(false)}
           onCompleted={handleCompleted}
         />

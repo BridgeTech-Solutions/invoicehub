@@ -1,11 +1,12 @@
 export interface ProductCategory {
-  id:        string
-  name:      string
-  icon?:     string | null
-  color?:    string | null
-  sortOrder: number
-  isActive:  boolean
-  _count?:   { products: number }
+  id:           string
+  name:         string
+  description?: string | null
+  icon?:        string | null
+  color?:       string | null
+  sortOrder:    number
+  isActive:     boolean
+  _count?:      { products: number }
 }
 
 export interface Product {
@@ -57,6 +58,8 @@ export interface ProductLineDefaults {
   defaultQuantity:              number
   /** Vrai si le prix catalogue a changé depuis la dernière facture à ce client */
   priceChangedSinceLastInvoice: boolean
+  /** Stock disponible (null si le produit ne gère pas le stock) */
+  stockQuantity: number | null
 }
 
 export interface ListProductsParams {
@@ -68,6 +71,7 @@ export interface ListProductsParams {
   search?:     string
   /** Si fourni : trie les produits par usage décroissant avec ce client */
   clientId?:   string
+  trackStock?: boolean
 }
 
 export interface PaginatedProducts {
@@ -100,9 +104,12 @@ export interface CreateProductPayload {
 export type UpdateProductPayload = Partial<CreateProductPayload>
 
 export interface CreateCategoryPayload {
-  name:   string
-  icon?:  string
-  color?: string
+  name:         string
+  description?: string
+  icon?:        string
+  color?:       string
+  sortOrder?:   number
+  isActive?:    boolean
 }
 
 // ── Import en masse ───────────────────────────────────────────────────────────

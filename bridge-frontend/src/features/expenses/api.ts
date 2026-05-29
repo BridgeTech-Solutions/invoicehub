@@ -29,7 +29,7 @@ export const expensesApi = {
   approve: (id: string) =>
     apiClient.post<Expense>(`/expenses/${id}/approve`).then(r => r.data),
 
-  reject: (id: string, reason?: string) =>
+  reject: (id: string, reason: string) =>
     apiClient.post<Expense>(`/expenses/${id}/reject`, { reason }).then(r => r.data),
 
   markPaid: (id: string) =>
@@ -44,17 +44,6 @@ export const expensesApi = {
     return apiClient.post<{ attachmentPath: string }>(`/expenses/${id}/attachment`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then(r => r.data)
-  },
-
-  exportCsv: async (params?: ListExpensesParams) => {
-    const res = await apiClient.get('/expenses', {
-      params: { ...params, export: 'csv', page: 1, limit: 10_000 },
-      responseType: 'blob',
-    })
-    const url = URL.createObjectURL(new Blob([res.data]))
-    const a   = document.createElement('a')
-    a.href = url; a.download = 'depenses.csv'; a.click()
-    URL.revokeObjectURL(url)
   },
 
   // ─── Categories ───────────────────────────────────────────────

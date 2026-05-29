@@ -133,8 +133,8 @@ function ComputeWarnings({ warnings }: { warnings: ComputeWarning[] }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
       {warnings.map((w, i) => {
-        const Icon  = WARNING_ICONS[w.type] ?? AlertCircle
-        const color = WARNING_COLORS[w.type] ?? '#d97706'
+        const Icon  = WARNING_ICONS[w.code] ?? AlertCircle
+        const color = WARNING_COLORS[w.code] ?? '#d97706'
         return (
           <div key={i} style={{
             display: 'flex', alignItems: 'flex-start', gap: 10,

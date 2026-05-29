@@ -1,7 +1,7 @@
 // ─── Expenses feature — types ─────────────────────────────────
 
-export type ExpenseStatus = 'draft' | 'submitted' | 'approved' | 'paid' | 'rejected'
-export type ExpensePaymentMethod = 'cash' | 'bank_transfer' | 'mobile_money' | 'card' | 'check'
+export type ExpenseStatus = 'draft' | 'submitted' | 'approved' | 'paid' | 'rejected' | 'cancelled'
+export type ExpensePaymentMethod = 'cash' | 'bank_transfer' | 'mobile_money' | 'card' | 'check' | 'other'
 
 export interface ExpenseCategory {
   id:                string
@@ -84,28 +84,34 @@ export interface PaginatedExpenses {
 }
 
 export interface ListExpensesParams {
-  page?:        number
-  limit?:       number
-  search?:      string
-  status?:      ExpenseStatus | ''
-  categoryId?:  string
-  dateFrom?:    string
-  dateTo?:      string
-  isRecurring?: boolean
+  page?:              number
+  limit?:             number
+  search?:            string
+  status?:            ExpenseStatus | ''
+  categoryId?:        string
+  officeId?:          string
+  dateFrom?:          string
+  dateTo?:            string
+  isRecurring?:       boolean
+  isEmployeeExpense?: boolean
 }
 
 export interface CreateExpensePayload {
   designation:        string
   description?:       string
   categoryId?:        string
+  officeId?:          string
   supplierId?:        string
   supplierName?:      string
   expenseDate:        string
   paymentMethod:      ExpensePaymentMethod
+  bankAccountId?:     string
   amountHt:           number
   taxRate?:           number
+  currency?:          string
   accountingAccount?: string
   analyticalAxis?:    string
+  isEmployeeExpense?: boolean
   notes?:             string
   isRecurring?:       boolean
 }
@@ -135,9 +141,11 @@ export interface ExpenseBudget {
 }
 
 export interface CreateBudgetPayload {
-  year:         number
-  categoryId?:  string
-  label:        string
-  amount:       number
-  period?:      'annual' | 'monthly'
+  year:        number
+  month?:      number
+  categoryId?: string
+  label?:      string
+  amount:      number
+  period?:     'annual' | 'monthly'
+  notes?:      string
 }

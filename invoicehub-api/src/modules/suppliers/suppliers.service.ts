@@ -41,7 +41,7 @@ export class SuppliersService {
       }),
       this.prisma.supplier.count({ where }),
     ]);
-    return { data, total };
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async getSupplierById(id: string) {
