@@ -63,7 +63,8 @@ export function ClientForm({ client, onClose, wide = false }: ClientFormProps) {
   const isEdit  = !!client
   const { can } = usePermission()
   const isMobile = useIsMobile()
-  const canSeeInternalNotes = can('client', 'update')
+  const canSeeInternalNotes      = can('client', 'update')
+  const canEditAccountingAccount = can('accounting', 'update')
 
   // ─── Unique IDs for label/input association ──────────────────
   const idName            = useId()
@@ -76,9 +77,10 @@ export function ClientForm({ client, onClose, wide = false }: ClientFormProps) {
   const idAddress         = useId()
   const idTaxNumber       = useId()
   const idRccm            = useId()
-  const idPaymentTerms    = useId()
-  const idInternalNotes   = useId()
-  const typeGroupId       = useId()
+  const idPaymentTerms        = useId()
+  const idInternalNotes       = useId()
+  const idAccountingAccount   = useId()
+  const typeGroupId           = useId()
 
   const [form, setForm] = useState<CreateClientPayload>({
     name:                client?.name                ?? '',
@@ -92,6 +94,7 @@ export function ClientForm({ client, onClose, wide = false }: ClientFormProps) {
     postalBox:           client?.postalBox           ?? '',
     taxNumber:           client?.taxNumber           ?? '',
     rccm:                client?.rccm                ?? '',
+    accountingAccount:   client?.accountingAccount   ?? '',
     defaultPaymentTerms: client?.defaultPaymentTerms ?? '',
     internalNotes:       client?.internalNotes       ?? '',
   })
@@ -241,6 +244,27 @@ export function ClientForm({ client, onClose, wide = false }: ClientFormProps) {
     </div>
   )
 
+  // ─── Accounting account field (read-only si pas de droit accounting:update) ──
+  const accountingAccountField = (
+    <Field label="Compte comptable (SYSCOHADA)" htmlFor={idAccountingAccount}>
+      {canEditAccountingAccount ? (
+        inp('accountingAccount', { id: idAccountingAccount, placeholder: '4111' })
+      ) : (
+        <div style={{
+          padding: '8px 12px',
+          borderRadius: 'var(--radius-md)',
+          border: '1.5px solid var(--border)',
+          background: 'var(--surface-2)',
+          fontSize: 13.5,
+          color: form.accountingAccount ? 'var(--text-2)' : 'var(--text-3)',
+          fontFamily: 'var(--font-body)',
+        }}>
+          {form.accountingAccount || '—'}
+        </div>
+      )}
+    </Field>
+  )
+
   // ─── Legal section ───────────────────────────────────────────
   const sectionLegal = form.type === 'company' ? (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -249,8 +273,14 @@ export function ClientForm({ client, onClose, wide = false }: ClientFormProps) {
         <Field label="Numéro fiscal" htmlFor={idTaxNumber}>{inp('taxNumber', { id: idTaxNumber, placeholder: 'M081234567890A' })}</Field>
         <Field label="RCCM" htmlFor={idRccm}>{inp('rccm', { id: idRccm, placeholder: 'RC/DLA/2020/B/0001' })}</Field>
       </div>
+      {accountingAccountField}
     </div>
-  ) : null
+  ) : (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <SectionTitle>Comptabilité</SectionTitle>
+      {accountingAccountField}
+    </div>
+  )
 
   // ─── Conditions section ──────────────────────────────────────
   const sectionConditions = (
@@ -388,8 +418,8 @@ export function ClientForm({ client, onClose, wide = false }: ClientFormProps) {
         {sectionLocalisation}
       </div>
 
-      {/* Légal */}
-      {form.type === 'company' && sectionLegal}
+      {/* Légal + Comptabilité */}
+      {sectionLegal}
 
       {/* Conditions + Notes côte à côte */}
       {canSeeInternalNotes ? (

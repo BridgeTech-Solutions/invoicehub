@@ -12,6 +12,7 @@ export interface Client {
   postalBox?:            string | null
   taxNumber?:            string | null
   rccm?:                 string | null
+  accountingAccount?:    string | null
   defaultPaymentTerms?:  string | null
   internalNotes?:        string | null
   createdAt:             string
@@ -77,6 +78,7 @@ export interface CreateClientPayload {
   postalBox?:            string
   taxNumber?:            string
   rccm?:                 string
+  accountingAccount?:    string
   defaultPaymentTerms?:  string
   internalNotes?:        string
 }

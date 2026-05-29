@@ -12,6 +12,7 @@ export const createClientSchema = z.object({
   postalBox: z.string().max(50).optional(),
   taxNumber: z.string().max(100).optional(),
   rccm: z.string().max(100).optional(),
+  accountingAccount: z.string().max(20).optional(),
   currency: z.string().length(3).default('XAF'),
   defaultPaymentTerms: z.string().optional(),
   internalNotes: z.string().optional(),

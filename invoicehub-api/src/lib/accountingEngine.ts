@@ -98,7 +98,7 @@ function buildSalesBreakdown(
 
   for (const l of lines) {
     // Compte ventes : produit → catégorie → fallback SYSCOHADA selon type
-    const fallbackSales = l.product?.type === 'product' ? '701000' : '706000';
+    const fallbackSales = l.product?.type === 'product' ? '7011' : '7061';
     const salesAccount  = l.product?.salesAccountingAccount
       ?? l.product?.category?.salesAccountingAccount
       ?? fallbackSales;
@@ -143,10 +143,10 @@ async function getCompanyAccounts(tx: Tx) {
     },
   });
   return {
-    collectedTaxAccount:       s?.collectedTaxAccount       ?? '447200',
-    deductibleTaxAccount:      s?.deductibleTaxAccount      ?? '447100',
-    initialStockAccount:       s?.initialStockAccount       ?? '108000',
-    escompteAccountingAccount: s?.escompteAccountingAccount ?? '673000',
+    collectedTaxAccount:       s?.collectedTaxAccount       ?? '4431',
+    deductibleTaxAccount:      s?.deductibleTaxAccount      ?? '4452',
+    initialStockAccount:       s?.initialStockAccount       ?? '1042',
+    escompteAccountingAccount: s?.escompteAccountingAccount ?? '673',
   };
 }
 
@@ -180,7 +180,7 @@ export async function onInvoiceIssued(invoiceId: string, tx: Tx): Promise<void> 
     ]);
     if (!invoice) return;
 
-    const clientAccount = (invoice.client as any)?.accountingAccount ?? '411000';
+    const clientAccount = (invoice.client as any)?.accountingAccount ?? '4111';
     const linesWithTax  = (invoice.lines as any).map((l: any) => ({
       ...l,
       taxRateCollectedAccount: accounts.collectedTaxAccount,
@@ -234,7 +234,7 @@ export async function onPaymentReceived(paymentId: string, tx: Tx): Promise<void
     });
     if (!payment) return;
 
-    const bankAccountNum = (payment.bankAccount as any)?.accountingAccount ?? '521000';
+    const bankAccountNum = (payment.bankAccount as any)?.accountingAccount ?? '5211';
     const bankLabel      = (payment.bankAccount as any)?.name ?? 'Banque';
     const clientAccount  = (payment.invoice?.client as any)?.accountingAccount ?? '411000';
 
@@ -383,9 +383,9 @@ export async function onSupplierInvoiceValidated(supplierInvoiceId: string, tx: 
     ]);
     if (!inv) return;
 
-    const supplierAccount = (inv.supplier as any)?.accountingAccount ?? '401000';
+    const supplierAccount = (inv.supplier as any)?.accountingAccount ?? '4011';
     const invAccount      = (inv as any).accountingAccount;
-    const purchaseAccount = invAccount && invAccount !== supplierAccount ? invAccount : '607000';
+    const purchaseAccount = invAccount && invAccount !== supplierAccount ? invAccount : '6011';
     const taxAccount      = accounts.deductibleTaxAccount;
 
     const entryDate   = new Date(inv.invoiceDate);
@@ -435,7 +435,7 @@ export async function onSupplierPaymentMade(supplierPaymentId: string, tx: Tx): 
     });
     if (!payment) return;
 
-    const supplierAccount = (payment.supplier as any)?.accountingAccount ?? '401000';
+    const supplierAccount = (payment.supplier as any)?.accountingAccount ?? '4011';
     const bankAccountNum  = (payment.bankAccount as any)?.accountingAccount ?? '521000';
     const bankLabel       = (payment.bankAccount as any)?.name ?? 'Banque';
 
@@ -530,7 +530,7 @@ export async function onInvoiceCancelled(invoiceId: string, tx: Tx): Promise<voi
     ]);
     if (!invoice) return;
 
-    const clientAccount = (invoice.client as any)?.accountingAccount ?? '411000';
+    const clientAccount = (invoice.client as any)?.accountingAccount ?? '4111';
     const linesWithTax  = (invoice.lines as any).map((l: any) => ({
       ...l,
       taxRateCollectedAccount: accounts.collectedTaxAccount,
@@ -592,7 +592,7 @@ export async function onExpensePaid(expenseId: string, tx: Tx): Promise<void> {
     ]);
     if (!expense) return;
 
-    const chargeAccount = expense.accountingAccount ?? expense.category?.accountingAccount ?? '625000';
+    const chargeAccount = expense.accountingAccount ?? expense.category?.accountingAccount ?? '6251';
     const bankAccount   = bankAccountInfo?.accountingAccount ?? '521000';
     const bankLabel     = bankAccountInfo?.name ?? 'Banque';
     const entryDate     = new Date(expense.expenseDate);

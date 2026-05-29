@@ -80,6 +80,8 @@ export class ClientsController {
     @Body(new ZodValidationPipe(createClientSchema)) body: CreateClientInput,
     @CurrentUser() user: JwtPayload,
   ) {
+    const canEditAccounting = user.permissions.includes('*') || user.permissions.includes('accounting:*') || user.permissions.includes('accounting:update');
+    if (!canEditAccounting) delete (body as any).accountingAccount;
     return this.svc.create(body, user.sub);
   }
 
@@ -89,7 +91,10 @@ export class ClientsController {
   update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateClientSchema)) body: UpdateClientInput,
+    @CurrentUser() user: JwtPayload,
   ) {
+    const canEditAccounting = user.permissions.includes('*') || user.permissions.includes('accounting:*') || user.permissions.includes('accounting:update');
+    if (!canEditAccounting) delete (body as any).accountingAccount;
     return this.svc.update(id, body);
   }
 

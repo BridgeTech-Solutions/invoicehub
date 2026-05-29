@@ -113,7 +113,7 @@ export function SupplierForm({ supplier, onClose, wide = false }: SupplierFormPr
     defaultDueDays:    supplier?.defaultDueDays     ?? 30,
     currency:          supplier?.currency           ?? 'XAF',
     status:            supplier?.status             ?? 'active',
-    accountingAccount: supplier?.accountingAccount  ?? '401000',
+    accountingAccount: supplier?.accountingAccount  ?? '4011',
     internalNotes:     supplier?.internalNotes      ?? '',
   })
 
