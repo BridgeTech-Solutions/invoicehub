@@ -226,10 +226,10 @@ CREATE TABLE company_settings (
     reminder_escalation     JSONB                NOT NULL DEFAULT '{}',
 
     -- Comptes comptables
-    initial_stock_account         VARCHAR(20) NOT NULL DEFAULT '108000',
-    escompte_accounting_account   VARCHAR(20) NOT NULL DEFAULT '673000',
-    collected_tax_account         VARCHAR(20) NOT NULL DEFAULT '447200',
-    deductible_tax_account        VARCHAR(20) NOT NULL DEFAULT '447100',
+    initial_stock_account         VARCHAR(20) NOT NULL DEFAULT '1042',
+    escompte_accounting_account   VARCHAR(20) NOT NULL DEFAULT '673',
+    collected_tax_account         VARCHAR(20) NOT NULL DEFAULT '4431',
+    deductible_tax_account        VARCHAR(20) NOT NULL DEFAULT '4452',
 
     -- Champs flexibles
     metadata                JSONB        NOT NULL DEFAULT '{}',
@@ -283,8 +283,8 @@ CREATE TABLE tax_rates (
     description TEXT,
     is_default  BOOLEAN      NOT NULL DEFAULT FALSE,
     is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
-    collected_tax_account       VARCHAR(20) NOT NULL DEFAULT '447200',
-    deductible_tax_account      VARCHAR(20) NOT NULL DEFAULT '447100',
+    collected_tax_account       VARCHAR(20) NOT NULL DEFAULT '4431',
+    deductible_tax_account      VARCHAR(20) NOT NULL DEFAULT '4452',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at  TIMESTAMPTZ,
@@ -599,7 +599,7 @@ CREATE TABLE clients (
     rccm            VARCHAR(100),
 
     currency        CHAR(3)       NOT NULL DEFAULT 'XAF',
-    accounting_account VARCHAR(20)  DEFAULT '411000',
+    accounting_account VARCHAR(20)  DEFAULT '4111',
     default_payment_terms TEXT,
 
     status          client_status NOT NULL DEFAULT 'active',
@@ -626,7 +626,7 @@ CREATE INDEX idx_clients_city   ON clients(city);
 
 COMMENT ON TABLE clients IS 'Annuaire clients. Les archivés sont préservés pour l''historique mais exclus des nouveaux documents.';
 COMMENT ON COLUMN clients.internal_notes IS 'CONFIDENTIEL : notes internes, jamais affichées sur les PDFs envoyés au client.';
-COMMENT ON COLUMN clients.accounting_account IS 'Compte auxiliaire SYSCOHADA classe 4. 411000 = collectif clients. Personnalisable par sous-compte ex: 411ORANGE pour Orange CM.';
+COMMENT ON COLUMN clients.accounting_account IS 'Compte auxiliaire OHADA classe 4. 4111 = Clients (collectif). Personnalisable par sous-compte.';
 
 -- ================================================================
 -- 11. DOCUMENT_SEQUENCES — Numérotation SYSCOHADA (sans trou, atomique)
@@ -1428,15 +1428,15 @@ ALTER TABLE company_settings
     ADD COLUMN IF NOT EXISTS invoice_approval_threshold  NUMERIC(15,2),
     ADD COLUMN IF NOT EXISTS webhooks_enabled            BOOLEAN       NOT NULL DEFAULT FALSE,
     -- Comptes comptables SYSCOHADA configurables (remplacent les valeurs en dur dans le moteur)
-    ADD COLUMN IF NOT EXISTS initial_stock_account       VARCHAR(20)   NOT NULL DEFAULT '108000',
-    ADD COLUMN IF NOT EXISTS escompte_accounting_account VARCHAR(20)   NOT NULL DEFAULT '673000',
-    ADD COLUMN IF NOT EXISTS collected_tax_account       VARCHAR(20)   NOT NULL DEFAULT '447200',
-    ADD COLUMN IF NOT EXISTS deductible_tax_account      VARCHAR(20)   NOT NULL DEFAULT '447100';
+    ADD COLUMN IF NOT EXISTS initial_stock_account       VARCHAR(20)   NOT NULL DEFAULT '1042',
+    ADD COLUMN IF NOT EXISTS escompte_accounting_account VARCHAR(20)   NOT NULL DEFAULT '673',
+    ADD COLUMN IF NOT EXISTS collected_tax_account       VARCHAR(20)   NOT NULL DEFAULT '4431',
+    ADD COLUMN IF NOT EXISTS deductible_tax_account      VARCHAR(20)   NOT NULL DEFAULT '4452';
 
-COMMENT ON COLUMN company_settings.initial_stock_account       IS 'Compte de contrepartie pour les entrées de stock initial (ex: 108000 = Compte de l''exploitant SYSCOHADA).';
-COMMENT ON COLUMN company_settings.escompte_accounting_account IS 'Compte de charge financière pour les escomptes de règlement accordés (ex: 673000 SYSCOHADA).';
-COMMENT ON COLUMN company_settings.collected_tax_account       IS 'Compte TVA collectée sur ventes (ex: 447200 SYSCOHADA). Utilisé dans les écritures de facturation.';
-COMMENT ON COLUMN company_settings.deductible_tax_account      IS 'Compte TVA déductible sur achats (ex: 447100 SYSCOHADA). Utilisé dans les écritures fournisseurs.';
+COMMENT ON COLUMN company_settings.initial_stock_account       IS 'Compte de contrepartie pour les entrées de stock initial (1042 = Compte de l''exploitant OHADA).';
+COMMENT ON COLUMN company_settings.escompte_accounting_account IS 'Compte de charge financière pour les escomptes de règlement accordés (673 = Escomptes accordés OHADA).';
+COMMENT ON COLUMN company_settings.collected_tax_account       IS 'Compte TVA collectée sur ventes (4431 = T.V.A. facturée sur ventes OHADA).';
+COMMENT ON COLUMN company_settings.deductible_tax_account      IS 'Compte TVA déductible sur achats (4452 = T.V.A. récupérable sur achats OHADA).';
 
 COMMENT ON COLUMN company_settings.fiscal_year_start_month    IS '1=janvier (défaut), 7=juillet pour les exercices décalés.';
 COMMENT ON COLUMN company_settings.purchase_approval_threshold IS 'Seuil en XAF au-delà duquel un BC nécessite une approbation. NULL = pas de seuil.';
@@ -1474,10 +1474,10 @@ COMMENT ON COLUMN products.cost_price_ht            IS 'CMUP (Coût Moyen Pondé
 COMMENT ON COLUMN products.stock_value              IS 'Valeur totale du stock = stock_quantity × cost_price_ht (CMUP). Mis à jour à chaque mouvement.';
 COMMENT ON COLUMN products.image_url                IS 'URL ou chemin relatif de l''image produit.';
 COMMENT ON COLUMN products.default_supplier_id      IS 'Fournisseur privilégié pour ce produit (FK vers suppliers, ajoutée étape 3).';
-COMMENT ON COLUMN products.stock_accounting_account IS 'Compte stock SYSCOHADA (classe 3, ex: 311000). Surcharge la catégorie si défini.';
-COMMENT ON COLUMN products.cogs_accounting_account  IS 'Compte variation de stocks / coût (classe 6, ex: 603100). Surcharge la catégorie.';
-COMMENT ON COLUMN products.loss_accounting_account  IS 'Compte pertes sur stocks (ex: 603200). Surcharge la catégorie.';
-COMMENT ON COLUMN products.sales_accounting_account IS 'Compte de ventes SYSCOHADA (classe 7, ex: 701000 marchandises, 706000 services). Surcharge la catégorie.';
+COMMENT ON COLUMN products.stock_accounting_account IS 'Compte stock OHADA (classe 3, ex: 3111 = Marchandises A1). Surcharge la catégorie si défini.';
+COMMENT ON COLUMN products.cogs_accounting_account  IS 'Compte variation de stocks / coût (ex: 6031 = Variations stocks marchandises). Surcharge la catégorie.';
+COMMENT ON COLUMN products.loss_accounting_account  IS 'Compte pertes sur stocks (ex: 6032 = Variations stocks matières premières). Surcharge la catégorie.';
+COMMENT ON COLUMN products.sales_accounting_account IS 'Compte de ventes OHADA (ex: 7011 = marchandises Région, 7061 = services Région). Surcharge la catégorie.';
 
 CREATE INDEX IF NOT EXISTS idx_products_track_stock ON products(track_stock) WHERE track_stock = TRUE;
 CREATE INDEX IF NOT EXISTS idx_products_barcode     ON products(barcode) WHERE barcode IS NOT NULL;
@@ -1486,25 +1486,25 @@ CREATE INDEX IF NOT EXISTS idx_products_barcode     ON products(barcode) WHERE b
 -- 2.6b Étendre `product_categories` — comptes comptables par catégorie
 -- ================================================================
 ALTER TABLE product_categories
-    ADD COLUMN IF NOT EXISTS stock_accounting_account VARCHAR(20) DEFAULT '311000',
-    ADD COLUMN IF NOT EXISTS cogs_accounting_account  VARCHAR(20) DEFAULT '603100',
-    ADD COLUMN IF NOT EXISTS loss_accounting_account  VARCHAR(20) DEFAULT '603200',
-    ADD COLUMN IF NOT EXISTS sales_accounting_account VARCHAR(20) DEFAULT '701000';
+    ADD COLUMN IF NOT EXISTS stock_accounting_account VARCHAR(20) DEFAULT '3111',
+    ADD COLUMN IF NOT EXISTS cogs_accounting_account  VARCHAR(20) DEFAULT '6031',
+    ADD COLUMN IF NOT EXISTS loss_accounting_account  VARCHAR(20) DEFAULT '6032',
+    ADD COLUMN IF NOT EXISTS sales_accounting_account VARCHAR(20) DEFAULT '7011';
 
 COMMENT ON COLUMN product_categories.stock_accounting_account IS 'Compte stock par défaut pour tous les produits de cette catégorie (classe 3 SYSCOHADA).';
 COMMENT ON COLUMN product_categories.cogs_accounting_account  IS 'Compte variation de stocks par défaut (classe 6 SYSCOHADA).';
-COMMENT ON COLUMN product_categories.loss_accounting_account  IS 'Compte pertes sur stocks par défaut (ex: 603200).';
+COMMENT ON COLUMN product_categories.loss_accounting_account  IS 'Compte pertes sur stocks par défaut (ex: 6032 = Variations stocks matières premières OHADA).';
 COMMENT ON COLUMN product_categories.sales_accounting_account IS 'Compte de ventes par défaut pour cette catégorie (classe 7 SYSCOHADA).';
 
 -- ================================================================
 -- 2.6c Étendre `tax_rates` — comptes TVA configurables
 -- ================================================================
 ALTER TABLE tax_rates
-    ADD COLUMN IF NOT EXISTS collected_tax_account  VARCHAR(20) DEFAULT '447200',
-    ADD COLUMN IF NOT EXISTS deductible_tax_account VARCHAR(20) DEFAULT '447100';
+    ADD COLUMN IF NOT EXISTS collected_tax_account  VARCHAR(20) DEFAULT '4431',
+    ADD COLUMN IF NOT EXISTS deductible_tax_account VARCHAR(20) DEFAULT '4452';
 
-COMMENT ON COLUMN tax_rates.collected_tax_account  IS 'Compte TVA collectée sur ventes pour ce taux (ex: 447200 SYSCOHADA).';
-COMMENT ON COLUMN tax_rates.deductible_tax_account IS 'Compte TVA déductible sur achats pour ce taux (ex: 447100 SYSCOHADA).';
+COMMENT ON COLUMN tax_rates.collected_tax_account  IS 'Compte TVA collectée sur ventes pour ce taux (4431 = T.V.A. facturée sur ventes OHADA).';
+COMMENT ON COLUMN tax_rates.deductible_tax_account IS 'Compte TVA déductible sur achats pour ce taux (4452 = T.V.A. récupérable sur achats OHADA).';
 
 -- ================================================================
 -- 2.7 Étendre `payments` — lien avec le module banques
@@ -1636,8 +1636,8 @@ CREATE TABLE suppliers (
     internal_notes      TEXT,
     tags                TEXT[]          DEFAULT '{}',
 
-    -- Compte comptable SYSCOHADA classe 4 fournisseurs
-    accounting_account  VARCHAR(20)     DEFAULT '401000',
+    -- Compte comptable OHADA classe 4 fournisseurs
+    accounting_account  VARCHAR(20)     DEFAULT '4011',
 
     -- Champs flexibles
     metadata            JSONB           NOT NULL DEFAULT '{}',
@@ -1660,7 +1660,7 @@ CREATE INDEX idx_suppliers_active   ON suppliers(id) WHERE deleted_at IS NULL;
 
 COMMENT ON TABLE  suppliers                   IS 'Annuaire des fournisseurs BTS. Miroir de clients pour le circuit d''achats.';
 COMMENT ON COLUMN suppliers.supplier_code      IS 'Code interne BTS du fournisseur. Ex: FOURNISSEUR-001. Facultatif, unique.';
-COMMENT ON COLUMN suppliers.accounting_account IS 'Compte SYSCOHADA classe 4 : 401000 = Fournisseurs. Personnalisable par sous-compte.';
+COMMENT ON COLUMN suppliers.accounting_account IS 'Compte OHADA classe 4 : 4011 = Fournisseurs. Personnalisable par sous-compte.';
 COMMENT ON COLUMN suppliers.internal_notes     IS 'CONFIDENTIEL : jamais affiché sur les bons de commande.';
 
 -- Rattacher le fournisseur par défaut aux produits (FK différée)
@@ -1890,7 +1890,7 @@ CREATE TABLE supplier_invoices (
     pdf_path                VARCHAR(500),
 
     -- Compte comptable fournisseur
-    accounting_account      VARCHAR(20)             DEFAULT '401000',
+    accounting_account      VARCHAR(20)             DEFAULT '4011',
 
     metadata                JSONB                   NOT NULL DEFAULT '{}',
 
@@ -2187,21 +2187,21 @@ CREATE TRIGGER tg_expense_categories_updated_at
     FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
 
 COMMENT ON TABLE expense_categories IS 'Catégories de dépenses opérationnelles hors achats fournisseurs. Liées aux comptes SYSCOHADA classe 6.';
-COMMENT ON COLUMN expense_categories.accounting_account IS 'Compte SYSCOHADA classe 6 correspondant. Ex : 621000 = Loyers, 641000 = Salaires.';
+COMMENT ON COLUMN expense_categories.accounting_account IS 'Compte OHADA classe 6 correspondant. Ex : 6222 = Locations bâtiments, 6611 = Salaires.';
 
 -- Seed : 10 catégories préconfigurées BTS
 INSERT INTO expense_categories
     (name, description, icon, color, sort_order, accounting_account, accounting_account_label) VALUES
-    ('Loyer & Charges',    'Loyer bureaux, électricité, eau, gardiennage',                      'building',        '#3B82F6',  1, '621000', 'Loyers et charges locatives'),
-    ('Personnel',          'Salaires, primes, charges sociales, CNPS',                          'users',           '#10B981',  2, '641000', 'Charges de personnel'),
-    ('Transport',          'Carburant, taxi, déplacements professionnels, frais de mission',    'car',             '#F59E0B',  3, '624000', 'Transport et déplacements'),
-    ('Télécom & Internet', 'Abonnements téléphone, internet, mobile money professionnel',       'wifi',            '#8B5CF6',  4, '626000', 'Frais de télécommunication'),
-    ('Marketing',          'Publicité, flyers, cartes de visite, réseaux sociaux, événements',  'megaphone',       '#EF4444',  5, '623000', 'Publicité et marketing'),
-    ('Maintenance',        'Entretien équipements, réparations, consommables techniques',        'wrench',          '#64748B',  6, '615000', 'Entretien et réparations'),
-    ('Fournitures',        'Papier, stylos, cartouches, fournitures bureau',                    'package',         '#6366F1',  7, '606000', 'Achats de fournitures'),
-    ('Formation',          'Cours, certifications, abonnements e-learning, conférences',         'graduation-cap',  '#0EA5E9',  8, '632000', 'Formation du personnel'),
-    ('Fiscalité & Légal',  'Impôts, taxes, honoraires notaire, frais juridiques',               'scale',           '#DC2626',  9, '635000', 'Taxes et charges fiscales'),
-    ('Divers',             'Dépenses diverses non classifiées',                                  'more-horizontal', '#94A3B8', 10, '658000', 'Charges diverses');
+    ('Loyer & Charges',    'Loyer bureaux, électricité, eau, gardiennage',                      'building',        '#3B82F6',  1, '6222',  'Locations de bâtiments'),
+    ('Personnel',          'Salaires, primes, charges sociales, CNPS',                          'users',           '#10B981',  2, '6611',  'Appointements salaires et commissions'),
+    ('Transport',          'Carburant, taxi, déplacements professionnels, frais de mission',    'car',             '#F59E0B',  3, '6181',  'Voyages et déplacements'),
+    ('Télécom & Internet', 'Abonnements téléphone, internet, mobile money professionnel',       'wifi',            '#8B5CF6',  4, '6281',  'Frais de téléphone'),
+    ('Marketing',          'Publicité, flyers, cartes de visite, réseaux sociaux, événements',  'megaphone',       '#EF4444',  5, '6271',  'Annonces, insertions'),
+    ('Maintenance',        'Entretien équipements, réparations, consommables techniques',        'wrench',          '#64748B',  6, '6242',  'Entretien et réparations des biens mobiliers'),
+    ('Fournitures',        'Papier, stylos, cartouches, fournitures bureau',                    'package',         '#6366F1',  7, '6041',  'Matières consommables'),
+    ('Formation',          'Cours, certifications, abonnements e-learning, conférences',         'graduation-cap',  '#0EA5E9',  8, '633',   'Frais de formation du personnel'),
+    ('Fiscalité & Légal',  'Impôts, taxes, honoraires notaire, frais juridiques',               'scale',           '#DC2626',  9, '6412',  'Patentes, licences et taxes annexes'),
+    ('Divers',             'Dépenses diverses non classifiées',                                  'more-horizontal', '#94A3B8', 10, '6588',  'Autres charges diverses');
 
 -- ================================================================
 -- 4.3 TABLE `expenses` — Dépenses opérationnelles
@@ -2526,8 +2526,8 @@ CREATE TABLE bank_accounts (
     color                CHAR(7),
     icon                 VARCHAR(50),
 
-    -- Compte comptable SYSCOHADA classe 5 — trésorerie
-    accounting_account   VARCHAR(20)        DEFAULT '521000',
+    -- Compte comptable OHADA classe 5 — trésorerie
+    accounting_account   VARCHAR(20)        DEFAULT '5211',
 
     -- Alertes
     low_balance_alert    NUMERIC(15,2),
@@ -2552,7 +2552,7 @@ CREATE UNIQUE INDEX uq_bank_accounts_default
 CREATE INDEX idx_ba_is_active ON bank_accounts(is_active) WHERE deleted_at IS NULL;
 
 COMMENT ON TABLE  bank_accounts                   IS 'Comptes bancaires de BTS (Afriland, SCB, UBA...). Supporte courant, épargne, petite caisse et mobile money.';
-COMMENT ON COLUMN bank_accounts.accounting_account IS 'Compte SYSCOHADA classe 5. 521000=Banques locales, 531000=Caisse, 561000=Mobile money.';
+COMMENT ON COLUMN bank_accounts.accounting_account IS 'Compte OHADA classe 5. 5211=Banques X (local), 5311=Caisse principale, 5611=Chèques postaux.';
 COMMENT ON COLUMN bank_accounts.current_balance    IS 'Solde actuel calculé automatiquement à partir des transactions enregistrées.';
 
 -- ================================================================
