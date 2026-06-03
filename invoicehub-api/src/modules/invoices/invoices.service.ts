@@ -300,10 +300,19 @@ export class InvoicesService {
       notes: input.notes,
       paymentConditions: input.paymentConditions,
       ...(input.bankAccountId !== undefined && { bankAccountId: input.bankAccountId }),
-      ...(input.escompteRate !== undefined && {
-        escompteRate:     input.escompteRate ?? null,
-        escompteDeadline: input.escompteDeadline ?? null,
-      }),
+      ...(input.escompteRate !== undefined && (() => {
+        // Recalcule escompteAmount immédiatement quand le taux change sans
+        // modification de lignes (sinon escompteAmount reste à 0 et le bandeau
+        // n'apparaît pas sur le PDF).
+        const rate = input.escompteRate ?? 0;
+        const base = Number((invoice as any).totalTtc ?? 0);
+        const amount = rate > 0 ? Number((base * rate / 100).toFixed(2)) : 0;
+        return {
+          escompteRate:     input.escompteRate ?? null,
+          escompteDeadline: input.escompteDeadline ?? null,
+          escompteAmount:   amount,
+        };
+      })()),
     };
 
     if (input.lines) {
@@ -818,9 +827,9 @@ export class InvoicesService {
       btsBankIban:    invoice.bankAccount?.iban          ?? undefined,
       btsBankSwift:   invoice.bankAccount?.swiftBic      ?? undefined,
       contactPerson:     settings?.email ?? undefined,
-      escompteRate:     (invoice as any).escompteRate     ? Number((invoice as any).escompteRate)     : undefined,
-      escompteDeadline: (invoice as any).escompteDeadline ? new Date((invoice as any).escompteDeadline).toLocaleDateString('fr-FR') : undefined,
-      escompteAmount:   (invoice as any).escompteAmount   ? Number((invoice as any).escompteAmount)   : undefined,
+      escompteRate:     (invoice as any).escompteRate     != null ? Number((invoice as any).escompteRate)     : undefined,
+      escompteDeadline: (invoice as any).escompteDeadline != null ? new Date((invoice as any).escompteDeadline).toLocaleDateString('fr-FR') : undefined,
+      escompteAmount:   (invoice as any).escompteAmount   != null ? Number((invoice as any).escompteAmount)   : undefined,
 
       subject:  invoice.subject  ?? undefined,
       currency: invoice.currency,

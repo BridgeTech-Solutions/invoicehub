@@ -19,7 +19,7 @@ import {
   ChevronDown, Plus, Tag, ShieldCheck, Sparkles, BookOpen,
   ShoppingCart, FileInput, Wallet,
   Warehouse,
-  Landmark, BookCheck, CheckSquare, Building2,
+  Landmark, BookCheck, CheckSquare, Building2, Keyboard,
 } from 'lucide-react'
 import { OverlaySubNav } from './OverlaySubNav'
 
@@ -607,6 +607,54 @@ export function Sidebar() {
             </Link>
           )
         })}
+
+        {/* Raccourcis clavier */}
+        <button
+          type="button"
+          aria-label="Raccourcis clavier"
+          title={collapsed ? 'Raccourcis clavier' : undefined}
+          onClick={() => document.dispatchEvent(new CustomEvent('shortcuts:open-help'))}
+          className={cn(
+            'relative flex items-center gap-2 rounded-lg transition-all duration-150 w-full',
+            collapsed ? 'justify-center px-0 py-1' : 'px-2.5 py-1',
+          )}
+          style={{
+            color:      'var(--sidebar-text)',
+            background: 'transparent',
+            fontFamily: 'var(--font-body)',
+            fontSize:   13,
+            fontWeight: 400,
+            border:     'none',
+            cursor:     'pointer',
+            minHeight:  36,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
+            e.currentTarget.style.color      = 'var(--sidebar-text-hover)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent'
+            e.currentTarget.style.color      = 'var(--sidebar-text)'
+          }}
+        >
+          <Keyboard size={15} strokeWidth={1.8} aria-hidden="true" style={{ flexShrink: 0 }} />
+          <span
+            className="sidebar-label flex-1 truncate text-left"
+            aria-hidden={collapsed}
+            style={{ opacity: collapsed ? 0 : 1, width: collapsed ? 0 : 'auto', overflow: 'hidden', whiteSpace: 'nowrap', transition: 'opacity 0.2s, width 0.2s' }}
+          >
+            Raccourcis
+          </span>
+          {/* Badge ? en mode expanded — rappel discret */}
+          {!collapsed && (
+            <kbd style={{
+              fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 700,
+              color: 'var(--sidebar-text)', opacity: 0.5,
+              background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
+              borderRadius: 4, padding: '1px 5px', flexShrink: 0,
+            }}>?</kbd>
+          )}
+        </button>
 
         {/* Paramètres → overlay */}
         <button

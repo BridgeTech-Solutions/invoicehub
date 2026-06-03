@@ -98,7 +98,8 @@
       "PowerShell(npx tsc --noEmit)",
       "Bash(echo \"EXIT=$?\")",
       "Read(//d/d/Bel/projets/BRIDGE/invoicehub-api/prisma/**)",
-      "Read(//d/d/Bel/projets/BRIDGE/invoicehub-api/**)"
+      "Read(//d/d/Bel/projets/BRIDGE/invoicehub-api/**)",
+      "Bash(grep -v \"//.*key\")"
     ]
   },
   "mcpServers": {

@@ -422,6 +422,12 @@ export async function onSupplierInvoiceValidated(supplierInvoiceId: string, tx: 
   {
 
     const supplierAccount = (inv.supplier as any)?.accountingAccount ?? accounts.defaultSupplierAccount;
+    if (!supplierAccount) {
+      throw new Error(
+        `Compte fournisseur introuvable pour la FF ${supplierInvoiceId} — ` +
+        `vérifiez le compte comptable du fournisseur ou configurez defaultSupplierAccount dans les paramètres.`,
+      );
+    }
     const invAccount      = (inv as any).accountingAccount;
     const purchaseAccount = invAccount && invAccount !== supplierAccount ? invAccount : accounts.defaultPurchaseAccount;
     const taxAccount      = accounts.deductibleTaxAccount;
@@ -480,6 +486,16 @@ export async function onSupplierPaymentMade(supplierPaymentId: string, tx: Tx): 
   {
 
     const supplierAccount = (payment.supplier as any)?.accountingAccount ?? accounts.defaultSupplierAccount;
+    if (!supplierAccount) {
+      // Fournisseur supprimé ou company_settings.defaultSupplierAccount absent :
+      // on ne peut pas créer une écriture avec un compte null. On lève une erreur
+      // explicite pour que le paiement soit refusé proprement plutôt que de
+      // créer une écriture corrompue silencieusement.
+      throw new Error(
+        `Compte fournisseur introuvable pour le paiement ${payment.id} — ` +
+        `vérifiez le compte comptable du fournisseur ou configurez defaultSupplierAccount dans les paramètres.`,
+      );
+    }
     const bankAccountNum  = (payment.bankAccount as any)?.accountingAccount ?? accounts.defaultBankAccount;
     const bankLabel       = (payment.bankAccount as any)?.name ?? 'Banque';
 

@@ -618,9 +618,27 @@ export class ApprovalsService {
       (r): r is AutoExecResult => !!r && typeof r === 'object' && 'ok' in (r as object),
     )
 
+    if (!outcome) {
+      // Aucun listener n'a pris en charge ce documentType — cas non prévu ou
+      // futur type non encore branché. On avertit le demandeur ET on log pour
+      // que l'équipe détecte le manque de listener sans fouiller les crashs.
+      console.warn(
+        `[approvals] _onApprovalCompleted: aucun listener pour documentType="${request.documentType}" (requestId=${request.id}). Le document reste inchangé.`,
+      )
+      await this._notifyUser(
+        request.requestedById,
+        'system',
+        'Approbation accordée — action manuelle requise',
+        `« ${request.documentNumber ?? ''} » a été approuvée. Aucune action automatique n'est configurée pour ce type de document — veuillez le finaliser manuellement.`,
+        request.id,
+        this._docNotifData(request),
+      )
+      return
+    }
+
     // Échec d'auto-exécution : on prévient le demandeur (le doc reste en brouillon,
     // l'approbation existe → il pourra relancer manuellement après correction).
-    if (outcome && !outcome.ok) {
+    if (!outcome.ok) {
       await this._notifyUser(
         request.requestedById,
         'system',

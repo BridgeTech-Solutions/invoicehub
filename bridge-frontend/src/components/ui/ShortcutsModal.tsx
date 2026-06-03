@@ -1,15 +1,8 @@
 'use client'
 
-/**
- * ShortcutsModal — modale d'aide aux raccourcis clavier.
- * Ouverte via la touche ? ou un bouton dans l'UI.
- * Fermée via Escape, clic sur l'overlay, ou le bouton ✕.
- */
-
 import { useEffect } from 'react'
 import { X, Keyboard } from 'lucide-react'
 
-// ─── Style partagé pour les badges kbd ───────────────────────
 const kbdStyle: React.CSSProperties = {
   display:        'inline-flex',
   alignItems:     'center',
@@ -42,7 +35,6 @@ function ChordKbd({ first, second }: { first: string; second: string }) {
   )
 }
 
-// ─── Ligne de raccourci ───────────────────────────────────────
 function ShortcutRow({ keys, label }: { keys: React.ReactNode; label: string }) {
   return (
     <div style={{
@@ -63,7 +55,6 @@ function ShortcutRow({ keys, label }: { keys: React.ReactNode; label: string }) 
   )
 }
 
-// ─── Section groupe ───────────────────────────────────────────
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
@@ -85,14 +76,12 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
   )
 }
 
-// ─── Modale principale ────────────────────────────────────────
 interface ShortcutsModalProps {
   open:    boolean
   onClose: () => void
 }
 
 export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {
-  // Fermeture via Escape
   useEffect(() => {
     if (!open) return
     function handle(e: KeyboardEvent) {
@@ -110,15 +99,15 @@ export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {
       aria-modal="true"
       aria-label="Raccourcis clavier"
       style={{
-        position:        'fixed',
-        inset:            0,
-        zIndex:           200,
-        display:         'flex',
-        alignItems:      'center',
-        justifyContent:  'center',
-        background:      'rgba(0,0,0,0.45)',
-        backdropFilter:  'blur(4px)',
-        padding:          16,
+        position:       'fixed',
+        inset:           0,
+        zIndex:          200,
+        display:        'flex',
+        alignItems:     'center',
+        justifyContent: 'center',
+        background:     'rgba(0,0,0,0.45)',
+        backdropFilter: 'blur(4px)',
+        padding:         16,
       }}
       onClick={onClose}
     >
@@ -128,8 +117,8 @@ export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {
           border:        '1px solid var(--border)',
           borderRadius:  'var(--radius-lg)',
           width:          '100%',
-          maxWidth:       540,
-          maxHeight:     'min(90vh, 680px)',
+          maxWidth:       680,
+          maxHeight:     'min(90vh, 740px)',
           display:       'flex',
           flexDirection: 'column',
           boxShadow:     '0 20px 60px rgba(0,0,0,0.2)',
@@ -147,14 +136,14 @@ export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {
           flexShrink:    0,
         }}>
           <div style={{
-            width:           32,
-            height:          32,
-            borderRadius:    8,
-            background:      'var(--primary-light)',
-            display:         'flex',
-            alignItems:      'center',
-            justifyContent:  'center',
-            flexShrink:       0,
+            width:          32,
+            height:         32,
+            borderRadius:   8,
+            background:     'var(--primary-light)',
+            display:        'flex',
+            alignItems:     'center',
+            justifyContent: 'center',
+            flexShrink:      0,
           }}>
             <Keyboard size={15} style={{ color: 'var(--primary)' }} aria-hidden />
           </div>
@@ -171,16 +160,16 @@ export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {
             onClick={onClose}
             aria-label="Fermer"
             style={{
-              background:    'none',
-              border:        'none',
-              cursor:        'pointer',
-              color:         'var(--text-3)',
-              padding:        4,
-              borderRadius:   6,
-              display:       'flex',
-              alignItems:    'center',
-              justifyContent:'center',
-              transition:    'color 0.15s, background 0.15s',
+              background:     'none',
+              border:         'none',
+              cursor:         'pointer',
+              color:          'var(--text-3)',
+              padding:         4,
+              borderRadius:    6,
+              display:        'flex',
+              alignItems:     'center',
+              justifyContent: 'center',
+              transition:     'color 0.15s, background 0.15s',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.color      = 'var(--text-1)'
@@ -197,35 +186,51 @@ export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {
 
         {/* Body — deux colonnes */}
         <div style={{
-          overflowY:   'auto',
-          padding:     '16px 20px',
-          display:     'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap:          20,
+          overflowY:           'auto',
+          padding:             '16px 20px',
+          display:             'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+          gap:                  20,
+          alignItems:          'start',
         }}>
           {/* Colonne gauche */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <Group title="Créer">
-              <ShortcutRow keys={<Kbd>N</Kbd>}         label="Nouvelle facture" />
-              <ShortcutRow keys={<Kbd>P</Kbd>}         label="Nouvelle proforma" />
-              <ShortcutRow keys={<Kbd>C</Kbd>}         label="Nouveau client" />
+              <ShortcutRow keys={<Kbd>N</Kbd>} label="Nouvelle facture" />
+              <ShortcutRow keys={<Kbd>P</Kbd>} label="Nouvelle proforma" />
+              <ShortcutRow keys={<Kbd>C</Kbd>} label="Nouveau client" />
             </Group>
 
             <Group title="Interface">
-              <ShortcutRow keys={<Kbd>/</Kbd>}         label="Ouvrir la recherche" />
-              <ShortcutRow keys={<Kbd>?</Kbd>}         label="Afficher cette aide" />
-              <ShortcutRow keys={<Kbd>Esc</Kbd>}       label="Fermer / Annuler" />
+              <ShortcutRow keys={<Kbd>/</Kbd>}   label="Ouvrir la recherche" />
+              <ShortcutRow keys={<Kbd>?</Kbd>}   label="Afficher cette aide" />
+              <ShortcutRow keys={<Kbd>Esc</Kbd>} label="Fermer / Annuler" />
             </Group>
-          </div>
 
-          {/* Colonne droite */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <Group title="Navigation (G puis…)">
+            <Group title="Navigation — Ventes (G puis…)">
               <ShortcutRow keys={<ChordKbd first="G" second="D" />} label="Tableau de bord" />
               <ShortcutRow keys={<ChordKbd first="G" second="F" />} label="Factures" />
               <ShortcutRow keys={<ChordKbd first="G" second="P" />} label="Proformas" />
               <ShortcutRow keys={<ChordKbd first="G" second="C" />} label="Clients" />
               <ShortcutRow keys={<ChordKbd first="G" second="R" />} label="Rapports" />
+            </Group>
+          </div>
+
+          {/* Colonne droite */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <Group title="Navigation — Achats (G puis…)">
+              <ShortcutRow keys={<ChordKbd first="G" second="B" />} label="Bons de commande" />
+              <ShortcutRow keys={<ChordKbd first="G" second="I" />} label="Factures fournisseurs" />
+              <ShortcutRow keys={<ChordKbd first="G" second="E" />} label="Dépenses" />
+              <ShortcutRow keys={<ChordKbd first="G" second="K" />} label="Stock" />
+            </Group>
+
+            <Group title="Navigation — Finances (G puis…)">
+              <ShortcutRow keys={<ChordKbd first="G" second="A" />} label="Banque" />
+              <ShortcutRow keys={<ChordKbd first="G" second="M" />} label="Comptabilité" />
+            </Group>
+
+            <Group title="Navigation — Admin (G puis…)">
               <ShortcutRow keys={<ChordKbd first="G" second="N" />} label="Notifications" />
               <ShortcutRow keys={<ChordKbd first="G" second="U" />} label="Utilisateurs" />
               <ShortcutRow keys={<ChordKbd first="G" second="S" />} label="Paramètres" />
@@ -235,14 +240,14 @@ export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {
 
         {/* Footer */}
         <div style={{
-          padding:      '10px 20px',
-          borderTop:    '1px solid var(--border)',
-          flexShrink:    0,
-          background:   'var(--surface)',
+          padding:    '10px 20px',
+          borderTop:  '1px solid var(--border)',
+          flexShrink:  0,
+          background: 'var(--surface)',
         }}>
           <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: 0, fontFamily: 'var(--font-body)' }}>
-            Les raccourcis sont désactivés quand le curseur est dans un champ de saisie.
-            La fenêtre de chord <Kbd>G</Kbd> est de 1,5 secondes.
+            Raccourcis désactivés dans les champs de saisie.
+            Fenêtre chord <Kbd>G</Kbd> : 1,5 s.
           </p>
         </div>
       </div>

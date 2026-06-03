@@ -23,6 +23,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useInactivityLogout()
   useKeyboardShortcuts(openHelp)
 
+  // Écoute l'événement DOM dispatché par la Sidebar (même pattern que shortcuts:open-search)
+  useEffect(() => {
+    const handler = () => openHelp()
+    document.addEventListener('shortcuts:open-help', handler)
+    return () => document.removeEventListener('shortcuts:open-help', handler)
+  }, [openHelp])
+
   useEffect(() => {
     if (!accessToken || !user) {
       router.replace('/login')

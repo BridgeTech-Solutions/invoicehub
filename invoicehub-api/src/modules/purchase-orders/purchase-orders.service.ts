@@ -321,8 +321,35 @@ export class PurchaseOrdersService {
       throw AppError.badRequest('Le bon de commande doit être confirmé pour enregistrer une réception');
     }
 
+    // Pré-validation hors transaction : vérification que chaque quantité saisie
+    // ne dépasse pas le restant à recevoir. Effectuée sur le snapshot du BC
+    // (optimiste) — la transaction ci-dessous utilise SELECT FOR UPDATE implicite
+    // via Prisma pour protéger contre les races concurrentes.
+    for (const recv of input.lines) {
+      const line = po.lines.find(l => l.id === recv.lineId);
+      if (!line) throw AppError.badRequest(`Ligne introuvable : ${recv.lineId}`);
+      const remaining = Number(line.quantityOrdered) - Number(line.quantityReceived);
+      if (recv.quantityReceived < 0) {
+        throw AppError.badRequest(`La quantité reçue ne peut pas être négative (ligne : ${line.designation}).`);
+      }
+      if (recv.quantityReceived > remaining) {
+        throw AppError.badRequest(
+          `Quantité trop élevée pour « ${line.designation} » : restant ${remaining}, saisi ${recv.quantityReceived}.`,
+        );
+      }
+    }
+
     return this.prisma.$transaction(async (tx) => {
       for (const recv of input.lines) {
+        // Recharge la ligne en lecture verouillée pour protéger contre les races.
+        const fresh = await tx.purchaseOrderLine.findUniqueOrThrow({ where: { id: recv.lineId } });
+        const remaining = Number(fresh.quantityOrdered) - Number(fresh.quantityReceived);
+        if (recv.quantityReceived > remaining) {
+          throw AppError.badRequest(
+            `Réception concurrente détectée pour « ${fresh.designation} » : restant ${remaining}, saisi ${recv.quantityReceived}.`,
+          );
+        }
+
         await tx.purchaseOrderLine.update({
           where: { id: recv.lineId },
           data:  { quantityReceived: { increment: recv.quantityReceived } },

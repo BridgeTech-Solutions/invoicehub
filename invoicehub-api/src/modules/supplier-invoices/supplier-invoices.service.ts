@@ -376,6 +376,34 @@ export class SupplierInvoicesService {
   @OnEvent(APPROVAL_COMPLETED)
   async onApprovalCompleted(payload: ApprovalCompletedEvent): Promise<AutoExecResult | void> {
     if (payload.documentType !== 'supplier_invoice') return;
+
+    // Pré-check des champs obligatoires AVANT d'appeler validate(). Si la FF a
+    // été créée automatiquement depuis un BC (supplierInvoiceNumber vide, pas de
+    // pièce jointe), validate() échouerait immédiatement — on renvoie plutôt un
+    // résultat guidé sans passer par la mécanique d'échec générique.
+    const inv = await this.prisma.supplierInvoice.findFirst({
+      where:  { id: payload.documentId, deletedAt: null },
+      select: { supplierInvoiceNumber: true, attachmentPath: true, number: true },
+    });
+    if (!inv) return { ok: false, message: 'Facture fournisseur introuvable.' };
+
+    const missing: string[] = [];
+    if (!inv.supplierInvoiceNumber || inv.supplierInvoiceNumber.trim() === '') {
+      missing.push('le numéro de facture du fournisseur');
+    }
+    if (!inv.attachmentPath) {
+      missing.push('le document original (PDF/image)');
+    }
+    if (missing.length > 0) {
+      // On ne lève pas une erreur d'échec : l'approbation est valide, c'est le
+      // document qui est incomplet. On signale au demandeur ce qu'il doit
+      // compléter, avec un lien direct vers la FF pour qu'il puisse agir.
+      return {
+        ok:      false,
+        message: `FF ${inv.number} approuvée — veuillez compléter ${missing.join(' et ')} pour finaliser la validation.`,
+      };
+    }
+
     try {
       await this.validate(payload.documentId, payload.requestedById);
       return { ok: true };

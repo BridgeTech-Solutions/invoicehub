@@ -21,6 +21,12 @@
  *  g f → /invoices
  *  g p → /proformas
  *  g c → /clients
+ *  g b → /purchase-orders   (Bons de commande)
+ *  g i → /supplier-invoices (factures fournIsseurs)
+ *  g e → /Expenses (dépenses)
+ *  g k → /stock
+ *  g a → /bank              (Accounts bancaires)
+ *  g m → /accounting        (coMptabilité)
  *  g r → /reports
  *  g n → /notifications
  *  g u → /users
@@ -65,14 +71,20 @@ export function useKeyboardShortcuts(onOpenHelp: () => void): void {
       if (chordRef.current === 'g') {
         clearChord()
         switch (e.key) {
-          case 'd': router.push('/dashboard');     e.preventDefault(); return
-          case 'f': router.push('/invoices');      e.preventDefault(); return
-          case 'p': router.push('/proformas');     e.preventDefault(); return
-          case 'c': router.push('/clients');       e.preventDefault(); return
-          case 'r': router.push('/reports');       e.preventDefault(); return
-          case 'n': router.push('/notifications'); e.preventDefault(); return
-          case 'u': router.push('/users');         e.preventDefault(); return
-          case 's': router.push('/settings');      e.preventDefault(); return
+          case 'd': router.push('/dashboard');          e.preventDefault(); return
+          case 'f': router.push('/invoices');           e.preventDefault(); return
+          case 'p': router.push('/proformas');          e.preventDefault(); return
+          case 'c': router.push('/clients');            e.preventDefault(); return
+          case 'b': router.push('/purchase-orders');    e.preventDefault(); return
+          case 'i': router.push('/supplier-invoices');  e.preventDefault(); return
+          case 'e': router.push('/expenses');           e.preventDefault(); return
+          case 'k': router.push('/stock');              e.preventDefault(); return
+          case 'a': router.push('/bank');               e.preventDefault(); return
+          case 'm': router.push('/accounting');         e.preventDefault(); return
+          case 'r': router.push('/reports');            e.preventDefault(); return
+          case 'n': router.push('/notifications');      e.preventDefault(); return
+          case 'u': router.push('/users');              e.preventDefault(); return
+          case 's': router.push('/settings');           e.preventDefault(); return
         }
         // Touche inconnue après g → chord annulé silencieusement
         return
