@@ -1,9 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import * as path from 'path';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AppError } from '../../common/errors/app-error';
 import type { UpdateSettingsInput } from './settings.schema';
 
 const ASSET_PATH_FIELDS = ['logoPath', 'stampPath', 'signaturePath', 'headerImagePath', 'footerImagePath'] as const;
+
+// Tous les champs de la config qui contiennent un numéro de compte comptable.
+// À la sauvegarde, on valide qu'ils existent dans le plan comptable (chart_of_accounts)
+// pour empêcher qu'une faute de frappe casse les écritures automatiques (violation FK).
+const ACCOUNT_FIELDS = [
+  'initialStockAccount', 'escompteAccountingAccount', 'collectedTaxAccount', 'deductibleTaxAccount',
+  'stockAccount', 'stockVariationAccount', 'stockLossAccount',
+  'defaultClientAccount', 'defaultSupplierAccount', 'defaultBankAccount',
+  'defaultSalesGoodsAccount', 'defaultSalesServiceAccount', 'defaultPurchaseAccount', 'defaultExpenseAccount',
+] as const;
 
 function toRelativePath(absPath: string | null): string | null {
   if (!absPath) return null;
@@ -31,7 +42,39 @@ export class SettingsService {
     return settings ? formatSettings(settings as unknown as Record<string, unknown>) : null;
   }
 
+  /**
+   * Vérifie que chaque compte fourni existe dans le plan comptable et est un
+   * compte de détail actif (les écritures ne peuvent pas pointer un compte racine).
+   */
+  private async validateAccounts(input: UpdateSettingsInput) {
+    const provided = ACCOUNT_FIELDS
+      .map((f) => (input as Record<string, unknown>)[f])
+      .filter((v): v is string => typeof v === 'string' && v.trim() !== '');
+    if (provided.length === 0) return;
+
+    const unique = [...new Set(provided)];
+    const rows = await this.prisma.chartOfAccount.findMany({
+      where:  { accountNumber: { in: unique } },
+      select: { accountNumber: true, isDetailAccount: true, isActive: true },
+    });
+    const byNumber = new Map(rows.map((r) => [r.accountNumber, r]));
+
+    const missing  = unique.filter((a) => !byNumber.has(a));
+    if (missing.length > 0) {
+      throw AppError.badRequest(
+        `Compte(s) inexistant(s) dans le plan comptable : ${missing.join(', ')}. Vérifiez le numéro dans Comptabilité → Plan comptable.`,
+      );
+    }
+    const notDetail = unique.filter((a) => byNumber.get(a)?.isDetailAccount === false);
+    if (notDetail.length > 0) {
+      throw AppError.badRequest(
+        `Compte(s) racine non imputables : ${notDetail.join(', ')}. Utilisez un sous-compte de détail (ex : 3111 plutôt que 311).`,
+      );
+    }
+  }
+
   async update(input: UpdateSettingsInput) {
+    await this.validateAccounts(input);
     const existing = await this.prisma.companySettings.findFirst();
 
     if (existing) {
@@ -58,8 +101,22 @@ export class SettingsService {
           ...(input.require2FA                 !== undefined && { require2FA:                 input.require2FA }),
           ...(input.companyCode                !== undefined && { companyCode:                input.companyCode }),
           ...(input.autoReminderDays           !== undefined && { autoReminderDays:           input.autoReminderDays }),
-          ...(input.footerSafeZonePx           !== undefined && { footerSafeZonePx:           input.footerSafeZonePx }),
-          ...(input.reminderEscalation         !== undefined && { reminderEscalation:         input.reminderEscalation }),
+          ...(input.footerSafeZonePx             !== undefined && { footerSafeZonePx:             input.footerSafeZonePx }),
+          ...(input.reminderEscalation           !== undefined && { reminderEscalation:           input.reminderEscalation }),
+          ...(input.initialStockAccount          !== undefined && { initialStockAccount:          input.initialStockAccount }),
+          ...(input.escompteAccountingAccount    !== undefined && { escompteAccountingAccount:    input.escompteAccountingAccount }),
+          ...(input.collectedTaxAccount          !== undefined && { collectedTaxAccount:          input.collectedTaxAccount }),
+          ...(input.deductibleTaxAccount         !== undefined && { deductibleTaxAccount:         input.deductibleTaxAccount }),
+          ...(input.stockAccount                 !== undefined && { stockAccount:                 input.stockAccount }),
+          ...(input.stockVariationAccount        !== undefined && { stockVariationAccount:        input.stockVariationAccount }),
+          ...(input.stockLossAccount             !== undefined && { stockLossAccount:             input.stockLossAccount }),
+          ...(input.defaultClientAccount         !== undefined && { defaultClientAccount:         input.defaultClientAccount }),
+          ...(input.defaultSupplierAccount       !== undefined && { defaultSupplierAccount:       input.defaultSupplierAccount }),
+          ...(input.defaultBankAccount           !== undefined && { defaultBankAccount:           input.defaultBankAccount }),
+          ...(input.defaultSalesGoodsAccount     !== undefined && { defaultSalesGoodsAccount:     input.defaultSalesGoodsAccount }),
+          ...(input.defaultSalesServiceAccount   !== undefined && { defaultSalesServiceAccount:   input.defaultSalesServiceAccount }),
+          ...(input.defaultPurchaseAccount       !== undefined && { defaultPurchaseAccount:       input.defaultPurchaseAccount }),
+          ...(input.defaultExpenseAccount        !== undefined && { defaultExpenseAccount:        input.defaultExpenseAccount }),
         },
       });
       return formatSettings(updated as unknown as Record<string, unknown>);

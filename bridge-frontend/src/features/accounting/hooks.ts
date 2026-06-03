@@ -184,6 +184,18 @@ export function useCancelEntry() {
   })
 }
 
+export function useReverseEntry() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => accountingApi.reverseEntry(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['accounting-entries'] })
+      qc.invalidateQueries({ queryKey: ['accounting-balance'] })
+      qc.invalidateQueries({ queryKey: ['accounting-stats'] })
+    },
+  })
+}
+
 // ─── Balance & Grand livre ────────────────────────────────────
 
 export function useBalance(params: { periodId?: string; class?: AccountClass; includeEmpty?: boolean } = {}) {

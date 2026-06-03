@@ -25,6 +25,7 @@
 
 import { PrismaClient, NotificationStatus } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { BANK_PROFILES } from '../src/modules/bank/bank.profiles';
 
 const prisma = new PrismaClient();
 
@@ -751,8 +752,7 @@ const EMAIL_TEMPLATES: {
     name:     'Facture émise [interne BTS]',
     subject:  '[{{companyName}}] Facture émise — {{invoiceNumber}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">📄</div>
+  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Facture émise : {{invoiceNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -782,7 +782,7 @@ const EMAIL_TEMPLATES: {
       </a>
     </div>
     <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">
-      📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
+      Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
     </p>
   </div>
 </div>`,
@@ -793,8 +793,7 @@ const EMAIL_TEMPLATES: {
     name:     'Facture en retard [interne BTS]',
     subject:  '[{{companyName}}] ALERTE — Facture {{invoiceNumber}} en retard ({{daysOverdue}} j)',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#dc2626;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">⚠</div>
+  <div style="background:#dc2626;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Facture en retard : {{invoiceNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -824,7 +823,7 @@ const EMAIL_TEMPLATES: {
       </a>
     </div>
     <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">
-      📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
+      Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
     </p>
   </div>
 </div>`,
@@ -835,8 +834,7 @@ const EMAIL_TEMPLATES: {
     name:     'Paiement enregistré [interne BTS]',
     subject:  '[{{companyName}}] Paiement reçu — {{invoiceNumber}} — {{amountPaid}} XAF',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#16a34a;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">✓</div>
+  <div style="background:#16a34a;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Paiement enregistré : {{invoiceNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -870,7 +868,7 @@ const EMAIL_TEMPLATES: {
       </a>
     </div>
     <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">
-      📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
+      Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
     </p>
   </div>
 </div>`,
@@ -881,8 +879,7 @@ const EMAIL_TEMPLATES: {
     name:     'Proforma envoyée [interne BTS]',
     subject:  '[{{companyName}}] Proforma envoyée — {{proformaNumber}} — {{clientName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">📋</div>
+  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Proforma envoyée : {{proformaNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -912,7 +909,7 @@ const EMAIL_TEMPLATES: {
       </a>
     </div>
     <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">
-      📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
+      Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
     </p>
   </div>
 </div>`,
@@ -923,8 +920,7 @@ const EMAIL_TEMPLATES: {
     name:     'Réinitialisation de mot de passe',
     subject:  '[{{companyName}}] Réinitialisation de votre mot de passe',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">🔐</div>
+  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Réinitialisation du mot de passe</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -936,10 +932,10 @@ const EMAIL_TEMPLATES: {
       </a>
     </div>
     <p style="margin:0 0 20px;padding:14px 16px;background:#f0f7ff;border-left:3px solid #2D7DD2;border-radius:4px;font-size:13px;color:#1e40af;">
-      ⏱ Ce lien est valable <strong>1 heure</strong>. Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.
+      Ce lien est valable <strong>1 heure</strong>. Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.
     </p>
     <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">
-      📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
+      Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
     </p>
   </div>
 </div>`,
@@ -950,8 +946,7 @@ const EMAIL_TEMPLATES: {
     name:     'Bienvenue (nouvel utilisateur)',
     subject:  '[{{companyName}}] Bienvenue {{firstName}} — Votre accès InvoiceHub',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">👋</div>
+  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Bienvenue sur InvoiceHub !</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -973,7 +968,7 @@ const EMAIL_TEMPLATES: {
       </a>
     </div>
     <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">
-      📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
+      Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
     </p>
   </div>
 </div>`,
@@ -984,8 +979,7 @@ const EMAIL_TEMPLATES: {
     name:     'Relance interne [interne BTS]',
     subject:  '[{{companyName}}] Relance niveau {{reminderLevel}} — {{invoiceNumber}} — {{clientName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#d97706;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">🔔</div>
+  <div style="background:#d97706;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Relance niveau {{reminderLevel}} — {{invoiceNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1019,7 +1013,7 @@ const EMAIL_TEMPLATES: {
       </a>
     </div>
     <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">
-      📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement. Aucun email n'a été envoyé directement au client.
+      Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement. Aucun email n'a été envoyé directement au client.
     </p>
   </div>
 </div>`,
@@ -1030,8 +1024,7 @@ const EMAIL_TEMPLATES: {
     name:     'Facture soldée [interne BTS]',
     subject:  '[{{companyName}}] Facture {{invoiceNumber}} intégralement soldée — {{clientName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#16a34a;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">✅</div>
+  <div style="background:#16a34a;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Facture soldée : {{invoiceNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1061,7 +1054,7 @@ const EMAIL_TEMPLATES: {
       </a>
     </div>
     <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">
-      📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
+      Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
     </p>
   </div>
 </div>`,
@@ -1072,8 +1065,7 @@ const EMAIL_TEMPLATES: {
     name:     'Paiement partiel reçu [interne BTS]',
     subject:  '[{{companyName}}] Paiement partiel — {{invoiceNumber}} — Solde restant {{balanceDue}} XAF',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">💳</div>
+  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Paiement partiel : {{invoiceNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1107,7 +1099,7 @@ const EMAIL_TEMPLATES: {
       </a>
     </div>
     <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">
-      📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
+      Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
     </p>
   </div>
 </div>`,
@@ -1118,8 +1110,7 @@ const EMAIL_TEMPLATES: {
     name:     'Proforma acceptée [interne BTS]',
     subject:  '[{{companyName}}] Proforma {{proformaNumber}} acceptée par {{clientName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#16a34a;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">✅</div>
+  <div style="background:#16a34a;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Proforma acceptée : {{proformaNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1145,7 +1136,7 @@ const EMAIL_TEMPLATES: {
       </a>
     </div>
     <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">
-      📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
+      Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
     </p>
   </div>
 </div>`,
@@ -1156,8 +1147,7 @@ const EMAIL_TEMPLATES: {
     name:     'Proforma rejetée [interne BTS]',
     subject:  '[{{companyName}}] Proforma {{proformaNumber}} refusée — {{clientName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#dc2626;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">✗</div>
+  <div style="background:#dc2626;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Proforma refusée : {{proformaNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1187,7 +1177,7 @@ const EMAIL_TEMPLATES: {
       </a>
     </div>
     <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">
-      📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
+      Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
     </p>
   </div>
 </div>`,
@@ -1198,8 +1188,7 @@ const EMAIL_TEMPLATES: {
     name:     'Proforma expirée [interne BTS]',
     subject:  '[{{companyName}}] Proforma {{proformaNumber}} expirée — {{clientName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#d97706;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">⌛</div>
+  <div style="background:#d97706;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Proforma expirée : {{proformaNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1229,7 +1218,7 @@ const EMAIL_TEMPLATES: {
       </a>
     </div>
     <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">
-      📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
+      Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
     </p>
   </div>
 </div>`,
@@ -1240,8 +1229,7 @@ const EMAIL_TEMPLATES: {
     name:     "Demande d'approbation [interne BTS]",
     subject:  '[{{companyName}}] ACTION REQUISE — Approbation demandée : {{documentType}} {{documentNumber}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#7c3aed;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">✋</div>
+  <div style="background:#7c3aed;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Approbation requise : {{documentType}} {{documentNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1271,7 +1259,7 @@ const EMAIL_TEMPLATES: {
       </a>
     </div>
     <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">
-      📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
+      Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
     </p>
   </div>
 </div>`,
@@ -1282,8 +1270,7 @@ const EMAIL_TEMPLATES: {
     name:     'Approbation validée [interne BTS]',
     subject:  '[{{companyName}}] Étape approuvée ({{currentStep}}/{{totalSteps}}) — {{documentType}} {{documentNumber}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#16a34a;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">✅</div>
+  <div style="background:#16a34a;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Étape approuvée : {{documentType}} {{documentNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1313,7 +1300,7 @@ const EMAIL_TEMPLATES: {
       </a>
     </div>
     <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">
-      📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
+      Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
     </p>
   </div>
 </div>`,
@@ -1324,8 +1311,7 @@ const EMAIL_TEMPLATES: {
     name:     'Approbation rejetée [interne BTS]',
     subject:  '[{{companyName}}] Demande rejetée — {{documentType}} {{documentNumber}} par {{deciderName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#dc2626;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">✗</div>
+  <div style="background:#dc2626;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Demande rejetée : {{documentType}} {{documentNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1351,7 +1337,7 @@ const EMAIL_TEMPLATES: {
       </a>
     </div>
     <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">
-      📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
+      Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
     </p>
   </div>
 </div>`,
@@ -1362,8 +1348,7 @@ const EMAIL_TEMPLATES: {
     name:     "Demande d'approbation expirée [interne BTS]",
     subject:  '[{{companyName}}] Demande expirée — {{documentType}} {{documentNumber}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#7c3aed;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">⌛</div>
+  <div style="background:#7c3aed;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Demande expirée : {{documentType}} {{documentNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1385,7 +1370,7 @@ const EMAIL_TEMPLATES: {
       </a>
     </div>
     <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">
-      📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
+      Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
     </p>
   </div>
 </div>`,
@@ -1396,8 +1381,7 @@ const EMAIL_TEMPLATES: {
     name:     'Approbation déléguée [interne BTS]',
     subject:  '[{{companyName}}] Délégation — {{documentType}} {{documentNumber}} transmis à {{delegateName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#7c3aed;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">↗</div>
+  <div style="background:#7c3aed;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Demande déléguée : {{documentType}} {{documentNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1427,7 +1411,7 @@ const EMAIL_TEMPLATES: {
       </a>
     </div>
     <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">
-      📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
+      Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.
     </p>
   </div>
 </div>`,
@@ -1488,6 +1472,50 @@ async function seedEmailTemplates() {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
+// ─── 12. Profils d'import bancaire ───────────────────────────────────────────
+
+async function seedBankImportProfiles(adminId: string) {
+  let created = 0;
+  let skipped = 0;
+
+  for (const p of BANK_PROFILES) {
+    const existing = await prisma.bankImportProfile.findFirst({
+      where: { name: p.name, deletedAt: null },
+    });
+
+    if (existing) {
+      skipped++;
+      continue;
+    }
+
+    await prisma.bankImportProfile.create({
+      data: {
+        name:               p.name,
+        bankName:           p.name,
+        country:            p.country ?? 'CM',
+        source:             p.source,
+        fileFormat:         p.fileFormat,
+        encoding:           p.encoding,
+        delimiter:          p.delimiter,
+        dateFormat:         p.dateFormat,
+        numberFormat:       p.numberFormat,
+        columnMapping:      p.columns,
+        directionValues:    p.directionValues ?? undefined,
+        amountSign:         p.amountSign      ?? undefined,
+        skipRowsContaining: p.skipRowsContaining ?? undefined,
+        skipFirstRows:      p.skipFirstRows   ?? 0,
+        isPublic:           true,
+        notes:              p.verificationNote ?? null,
+        createdById:        adminId,
+      },
+    });
+    created++;
+    console.log(`  ✓ profil bancaire : ${p.name}`);
+  }
+
+  if (skipped > 0) console.log(`  ↩  ${skipped} profil(s) déjà présent(s) — ignoré(s)`);
+}
+
 async function main() {
   console.log('\n🌱 Démarrage du seed InvoiceHub v3.0 — BTS\n');
 
@@ -1518,15 +1546,19 @@ async function main() {
   console.log('⑧  Comptes bancaires…');
   await seedBankAccounts();
 
-  console.log('⑨  Catégories de dépenses…');
+  console.log('⑨  Profils d\'import bancaire…');
+  const adminUser = await prisma.user.findFirst({ where: { email: 'admin@bts.cm' } });
+  if (adminUser) await seedBankImportProfiles(adminUser.id);
+
+  console.log('⑩  Catégories de dépenses…');
   await seedExpenseCategories();
 
   // NB : chart_of_accounts et accounting_journals sont insérés par invoicehub_schema_v3.sql
 
-  console.log('⑩  Périodes fiscales…');
+  console.log('⑪  Périodes fiscales…');
   await seedFiscalPeriods();
 
-  console.log('⑪  Email templates…');
+  console.log('⑫  Email templates…');
   await seedEmailTemplates();
 
   // Vérification plan comptable

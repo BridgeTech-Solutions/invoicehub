@@ -52,6 +52,12 @@ export class PurchaseOrdersController {
     return this.svc.create(body, user.sub);
   }
 
+  @Get('stats')
+  @Permission('purchase-orders:read')
+  async getStats() {
+    return this.svc.stats();
+  }
+
   @Get(':id/pdf')
   @Permission('purchase-orders:read')
   @SkipResponseWrapper()
@@ -62,6 +68,21 @@ export class PurchaseOrdersController {
       'Content-Disposition': `attachment; filename="${filename}"`,
     });
     return new StreamableFile(buffer);
+  }
+
+  @Post(':id/create-supplier-invoice')
+  @Permission('purchase-orders:write')
+  async createSupplierInvoice(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.svc.createSupplierInvoice(id, user.sub);
+  }
+
+  @Get(':id/supplier-invoices')
+  @Permission('purchase-orders:read')
+  async getSupplierInvoices(@Param('id') id: string) {
+    return this.svc.getLinkedSupplierInvoices(id);
   }
 
   @Get(':id')
@@ -103,6 +124,15 @@ export class PurchaseOrdersController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.svc.confirm(id, user.sub);
+  }
+
+  @Post(':id/close')
+  @Permission('purchase-orders:write')
+  async close(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.svc.close(id, user.sub);
   }
 
   @Post(':id/cancel')

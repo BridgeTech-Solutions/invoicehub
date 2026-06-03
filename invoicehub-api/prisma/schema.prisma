@@ -59,6 +59,10 @@ enum ProductUnit {
 enum DocumentType {
   proforma
   invoice
+  purchase_order
+  supplier_invoice
+  expense
+  delivery_note
 
   @@map("document_type")
 }
@@ -232,6 +236,7 @@ enum PurchaseOrderStatus {
   confirmed
   partially_received
   received
+  invoiced
   cancelled
   closed
 
@@ -536,6 +541,16 @@ model CompanySettings {
   escompteAccountingAccount    String   @default("673") @map("escompte_accounting_account") @db.VarChar(20)
   collectedTaxAccount          String   @default("4431") @map("collected_tax_account") @db.VarChar(20)
   deductibleTaxAccount         String   @default("4452") @map("deductible_tax_account") @db.VarChar(20)
+  stockAccount                 String   @default("3111") @map("stock_account") @db.VarChar(20)
+  stockVariationAccount        String   @default("6031") @map("stock_variation_account") @db.VarChar(20)
+  stockLossAccount             String   @default("6032") @map("stock_loss_account") @db.VarChar(20)
+  defaultClientAccount         String   @default("4111") @map("default_client_account") @db.VarChar(20)
+  defaultSupplierAccount       String   @default("4011") @map("default_supplier_account") @db.VarChar(20)
+  defaultBankAccount           String   @default("5211") @map("default_bank_account") @db.VarChar(20)
+  defaultSalesGoodsAccount     String   @default("7011") @map("default_sales_goods_account") @db.VarChar(20)
+  defaultSalesServiceAccount   String   @default("7061") @map("default_sales_service_account") @db.VarChar(20)
+  defaultPurchaseAccount       String   @default("6011") @map("default_purchase_account") @db.VarChar(20)
+  defaultExpenseAccount        String   @default("6251") @map("default_expense_account") @db.VarChar(20)
   metadata                     Json     @default("{}")
   createdAt                    DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt                    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
@@ -762,9 +777,9 @@ model ProductCategory {
   color       String?   @db.Char(7)
   sortOrder   Int       @default(0) @map("sort_order") @db.SmallInt
   isActive               Boolean   @default(true) @map("is_active")
-  stockAccountingAccount String?   @default("311000") @map("stock_accounting_account") @db.VarChar(20)
-  cogsAccountingAccount  String?   @default("603100") @map("cogs_accounting_account") @db.VarChar(20)
-  lossAccountingAccount  String?   @default("603200") @map("loss_accounting_account") @db.VarChar(20)
+  stockAccountingAccount String?   @default("3111") @map("stock_accounting_account") @db.VarChar(20)
+  cogsAccountingAccount  String?   @default("6031") @map("cogs_accounting_account") @db.VarChar(20)
+  lossAccountingAccount  String?   @default("6032") @map("loss_accounting_account") @db.VarChar(20)
   salesAccountingAccount String?   @default("701000") @map("sales_accounting_account") @db.VarChar(20)
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
@@ -1475,7 +1490,8 @@ model SupplierInvoice {
   validatedAt           DateTime?             @map("validated_at") @db.Timestamptz()
   scanPath              String?               @map("scan_path") @db.VarChar(500)
   pdfPath               String?               @map("pdf_path") @db.VarChar(500)
-  accountingAccount     String?               @default("4011") @map("accounting_account") @db.VarChar(20)
+  attachmentPath        String?               @map("attachment_path") @db.VarChar(500)
+  accountingAccount     String?               @map("accounting_account") @db.VarChar(20)
   metadata              Json                  @default("{}")
   createdAt             DateTime              @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt             DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()

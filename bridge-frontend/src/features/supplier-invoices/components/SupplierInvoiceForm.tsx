@@ -70,7 +70,7 @@ function initForm(si?: SupplierInvoice, opts?: { defaultSupplierId?: string; def
       supplierRef:         si.supplierInvoiceNumber ?? '',
       invoiceDate:         si.invoiceDate.slice(0, 10),
       dueDate:             si.dueDate?.slice(0, 10) ?? '',
-      accountingAccount:   si.accountingAccount  ?? '4011',
+      accountingAccount:   si.accountingAccount  ?? '',
       notes:               si.notes              ?? '',
       lines:               si.lines.map(siLineToFormLine),
       globalDiscountType:  'none',
@@ -83,7 +83,7 @@ function initForm(si?: SupplierInvoice, opts?: { defaultSupplierId?: string; def
     supplierRef:         '',
     invoiceDate:         today(),
     dueDate:             '',
-    accountingAccount:   '4011',
+    accountingAccount:   '',
     notes:               '',
     lines:               [makeBlankLine(0, opts?.defaultTaxRate ?? 19.25)],
     globalDiscountType:  'none',
@@ -185,6 +185,8 @@ export function SupplierInvoiceForm({ si, defaultSupplierId }: SupplierInvoiceFo
         unit:        l.unit || 'U',
         quantity:    Number(l.quantity),
         unitPrice:   Number(l.unitPriceHt),
+        // Le backend FF ne gère que la remise en %. Une remise fixe par ligne n'est pas transmise.
+        discountPercent: l.discountType === 'percentage' ? (Number(l.discountValue) || 0) : 0,
         taxRate:     Number(l.taxRate),
         sortOrder:   i + 1,
       })),
@@ -370,13 +372,13 @@ export function SupplierInvoiceForm({ si, defaultSupplierId }: SupplierInvoiceFo
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
               <div>
-                <FL label="Compte SYSCOHADA" htmlFor="si-account" />
+                <FL label="Compte d'achat (optionnel)" htmlFor="si-account" />
                 <input
                   id="si-account"
                   type="text"
                   value={form.accountingAccount}
                   onChange={e => setF('accountingAccount', e.target.value)}
-                  placeholder="401000"
+                  placeholder="6011"
                   style={inputCss}
                   onFocus={focusOn} onBlur={focusOff}
                 />
@@ -423,12 +425,14 @@ export function SupplierInvoiceForm({ si, defaultSupplierId }: SupplierInvoiceFo
           {/* Totaux */}
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <div style={{ width: 340 }}>
+              {/* readonly : une FF reproduit ce que le fournisseur a facturé ; pas de
+                  remise globale ici (le backend FF ne la stocke pas → éviterait un écart
+                  entre total affiché et total enregistré). */}
               <TotalsPanel
                 lines={form.lines}
-                globalDiscountType={form.globalDiscountType}
-                globalDiscountValue={form.globalDiscountValue}
-                onGlobalDiscountTypeChange={t => setF('globalDiscountType', t as DiscountType)}
-                onGlobalDiscountValueChange={v => setF('globalDiscountValue', v)}
+                globalDiscountType="none"
+                globalDiscountValue={0}
+                readonly
               />
             </div>
           </div>

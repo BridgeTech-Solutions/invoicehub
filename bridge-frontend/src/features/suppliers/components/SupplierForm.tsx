@@ -113,7 +113,7 @@ export function SupplierForm({ supplier, onClose, wide = false }: SupplierFormPr
     defaultDueDays:    supplier?.defaultDueDays     ?? 30,
     currency:          supplier?.currency           ?? 'XAF',
     status:            supplier?.status             ?? 'active',
-    accountingAccount: supplier?.accountingAccount  ?? '4011',
+    accountingAccount: supplier?.accountingAccount  ?? '',
     internalNotes:     supplier?.internalNotes      ?? '',
   })
 
@@ -292,7 +292,7 @@ export function SupplierForm({ supplier, onClose, wide = false }: SupplierFormPr
         <Field label="Compte SYSCOHADA" htmlFor={idAccountingAccount}>
           <input id={idAccountingAccount} name="accountingAccount" value={form.accountingAccount}
             onChange={e => set('accountingAccount', e.target.value)}
-            placeholder="401000" style={inputStyle} {...focus} />
+            placeholder="4011" style={inputStyle} {...focus} />
         </Field>
       </div>
     </div>

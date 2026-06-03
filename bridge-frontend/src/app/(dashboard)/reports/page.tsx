@@ -4,18 +4,22 @@ import { useState } from 'react'
 import {
   Download, FileText, TrendingUp, Users, Tag,
   AlertTriangle, CreditCard, Receipt, Loader2,
+  Wallet, CalendarClock,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar,
+  PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   type TooltipProps,
 } from 'recharts'
 import {
   useRevenue, useRevenueByClient, useRevenueByCategory,
   useUnpaid, usePayments, useTaxSummary,
+  useByMethod, useAging,
 } from '@/features/reports/hooks'
 import { downloadCsv, downloadPdf } from '@/features/reports/api'
+import type { AgingBucketKey } from '@/features/reports/types'
 import { usePermission } from '@/hooks/usePermission'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -32,15 +36,17 @@ const MONTH_SHORT: Record<string, string> = {
 }
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  cash: 'Espèces', bank_transfer: 'Virement', check: 'Chèque',
-  mobile_money: 'Mobile Money', card: 'Carte',
+  virement: 'Virement bancaire', especes: 'Espèces', cheque: 'Chèque',
+  mobile_money: 'Mobile Money', autre: 'Autre',
 }
 
 const TABS = [
   { id: 'revenue',     label: "Chiffre d'affaires", icon: TrendingUp   },
   { id: 'by-client',  label: 'Par client',          icon: Users        },
   { id: 'by-category',label: 'Par catégorie',        icon: Tag          },
+  { id: 'by-method',  label: 'Par méthode',          icon: Wallet       },
   { id: 'unpaid',     label: 'Impayés',              icon: AlertTriangle },
+  { id: 'aging',      label: 'Balance âgée',         icon: CalendarClock },
   { id: 'payments',   label: 'Encaissements',        icon: CreditCard   },
   { id: 'tax',        label: 'Récap TVA',            icon: Receipt      },
 ] as const
@@ -48,21 +54,39 @@ const TABS = [
 type TabId = typeof TABS[number]['id']
 
 const CSV_ENDPOINTS: Record<TabId, { endpoint: string; filename: string }> = {
-  'revenue':     { endpoint: 'revenue',      filename: 'rapport-ca-mensuel.csv'    },
-  'by-client':   { endpoint: 'by-client',    filename: 'rapport-ca-clients.csv'    },
-  'by-category': { endpoint: 'by-category',  filename: 'rapport-ca-categories.csv' },
-  'unpaid':      { endpoint: 'unpaid',       filename: 'rapport-impayes.csv'       },
-  'payments':    { endpoint: 'payments',     filename: 'rapport-encaissements.csv' },
-  'tax':         { endpoint: 'tax-summary',  filename: 'rapport-tva.csv'           },
+  'revenue':     { endpoint: 'revenue',      filename: 'rapport-ca-mensuel.csv'         },
+  'by-client':   { endpoint: 'by-client',    filename: 'rapport-ca-clients.csv'         },
+  'by-category': { endpoint: 'by-category',  filename: 'rapport-ca-categories.csv'      },
+  'by-method':   { endpoint: 'by-method',    filename: 'rapport-paiements-methodes.csv' },
+  'unpaid':      { endpoint: 'unpaid',       filename: 'rapport-impayes.csv'            },
+  'aging':       { endpoint: 'aging',        filename: 'rapport-aging.csv'              },
+  'payments':    { endpoint: 'payments',     filename: 'rapport-encaissements.csv'      },
+  'tax':         { endpoint: 'tax-summary',  filename: 'rapport-tva.csv'                },
 }
 
 const PDF_ENDPOINTS: Record<TabId, { endpoint: string; filename: string }> = {
-  'revenue':     { endpoint: 'revenue',      filename: 'rapport-ca-mensuel.pdf'    },
-  'by-client':   { endpoint: 'by-client',    filename: 'rapport-ca-clients.pdf'    },
-  'by-category': { endpoint: 'by-category',  filename: 'rapport-ca-categories.pdf' },
-  'unpaid':      { endpoint: 'unpaid',       filename: 'rapport-impayes.pdf'       },
-  'payments':    { endpoint: 'payments',     filename: 'rapport-encaissements.pdf' },
-  'tax':         { endpoint: 'tax-summary',  filename: 'rapport-tva.pdf'           },
+  'revenue':     { endpoint: 'revenue',      filename: 'rapport-ca-mensuel.pdf'         },
+  'by-client':   { endpoint: 'by-client',    filename: 'rapport-ca-clients.pdf'         },
+  'by-category': { endpoint: 'by-category',  filename: 'rapport-ca-categories.pdf'      },
+  'by-method':   { endpoint: 'by-method',    filename: 'rapport-paiements-methodes.pdf' },
+  'unpaid':      { endpoint: 'unpaid',       filename: 'rapport-impayes.pdf'            },
+  'aging':       { endpoint: 'aging',        filename: 'rapport-aging.pdf'              },
+  'payments':    { endpoint: 'payments',     filename: 'rapport-encaissements.pdf'      },
+  'tax':         { endpoint: 'tax-summary',  filename: 'rapport-tva.pdf'                },
+}
+
+// ─── Palettes / constantes aging & méthode ─────────────────────
+
+const METHOD_COLORS = ['#2D7DD2', '#7c3aed', '#16a34a', '#d97706', '#0891b2']
+
+const AGING_ORDER: AgingBucketKey[] = ['current', 'days_1_30', 'days_31_60', 'days_61_90', 'over_90']
+const AGING_LABELS: Record<AgingBucketKey, string> = {
+  current: 'Courant', days_1_30: '1-30 j', days_31_60: '31-60 j',
+  days_61_90: '61-90 j', over_90: '> 90 j',
+}
+const AGING_COLORS: Record<AgingBucketKey, string> = {
+  current: '#16a34a', days_1_30: '#2D7DD2', days_31_60: '#d97706',
+  days_61_90: '#f97316', over_90: '#dc2626',
 }
 
 // ─── Helpers ───────────────────────────────────────────────────
@@ -578,6 +602,232 @@ function TaxTab({ range }: { range: ReportRange }) {
   )
 }
 
+function ByMethodTab({ range }: { range: ReportRange }) {
+  const { data, isLoading } = useByMethod(range)
+  const rows  = data ?? []
+  const total = rows.reduce((s, r) => s + Number(r.total), 0)
+  const totalCnt = rows.reduce((s, r) => s + r.count, 0)
+
+  const chartData = rows.map((r, i) => ({
+    name:  PAYMENT_METHOD_LABELS[r.method] ?? r.method,
+    value: Number(r.total),
+    color: METHOD_COLORS[i % METHOD_COLORS.length],
+  }))
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ height: 240, background: 'var(--border)', borderRadius: 8, opacity: 0.3 }} className="animate-pulse" aria-hidden="true" />
+        <SkeletonTable cols={4} />
+      </div>
+    )
+  }
+  if (rows.length === 0) return <EmptyState label="Aucun encaissement sur cette période" />
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Donut + légende */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 320px) 1fr', gap: 24, alignItems: 'center' }}>
+        <div style={{ position: 'relative', height: 240 }} role="img" aria-label="Répartition des encaissements par méthode">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={chartData}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                innerRadius={62}
+                outerRadius={92}
+                paddingAngle={2}
+                stroke="var(--surface)"
+                strokeWidth={2}
+              >
+                {chartData.map((d, i) => <Cell key={i} fill={d.color} />)}
+              </Pie>
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null
+                  const p = payload[0]
+                  const pct = total > 0 ? Math.round(Number(p.value) / total * 100) : 0
+                  return (
+                    <div style={{ background: '#0c2340', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '10px 14px', boxShadow: '0 4px 16px rgba(0,0,0,0.2)' }}>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 4, fontFamily: 'var(--font-display)' }}>{p.name}</p>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: p.payload.color, margin: '1px 0', fontFamily: 'var(--font-mono)' }}>
+                        {fmt(Number(p.value))} XAF · {pct}%
+                      </p>
+                    </div>
+                  )
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+          {/* Centre */}
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }} aria-hidden="true">
+            <span style={{ fontSize: 10, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-3)' }}>Total encaissé</span>
+            <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'var(--font-mono)' }}>{fmt(total)}</span>
+            <span style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>XAF</span>
+          </div>
+        </div>
+
+        {/* Légende */}
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {chartData.map((d, i) => {
+            const pct = total > 0 ? Math.round(d.value / total * 100) : 0
+            return (
+              <li key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 3, background: d.color, flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: 'var(--text-1)', fontWeight: 500, flex: 1 }}>{d.name}</span>
+                <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--text-2)' }}>{fmt(d.value)} XAF</span>
+                <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-3)', minWidth: 38, textAlign: 'right' }}>{pct}%</span>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+
+      {/* Table */}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead><tr>
+            <TH>Méthode</TH>
+            <TH right>Total encaissé</TH>
+            <TH right>Nb paiements</TH>
+            <TH right>Part</TH>
+          </tr></thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const pct = total > 0 ? Math.round(Number(r.total) / total * 100) : 0
+              return (
+                <tr key={r.method}>
+                  <TD>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: 2, background: METHOD_COLORS[i % METHOD_COLORS.length], flexShrink: 0 }} />
+                      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-1)' }}>{PAYMENT_METHOD_LABELS[r.method] ?? r.method}</span>
+                    </div>
+                  </TD>
+                  <TD right mono bold style={{ color: '#16a34a' } as React.CSSProperties}>{fmt(r.total)} XAF</TD>
+                  <TD right>{r.count}</TD>
+                  <TD right mono>{pct}%</TD>
+                </tr>
+              )
+            })}
+          </tbody>
+          <tfoot>
+            <TotalRow>
+              <TotalTD>Total</TotalTD>
+              <TotalTD right mono>{fmt(total)} XAF</TotalTD>
+              <TotalTD right>{totalCnt}</TotalTD>
+              <TotalTD right mono>100%</TotalTD>
+            </TotalRow>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function AgingTab({ range }: { range: ReportRange }) {
+  const { data, isLoading } = useAging(range)
+  const rows    = data?.rows ?? []
+  const buckets = data?.buckets
+  const totalDue = data?.total.amount ?? 0
+
+  const chartData = AGING_ORDER.map(key => ({
+    key,
+    label:  AGING_LABELS[key],
+    amount: buckets?.[key]?.amount ?? 0,
+    color:  AGING_COLORS[key],
+  }))
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* KPI tranches */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+        {AGING_ORDER.map(key => (
+          <KpiCard
+            key={key}
+            label={AGING_LABELS[key]}
+            value={`${fmt(buckets?.[key]?.amount ?? 0)} XAF`}
+            color={AGING_COLORS[key]}
+          />
+        ))}
+      </div>
+
+      {/* Bar chart par tranche */}
+      {isLoading ? (
+        <div style={{ height: 220, background: 'var(--border)', borderRadius: 8, opacity: 0.3 }} className="animate-pulse" aria-hidden="true" />
+      ) : (
+        <div style={{ height: 220 }} role="img" aria-label="Montants des créances par tranche d'ancienneté">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="4 4" stroke="var(--border)" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--text-3)', fontFamily: 'var(--font-body)' }} axisLine={false} tickLine={false} dy={4} />
+              <YAxis tickFormatter={v => v >= 1_000_000 ? `${(v/1_000_000).toFixed(1)}M` : v >= 1_000 ? `${(v/1_000).toFixed(0)}k` : String(v)} tick={{ fontSize: 10, fill: 'var(--text-3)', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} width={48} />
+              <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(45,125,210,0.05)' }} />
+              <Bar dataKey="amount" name="Solde dû" radius={[4, 4, 0, 0]} maxBarSize={64}>
+                {chartData.map((d, i) => <Cell key={i} fill={d.color} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Table détaillée */}
+      {isLoading ? <SkeletonTable cols={7} /> : rows.length === 0 ? <EmptyState label="Aucune créance en cours" /> : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr>
+              <TH>Numéro</TH>
+              <TH>Client</TH>
+              <TH>Échéance</TH>
+              <TH right>Retard</TH>
+              <TH right>Total TTC</TH>
+              <TH right>Solde dû</TH>
+              <TH>Tranche</TH>
+            </tr></thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.id}>
+                  <TD>
+                    <Link href={`${ROUTES.INVOICES}/${r.id}`} style={{ textDecoration: 'none', fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--primary)', fontWeight: 600 }}>
+                      {r.number}
+                    </Link>
+                  </TD>
+                  <TD>{r.client.name}</TD>
+                  <TD>{formatDate(r.dueDate)}</TD>
+                  <TD right>
+                    {r.daysLate > 0 ? (
+                      <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', fontWeight: 700, color: AGING_COLORS[r.bucket] }}>J+{r.daysLate}</span>
+                    ) : (
+                      <span style={{ fontSize: 12, color: 'var(--text-3)' }}>—</span>
+                    )}
+                  </TD>
+                  <TD right mono>{fmt(r.totalTtc)} XAF</TD>
+                  <TD right mono bold style={{ color: r.bucket === 'current' ? 'var(--text-1)' : AGING_COLORS[r.bucket] } as React.CSSProperties}>{fmt(r.balanceDue)} XAF</TD>
+                  <TD>
+                    <span style={{ fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700, padding: '2px 8px', borderRadius: 10, textTransform: 'uppercase', background: `${AGING_COLORS[r.bucket]}1a`, color: AGING_COLORS[r.bucket] }}>
+                      {AGING_LABELS[r.bucket]}
+                    </span>
+                  </TD>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <TotalRow>
+                <TotalTD>Total dû</TotalTD>
+                <TotalTD /><TotalTD /><TotalTD /><TotalTD />
+                <TotalTD right mono>{fmt(totalDue)} XAF</TotalTD>
+                <TotalTD />
+              </TotalRow>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Page principale ───────────────────────────────────────────
 
 export default function ReportsPage() {
@@ -586,10 +836,17 @@ export default function ReportsPage() {
   const [tab,          setTab]          = useState<TabId>('revenue')
   const [year,         setYear]         = useState(currentYear)
   const [quarter,      setQuarter]      = useState<number | undefined>(undefined)
+  const [customMode,   setCustomMode]   = useState(false)
+  const [dateFrom,     setDateFrom]     = useState('')
+  const [dateTo,       setDateTo]       = useState('')
   const [exporting,    setExporting]    = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
 
-  const range: ReportRange = { year, ...(quarter ? { quarter } : {}) }
+  // Plage personnalisée active uniquement si les 2 dates sont remplies
+  const customActive = customMode && !!dateFrom && !!dateTo
+  const range: ReportRange = customActive
+    ? { dateFrom, dateTo }
+    : { year, ...(quarter ? { quarter } : {}) }
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
 
   async function handleExport() {
@@ -661,41 +918,80 @@ export default function ReportsPage() {
           Période :
         </span>
 
-        {/* Année */}
-        <label htmlFor="report-year" className="sr-only">Année</label>
-        <select
-          id="report-year"
-          value={year}
-          onChange={e => setYear(Number(e.target.value))}
-          aria-label="Filtrer par année"
-          style={{ padding: '5px 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13, color: 'var(--text-1)', fontFamily: 'var(--font-body)', cursor: 'pointer' }}
-        >
-          {years.map(y => <option key={y} value={y}>{y}</option>)}
-        </select>
+        {!customMode ? (
+          <>
+            {/* Année */}
+            <label htmlFor="report-year" className="sr-only">Année</label>
+            <select
+              id="report-year"
+              value={year}
+              onChange={e => setYear(Number(e.target.value))}
+              aria-label="Filtrer par année"
+              style={{ padding: '5px 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13, color: 'var(--text-1)', fontFamily: 'var(--font-body)', cursor: 'pointer' }}
+            >
+              {years.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
 
-        {/* Trimestre */}
-        <div style={{ display: 'flex', gap: 4 }} role="group" aria-label="Filtrer par trimestre">
-          {([
-            { label: "Toute l'année", value: undefined },
-            { label: 'T1', value: 1 },
-            { label: 'T2', value: 2 },
-            { label: 'T3', value: 3 },
-            { label: 'T4', value: 4 },
-          ] as const).map(({ label, value }) => {
-            const active = quarter === value
-            return (
-              <button
-                key={label}
-                type="button"
-                onClick={() => setQuarter(value)}
-                aria-pressed={active}
-                style={{ padding: '5px 11px', borderRadius: 'var(--radius-md)', border: active ? '1.5px solid var(--primary)' : '1.5px solid transparent', background: active ? 'rgba(45,125,210,0.08)' : 'transparent', color: active ? 'var(--primary)' : 'var(--text-3)', fontSize: 12, fontWeight: active ? 600 : 400, fontFamily: 'var(--font-display)', cursor: 'pointer', transition: 'all 0.15s' }}
-              >
-                {label}
-              </button>
-            )
-          })}
-        </div>
+            {/* Trimestre */}
+            <div style={{ display: 'flex', gap: 4 }} role="group" aria-label="Filtrer par trimestre">
+              {([
+                { label: "Toute l'année", value: undefined },
+                { label: 'T1', value: 1 },
+                { label: 'T2', value: 2 },
+                { label: 'T3', value: 3 },
+                { label: 'T4', value: 4 },
+              ] as const).map(({ label, value }) => {
+                const active = quarter === value
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setQuarter(value)}
+                    aria-pressed={active}
+                    style={{ padding: '5px 11px', borderRadius: 'var(--radius-md)', border: active ? '1.5px solid var(--primary)' : '1.5px solid transparent', background: active ? 'rgba(45,125,210,0.08)' : 'transparent', color: active ? 'var(--primary)' : 'var(--text-3)', fontSize: 12, fontWeight: active ? 600 : 400, fontFamily: 'var(--font-display)', cursor: 'pointer', transition: 'all 0.15s' }}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        ) : (
+          /* Plage personnalisée */
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <label htmlFor="report-date-from" style={{ fontSize: 12, color: 'var(--text-2)', fontFamily: 'var(--font-body)' }}>Du</label>
+            <input
+              id="report-date-from"
+              type="date"
+              value={dateFrom}
+              max={dateTo || undefined}
+              onChange={e => setDateFrom(e.target.value)}
+              aria-label="Date de début"
+              style={{ padding: '5px 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13, color: 'var(--text-1)', fontFamily: 'var(--font-body)', cursor: 'pointer' }}
+            />
+            <label htmlFor="report-date-to" style={{ fontSize: 12, color: 'var(--text-2)', fontFamily: 'var(--font-body)' }}>Au</label>
+            <input
+              id="report-date-to"
+              type="date"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={e => setDateTo(e.target.value)}
+              aria-label="Date de fin"
+              style={{ padding: '5px 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13, color: 'var(--text-1)', fontFamily: 'var(--font-body)', cursor: 'pointer' }}
+            />
+          </div>
+        )}
+
+        {/* Toggle mode plage personnalisée */}
+        <button
+          type="button"
+          onClick={() => setCustomMode(m => !m)}
+          aria-pressed={customMode}
+          style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, padding: '5px 11px', borderRadius: 'var(--radius-md)', border: customMode ? '1.5px solid var(--primary)' : '1.5px solid var(--border)', background: customMode ? 'rgba(45,125,210,0.08)' : 'var(--surface)', color: customMode ? 'var(--primary)' : 'var(--text-2)', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-display)', cursor: 'pointer', transition: 'all 0.15s' }}
+        >
+          <CalendarClock size={13} aria-hidden="true" />
+          Plage personnalisée
+        </button>
       </div>
 
       {/* Tabs + contenu */}
@@ -741,7 +1037,9 @@ export default function ReportsPage() {
                   {id === 'revenue'     && <RevenueTab    range={range} />}
                   {id === 'by-client'   && <ByClientTab   range={range} />}
                   {id === 'by-category' && <ByCategoryTab range={range} />}
+                  {id === 'by-method'   && <ByMethodTab    range={range} />}
                   {id === 'unpaid'      && <UnpaidTab      range={range} />}
+                  {id === 'aging'       && <AgingTab       range={range} />}
                   {id === 'payments'    && <PaymentsTab    range={range} />}
                   {id === 'tax'         && <TaxTab         range={range} />}
                 </>

@@ -52,7 +52,8 @@ export const receiveLineSchema = z.object({
     lineId:           z.string().uuid(),
     quantityReceived: z.number().min(0),
   })),
-  notes: z.string().optional().nullable(),
+  receivedDate: z.coerce.date().optional().nullable(),
+  notes:        z.string().optional().nullable(),
 });
 
 export const computeSchema = z.object({

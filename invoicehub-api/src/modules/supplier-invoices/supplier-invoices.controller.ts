@@ -1,7 +1,13 @@
+import * as path from 'path';
+import * as fs from 'fs';
 import {
-  Controller, Get, Post, Put, Delete, Patch,
-  Body, Param, Query, Res, HttpCode, HttpStatus, StreamableFile,
+  Controller, Get, Post, Put, Delete,
+  Body, Param, Query, Res, HttpCode, HttpStatus,
+  UseInterceptors, UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { v4 as uuidv4 } from 'uuid';
 import type { Response } from 'express';
 import { SupplierInvoicesService } from './supplier-invoices.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -13,6 +19,9 @@ import {
   paySupplierInvoiceSchema, disputeSchema,
 } from './supplier-invoices.schema';
 import type { JwtPayload } from '../../common/types/jwt-payload.type';
+
+const SUPPLIER_INVOICE_DIR = path.resolve(process.cwd(), 'uploads', 'supplier-invoices');
+if (!fs.existsSync(SUPPLIER_INVOICE_DIR)) fs.mkdirSync(SUPPLIER_INVOICE_DIR, { recursive: true });
 
 @Controller('supplier-invoices')
 export class SupplierInvoicesController {
@@ -46,16 +55,48 @@ export class SupplierInvoicesController {
     return this.svc.create(body, user.sub);
   }
 
-  @Get(':id/pdf')
+  @Post(':id/attachment')
+  @Permission('supplier-invoices:write')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => cb(null, SUPPLIER_INVOICE_DIR),
+        filename:    (_req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname) || '.bin'}`),
+      }),
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
+          cb(null, true);
+        } else {
+          cb(new Error('Format non accepté. Utilisez PDF, JPEG, PNG ou WEBP.'), false);
+        }
+      },
+    }),
+  )
+  async uploadAttachment(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new Error('Aucun fichier fourni');
+    await this.svc.uploadAttachment(id, file.path);
+    return { message: 'Document fournisseur téléchargé' };
+  }
+
+  @Get(':id/attachment')
   @Permission('supplier-invoices:read')
   @SkipResponseWrapper()
-  async getPdf(@Param('id') id: string, @Res({ passthrough: true }) res: Response) {
-    const { buffer, filename } = await this.svc.generatePdf(id);
-    res.set({
-      'Content-Type':        'application/pdf',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-    });
-    return new StreamableFile(buffer);
+  async getAttachment(@Param('id') id: string, @Res() res: Response) {
+    const { filePath, filename } = await this.svc.getAttachment(id);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.sendFile(path.resolve(filePath));
+  }
+
+  @Delete(':id/attachment')
+  @HttpCode(HttpStatus.OK)
+  @Permission('supplier-invoices:write')
+  async deleteAttachment(@Param('id') id: string) {
+    await this.svc.deleteAttachment(id);
+    return { message: 'Document fournisseur supprimé' };
   }
 
   @Get(':id/payments')

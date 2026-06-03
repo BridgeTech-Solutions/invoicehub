@@ -29,4 +29,26 @@ export const supplierInvoicesApi = {
 
   delete: (id: string) =>
     apiClient.delete(`/supplier-invoices/${id}`),
+
+  // ─── Document original du fournisseur (pièce jointe) ────────
+  // Une FF est un document REÇU : on ne génère pas de PDF, on stocke le justificatif.
+  uploadAttachment: (id: string, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return apiClient.post<{ message: string }>(`/supplier-invoices/${id}/attachment`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(r => r.data)
+  },
+
+  downloadAttachment: async (id: string, filename: string) => {
+    const res  = await apiClient.get(`/supplier-invoices/${id}/attachment`, { responseType: 'blob' })
+    const type = (res.data as Blob).type || 'application/octet-stream'
+    const url  = URL.createObjectURL(new Blob([res.data], { type }))
+    const a    = document.createElement('a')
+    a.href = url; a.download = filename; a.click()
+    URL.revokeObjectURL(url)
+  },
+
+  deleteAttachment: (id: string) =>
+    apiClient.delete(`/supplier-invoices/${id}/attachment`).then(r => r.data),
 }

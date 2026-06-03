@@ -719,14 +719,19 @@ export class BankService {
     const confidenceScore  = fmt.confidence;
     const needsMapping     = confidenceScore < 80 && !override;
 
+    console.log(`[detectImportFormat] confidence=${confidenceScore}%, needsMapping=${needsMapping}, override=${override ? 'OUI (id:'+override.id+')' : 'NON'}, profiles DB=${dbProfiles.length}`);
+
     return {
-      format:          fileFormat,
-      detectedBank:    fmt.profileName ?? null,
-      confidence:      confidenceScore >= 80 ? 'high' : confidenceScore >= 50 ? 'medium' : 'low',
+      format:            fileFormat,
+      detectedBank:      fmt.profileName ?? null,
+      confidence:        confidenceScore >= 80 ? 'high' : confidenceScore >= 50 ? 'medium' : 'low',
       confidenceScore,
-      warnings:        [],
+      warnings:          [],
       needsMapping,
-      detectedMapping: { ...fmt, fileFormat, needsMapping },
+      headers:           fmt.headers ?? null,
+      sampleRows:        fmt.sampleRows ?? null,
+      profileCandidates: fmt.profileCandidates ?? [],
+      detectedMapping:   { ...fmt, fileFormat, needsMapping },
     };
   }
 
@@ -737,7 +742,7 @@ export class BankService {
     encodingHint?: DetectFormatInput['encoding'],
     formatOverride?: DetectedFormat,
     columnMappingOverride?: object,
-  ): Promise<{ importId: string; rows: any[]; totalRows: number; skippedRows: number; duplicates: number; periodStart: string | null; periodEnd: string | null; format: any; detectedBank: string | null }> {
+  ): Promise<{ importId: string; rows: any[]; totalRows: number; skippedRows: number; duplicates: number; parseErrors: Array<{ row: number; message: string }>; periodStart: string | null; periodEnd: string | null; format: any; detectedBank: string | null }> {
     const account = await this.prisma.bankAccount.findFirst({ where: { id: bankAccountId, deletedAt: null } });
     if (!account) throw AppError.notFound('Compte bancaire introuvable');
 
@@ -750,16 +755,51 @@ export class BankService {
     ]);
     const hashSet = new Set(existingHashes.map(h => h.contentHash!));
 
+    // Si l'utilisateur a mappé les colonnes manuellement dans le ColumnMapper,
+    // on construit le formatOverride AVANT de parser — sinon parseStatementFile
+    // utilise l'auto-détection et produit 0 lignes pour un format inconnu.
+    let resolvedFormatOverride: DetectedFormat | undefined = formatOverride ?? (dbOverride?.profileData as unknown as DetectedFormat | undefined) ?? undefined;
+
+    if (columnMappingOverride && typeof columnMappingOverride === 'object') {
+      const cm = columnMappingOverride as any;
+      console.log('[previewImport] columnMappingOverride reçu:', JSON.stringify(cm, null, 2));
+      resolvedFormatOverride = {
+        profileId:    null,
+        profileName:  'Mapping manuel',
+        delimiter:    cm.delimiter    ?? ';',
+        encoding:     cm.encoding     ?? encodingHint ?? 'utf-8',
+        dateFormat:   cm.dateFormat   ?? 'DD/MM/YYYY',
+        numberFormat: cm.numberFormat ?? { thousands: ' ', decimal: ',' },
+        columnMapping: {
+          date:         cm.columnMapping?.date         ?? '',
+          label:        cm.columnMapping?.label        ?? '',
+          debit:        cm.columnMapping?.debit,
+          credit:       cm.columnMapping?.credit,
+          amount:       cm.columnMapping?.amount,
+          direction:    cm.columnMapping?.direction,
+          reference:    cm.columnMapping?.reference,
+          balanceAfter: cm.columnMapping?.balanceAfter,
+          valueDate:    cm.columnMapping?.valueDate,
+        },
+        headerRow: cm.headerRow ?? 0,
+        confidence: 100,
+        source: 'user' as const,
+      };
+      console.log('[previewImport] resolvedFormatOverride.columnMapping:', JSON.stringify(resolvedFormatOverride.columnMapping));
+    } else {
+      console.log('[previewImport] AUCUN columnMappingOverride — auto-détection utilisée');
+    }
+
     const result = parseStatementFile(
       fileBuffer, filename, bankAccountId,
-      formatOverride ?? dbOverride?.profileData ?? undefined,
+      resolvedFormatOverride,
       encodingHint ?? 'auto',
     );
 
     const uniqueTxns    = result.transactions.filter(t => !hashSet.has(t.contentHash));
     const duplicateRows = result.transactions.length - uniqueTxns.length;
 
-    let detectedFormat: DetectedFormat = formatOverride ?? result.detectedFormat ?? {
+    let detectedFormat: DetectedFormat = resolvedFormatOverride ?? result.detectedFormat ?? {
       profileId:    result.fileFormat,
       profileName:  result.fileFormat === 'ofx' ? 'OFX / QFX' : 'MT940 SWIFT',
       delimiter:    ',' as const,
@@ -769,28 +809,6 @@ export class BankService {
       columnMapping: { date: 'auto', label: 'auto' },
       confidence:   95, source: 'verified' as const, headerRow: 0,
     };
-
-    // Apply custom mapping override from frontend ColumnMapper
-    if (columnMappingOverride && typeof columnMappingOverride === 'object') {
-      const cm = columnMappingOverride as any;
-      detectedFormat = {
-        ...detectedFormat,
-        columnMapping: {
-          date:         cm.date         ?? detectedFormat.columnMapping.date,
-          label:        cm.label        ?? detectedFormat.columnMapping.label,
-          debit:        cm.debit        ?? detectedFormat.columnMapping.debit,
-          credit:       cm.credit       ?? detectedFormat.columnMapping.credit,
-          amount:       cm.amount       ?? detectedFormat.columnMapping.amount,
-          direction:    cm.direction    ?? detectedFormat.columnMapping.direction,
-          reference:    cm.reference    ?? detectedFormat.columnMapping.reference,
-          balanceAfter: cm.balanceAfter ?? detectedFormat.columnMapping.balanceAfter,
-          valueDate:    cm.valueDate    ?? detectedFormat.columnMapping.valueDate,
-        },
-        ...(cm.dateFormat   ? { dateFormat:   cm.dateFormat }   : {}),
-        ...(cm.numberFormat ? { numberFormat: cm.numberFormat } : {}),
-        source: 'user' as const,
-      };
-    }
 
     const preview: ImportPreview = {
       detectedFormat,
@@ -826,9 +844,14 @@ export class BankService {
       },
     });
 
+    console.log(`[previewImport] résultat: ${result.transactions.length} transactions, ${result.errors.length} erreurs, ${duplicateRows} doublons`);
+    if (result.errors.length > 0) {
+      console.log('[previewImport] premières erreurs:', result.errors.slice(0, 3));
+    }
+
     return {
       importId:    importRecord.id,
-      rows:        uniqueTxns.slice(0, 10).map((t: any) => ({
+      rows:        uniqueTxns.map((t: any) => ({
         date:      t.transactionDate instanceof Date ? t.transactionDate.toISOString().split('T')[0] : t.transactionDate,
         label:     t.label,
         debit:     t.type === 'debit'  ? t.amount : null,
@@ -839,6 +862,7 @@ export class BankService {
       totalRows:   preview.totalRows   ?? 0,
       skippedRows: preview.errorRows   ?? 0,
       duplicates:  duplicateRows,
+      parseErrors: result.errors.slice(0, 5),
       periodStart: preview.dateRange.min ? (preview.dateRange.min as Date).toISOString().split('T')[0] : null,
       periodEnd:   preview.dateRange.max ? (preview.dateRange.max as Date).toISOString().split('T')[0] : null,
       format:      (result.fileFormat === 'unknown' ? 'csv' : result.fileFormat) as any,

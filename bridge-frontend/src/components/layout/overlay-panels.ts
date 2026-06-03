@@ -86,7 +86,8 @@ export const OVERLAY_PANELS: Record<string, OverlayPanel> = {
       {
         title: 'IMPORT',
         items: [
-          { label: 'Importer un relevé',    href: ROUTES.BANK_IMPORT,          icon: Upload },
+          { label: 'Importer un relevé',  href: ROUTES.BANK_IMPORT,          icon: Upload },
+          { label: 'Profils d\'import',   href: ROUTES.BANK_IMPORT_PROFILES,  icon: BookOpen },
         ],
       },
       {

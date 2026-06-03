@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useId, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import {
-  ArrowLeft, Plus, Pencil, Trash2, Shield, BookOpen,
+  ArrowLeft, Plus, Pencil, Trash2, BookOpen,
   Check, Loader2, X, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { usePermission } from '@/hooks/usePermission'
@@ -18,23 +19,23 @@ import type {
 } from '@/features/bank/types'
 import { ColumnMapper } from '@/features/bank/components/ColumnMapper'
 
-// ─── Badges ──────────────────────────────────────────────────────────────────
-
-const SOURCE_META: Record<string, { label: string; color: string; bg: string }> = {
-  system:    { label: 'Système',     color: '#2D7DD2', bg: 'rgba(45,125,210,0.08)' },
-  user:      { label: 'Personnalisé', color: '#7c3aed', bg: 'rgba(124,58,237,0.08)' },
-  estimated: { label: 'Estimé',      color: '#d97706', bg: '#fef3c7' },
-  community: { label: 'Communauté',  color: '#16a34a', bg: '#dcfce7' },
-  verified:  { label: 'Vérifié',     color: '#16a34a', bg: '#dcfce7' },
+// Libellés FR des rôles de colonne (au lieu des clés techniques brutes)
+const COLUMN_ROLE_LABEL: Record<string, string> = {
+  date:         'Date',
+  label:        'Libellé',
+  debit:        'Débit',
+  credit:       'Crédit',
+  amount:       'Montant',
+  direction:    'Sens (D/C)',
+  reference:    'Référence',
+  balanceAfter: 'Solde après',
+  valueDate:    'Date de valeur',
 }
 
-function SourceBadge({ source }: { source: string }) {
-  const meta = SOURCE_META[source] ?? SOURCE_META['system']!
-  return (
-    <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: meta.bg, color: meta.color, fontFamily: 'var(--font-display)', whiteSpace: 'nowrap' }}>
-      {meta.label}
-    </span>
-  )
+const ENCODING_LABEL: Record<string, string> = {
+  'utf-8':     'UTF-8',
+  'iso-8859-1': 'ISO-8859-1 (Latin-1)',
+  'windows-1252': 'Windows-1252',
 }
 
 // ─── Carte profil ─────────────────────────────────────────────────────────────
@@ -43,13 +44,14 @@ function ProfileCard({
   profile,
   onEdit,
   onDelete,
+  canManage,
 }: {
   profile: BankImportProfile
   onEdit:  () => void
   onDelete: () => void
+  canManage: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
-  const isSystem = profile.source !== 'user'
 
   const cm = profile.columnMapping
   const mappedFields = [
@@ -68,7 +70,6 @@ function ProfileCard({
             <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)' }}>
               {profile.name}
             </span>
-            <SourceBadge source={profile.source} />
             {profile.bankName && (
               <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{profile.bankName}</span>
             )}
@@ -100,7 +101,7 @@ function ProfileCard({
             {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
             {expanded ? 'Moins' : 'Détails'}
           </button>
-          {!isSystem && (
+          {canManage && (
             <>
               <button
                 type="button"
@@ -129,18 +130,21 @@ function ProfileCard({
           <div>
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 6, fontFamily: 'var(--font-display)' }}>Mapping des colonnes</div>
             {Object.entries(cm).filter(([, v]) => v).map(([k, v]) => (
-              <div key={k} style={{ fontSize: 12, color: 'var(--text-2)', display: 'flex', gap: 6, marginBottom: 3 }}>
-                <span style={{ fontWeight: 600, color: 'var(--text-3)', minWidth: 80 }}>{k}</span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5 }}>{v as string}</span>
+              <div key={k} style={{ fontSize: 12, color: 'var(--text-2)', display: 'flex', gap: 6, marginBottom: 3, alignItems: 'baseline' }}>
+                <span style={{ fontWeight: 600, color: 'var(--text-3)', minWidth: 96, flexShrink: 0 }}>{COLUMN_ROLE_LABEL[k] ?? k}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--text-1)' }}>« {v as string} »</span>
               </div>
             ))}
           </div>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 6, fontFamily: 'var(--font-display)' }}>Formats</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', marginBottom: 6, fontFamily: 'var(--font-display)' }}>Format du fichier</div>
             <div style={{ fontSize: 12, color: 'var(--text-2)', display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <span>Date : <b>{profile.dateFormat}</b></span>
-              <span>Milliers : <b>{profile.numberFormat.thousands || '(aucun)'}</b></span>
-              <span>Décimal : <b>{profile.numberFormat.decimal}</b></span>
+              <span>Date : <b style={{ fontFamily: 'var(--font-mono)' }}>{profile.dateFormat}</b></span>
+              <span>Séparateur milliers : <b>{profile.numberFormat.thousands ? `« ${profile.numberFormat.thousands} »` : '(aucun)'}</b></span>
+              <span>Décimale : <b>{`« ${profile.numberFormat.decimal} »`}</b></span>
+              <span>Délimiteur : <b style={{ fontFamily: 'var(--font-mono)' }}>{profile.delimiter === '\t' ? '⇥ tabulation' : `« ${profile.delimiter} »`}</b></span>
+              <span>Encodage : <b>{ENCODING_LABEL[profile.encoding] ?? profile.encoding}</b></span>
+              {profile.skipFirstRows > 0 && <span>Lignes d’en-tête sautées : <b>{profile.skipFirstRows}</b></span>}
               {profile.amountSign && <span>Signe montant : <b>{profile.amountSign}</b></span>}
             </div>
           </div>
@@ -203,7 +207,7 @@ function ProfileDrawer({ profile, onClose }: DrawerProps) {
     onClose()
   }
 
-  return (
+  return createPortal(
     <div
       role="dialog" aria-modal="true" aria-labelledby={titleId}
       style={{ position: 'fixed', inset: 0, zIndex: 40, display: 'flex' }}
@@ -337,7 +341,8 @@ function ProfileDrawer({ profile, onClose }: DrawerProps) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -350,7 +355,7 @@ function DeleteConfirmModal({ name, onConfirm, onCancel, isPending }: {
   const btnRef  = useRef<HTMLButtonElement>(null)
   useEffect(() => { btnRef.current?.focus() }, [])
 
-  return (
+  return createPortal(
     <div role="dialog" aria-modal="true" aria-labelledby={titleId}
       style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div onClick={onCancel} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)' }} />
@@ -373,7 +378,8 @@ function DeleteConfirmModal({ name, onConfirm, onCancel, isPending }: {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -388,9 +394,6 @@ export default function ImportProfilesPage() {
   const [showDrawer,    setShowDrawer]    = useState(false)
   const [editProfile,   setEditProfile]   = useState<BankImportProfile | undefined>()
   const [deleteTarget,  setDeleteTarget]  = useState<BankImportProfile | null>(null)
-
-  const systemProfiles = profiles.filter(p => p.source !== 'user')
-  const userProfiles   = profiles.filter(p => p.source === 'user')
 
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return
@@ -444,20 +447,6 @@ export default function ImportProfilesPage() {
         </button>
       </div>
 
-      {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
-        {[
-          { label: 'Profils au total',   value: profiles.length },
-          { label: 'Profils système',    value: systemProfiles.length },
-          { label: 'Profils personnalisés', value: userProfiles.length },
-        ].map(({ label, value }) => (
-          <div key={label} className="card" style={{ padding: '12px 16px' }}>
-            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--primary)', fontFamily: 'var(--font-mono)' }}>{value}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>{label}</div>
-          </div>
-        ))}
-      </div>
-
       {isLoading && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '24px', color: 'var(--text-3)', fontSize: 13 }}>
           <Loader2 size={16} style={{ animation: 'spin 0.8s linear infinite' }} />
@@ -465,41 +454,16 @@ export default function ImportProfilesPage() {
         </div>
       )}
 
-      {/* Profils personnalisés */}
-      {userProfiles.length > 0 && (
+      {/* Liste unifiée des profils */}
+      {profiles.length > 0 && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <h2 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-2)', fontFamily: 'var(--font-display)', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <BookOpen size={14} /> Vos profils
-          </h2>
-          {userProfiles.map(p => (
+          {profiles.map(p => (
             <ProfileCard
               key={p.id}
               profile={p}
+              canManage={can('bank', 'manage')}
               onEdit={() => { setEditProfile(p); setShowDrawer(false) }}
               onDelete={() => setDeleteTarget(p)}
-            />
-          ))}
-        </section>
-      )}
-
-      {/* Séparateur */}
-      {userProfiles.length > 0 && systemProfiles.length > 0 && (
-        <hr style={{ border: 'none', borderTop: '1px solid var(--border)' }} />
-      )}
-
-      {/* Profils système */}
-      {systemProfiles.length > 0 && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <h2 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-2)', fontFamily: 'var(--font-display)', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Shield size={14} /> Profils système
-            <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-3)' }}>(lecture seule)</span>
-          </h2>
-          {systemProfiles.map(p => (
-            <ProfileCard
-              key={p.id}
-              profile={p}
-              onEdit={() => {}}
-              onDelete={() => {}}
             />
           ))}
         </section>

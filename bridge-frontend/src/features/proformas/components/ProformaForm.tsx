@@ -529,6 +529,7 @@ export function ProformaForm({ proforma, defaultClientId }: ProformaFormProps) {
               lines={form.lines}
               onChange={(lines) => setF('lines', lines)}
               clientId={form.clientId || undefined}
+              stockMode="warn"
             />
           </div>
 

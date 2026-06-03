@@ -3,7 +3,7 @@
 import { useState, useEffect, useId, useRef, useCallback } from 'react'
 import { Mail, Loader2, Check, X, ChevronDown, ChevronUp, Tag, Bell, Shield, Plus, Trash2, Eye, RotateCcw, AlertTriangle } from 'lucide-react'
 import {
-  useEmailTemplates, useEmailTemplate, useUpdateEmailTemplate, usePreviewEmailTemplate,
+  useEmailTemplates, useEmailTemplate, useUpdateEmailTemplate,
   useEmailTemplateVersions, useRestoreEmailTemplateVersion,
 } from '@/features/email-templates/hooks'
 import {
@@ -52,6 +52,7 @@ const NOTIF_LABELS: Record<NotificationType, string> = {
   purchase_order_created:     'Bon de commande créé',
   purchase_order_approved:    'Bon de commande approuvé',
   purchase_order_rejected:    'Bon de commande rejeté',
+  purchase_order_received:    'Bon de commande réceptionné',
   supplier_invoice_received:  'Facture fournisseur reçue',
   supplier_invoice_due:       'Facture fournisseur à échéance',
   // Stock / Banque / Fiscal
@@ -217,10 +218,15 @@ function CheckLevelCard({
         )}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {/* Header */}
-        <div aria-hidden="true" style={{ display: 'grid', gridTemplateColumns: '100px auto auto 32px', gap: 10, padding: '0 4px' }}>
-          {['Délai (jours)', 'Managers', 'Email', ''].map((h) => (
-            <span key={h} style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>
+        {/* Header — aligné sur le padding (12px) + bordure (1px) des lignes */}
+        <div aria-hidden="true" style={{ display: 'grid', gridTemplateColumns: '100px auto auto 32px', gap: 10, padding: '0 13px' }}>
+          {[
+            { label: 'Délai (jours)', align: 'left'   as const },
+            { label: 'Managers',      align: 'center' as const },
+            { label: 'Email',         align: 'center' as const },
+            { label: '',              align: 'left'   as const },
+          ].map((h) => (
+            <span key={h.label} style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: h.align }}>{h.label}</span>
           ))}
         </div>
         {levels.length === 0 && (
@@ -617,7 +623,6 @@ function TemplateEditor({ template }: { template: EmailTemplate }) {
   const { data: full, isLoading } = useEmailTemplate(expanded ? template.id : '')
   const { data: versions = [], isLoading: versionsLoading } = useEmailTemplateVersions(template.id, showHistory)
   const updateMut  = useUpdateEmailTemplate(template.id)
-  const previewMut = usePreviewEmailTemplate(template.id)
   const restoreMut = useRestoreEmailTemplateVersion(template.id)
 
   const [subject, setSubject]       = useState(template.subject)
@@ -682,15 +687,21 @@ function TemplateEditor({ template }: { template: EmailTemplate }) {
     setDirty(true)
   }
 
-  // ── Preview ───────────────────────────────────────────────
-  async function handlePreview() {
+  // ── Preview — substitution côté client pour afficher la version en cours d'édition ──
+  function handlePreview() {
     const sampleVars: Record<string, string> = {}
     for (const v of vars) {
       const key = v.replace(/^\{\{|\}\}$/g, '')
       sampleVars[key] = SAMPLE_PREVIEW_VALUES[key] ?? `[${key}]`
     }
-    const result = await previewMut.mutateAsync(sampleVars)
-    setPreviewData(result)
+    let previewSubject = subject
+    let previewHtml    = currentBody
+    for (const [key, value] of Object.entries(sampleVars)) {
+      const re = new RegExp(`\\{\\{${key}\\}\\}`, 'g')
+      previewSubject = previewSubject.replace(re, value)
+      previewHtml    = previewHtml.replace(re, value)
+    }
+    setPreviewData({ subject: previewSubject, html: previewHtml })
   }
 
   const currentBody = body || full?.bodyHtml || ''
@@ -887,10 +898,9 @@ function TemplateEditor({ template }: { template: EmailTemplate }) {
                         )}
                         <button type="button"
                           onClick={handlePreview}
-                          disabled={previewMut.isPending}
                           title="Prévisualiser avec des données d'exemple"
-                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: previewMut.isPending ? 'not-allowed' : 'pointer', fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 500, opacity: previewMut.isPending ? 0.65 : 1 }}>
-                          {previewMut.isPending ? <Loader2 size={12} className="animate-spin" aria-hidden="true" /> : <Eye size={12} aria-hidden="true" />}
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 500 }}>
+                          <Eye size={12} aria-hidden="true" />
                           Prévisualiser
                         </button>
                       </div>

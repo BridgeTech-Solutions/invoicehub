@@ -320,7 +320,9 @@ export class AccountingService {
   async cancelEntry(id: string) {
     const entry = await this.prisma.journalEntry.findUnique({ where: { id } });
     if (!entry) throw AppError.notFound('Écriture introuvable');
-    if (entry.status === 'locked') throw AppError.badRequest('Impossible d\'annuler une écriture verrouillée');
+    if (entry.status === 'locked' || entry.status === 'validated') {
+      throw AppError.badRequest('Impossible d\'annuler une écriture validée ou verrouillée — utilisez l\'extourne');
+    }
     return this.prisma.journalEntry.update({ where: { id }, data: { status: 'cancelled' as never } });
   }
 

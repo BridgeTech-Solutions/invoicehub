@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { usePermission } from '@/hooks/usePermission'
@@ -47,25 +47,36 @@ function KpiCard({ label, value, sub, color, icon: Icon }: { label: string; valu
 }
 
 function ActionMenu({ inv }: { inv: SupplierInvoiceListItem }) {
-  const [open, setOpen] = useState(false)
-  const router           = useRouter()
-  const validateMutation = useValidateSupplierInvoice()
-  const deleteMutation   = useDeleteSupplierInvoice()
+  const [open, setOpen]     = useState(false)
+  const [pos,  setPos]      = useState({ top: 0, right: 0 })
+  const btnRef              = useRef<HTMLButtonElement>(null)
+  const router              = useRouter()
+  const validateMutation    = useValidateSupplierInvoice()
+  const deleteMutation      = useDeleteSupplierInvoice()
 
   const canValidate = inv.status === 'received'
   const canDelete   = ['received'].includes(inv.status)
   const canEdit     = inv.status === 'received'
 
+  function handleOpen(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 4, right: window.innerWidth - r.right })
+    }
+    setOpen(o => !o)
+  }
+
   return (
-    <div style={{ position: 'relative' }}>
-      <button onClick={e => { e.stopPropagation(); setOpen(o => !o) }}
+    <div>
+      <button ref={btnRef} onClick={handleOpen}
         style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--text-3)' }}>
         <MoreHorizontal size={14} />
       </button>
       {open && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setOpen(false)} />
-          <div style={{ position: 'absolute', right: 0, top: 32, zIndex: 50, width: 200, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 4, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <div style={{ position: 'fixed', top: pos.top, right: pos.right, zIndex: 50, width: 200, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 4, display: 'flex', flexDirection: 'column', gap: 1 }}>
             {[
               { show: true,        icon: ExternalLink, label: 'Voir la facture',      action: () => router.push(`${ROUTES.SUPPLIER_INVOICES}/${inv.id}`) },
               { show: canEdit,     icon: Pencil,       label: 'Modifier',             action: () => router.push(`${ROUTES.SUPPLIER_INVOICES}/${inv.id}/edit`) },
@@ -103,8 +114,9 @@ function Pagination({ page, totalPages, onChange }: { page: number; totalPages: 
 }
 
 export default function SupplierInvoicesPage() {
-  const { can } = usePermission()
+  const { can }    = usePermission()
   const { format } = useCurrency()
+  const router     = useRouter()
   const [search,   setSearch]   = useState('')
   const [status,   setStatus]   = useState<SupplierInvoiceStatus | ''>('')
   const [page,     setPage]     = useState(1)
@@ -186,7 +198,7 @@ export default function SupplierInvoicesPage() {
                       <tr key={inv.id} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background 0.1s' }}
                         onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-2)')}
                         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                        onClick={() => window.location.href = `${ROUTES.SUPPLIER_INVOICES}/${inv.id}`}>
+                        onClick={() => router.push(`${ROUTES.SUPPLIER_INVOICES}/${inv.id}`)}>
                         <td style={{ padding: '11px 14px', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>{inv.number}</td>
                         <td style={{ padding: '11px 14px' }}>
                           <Link href={`${ROUTES.SUPPLIERS}/${inv.supplierId}`} onClick={e => e.stopPropagation()}

@@ -30,7 +30,19 @@ interface LineItemsEditorProps {
   onChange: (lines: FormLine[]) => void
   clientId?: string
   disabled?: boolean
+  /**
+   * Conscience du stock par ligne :
+   *  - 'off'  (défaut) : aucun retour stock — à utiliser pour les ACHATS (BC),
+   *    où la quantité commandée n'est jamais limitée par le stock actuel.
+   *  - 'warn' : pour les VENTES (facture, proforma). Affiche le stock dispo sous
+   *    la quantité et alerte en rouge si la quantité dépasse — NON bloquant
+   *    (le backend reste le gardien dur à l'émission).
+   */
+  stockMode?: 'off' | 'warn'
 }
+
+/** Stock live d'un produit, résolu depuis le catalogue. */
+interface LineStock { trackStock: boolean; stockQuantity: number | null }
 
 // ─── Product combobox for designation cell ──────────────────────
 
@@ -366,6 +378,8 @@ interface LineRowProps {
   clientId?: string
   disabled?: boolean
   allService: boolean   // true si toutes les lignes du tableau sont en mode service
+  stockMode: 'off' | 'warn'
+  stock: LineStock | null   // stock live de la ligne (null si non suivi / inconnu)
   onUpdate: (line: FormLine) => void
   onRemove: () => void
   // drag-and-drop
@@ -377,7 +391,12 @@ interface LineRowProps {
   onDragEnd: () => void
 }
 
-function LineRow({ line, index, clientId, disabled, allService, onUpdate, onRemove, isDragging, isOver, onDragStart, onDragOver, onDrop, onDragEnd }: LineRowProps) {
+function LineRow({ line, index, clientId, disabled, allService, stockMode, stock, onUpdate, onRemove, isDragging, isOver, onDragStart, onDragOver, onDrop, onDragEnd }: LineRowProps) {
+  // ── Stock (ventes uniquement) ──────────────────────────────────
+  const stockTracked  = stockMode === 'warn' && !!stock?.trackStock && stock.stockQuantity != null
+  const available     = stockTracked ? Number(stock!.stockQuantity) : null
+  const stockExceeded = stockTracked && Number(line.quantity) > (available ?? 0)
+
   const update = useCallback(<K extends keyof FormLine>(field: K, value: FormLine[K]) => {
     const next = { ...line, [field]: value }
     // Recompute if numeric fields changed
@@ -462,14 +481,26 @@ function LineRow({ line, index, clientId, disabled, allService, onUpdate, onRemo
 
       {/* Qté — rendu uniquement en mode produit ET table non-all-service */}
       {!line.hideDetails && !allService && (
-        <td style={{ ...cellCss, width: 72 }}>
+        <td style={{ ...cellCss, width: 78 }}>
           <input
             type="number" min="0" step="0.01"
             value={line.quantity}
             disabled={disabled}
             onChange={(e) => update('quantity', parseFloat(e.target.value) || 0)}
-            style={numCss}
+            style={{ ...numCss, ...(stockExceeded ? { color: '#dc2626', fontWeight: 700 } : {}) }}
           />
+          {/* Indicateur de stock — ventes uniquement, NON bloquant */}
+          {stockTracked && (
+            <div style={{ padding: '0 8px 4px', textAlign: 'right' }} title={stockExceeded ? `Dépasse le stock disponible (${available})` : `Stock disponible : ${available}`}>
+              <span style={{
+                fontSize: 10, fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap',
+                color: stockExceeded ? '#dc2626' : 'var(--text-3)',
+                fontWeight: stockExceeded ? 700 : 400,
+              }}>
+                {stockExceeded ? `⚠ > stock (${available})` : `stock : ${available}`}
+              </span>
+            </div>
+          )}
         </td>
       )}
 
@@ -599,10 +630,25 @@ function LineRow({ line, index, clientId, disabled, allService, onUpdate, onRemo
 
 // ─── Main component ─────────────────────────────────────────────
 
-export function LineItemsEditor({ lines, onChange, clientId, disabled = false }: LineItemsEditorProps) {
+export function LineItemsEditor({ lines, onChange, clientId, disabled = false, stockMode = 'off' }: LineItemsEditorProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [overIndex, setOverIndex] = useState<number | null>(null)
   const allService = lines.length > 0 && lines.every(l => l.hideDetails)
+
+  // Stock live par produit — uniquement en mode 'warn' (ventes). Même clé de
+  // requête que le combo produit → servi depuis le cache React Query.
+  const { data: stockProductsData } = useProducts(
+    stockMode === 'warn' ? { limit: 100, isActive: true } : { limit: 1, isActive: true },
+  )
+  const stockByProduct = useCallback(
+    (productId?: string): LineStock | null => {
+      if (stockMode !== 'warn' || !productId) return null
+      const p = stockProductsData?.data.find(x => x.id === productId)
+      if (!p) return null
+      return { trackStock: !!p.trackStock, stockQuantity: p.stockQuantity ?? null }
+    },
+    [stockMode, stockProductsData],
+  )
 
   const handleDrop = (targetIndex: number) => {
     if (dragIndex === null || dragIndex === targetIndex) { setDragIndex(null); setOverIndex(null); return }
@@ -690,6 +736,8 @@ export function LineItemsEditor({ lines, onChange, clientId, disabled = false }:
                 clientId={clientId}
                 disabled={disabled}
                 allService={allService}
+                stockMode={stockMode}
+                stock={stockByProduct(line.productId)}
                 onUpdate={(l) => updateLine(i, l)}
                 onRemove={() => removeLine(i)}
                 isDragging={dragIndex === i}

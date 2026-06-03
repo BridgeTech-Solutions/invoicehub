@@ -1,18 +1,14 @@
 import type { Metadata } from 'next'
 import { PageHeader } from '@/components/layout/PageHeader'
-import { KpiCards }              from '@/features/dashboard/components/KpiCards'
-import { RevenueChart }           from '@/features/dashboard/components/RevenueChart'
-import { InvoiceStatusDonut }     from '@/features/dashboard/components/InvoiceStatusDonut'
-import { RecentInvoicesTable }    from '@/features/dashboard/components/RecentInvoicesTable'
-import { TopClientsTable }        from '@/features/dashboard/components/TopClientsTable'
-import { AgingWidget }            from '@/features/dashboard/components/AgingWidget'
-import { DashboardSocketSync }    from '@/features/dashboard/components/DashboardSocketSync'
+import { FinancialHeroBand }   from '@/features/dashboard/components/FinancialHeroBand'
+import { DashboardTabs }       from '@/features/dashboard/components/DashboardTabs'
+import { DashboardSocketSync } from '@/features/dashboard/components/DashboardSocketSync'
 
 export const metadata: Metadata = { title: 'Tableau de bord — InvoiceHub' }
 
 export default function DashboardPage() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
 
       {/* Sync temps réel via Socket.io — invisible, aria-live pour screen readers */}
       <DashboardSocketSync />
@@ -20,31 +16,14 @@ export default function DashboardPage() {
       {/* ── En-tête ──────────────────────────────────────── */}
       <PageHeader
         title="Tableau de bord"
-        description="Vue d'ensemble de l'activité de facturation BTS"
+        description="Vue d'ensemble de l'activité financière BTS"
       />
 
-      {/* ── KPI Cards (4) ─────────────────────────────────── */}
-      <KpiCards />
+      {/* ── Bandeau héros PERMANENT (au-dessus des onglets) ─ */}
+      <FinancialHeroBand />
 
-      {/* ── Analyses ─────────────────────────────────────── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-
-        {/* ── Ligne 2 : Graphique CA + Donut statuts ─────── */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_280px]">
-          <RevenueChart />
-          <InvoiceStatusDonut />
-        </div>
-
-        {/* ── Ligne 3 : Factures récentes + Top Clients ──── */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr_2fr]">
-          <RecentInvoicesTable />
-          <TopClientsTable />
-        </div>
-
-        {/* ── Ligne 4 : Aging des créances ────────────────── */}
-        <AgingWidget />
-
-      </div>
+      {/* ── Coquille à onglets (multi-rôles, RBAC) ────────── */}
+      <DashboardTabs />
 
     </div>
   )

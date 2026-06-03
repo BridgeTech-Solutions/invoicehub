@@ -9,6 +9,7 @@ import type {
   CreateAvoirPayload, ComputeInvoicePayload, CreatePaymentPayload, ListPaymentsParams,
 } from './types'
 import { ROUTES } from '@/lib/constants'
+import { getApiErrorMessage, getApiErrorCode, isApprovalFlowCode } from '@/lib/api-error'
 
 export const INVOICE_KEYS = {
   all:    ['invoices'] as const,
@@ -97,7 +98,16 @@ export function useIssueInvoice() {
       qc.invalidateQueries({ queryKey: INVOICE_KEYS.all })
       toast.success('Facture émise avec succès')
     },
-    onError: () => toast.error('Erreur lors de l\'émission'),
+    onError: (e, id) => {
+      // Toujours rafraîchir : une demande d'approbation vient peut-être d'être
+      // créée → le bouton doit passer en « En attente d'approbation ».
+      qc.invalidateQueries({ queryKey: INVOICE_KEYS.detail(id) })
+      qc.invalidateQueries({ queryKey: INVOICE_KEYS.all })
+      const code = getApiErrorCode(e)
+      const msg  = getApiErrorMessage(e, "Erreur lors de l'émission")
+      if (isApprovalFlowCode(code)) toast.info(msg)
+      else toast.error(msg)
+    },
   })
 }
 

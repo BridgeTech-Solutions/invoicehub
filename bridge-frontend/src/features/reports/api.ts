@@ -1,7 +1,7 @@
 import { apiClient } from '@/lib/api-client'
 import type {
   ReportRange, RevenueRow, ClientRevenueRow, CategoryRevenueRow,
-  UnpaidRow, PaymentRow, TaxSummaryRow,
+  UnpaidRow, PaymentRow, TaxSummaryRow, PaymentMethodRow, AgingReport,
 } from './types'
 
 function buildParams(range: ReportRange, format: 'json' | 'csv' | 'pdf' = 'json') {
@@ -41,6 +41,16 @@ export async function getPayments(range: ReportRange): Promise<PaymentRow[]> {
 export async function getTaxSummary(range: ReportRange): Promise<TaxSummaryRow[]> {
   const { data } = await apiClient.get('/reports/tax-summary', { params: buildParams(range) })
   return data ?? []
+}
+
+export async function getByMethod(range: ReportRange): Promise<PaymentMethodRow[]> {
+  const { data } = await apiClient.get('/reports/by-method', { params: buildParams(range) })
+  return data ?? []
+}
+
+export async function getAging(range: ReportRange): Promise<AgingReport> {
+  const { data } = await apiClient.get('/reports/aging', { params: buildParams(range) })
+  return data ?? { rows: [], buckets: {}, total: { amount: 0, count: 0 } }
 }
 
 export async function downloadCsv(endpoint: string, filename: string, range: ReportRange) {

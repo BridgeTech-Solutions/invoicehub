@@ -48,9 +48,43 @@ export interface DashboardKpis {
   proformas: {
     thisMonthCount: number
   }
+  // ─── Achats & Finance (déjà calculés par le backend) ─────────
+  purchases: {
+    thisMonthAmount: number
+    thisMonthCount:  number
+  }
+  payables: {
+    outstandingAmount: number
+    count:             number
+  }
+  expenses: {
+    thisMonthAmount: number
+    thisMonthCount:  number
+  }
+  grossMarginMonth: number
+  cashPosition: {
+    total:        number
+    accountCount: number
+  }
+  stockAlerts: number
   recentInvoices:  RecentInvoice[]
   topClients:      TopClient[]
+  topSuppliers:    TopSupplier[]
+  expensesByCategory: ExpenseCategoryStat[]
   monthlyRevenue:  MonthlyRevenue[]
+}
+
+export interface TopSupplier {
+  supplierId:     string
+  supplierName:   string
+  totalPurchases: number
+}
+
+export interface ExpenseCategoryStat {
+  categoryId:   string | null
+  categoryName: string
+  totalAmount:  number
+  count:        number
 }
 
 export interface AgingBucket {

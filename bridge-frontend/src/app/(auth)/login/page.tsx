@@ -127,6 +127,7 @@ export default function LoginPage() {
                 autoComplete="email"
                 className="auth-input"
                 style={{ padding: '11px 14px' }}
+                suppressHydrationWarning
               />
             </div>
 
@@ -156,7 +157,7 @@ export default function LoginPage() {
                   Mot de passe oublié ?
                 </Link>
               </div>
-              <div style={{ position: 'relative' }}>
+              <div style={{ position: 'relative' }} suppressHydrationWarning>
                 <input
                   id="password"
                   type={showPwd ? 'text' : 'password'}
@@ -167,6 +168,7 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   className="auth-input"
                   style={{ padding: '11px 44px 11px 14px' }}
+                  suppressHydrationWarning
                 />
                 <button
                   type="button"
@@ -183,10 +185,9 @@ export default function LoginPage() {
                   onMouseEnter={e => (e.currentTarget.style.color = '#475569')}
                   onMouseLeave={e => (e.currentTarget.style.color = '#94a3b8')}
                 >
-                  {showPwd
-                    ? <EyeOff size={16} aria-hidden />
-                    : <Eye    size={16} aria-hidden />
-                  }
+                  {/* CSS visibility pour éviter removeChild lors du toggle */}
+                  <Eye    size={16} aria-hidden style={{ display: showPwd ? 'none' : 'block' }} />
+                  <EyeOff size={16} aria-hidden style={{ display: showPwd ? 'block' : 'none' }} />
                 </button>
               </div>
             </div>

@@ -445,7 +445,7 @@ export interface DocumentLine {
  */
 export interface DocumentHtmlParams {
   /** Type de document — détermine le layout et les libellés */
-  type: 'Proforma' | 'Facture' | 'Facture Acompte' | 'Facture Solde' | 'Avoir';
+  type: 'Proforma' | 'Facture' | 'Facture Acompte' | 'Facture Solde' | 'Avoir' | 'Bon de Commande';
   /** Numéro SYSCOHADA (ex : BTS/DC/2026/01/fac001) */
   number: string;
   /** Date d'émission formatée en FR (ex : 06/01/2026) */
@@ -566,7 +566,7 @@ const BLUE     = '#0071bf';
 /** Couleur de texte pour les en-têtes bleus */
 const BLUE_TXT = '#ffffff';
 /** Beige/tan BTS (lignes de totaux) */
-const TAN      = '#C8B87A';
+const TAN      = '#c4bc96';
 /** Couleur de bordure des tableaux */
 const BORDER   = '#d4d4d4';
 
@@ -588,9 +588,10 @@ const BORDER   = '#d4d4d4';
 export function buildDocumentHtml(params: DocumentHtmlParams): string {
   const headerImg = params.headerImageB64 ?? getStaticHeader();
   const footerImg = params.footerImageB64 ?? getStaticFooter();
+  const isBonCommande = params.type === 'Bon de Commande';
   const sealImg   = params.type === 'Proforma' ? (params.sealImageB64 ?? getStaticSeal()) : '';
 
-  const isProforma = params.type === 'Proforma';
+  const isProforma = params.type === 'Proforma' || isBonCommande;
   const isAcompte  = params.type === 'Facture Acompte';
   const isSolde    = params.type === 'Facture Solde';
   const isFacture  = !isProforma;
@@ -742,21 +743,25 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
   let titleSection = '';
 
   if (isProforma) {
-    // Titre centré puis table des métadonnées
+    const docTitle     = isBonCommande ? 'BON DE COMMANDE' : 'PROFORMA';
+    const partyLabel   = isBonCommande ? 'Fournisseur'      : 'Client';
+    const refLabel     = isBonCommande ? 'N° Bon de Commande' : 'Référence Cotation';
+    const dateLabel    = isBonCommande ? 'Date de commande'  : 'Date';
+    const dueLabel     = isBonCommande ? 'Livraison prévue'  : 'Valide jusqu\'au';
     titleSection = `
       <div style="text-align:center;margin:18px 0 16px;">
-        <h1 style="font-size:16px;font-weight:bold;text-decoration:underline;letter-spacing:1px;display:inline-block;color:${BLUE};">PROFORMA</h1>
+        <h1 style="font-size:16px;font-weight:bold;text-decoration:underline;letter-spacing:1px;display:inline-block;color:${BLUE};">${docTitle}</h1>
       </div>
       <table style="width:100%;border-collapse:collapse;margin-bottom:18px;font-size:11px;">
-        <tr><td style="${labelTd}width:28%;">Client</td>
+        <tr><td style="${labelTd}width:28%;">${partyLabel}</td>
             <td style="${td}font-weight:bold;">${params.clientName}</td></tr>
-        <tr><td style="${labelTd}">Date</td>
+        <tr><td style="${labelTd}">${dateLabel}</td>
             <td style="${td}">${params.issueDate}</td></tr>
-        ${params.subject ? `<tr><td style="${labelTd}">Service</td>
+        ${params.subject ? `<tr><td style="${labelTd}">Objet</td>
             <td style="${td}">${params.subject}</td></tr>` : ''}
-        <tr><td style="${labelTd}">Référence Cotation</td>
+        <tr><td style="${labelTd}">${refLabel}</td>
             <td style="${td}">${params.number}</td></tr>
-        ${params.validUntil ? `<tr><td style="${labelTd}">Valide jusqu'au</td>
+        ${params.validUntil ? `<tr><td style="${labelTd}">${dueLabel}</td>
             <td style="${td}">${params.validUntil}</td></tr>` : ''}
       </table>`;
 
@@ -771,7 +776,7 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
         <p style="font-size:11px;margin-top:6px;"><strong>N° Facture :</strong>&nbsp;&nbsp;${params.number}</p>
         <p style="font-size:11px;margin-top:3px;"><strong>Date :</strong>&nbsp;&nbsp;${params.issueDate}</p>
       </div>
-      <table style="width:60%;border-collapse:collapse;margin-bottom:18px;font-size:11px;">
+      <table style="width:60%;border-collapse:collapse;margin-bottom:26px;font-size:11px;">
         <tr><td style="${labelTd}text-align:center;width:22%;">Client</td>
             <td style="${td}font-weight:bold;">${params.clientName}</td></tr>
         ${params.clientStreet ? `<tr><td style="${labelTd}text-align:center;">Rue</td>
@@ -795,7 +800,7 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
         <p style="font-size:11px;margin-top:6px;"><strong>N° Facture :</strong> ${params.number}</p>
         <p style="font-size:11px;margin-top:3px;"><strong>Date de facturation :</strong> ${params.issueDate}</p>
       </div>
-      <table style="width:100%;border-collapse:collapse;margin-bottom:18px;font-size:11px;">
+      <table style="width:100%;border-collapse:collapse;margin-bottom:26px;font-size:11px;">
         <tr><td style="${labelTd}width:24%;">Client</td>
             <td style="${td}font-weight:bold;">${params.clientName}</td></tr>
         ${params.clientStreet ? `<tr><td style="${labelTd}">Rue</td>
@@ -833,7 +838,7 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
   // (y compris la zone décorative du footer) sans sauter à la page suivante.
   const linesTable = `
     <div class="lines-table-wrapper">
-      <table style="width:100%;border-collapse:collapse;margin-bottom:18px;font-size:11px;">
+      <table style="width:100%;border-collapse:collapse;margin-bottom:${isFacture ? '26px' : '18px'};font-size:11px;">
         <thead>
           <tr>
             ${allService ? '' : (isFacture ? `<th style="${thStyle}text-align:center;width:${refWidth};">Référence</th>` : '')}
@@ -1027,7 +1032,7 @@ export function buildReceiptHtml(params: ReceiptParams): string {
 
   const BLUE_R     = '#0071bf';
   const BLUE_TXT_R = '#ffffff';
-  const TAN_R      = '#C8B87A';
+  const TAN_R      = '#c4bc96';
   const BORDER_R   = '#d4d4d4';
   const td_r       = `border:1px solid ${BORDER_R};padding:6px 10px;`;
   const labelTd_r  = `${td_r}background:${BLUE_R};color:${BLUE_TXT_R};font-weight:bold;width:35%;`;

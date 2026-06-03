@@ -202,7 +202,7 @@ export interface BankImportProfile {
   name:                string
   bankName:            string | null
   country:             string
-  source:              'system' | 'user'
+  source:              'system' | 'user' | 'estimated' | 'community' | 'verified'
   fileFormat:          ImportFormat
   encoding:            string
   delimiter:           string
@@ -290,6 +290,7 @@ export interface ImportPreviewResult {
   totalRows:    number
   skippedRows:  number
   duplicates:   number
+  parseErrors?: Array<{ row: number; message: string }>
   periodStart:  string | null
   periodEnd:    string | null
   format:       ImportFormat

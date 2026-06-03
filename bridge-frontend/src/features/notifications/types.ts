@@ -25,6 +25,7 @@ export type NotificationType =
   | 'purchase_order_created'
   | 'purchase_order_approved'
   | 'purchase_order_rejected'
+  | 'purchase_order_received'
   | 'supplier_invoice_received'
   | 'supplier_invoice_due'
   // Modules stock / banque / fiscal

@@ -13,7 +13,7 @@ export const taxRatesApi = {
     return data
   },
   async update(id: string, payload: UpdateTaxRatePayload): Promise<TaxRate> {
-    const { data } = await apiClient.put<TaxRate>(`/tax-rates/${id}`, payload)
+    const { data } = await apiClient.patch<TaxRate>(`/tax-rates/${id}`, payload)
     return data
   },
   async delete(id: string): Promise<void> {

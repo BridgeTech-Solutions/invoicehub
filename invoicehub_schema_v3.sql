@@ -40,7 +40,7 @@ CREATE TYPE client_status AS ENUM ('active', 'archived');
 CREATE TYPE product_type  AS ENUM ('product', 'service');
 CREATE TYPE product_unit  AS ENUM ('heure', 'jour', 'forfait', 'piece', 'licence', 'mois', 'annee');
 
-CREATE TYPE document_type AS ENUM ('proforma', 'invoice');
+CREATE TYPE document_type AS ENUM ('proforma', 'invoice', 'purchase_order', 'supplier_invoice', 'expense', 'delivery_note');
 CREATE TYPE discount_type AS ENUM ('none', 'percentage', 'fixed');
 
 CREATE TYPE proforma_status AS ENUM ('draft', 'sent', 'accepted', 'rejected', 'expired');
@@ -230,6 +230,16 @@ CREATE TABLE company_settings (
     escompte_accounting_account   VARCHAR(20) NOT NULL DEFAULT '673',
     collected_tax_account         VARCHAR(20) NOT NULL DEFAULT '4431',
     deductible_tax_account        VARCHAR(20) NOT NULL DEFAULT '4452',
+    stock_account                 VARCHAR(20) NOT NULL DEFAULT '3111',
+    stock_variation_account       VARCHAR(20) NOT NULL DEFAULT '6031',
+    stock_loss_account            VARCHAR(20) NOT NULL DEFAULT '6032',
+    default_client_account        VARCHAR(20) NOT NULL DEFAULT '4111',
+    default_supplier_account      VARCHAR(20) NOT NULL DEFAULT '4011',
+    default_bank_account          VARCHAR(20) NOT NULL DEFAULT '5211',
+    default_sales_goods_account   VARCHAR(20) NOT NULL DEFAULT '7011',
+    default_sales_service_account VARCHAR(20) NOT NULL DEFAULT '7061',
+    default_purchase_account      VARCHAR(20) NOT NULL DEFAULT '6011',
+    default_expense_account       VARCHAR(20) NOT NULL DEFAULT '6251',
 
     -- Champs flexibles
     metadata                JSONB        NOT NULL DEFAULT '{}',
@@ -675,8 +685,13 @@ BEGIN
     RETURNING last_sequence INTO v_seq;
 
     v_doc_prefix := CASE p_doc_type
-        WHEN 'proforma' THEN 'pfm'
-        ELSE 'fac'
+        WHEN 'proforma'         THEN 'pfm'
+        WHEN 'invoice'          THEN 'fac'
+        WHEN 'purchase_order'   THEN 'bc'
+        WHEN 'supplier_invoice' THEN 'ff'
+        WHEN 'expense'          THEN 'dep'
+        WHEN 'delivery_note'    THEN 'bl'
+        ELSE 'doc'
     END;
 
     RETURN format('BTS/%s/%s/%s/%s%s',
@@ -1384,6 +1399,7 @@ ALTER TYPE audit_action ADD VALUE IF NOT EXISTS 'BANK_IMPORT';
 ALTER TYPE audit_action ADD VALUE IF NOT EXISTS 'EXPENSE_SUBMITTED';
 ALTER TYPE audit_action ADD VALUE IF NOT EXISTS 'EXPENSE_APPROVED';
 ALTER TYPE audit_action ADD VALUE IF NOT EXISTS 'EXPENSE_REJECTED';
+ALTER TYPE purchase_order_status ADD VALUE IF NOT EXISTS 'invoiced';
 
 -- ================================================================
 -- 2.4 Étendre `notification_status` ENUM — nouveaux modules
@@ -1431,12 +1447,25 @@ ALTER TABLE company_settings
     ADD COLUMN IF NOT EXISTS initial_stock_account       VARCHAR(20)   NOT NULL DEFAULT '1042',
     ADD COLUMN IF NOT EXISTS escompte_accounting_account VARCHAR(20)   NOT NULL DEFAULT '673',
     ADD COLUMN IF NOT EXISTS collected_tax_account       VARCHAR(20)   NOT NULL DEFAULT '4431',
-    ADD COLUMN IF NOT EXISTS deductible_tax_account      VARCHAR(20)   NOT NULL DEFAULT '4452';
+    ADD COLUMN IF NOT EXISTS deductible_tax_account      VARCHAR(20)   NOT NULL DEFAULT '4452',
+    ADD COLUMN IF NOT EXISTS stock_account               VARCHAR(20)   NOT NULL DEFAULT '3111',
+    ADD COLUMN IF NOT EXISTS stock_variation_account     VARCHAR(20)   NOT NULL DEFAULT '6031',
+    ADD COLUMN IF NOT EXISTS stock_loss_account          VARCHAR(20)   NOT NULL DEFAULT '6032',
+    ADD COLUMN IF NOT EXISTS default_client_account        VARCHAR(20) NOT NULL DEFAULT '4111',
+    ADD COLUMN IF NOT EXISTS default_supplier_account      VARCHAR(20) NOT NULL DEFAULT '4011',
+    ADD COLUMN IF NOT EXISTS default_bank_account          VARCHAR(20) NOT NULL DEFAULT '5211',
+    ADD COLUMN IF NOT EXISTS default_sales_goods_account   VARCHAR(20) NOT NULL DEFAULT '7011',
+    ADD COLUMN IF NOT EXISTS default_sales_service_account VARCHAR(20) NOT NULL DEFAULT '7061',
+    ADD COLUMN IF NOT EXISTS default_purchase_account      VARCHAR(20) NOT NULL DEFAULT '6011',
+    ADD COLUMN IF NOT EXISTS default_expense_account       VARCHAR(20) NOT NULL DEFAULT '6251';
 
 COMMENT ON COLUMN company_settings.initial_stock_account       IS 'Compte de contrepartie pour les entrées de stock initial (1042 = Compte de l''exploitant OHADA).';
 COMMENT ON COLUMN company_settings.escompte_accounting_account IS 'Compte de charge financière pour les escomptes de règlement accordés (673 = Escomptes accordés OHADA).';
 COMMENT ON COLUMN company_settings.collected_tax_account       IS 'Compte TVA collectée sur ventes (4431 = T.V.A. facturée sur ventes OHADA).';
 COMMENT ON COLUMN company_settings.deductible_tax_account      IS 'Compte TVA déductible sur achats (4452 = T.V.A. récupérable sur achats OHADA).';
+COMMENT ON COLUMN company_settings.stock_account               IS 'Compte de stock par défaut, inventaire permanent (3111 = Marchandises A1 OHADA).';
+COMMENT ON COLUMN company_settings.stock_variation_account     IS 'Compte de variation des stocks, contrepartie entrée/sortie (6031 = Variation stocks marchandises OHADA).';
+COMMENT ON COLUMN company_settings.stock_loss_account          IS 'Compte de variation/manquant sur stock (6032 = Variation stocks matières premières OHADA).';
 
 COMMENT ON COLUMN company_settings.fiscal_year_start_month    IS '1=janvier (défaut), 7=juillet pour les exercices décalés.';
 COMMENT ON COLUMN company_settings.purchase_approval_threshold IS 'Seuil en XAF au-delà duquel un BC nécessite une approbation. NULL = pas de seuil.';
@@ -1571,7 +1600,7 @@ COMMENT ON COLUMN users.office_id    IS 'Bureau/agence de rattachement de l''emp
 -- 3.1 ENUMs spécifiques au module achats
 -- ================================================================
 CREATE TYPE supplier_status         AS ENUM ('active', 'suspended', 'archived');
-CREATE TYPE purchase_order_status   AS ENUM ('draft','sent','confirmed','partially_received','received','cancelled','closed');
+CREATE TYPE purchase_order_status   AS ENUM ('draft','sent','confirmed','partially_received','received','invoiced','cancelled','closed');
 CREATE TYPE supplier_invoice_status AS ENUM ('draft','received','validated','partially_paid','paid','disputed','cancelled');
 CREATE TYPE stock_movement_type     AS ENUM ('purchase_receipt','sale','adjustment_in','adjustment_out','write_off','return_supplier','return_customer','initial_stock','transfer_in','transfer_out');
 CREATE TYPE delivery_status         AS ENUM ('pending','partial','complete','cancelled');
@@ -1888,9 +1917,13 @@ CREATE TABLE supplier_invoices (
     -- Fichiers
     scan_path               VARCHAR(500),
     pdf_path                VARCHAR(500),
+    -- Document original reçu du fournisseur (pièce jointe : PDF/image). On ne génère
+    -- jamais de PDF "Facture" à en-tête BTS pour une FF — on stocke le document source.
+    attachment_path         VARCHAR(500),
 
-    -- Compte comptable fournisseur
-    accounting_account      VARCHAR(20)             DEFAULT '4011',
+    -- Compte d'achat (override). Sans défaut : l'engine comptable utilise
+    -- defaultPurchaseAccount (60x) quand cette colonne est nulle.
+    accounting_account      VARCHAR(20),
 
     metadata                JSONB                   NOT NULL DEFAULT '{}',
 
@@ -5182,6 +5215,17 @@ ALTER TABLE purchase_orders
 ALTER TABLE supplier_invoices
   ADD COLUMN IF NOT EXISTS requires_approval     BOOLEAN NOT NULL DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS approval_request_id   UUID;
+
+-- Document original reçu du fournisseur (pièce jointe : PDF/image). On ne génère
+-- jamais de PDF "Facture" à en-tête BTS pour une FF — on stocke le document source.
+ALTER TABLE supplier_invoices
+  ADD COLUMN IF NOT EXISTS attachment_path       VARCHAR(500);
+
+-- Portabilité hors zone OHADA : on retire le défaut '4011' codé en dur sur le
+-- compte d'achat. L'engine comptable utilise defaultPurchaseAccount (company_settings)
+-- quand la colonne est nulle.
+ALTER TABLE supplier_invoices
+  ALTER COLUMN accounting_account DROP DEFAULT;
 
 ALTER TABLE expenses
   ADD COLUMN IF NOT EXISTS requires_approval_wf  BOOLEAN NOT NULL DEFAULT FALSE,

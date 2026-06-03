@@ -199,17 +199,18 @@ function Step1({ accountId, setAccountId, file, setFile, accounts, onNext }: Ste
       }
     }
 
-    // Construire le formatOverride à passer au preview si mapping manuel
-    const customMapping = needsMapping
-      ? {
-          delimiter:    detected?.detectedMapping?.delimiter ?? ';',
-          encoding:     detected?.detectedMapping?.encoding ?? 'utf-8',
-          dateFormat,
-          numberFormat,
-          columnMapping: mapping,
-          headerRow:    detected?.detectedMapping?.headerRow ?? 0,
-        }
-      : undefined
+    // Toujours envoyer le mapping au preview — manuel si needsMapping, sinon auto-détecté.
+    // Sans ça, si needsMapping=false (haute confiance ou detect échoué), le backend
+    // fait une auto-détection qui peut produire 0 lignes pour les formats inconnus.
+    const base = detected?.detectedMapping
+    const customMapping = {
+      delimiter:    needsMapping ? (base?.delimiter ?? ';') : (base?.delimiter ?? ';'),
+      encoding:     base?.encoding ?? 'utf-8',
+      dateFormat:   needsMapping ? dateFormat    : (base?.dateFormat    ?? 'DD/MM/YYYY'),
+      numberFormat: needsMapping ? numberFormat  : (base?.numberFormat  ?? { thousands: ' ', decimal: ',' }),
+      columnMapping: needsMapping ? mapping      : (base?.columnMapping ?? { date: '', label: '' }),
+      headerRow:    base?.headerRow ?? 0,
+    }
 
     onNext(customMapping)
   }
@@ -488,6 +489,27 @@ function Step2({
         </div>
       )}
 
+      {/* Erreurs de parsing — aide au diagnostic */}
+      {preview.rows.length === 0 && preview.skippedRows > 0 && (preview.parseErrors?.length ?? 0) > 0 && (
+        <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', background: '#fee2e2', border: '1px solid #fca5a5' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#dc2626', marginBottom: 6 }}>
+            {preview.skippedRows} ligne{preview.skippedRows !== 1 ? 's' : ''} non parsées — vérifiez le mapping des colonnes
+          </div>
+          {preview.parseErrors!.map((e, i) => (
+            <div key={i} style={{ fontSize: 12, color: '#7f1d1d', fontFamily: 'var(--font-mono)' }}>
+              Ligne {e.row} : {e.message}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Aucune transaction et pas d'erreurs = tous doublons ou fichier vide */}
+      {preview.rows.length === 0 && preview.skippedRows === 0 && (
+        <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', background: '#f0f9ff', border: '1px solid #bae6fd', fontSize: 13, color: '#0369a1' }}>
+          Toutes les transactions sont déjà importées (doublons) ou le fichier est vide.
+        </div>
+      )}
+
       {/* Table de prévisualisation */}
       <div style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
         <table className="data-table" style={{ minWidth: 600 }}>
@@ -518,7 +540,7 @@ function Step2({
             ))}
           </tbody>
         </table>
-        {preview.totalRows > 10 && (
+        {preview.rows.length > 10 && (
           <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', textAlign: 'center' }}>
             <button
               type="button"
@@ -527,7 +549,7 @@ function Step2({
             >
               {showAll
                 ? 'Réduire l\'aperçu'
-                : `Voir toutes les ${preview.totalRows} lignes (+${preview.totalRows - 10} masquées)`}
+                : `Voir toutes les ${preview.rows.length} lignes (+${preview.rows.length - 10} masquées)`}
             </button>
           </div>
         )}
@@ -684,10 +706,14 @@ export default function BankImportPage() {
   const [file,        setFile]        = useState<File | null>(null)
   const [importId,    setImportId]    = useState<string | null>(null)
   const [customMapping, setCustomMapping] = useState<object | undefined>(undefined)
+  // Ref pour garantir que Step2 a toujours la dernière valeur du mapping
+  // même en cas de batching React différé
+  const customMappingRef = useRef<object | undefined>(undefined)
 
   const { data: accounts = [] } = useBankAccounts()
 
   const reset = () => {
+    customMappingRef.current = undefined
     setStep(1); setFile(null); setImportId(null); setCustomMapping(undefined)
     setAccountId(searchParams.get('accountId') ?? '')
   }
@@ -712,6 +738,7 @@ export default function BankImportPage() {
             setFile={setFile}
             accounts={accounts}
             onNext={(mapping) => {
+              customMappingRef.current = mapping
               setCustomMapping(mapping)
               setStep(2)
             }}
@@ -721,7 +748,7 @@ export default function BankImportPage() {
           <Step2
             file={file}
             accountId={accountId}
-            customMapping={customMapping}
+            customMapping={customMappingRef.current}
             onBack={() => setStep(1)}
             onConfirm={id => { setImportId(id); setStep(3) }}
           />

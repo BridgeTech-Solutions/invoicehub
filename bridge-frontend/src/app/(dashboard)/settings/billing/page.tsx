@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useId, useRef, useEffect } from 'react'
-import { Percent, Building, Plus, Pencil, Trash2, Check, X, Loader2, Star, Hash, Banknote } from 'lucide-react'
+import { Percent, Building, Plus, Pencil, Trash2, Check, X, Loader2, Star, Banknote, BookOpen } from 'lucide-react'
 import { useTaxRates, useCreateTaxRate, useUpdateTaxRate, useDeleteTaxRate } from '@/features/tax-rates/hooks'
 import { useOffices, useCreateOffice, useUpdateOffice, useDeleteOffice } from '@/features/offices/hooks'
 import { useSettings, useUpdateSettings } from '@/features/settings/hooks'
+import { AccountPicker } from '@/features/accounting/components/AccountPicker'
+import { useAccounts } from '@/features/accounting/hooks'
 import { usePermission } from '@/hooks/usePermission'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import type { TaxRate, CreateTaxRatePayload } from '@/features/tax-rates/types'
@@ -181,6 +183,146 @@ function GlobalFinanceSection() {
                   />
                 </div>
               </div>
+            </div>
+            {dirty && can('settings', 'update') && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                <button
+                  type="submit"
+                  disabled={updateMut.isPending}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '9px 22px', borderRadius: 'var(--radius-md)',
+                    border: 'none', background: 'var(--primary)', color: '#fff',
+                    cursor: updateMut.isPending ? 'not-allowed' : 'pointer',
+                    fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 700,
+                    opacity: updateMut.isPending ? 0.65 : 1,
+                  }}
+                >
+                  {updateMut.isPending ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <Check size={14} aria-hidden="true" />}
+                  Enregistrer
+                </button>
+              </div>
+            )}
+          </form>
+        )
+      }
+    </div>
+  )
+}
+
+// ─── Account field (sélecteur recherchable code + intitulé) ───
+// Adapte AccountPicker (basé sur l'id) aux paramètres (basés sur le numéro).
+function AccountField({ label, value, onChange }: {
+  label: string; value: string | undefined; onChange: (n: string) => void
+}) {
+  const { data: accounts = [] } = useAccounts()
+  const selectedId = accounts.find((a) => a.number === value)?.id ?? null
+  return (
+    <AccountPicker
+      label={label}
+      value={selectedId}
+      leafOnly
+      placeholder="Choisir un compte…"
+      onChange={(a) => onChange(a?.number ?? '')}
+    />
+  )
+}
+
+// ─── Sous-groupe de comptes avec en-tête ──────────────────────
+function AccountGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 10px', paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
+        {title}
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+// ─── Accounting accounts section ─────────────────────────────
+function AccountingSection() {
+  const { can } = usePermission()
+  const { data: settings, isLoading } = useSettings()
+  const updateMut = useUpdateSettings()
+  const uid = useId()
+  const id  = (s: string) => `${uid}-${s}`
+
+  const [form, setForm] = useState<Pick<UpdateSettingsPayload,
+    'initialStockAccount' | 'escompteAccountingAccount' | 'collectedTaxAccount' | 'deductibleTaxAccount'
+    | 'stockAccount' | 'stockVariationAccount' | 'stockLossAccount'
+    | 'defaultClientAccount' | 'defaultSupplierAccount' | 'defaultBankAccount'
+    | 'defaultSalesGoodsAccount' | 'defaultSalesServiceAccount' | 'defaultPurchaseAccount'
+    | 'defaultExpenseAccount'>>({})
+  const [dirty, setDirty] = useState(false)
+
+  useEffect(() => {
+    if (!settings) return
+    setForm({
+      initialStockAccount:       settings.initialStockAccount,
+      escompteAccountingAccount: settings.escompteAccountingAccount,
+      collectedTaxAccount:       settings.collectedTaxAccount,
+      deductibleTaxAccount:      settings.deductibleTaxAccount,
+      stockAccount:              settings.stockAccount,
+      stockVariationAccount:     settings.stockVariationAccount,
+      stockLossAccount:          settings.stockLossAccount,
+      defaultClientAccount:       settings.defaultClientAccount,
+      defaultSupplierAccount:     settings.defaultSupplierAccount,
+      defaultBankAccount:         settings.defaultBankAccount,
+      defaultSalesGoodsAccount:   settings.defaultSalesGoodsAccount,
+      defaultSalesServiceAccount: settings.defaultSalesServiceAccount,
+      defaultPurchaseAccount:     settings.defaultPurchaseAccount,
+      defaultExpenseAccount:      settings.defaultExpenseAccount,
+    })
+    setDirty(false)
+  }, [settings])
+
+  function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }))
+    setDirty(true)
+  }
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault()
+    await updateMut.mutateAsync(form)
+    setDirty(false)
+  }
+
+  return (
+    <div className="card">
+      <SectionHeader icon={<BookOpen size={15} />} title="Comptes comptables SYSCOHADA" />
+      <p style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '0 0 16px' }}>
+        Numéros de comptes du Plan Comptable SYSCOHADA utilisés pour les imputations automatiques.
+      </p>
+      {isLoading
+        ? <div aria-hidden="true" style={{ height: 120, background: 'var(--border)', borderRadius: 'var(--radius-md)' }} className="animate-pulse" />
+        : (
+          <form onSubmit={handleSave} noValidate>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <AccountGroup title="TVA">
+                <AccountField label="TVA collectée"   value={form.collectedTaxAccount}  onChange={(v) => set('collectedTaxAccount', v)} />
+                <AccountField label="TVA déductible"  value={form.deductibleTaxAccount} onChange={(v) => set('deductibleTaxAccount', v)} />
+              </AccountGroup>
+              <AccountGroup title="Stock — inventaire permanent">
+                <AccountField label="Stock marchandises"    value={form.stockAccount}          onChange={(v) => set('stockAccount', v)} />
+                <AccountField label="Variation des stocks"  value={form.stockVariationAccount} onChange={(v) => set('stockVariationAccount', v)} />
+                <AccountField label="Perte / manquant"      value={form.stockLossAccount}      onChange={(v) => set('stockLossAccount', v)} />
+                <AccountField label="Capital initial stock" value={form.initialStockAccount}   onChange={(v) => set('initialStockAccount', v)} />
+              </AccountGroup>
+              <AccountGroup title="Comptes tiers">
+                <AccountField label="Client par défaut"     value={form.defaultClientAccount}   onChange={(v) => set('defaultClientAccount', v)} />
+                <AccountField label="Fournisseur par défaut" value={form.defaultSupplierAccount} onChange={(v) => set('defaultSupplierAccount', v)} />
+                <AccountField label="Banque par défaut"     value={form.defaultBankAccount}     onChange={(v) => set('defaultBankAccount', v)} />
+              </AccountGroup>
+              <AccountGroup title="Ventes · Achats · Charges">
+                <AccountField label="Ventes de marchandises"  value={form.defaultSalesGoodsAccount}   onChange={(v) => set('defaultSalesGoodsAccount', v)} />
+                <AccountField label="Prestations de services" value={form.defaultSalesServiceAccount} onChange={(v) => set('defaultSalesServiceAccount', v)} />
+                <AccountField label="Achats de marchandises"  value={form.defaultPurchaseAccount}     onChange={(v) => set('defaultPurchaseAccount', v)} />
+                <AccountField label="Charges / dépenses"      value={form.defaultExpenseAccount}      onChange={(v) => set('defaultExpenseAccount', v)} />
+                <AccountField label="Escomptes accordés"      value={form.escompteAccountingAccount}  onChange={(v) => set('escompteAccountingAccount', v)} />
+              </AccountGroup>
             </div>
             {dirty && can('settings', 'update') && (
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
@@ -468,64 +610,6 @@ function OfficesSection() {
   )
 }
 
-// ─── Document sequences section ───────────────────────────────
-function DocumentSequencesSection() {
-  const { data: offices = [], isLoading } = useOffices()
-  const now   = new Date()
-  const year  = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-
-  const activeOffices = offices.filter((o) => !o.deletedAt)
-
-  return (
-    <div className="card">
-      <SectionHeader icon={<Hash size={15} />} title="Séquences de numérotation" />
-      <p style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '0 0 16px' }}>
-        Format SYSCOHADA — numérotation atomique via la fonction PostgreSQL{' '}
-        <code style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, background: 'var(--surface-2)', padding: '1px 5px', borderRadius: 3 }}>fn_next_document_number()</code>.
-        Les séquences sont gapless et garanties atomiques même en charge concurrente.
-      </p>
-      {isLoading
-        ? Array.from({ length: 2 }).map((_, i) => (
-          <div key={i} aria-hidden="true" style={{ height: 80, background: 'var(--border)', borderRadius: 'var(--radius-md)', marginBottom: 8 }} className="animate-pulse" />
-        ))
-        : activeOffices.length === 0
-          ? <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center', padding: '16px 0' }}>Aucun bureau configuré</p>
-          : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {activeOffices.map((o) => (
-                <div key={o.id} style={{ padding: '14px 16px', background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: `1.5px solid ${o.isDefault ? 'rgba(45,125,210,0.3)' : 'var(--border)'}` }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: o.isDefault ? 'var(--primary)' : 'var(--text-1)', fontFamily: 'var(--font-mono)' }}>{o.code}</span>
-                    <span style={{ fontSize: 13, color: 'var(--text-2)' }}>{o.name}</span>
-                    {o.isDefault && (
-                      <span style={{ fontSize: 10.5, padding: '1px 7px', borderRadius: 100, background: 'rgba(45,125,210,0.1)', color: 'var(--primary)', fontFamily: 'var(--font-display)', fontWeight: 700 }}>Principal</span>
-                    )}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    {[
-                      { label: 'Facture', prefix: 'FAC', color: '#10b981', bg: 'rgba(16,185,129,0.07)' },
-                      { label: 'Proforma', prefix: 'PFM', color: '#6366f1', bg: 'rgba(99,102,241,0.07)' },
-                      { label: 'Acompte', prefix: 'ACP', color: '#f59e0b', bg: 'rgba(245,158,11,0.07)' },
-                      { label: 'Avoir', prefix: 'AVO', color: '#ef4444', bg: 'rgba(239,68,68,0.07)' },
-                    ].map(({ label, prefix, color, bg }) => (
-                      <div key={prefix} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 'var(--radius-md)', background: bg, border: `1px solid ${color}22` }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color, fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: 54 }}>{label}</span>
-                        <code style={{ fontSize: 11.5, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', letterSpacing: '0.02em' }}>
-                          BTS/{o.code}/{year}/{month}/{prefix}<span style={{ color }} aria-hidden="true">###</span>
-                        </code>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
-      }
-    </div>
-  )
-}
-
 // ─── Page ─────────────────────────────────────────────────────
 export default function BillingSettingsPage() {
   const { can } = usePermission()
@@ -538,13 +622,13 @@ export default function BillingSettingsPage() {
           Finance &amp; TVA
         </h1>
         <p style={{ margin: 0, fontSize: 13.5, color: 'var(--text-3)', fontFamily: 'var(--font-body)' }}>
-          Paramètres financiers, taux de TVA, bureaux et séquences de numérotation SYSCOHADA
+          Paramètres financiers, taux de TVA et bureaux SYSCOHADA
         </p>
       </div>
       <GlobalFinanceSection />
+      <AccountingSection />
       <TaxRatesSection />
       <OfficesSection />
-      <DocumentSequencesSection />
     </div>
   )
 }

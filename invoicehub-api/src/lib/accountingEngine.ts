@@ -90,19 +90,28 @@ interface SalesBreakdownLine {
 }
 
 function buildSalesBreakdown(
-  lines:              SalesBreakdownLine[],
-  defaultTaxAccount:  string,
+  lines:               SalesBreakdownLine[],
+  defaultTaxAccount:   string,
+  salesGoodsAccount:   string,
+  salesServiceAccount: string,
 ): { salesLines: JournalLineData[]; taxLines: JournalLineData[] } {
   const salesMap = new Map<string, number>();
   const taxMap   = new Map<string, number>();
+  // Libellé par compte, déduit du TYPE de produit (marchandise/service) et non du
+  // numéro de compte → indépendant du plan comptable (OHADA, PCG, ou autre zone).
+  const salesLabelMap = new Map<string, string>();
 
   for (const l of lines) {
-    // Compte ventes : produit → catégorie → fallback SYSCOHADA selon type
-    const fallbackSales = l.product?.type === 'product' ? '7011' : '7061';
+    // Compte ventes : produit → catégorie → défaut entreprise selon le type
+    const isGoods       = l.product?.type === 'product';
+    const fallbackSales = isGoods ? salesGoodsAccount : salesServiceAccount;
     const salesAccount  = l.product?.salesAccountingAccount
       ?? l.product?.category?.salesAccountingAccount
       ?? fallbackSales;
 
+    if (!salesLabelMap.has(salesAccount)) {
+      salesLabelMap.set(salesAccount, isGoods ? 'Ventes de marchandises' : 'Prestations de services');
+    }
     salesMap.set(salesAccount, (salesMap.get(salesAccount) ?? 0) + Number(l.netHt));
 
     const rate = Number(l.taxRate);
@@ -117,7 +126,7 @@ function buildSalesBreakdown(
   let sortOrder = 1;
   for (const [accountNumber, amount] of salesMap) {
     if (amount > 0) {
-      const label = accountNumber.startsWith('701') ? 'Ventes de marchandises' : 'Prestations de services';
+      const label = salesLabelMap.get(accountNumber) ?? 'Ventes';
       salesLines.push({ sortOrder: sortOrder++, accountNumber, label, debit: 0, credit: amount });
     }
   }
@@ -133,20 +142,39 @@ function buildSalesBreakdown(
 }
 
 // ── Helper : comptes globaux depuis company_settings ───────────────────────────
+// Toutes les valeurs viennent de company_settings (colonnes non-null avec défauts
+// OHADA en base). Plus aucun numéro de compte codé en dur dans la logique.
 async function getCompanyAccounts(tx: Tx) {
   const s = await tx.companySettings.findFirst({
     select: {
-      collectedTaxAccount:       true,
-      deductibleTaxAccount:      true,
-      initialStockAccount:       true,
-      escompteAccountingAccount: true,
+      collectedTaxAccount:        true,
+      deductibleTaxAccount:       true,
+      initialStockAccount:        true,
+      escompteAccountingAccount:  true,
+      defaultClientAccount:       true,
+      defaultSupplierAccount:     true,
+      defaultBankAccount:         true,
+      defaultSalesGoodsAccount:   true,
+      defaultSalesServiceAccount: true,
+      defaultPurchaseAccount:     true,
+      defaultExpenseAccount:      true,
     },
   });
+  // Pas de paramètres entreprise → pas d'imputation possible (les appelants
+  // ignorent alors l'écriture plutôt que d'utiliser un compte codé en dur).
+  if (!s) return null;
   return {
-    collectedTaxAccount:       s?.collectedTaxAccount       ?? '4431',
-    deductibleTaxAccount:      s?.deductibleTaxAccount      ?? '4452',
-    initialStockAccount:       s?.initialStockAccount       ?? '1042',
-    escompteAccountingAccount: s?.escompteAccountingAccount ?? '673',
+    collectedTaxAccount:        s.collectedTaxAccount,
+    deductibleTaxAccount:       s.deductibleTaxAccount,
+    initialStockAccount:        s.initialStockAccount,
+    escompteAccountingAccount:  s.escompteAccountingAccount,
+    defaultClientAccount:       s.defaultClientAccount,
+    defaultSupplierAccount:     s.defaultSupplierAccount,
+    defaultBankAccount:         s.defaultBankAccount,
+    defaultSalesGoodsAccount:   s.defaultSalesGoodsAccount,
+    defaultSalesServiceAccount: s.defaultSalesServiceAccount,
+    defaultPurchaseAccount:     s.defaultPurchaseAccount,
+    defaultExpenseAccount:      s.defaultExpenseAccount,
   };
 }
 
@@ -178,14 +206,17 @@ export async function onInvoiceIssued(invoiceId: string, tx: Tx): Promise<void> 
       }),
       getCompanyAccounts(tx),
     ]);
-    if (!invoice) return;
+    if (!invoice || !accounts) return;
 
-    const clientAccount = (invoice.client as any)?.accountingAccount ?? '4111';
+    const clientAccount = (invoice.client as any)?.accountingAccount ?? accounts.defaultClientAccount;
     const linesWithTax  = (invoice.lines as any).map((l: any) => ({
       ...l,
       taxRateCollectedAccount: accounts.collectedTaxAccount,
     }));
-    const { salesLines, taxLines } = buildSalesBreakdown(linesWithTax, accounts.collectedTaxAccount);
+    const { salesLines, taxLines } = buildSalesBreakdown(
+      linesWithTax, accounts.collectedTaxAccount,
+      accounts.defaultSalesGoodsAccount, accounts.defaultSalesServiceAccount,
+    );
 
     const entryDate   = new Date(invoice.issueDate ?? new Date());
     const journal     = await getDefaultJournal(tx, JournalType.sales);
@@ -225,18 +256,21 @@ export async function onInvoiceIssued(invoiceId: string, tx: Tx): Promise<void> 
  */
 export async function onPaymentReceived(paymentId: string, tx: Tx): Promise<void> {
   try {
-    const payment = await tx.payment.findUnique({
-      where: { id: paymentId },
-      include: {
-        invoice:     { include: { client: true } },
-        bankAccount: true,
-      },
-    });
-    if (!payment) return;
+    const [payment, accounts] = await Promise.all([
+      tx.payment.findUnique({
+        where: { id: paymentId },
+        include: {
+          invoice:     { include: { client: true } },
+          bankAccount: true,
+        },
+      }),
+      getCompanyAccounts(tx),
+    ]);
+    if (!payment || !accounts) return;
 
-    const bankAccountNum = (payment.bankAccount as any)?.accountingAccount ?? '5211';
+    const bankAccountNum = (payment.bankAccount as any)?.accountingAccount ?? accounts.defaultBankAccount;
     const bankLabel      = (payment.bankAccount as any)?.name ?? 'Banque';
-    const clientAccount  = (payment.invoice?.client as any)?.accountingAccount ?? '411000';
+    const clientAccount  = (payment.invoice?.client as any)?.accountingAccount ?? accounts.defaultClientAccount;
 
     const entryDate   = new Date(payment.paymentDate);
     const journal     = await getDefaultJournal(tx, JournalType.bank);
@@ -282,7 +316,7 @@ export async function onPaymentReceived(paymentId: string, tx: Tx): Promise<void
           include: { lines: true },
         });
         const invoiceLine = invoiceEntry?.lines.find(
-          l => l.accountNumber.startsWith('411') && !l.letteringCode,
+          l => l.accountNumber === clientAccount && !l.letteringCode,
         );
 
         if (invoiceLine && isFullyPaid) {
@@ -296,7 +330,7 @@ export async function onPaymentReceived(paymentId: string, tx: Tx): Promise<void
             include: { lines: true },
           });
           const allPaymentLines411 = paymentEntries.flatMap(e =>
-            e.lines.filter(l => l.accountNumber.startsWith('411') && !l.letteringCode),
+            e.lines.filter(l => l.accountNumber === clientAccount && !l.letteringCode),
           );
 
           const totalCredits = allPaymentLines411.reduce((s, l) => s + Number(l.credit), 0);
@@ -373,19 +407,23 @@ export async function onPaymentDeleted(paymentId: string, tx: Tx): Promise<void>
  * Débit 60xxxx (achats) + 447100 (TVA déductible), Crédit 401xxx (fournisseur auxiliaire)
  */
 export async function onSupplierInvoiceValidated(supplierInvoiceId: string, tx: Tx): Promise<void> {
-  try {
-    const [inv, accounts] = await Promise.all([
-      tx.supplierInvoice.findUnique({
-        where: { id: supplierInvoiceId },
-        include: { supplier: true },
-      }),
-      getCompanyAccounts(tx),
-    ]);
-    if (!inv) return;
+  // NB : pas de try/catch silencieux ici — cette fonction est appelée DANS la
+  // transaction de validation. Toute erreur doit remonter pour annuler la
+  // validation : on n'autorise pas une FF validée sans écriture comptable.
+  const [inv, accounts] = await Promise.all([
+    tx.supplierInvoice.findUnique({
+      where: { id: supplierInvoiceId },
+      include: { supplier: true },
+    }),
+    getCompanyAccounts(tx),
+  ]);
+  if (!inv) throw new Error(`Facture fournisseur ${supplierInvoiceId} introuvable`);
+  if (!accounts) throw new Error('Paramètres comptables entreprise introuvables — impossible de comptabiliser la FF');
+  {
 
-    const supplierAccount = (inv.supplier as any)?.accountingAccount ?? '4011';
+    const supplierAccount = (inv.supplier as any)?.accountingAccount ?? accounts.defaultSupplierAccount;
     const invAccount      = (inv as any).accountingAccount;
-    const purchaseAccount = invAccount && invAccount !== supplierAccount ? invAccount : '6011';
+    const purchaseAccount = invAccount && invAccount !== supplierAccount ? invAccount : accounts.defaultPurchaseAccount;
     const taxAccount      = accounts.deductibleTaxAccount;
 
     const entryDate   = new Date(inv.invoiceDate);
@@ -415,7 +453,7 @@ export async function onSupplierInvoiceValidated(supplierInvoiceId: string, tx: 
         },
       },
     });
-  } catch (e) { logErr('engine', e); }
+  }
 }
 
 // ── Étape 3.2 — onSupplierPaymentMade : banque + fournisseur dynamiques ──────────
@@ -425,18 +463,24 @@ export async function onSupplierInvoiceValidated(supplierInvoiceId: string, tx: 
  * Débit 401xxx (fournisseur auxiliaire), Crédit 521xxx (banque configurée)
  */
 export async function onSupplierPaymentMade(supplierPaymentId: string, tx: Tx): Promise<void> {
-  try {
-    const payment = await tx.supplierPayment.findUnique({
+  // NB : appelée DANS la transaction de paiement → toute erreur doit remonter
+  // pour annuler le paiement plutôt que de laisser une FF payée sans écriture.
+  const [payment, accounts] = await Promise.all([
+    tx.supplierPayment.findUnique({
       where: { id: supplierPaymentId },
       include: {
         supplier:    true,
         bankAccount: true,
       },
-    });
-    if (!payment) return;
+    }),
+    getCompanyAccounts(tx),
+  ]);
+  if (!payment) throw new Error(`Paiement fournisseur ${supplierPaymentId} introuvable`);
+  if (!accounts) throw new Error('Paramètres comptables entreprise introuvables — impossible de comptabiliser le paiement');
+  {
 
-    const supplierAccount = (payment.supplier as any)?.accountingAccount ?? '4011';
-    const bankAccountNum  = (payment.bankAccount as any)?.accountingAccount ?? '521000';
+    const supplierAccount = (payment.supplier as any)?.accountingAccount ?? accounts.defaultSupplierAccount;
+    const bankAccountNum  = (payment.bankAccount as any)?.accountingAccount ?? accounts.defaultBankAccount;
     const bankLabel       = (payment.bankAccount as any)?.name ?? 'Banque';
 
     const entryDate   = new Date(payment.paymentDate);
@@ -475,7 +519,7 @@ export async function onSupplierPaymentMade(supplierPaymentId: string, tx: Tx): 
           include: { lines: true },
         });
         const invLine = invEntry?.lines.find(
-          l => l.accountNumber.startsWith('401') && !l.letteringCode,
+          l => l.accountNumber === supplierAccount && !l.letteringCode,
         );
 
         const payEntry = await tx.journalEntry.findFirst({
@@ -483,7 +527,7 @@ export async function onSupplierPaymentMade(supplierPaymentId: string, tx: Tx): 
           include: { lines: true },
         });
         const payLine = payEntry?.lines.find(
-          l => l.accountNumber.startsWith('401') && !l.letteringCode,
+          l => l.accountNumber === supplierAccount && !l.letteringCode,
         );
 
         if (invLine && payLine) {
@@ -496,7 +540,62 @@ export async function onSupplierPaymentMade(supplierPaymentId: string, tx: Tx): 
         }
       }
     } catch (e) { logErr('engine.inner', e); }
-  } catch (e) { logErr('engine', e); }
+  }
+}
+
+// ── Extourne facture fournisseur contestée ───────────────────────────────────
+
+/**
+ * Contre-passation de l'écriture de FF quand une facture fournisseur déjà validée
+ * (donc comptabilisée : Dr 60x/447100, Cr 401xxx) est contestée.
+ * Inverse exactement les lignes de l'écriture d'origine (même style que
+ * onPaymentDeleted) et marque l'écriture originale en 'cancelled' afin que la
+ * dette fournisseur 401 ne reste pas inscrite.
+ *
+ * Appelée DANS la transaction de contestation → toute erreur remonte.
+ */
+export async function onSupplierInvoiceDisputed(supplierInvoiceId: string, tx: Tx): Promise<void> {
+  const original = await tx.journalEntry.findFirst({
+    where:   { sourceType: 'supplier_invoice', sourceId: supplierInvoiceId, status: { not: 'cancelled' } },
+    include: { lines: true },
+  });
+  // Pas d'écriture d'origine (ex : FF jamais validée) → rien à extourner.
+  if (!original) return;
+
+  const entryDate   = new Date();
+  const journal     = await getDefaultJournal(tx, JournalType.purchases);
+  const period      = await getOpenPeriod(tx, entryDate);
+  const entryNumber = await nextEntryNumber(tx, journal.code, entryDate);
+
+  await tx.journalEntry.create({
+    data: {
+      journalId:      journal.id,
+      fiscalPeriodId: period.id,
+      entryDate,
+      accountingDate: entryDate,
+      entryNumber,
+      label:       `Extourne — ${original.label}`,
+      sourceType:  'supplier_invoice_reversal',
+      sourceId:    supplierInvoiceId,
+      totalDebit:  original.totalCredit,
+      totalCredit: original.totalDebit,
+      status:      'draft',
+      lines: {
+        create: original.lines.map((l, i) => ({
+          sortOrder:     i,
+          accountNumber: l.accountNumber,
+          label:         `Extourne — ${l.label}`,
+          debit:         Number(l.credit),
+          credit:        Number(l.debit),
+        })),
+      },
+    },
+  });
+
+  await tx.journalEntry.update({
+    where: { id: original.id },
+    data:  { status: 'cancelled' },
+  });
 }
 
 // ── Étape 4 — onInvoiceCancelled : contre-passation avoir ───────────────────────
@@ -528,14 +627,17 @@ export async function onInvoiceCancelled(invoiceId: string, tx: Tx): Promise<voi
       }),
       getCompanyAccounts(tx),
     ]);
-    if (!invoice) return;
+    if (!invoice || !accounts) return;
 
-    const clientAccount = (invoice.client as any)?.accountingAccount ?? '4111';
+    const clientAccount = (invoice.client as any)?.accountingAccount ?? accounts.defaultClientAccount;
     const linesWithTax  = (invoice.lines as any).map((l: any) => ({
       ...l,
       taxRateCollectedAccount: accounts.collectedTaxAccount,
     }));
-    const { salesLines, taxLines } = buildSalesBreakdown(linesWithTax, accounts.collectedTaxAccount);
+    const { salesLines, taxLines } = buildSalesBreakdown(
+      linesWithTax, accounts.collectedTaxAccount,
+      accounts.defaultSalesGoodsAccount, accounts.defaultSalesServiceAccount,
+    );
 
     const entryDate = new Date();
     let journal = await tx.accountingJournal.findFirst({ where: { type: JournalType.operations, isActive: true } });
@@ -578,7 +680,7 @@ export async function onInvoiceCancelled(invoiceId: string, tx: Tx): Promise<voi
  */
 export async function onExpensePaid(expenseId: string, tx: Tx): Promise<void> {
   try {
-    const [expense, bankAccountInfo] = await Promise.all([
+    const [expense, bankAccountInfo, accounts] = await Promise.all([
       tx.expense.findUnique({
         where:   { id: expenseId },
         include: {
@@ -589,11 +691,12 @@ export async function onExpensePaid(expenseId: string, tx: Tx): Promise<void> {
         where: { id: expenseId },
         select: { accountingAccount: true, name: true },
       }),
+      getCompanyAccounts(tx),
     ]);
-    if (!expense) return;
+    if (!expense || !accounts) return;
 
-    const chargeAccount = expense.accountingAccount ?? expense.category?.accountingAccount ?? '6251';
-    const bankAccount   = bankAccountInfo?.accountingAccount ?? '521000';
+    const chargeAccount = expense.accountingAccount ?? expense.category?.accountingAccount ?? accounts.defaultExpenseAccount;
+    const bankAccount   = bankAccountInfo?.accountingAccount ?? accounts.defaultBankAccount;
     const bankLabel     = bankAccountInfo?.name ?? 'Banque';
     const entryDate     = new Date(expense.expenseDate);
     const journal       = await getDefaultJournal(tx, JournalType.operations);
@@ -648,11 +751,11 @@ export async function onStockMovement(params: {
   movementType:        string;
   signedQty:           number;
   totalCostHt:         number;
-  stockAccount:        string;
-  cogsAccount:         string;
-  lossAccount:         string;
-  supplierAccount:     string;
-  initialStockAccount: string;
+  stockAccount:        string | null;
+  cogsAccount:         string | null;
+  lossAccount:         string | null;
+  supplierAccount:     string | null;
+  initialStockAccount: string | null;
   sourceLabel:         string | null;
 }, tx: Tx): Promise<void> {
   try {
@@ -671,13 +774,17 @@ export async function onStockMovement(params: {
       ? `Stock ${productName} — ${sourceLabel}`
       : `Mouvement stock — ${productName}`;
 
-    let debitAccount: string;
-    let creditAccount: string;
+    let debitAccount: string | null;
+    let creditAccount: string | null;
 
     switch (movementType) {
       case 'purchase_receipt':
+        // SYSCOHADA inventaire permanent : l'entrée en stock a pour contrepartie
+        // le compte de variation des stocks (603x), PAS le fournisseur (401).
+        // La dette fournisseur est enregistrée séparément à la validation de la
+        // facture fournisseur (Dr 601 / Cr 401). Créditer 401 ici doublerait la dette.
         debitAccount  = stockAccount;
-        creditAccount = supplierAccount;
+        creditAccount = cogsAccount;
         break;
       case 'initial_stock':
         debitAccount  = stockAccount;
@@ -704,6 +811,10 @@ export async function onStockMovement(params: {
       default:
         return; // transfer_in / transfer_out → pas d'écriture comptable simple
     }
+
+    // Comptes non configurés → on enregistre le mouvement physique sans écriture
+    // comptable plutôt que de provoquer une violation de clé étrangère.
+    if (!debitAccount || !creditAccount) return;
 
     await tx.journalEntry.create({
       data: {
@@ -741,7 +852,7 @@ export async function onStockMovement(params: {
 export async function onEscompteAccorde(params: {
   paymentId:     string;
   invoiceId:     string;
-  clientAccount: string;
+  clientAccount: string | null;
   escompteAmount: number;
   invoiceNumber:  string;
   clientName:     string;
@@ -755,6 +866,9 @@ export async function onEscompteAccorde(params: {
       getOpenPeriod(tx, paymentDate),
       getCompanyAccounts(tx),
     ]);
+    if (!accounts) return;
+    // Repli sur le compte client par défaut configuré (jamais de numéro en dur).
+    const resolvedClientAccount = clientAccount ?? accounts.defaultClientAccount;
     const entryNumber = await nextEntryNumber(tx, journal.code, paymentDate);
 
     await tx.journalEntry.create({
@@ -781,7 +895,7 @@ export async function onEscompteAccorde(params: {
             },
             {
               sortOrder:     1,
-              accountNumber: clientAccount,
+              accountNumber: resolvedClientAccount,
               label:         `Client ${clientName} — escompte FAC ${invoiceNumber}`,
               debit:         0,
               credit:        escompteAmount,

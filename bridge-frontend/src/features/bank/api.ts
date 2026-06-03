@@ -62,7 +62,8 @@ export const bankTransactionsApi = {
     apiClient.post<BankTransaction>(`/bank/transactions/${id}/ignore`).then(r => r.data),
 
   getSuggestions: (id: string) =>
-    apiClient.get<MatchingSuggestion[]>(`/bank/transactions/${id}/suggestions`).then(r => r.data),
+    apiClient.get<{ suggestions: MatchingSuggestion[] } | MatchingSuggestion[]>(`/bank/transactions/${id}/suggestions`)
+      .then(r => Array.isArray(r.data) ? r.data : (r.data?.suggestions ?? [])),
 
   getSubsetMatches: (id: string) =>
     apiClient.get<SubsetMatch[]>(`/bank/transactions/${id}/subset-matches`).then(r => r.data),

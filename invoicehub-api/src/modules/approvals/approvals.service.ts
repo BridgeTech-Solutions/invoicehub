@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import { InjectQueue } from '@nestjs/bullmq'
+import { EventEmitter2 } from '@nestjs/event-emitter'
 import { Queue } from 'bullmq'
+import { APPROVAL_COMPLETED, type ApprovalCompletedEvent, type AutoExecResult } from '../../common/events/approval.events'
 import {
   ApprovalDocumentType,
   ApprovalRequestStatus,
@@ -49,6 +51,7 @@ export class ApprovalsService {
     private readonly prisma: PrismaService,
     @InjectQueue('notification') private readonly notifQueue: Queue<NotificationJobData>,
     @InjectQueue('email') private readonly emailQueue: Queue<EmailJobData>,
+    private readonly emitter: EventEmitter2,
   ) {}
 
   // ── Workflows ─────────────────────────────────────────────────
@@ -278,7 +281,7 @@ export class ApprovalsService {
         where: { id: requestId },
         data: { status: 'approved', resolvedById: userId, resolvedAt: new Date() },
       })
-      await this._notifyUser(request.requestedById, 'approval_approved', 'Demande approuvée', `Votre demande d'approbation pour ${request.documentType} ${request.documentNumber ?? ''} a été approuvée.`, requestId)
+      await this._notifyUser(request.requestedById, 'approval_approved', 'Demande approuvée', `Votre demande d'approbation pour ${request.documentType} ${request.documentNumber ?? ''} a été approuvée.`, requestId, this._docNotifData(request))
       await this._onApprovalCompleted(request)
     } else {
       const nextStep = await this.prisma.approvalWorkflowStep.findFirst({
@@ -340,6 +343,7 @@ export class ApprovalsService {
       'Demande rejetée',
       `Votre demande pour ${request.documentType} ${request.documentNumber ?? ''} a été rejetée. Motif : ${input.comment}`,
       requestId,
+      this._docNotifData(request),
     )
 
     await this._onApprovalRejected(request)
@@ -533,8 +537,9 @@ export class ApprovalsService {
     type: string,
     title: string,
   ) {
+    const link = this._docNotifData(request as { documentType: ApprovalDocumentType; documentId: string })
     if (step.approverUserId) {
-      await this._notifyUser(step.approverUserId, type, title, title, request.id)
+      await this._notifyUser(step.approverUserId, type, title, title, request.id, link)
     } else if (step.approverRole) {
       const users = await this.prisma.user.findMany({
         where: {
@@ -545,24 +550,85 @@ export class ApprovalsService {
         select: { id: true },
       })
       for (const u of users) {
-        await this._notifyUser(u.id, type, title, title, request.id)
+        await this._notifyUser(u.id, type, title, title, request.id, link)
       }
     }
   }
 
-  private async _notifyUser(userId: string, type: string, title: string, message: string, requestId: string) {
+  private async _notifyUser(
+    userId: string, type: string, title: string, message: string, requestId: string,
+    extra?: Record<string, unknown>,
+  ) {
     await this.notifQueue.add('notify', {
       userId, type, title, message,
-      data: { requestId },
+      data: { requestId, ...extra },
     })
   }
 
+  /** Lien profond vers le document concerné, pour rendre la notif cliquable. */
+  private _documentLink(documentType: ApprovalDocumentType, documentId: string): string {
+    const base: Record<ApprovalDocumentType, string> = {
+      invoice:         'invoices',
+      proforma:        'proformas',
+      expense:         'expenses',
+      purchase_order:  'purchase-orders',
+      supplier_invoice:'supplier-invoices',
+    }
+    return `/${base[documentType] ?? 'dashboard'}/${documentId}`
+  }
+
+  /** Data jointe aux notifs d'approbation → le frontend peut router vers le doc. */
+  private _docNotifData(request: { documentType: ApprovalDocumentType; documentId: string }) {
+    return {
+      documentType: request.documentType,
+      documentId:   request.documentId,
+      documentLink: this._documentLink(request.documentType, request.documentId),
+    }
+  }
+
   private async _onApprovalCompleted(request: ApprovalRequest) {
+    // L'expense n'a pas d'« émission » : l'approbation EST son aboutissement.
     if (request.documentType === 'expense') {
       await this.prisma.expense.update({
         where: { id: request.documentId },
         data: { status: 'approved', approvedAt: new Date() },
       }).catch(() => { /* expense may not exist in mock/test */ })
+      return
+    }
+
+    // Facture / BC / FF : on ré-exécute l'action initialement demandée AU NOM DU
+    // DEMANDEUR (maker), via un événement → aucun couplage circulaire avec ces
+    // modules. L'approbateur reste tracé séparément (decisions + audit log).
+    const payload: ApprovalCompletedEvent = {
+      documentType:   request.documentType,
+      documentId:     request.documentId,
+      requestedById:  request.requestedById,
+      approverId:     request.resolvedById ?? null,
+      documentNumber: request.documentNumber ?? null,
+    }
+
+    let results: unknown[] = []
+    try {
+      results = await this.emitter.emitAsync(APPROVAL_COMPLETED, payload)
+    } catch (e) {
+      results = [{ ok: false, message: e instanceof Error ? e.message : 'Erreur inconnue' }]
+    }
+
+    const outcome = results.find(
+      (r): r is AutoExecResult => !!r && typeof r === 'object' && 'ok' in (r as object),
+    )
+
+    // Échec d'auto-exécution : on prévient le demandeur (le doc reste en brouillon,
+    // l'approbation existe → il pourra relancer manuellement après correction).
+    if (outcome && !outcome.ok) {
+      await this._notifyUser(
+        request.requestedById,
+        'system',
+        'Action automatique impossible',
+        `« ${request.documentNumber ?? ''} » a été approuvée, mais son exécution automatique a échoué : ${outcome.message ?? 'erreur inconnue'}. Vous pouvez la relancer manuellement.`,
+        request.id,
+        this._docNotifData(request),
+      )
     }
   }
 

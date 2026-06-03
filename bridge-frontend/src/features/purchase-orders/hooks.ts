@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { purchaseOrdersApi } from './api'
 import type { CreatePurchaseOrderPayload, UpdatePurchaseOrderPayload, ListPurchaseOrdersParams } from './types'
 import { ROUTES } from '@/lib/constants'
+import { getApiErrorMessage, getApiErrorCode, isApprovalFlowCode } from '@/lib/api-error'
 
 export const PO_KEYS = {
   all:    ['purchase-orders'] as const,
@@ -67,30 +68,63 @@ export function useUpdatePurchaseOrder(id: string) {
   })
 }
 
-export function useApprovePurchaseOrder() {
+export function useSendPurchaseOrder() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => purchaseOrdersApi.approve(id),
+    mutationFn: (id: string) => purchaseOrdersApi.send(id),
     onSuccess: (_, id) => {
       qc.invalidateQueries({ queryKey: PO_KEYS.detail(id) })
       qc.invalidateQueries({ queryKey: PO_KEYS.all })
-      toast.success('Bon de commande approuvé')
+      toast.success('Bon de commande envoyé')
     },
-    onError: () => toast.error('Erreur lors de l\'approbation'),
+    onError: (e, id) => {
+      qc.invalidateQueries({ queryKey: PO_KEYS.detail(id) })
+      qc.invalidateQueries({ queryKey: PO_KEYS.all })
+      const code = getApiErrorCode(e)
+      const msg  = getApiErrorMessage(e, "Erreur lors de l'envoi")
+      if (isApprovalFlowCode(code)) toast.info(msg)
+      else toast.error(msg)
+    },
+  })
+}
+
+export function useConfirmPurchaseOrder() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => purchaseOrdersApi.confirm(id),
+    onSuccess: (_, id) => {
+      qc.invalidateQueries({ queryKey: PO_KEYS.detail(id) })
+      qc.invalidateQueries({ queryKey: PO_KEYS.all })
+      toast.success('Bon de commande confirmé')
+    },
+    onError: () => toast.error('Erreur lors de la confirmation'),
   })
 }
 
 export function useReceivePurchaseOrder() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data?: { receivedDate?: string; notes?: string } }) =>
+    mutationFn: ({ id, data }: { id: string; data: { lines: { lineId: string; quantityReceived: number }[]; receivedDate?: string; notes?: string | null } }) =>
       purchaseOrdersApi.receive(id, data),
     onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: PO_KEYS.detail(id) })
       qc.invalidateQueries({ queryKey: PO_KEYS.all })
       toast.success('Réception enregistrée')
     },
-    onError: () => toast.error('Erreur lors de la réception'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erreur lors de la réception'),
+  })
+}
+
+export function useClosePurchaseOrder() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => purchaseOrdersApi.close(id),
+    onSuccess: (_, id) => {
+      qc.invalidateQueries({ queryKey: PO_KEYS.detail(id) })
+      qc.invalidateQueries({ queryKey: PO_KEYS.all })
+      toast.success('Bon de commande clôturé')
+    },
+    onError: () => toast.error('Erreur lors de la clôture'),
   })
 }
 
@@ -121,6 +155,19 @@ export function useDuplicatePurchaseOrder() {
   })
 }
 
+export function useDownloadPurchaseOrderPdf() {
+  return useMutation({
+    mutationFn: ({ id, filename }: { id: string; filename: string }) =>
+      purchaseOrdersApi.downloadPdf(id, filename),
+    onMutate: () => {
+      const tid = toast.loading('Génération du PDF en cours…')
+      return { tid }
+    },
+    onSuccess: (_d, _v, ctx) => toast.success('PDF téléchargé', { id: ctx?.tid }),
+    onError:   (_e, _v, ctx) => toast.error('Erreur lors du téléchargement PDF', { id: ctx?.tid }),
+  })
+}
+
 export function useDeletePurchaseOrder() {
   const qc = useQueryClient()
   return useMutation({
@@ -130,5 +177,33 @@ export function useDeletePurchaseOrder() {
       toast.success('Bon de commande supprimé')
     },
     onError: () => toast.error('Impossible de supprimer ce bon de commande'),
+  })
+}
+
+export function useCreateSupplierInvoiceFromBC() {
+  const qc     = useQueryClient()
+  const router = useRouter()
+  return useMutation({
+    mutationFn: (id: string) => purchaseOrdersApi.createSupplierInvoice(id),
+    onMutate: () => {
+      const tid = toast.loading('Création de la facture fournisseur…')
+      return { tid }
+    },
+    onSuccess: (data, id, ctx) => {
+      qc.invalidateQueries({ queryKey: PO_KEYS.detail(id) })
+      qc.invalidateQueries({ queryKey: PO_KEYS.all })
+      toast.success(`FF ${data.supplierInvoiceNumber} créée`, { id: ctx?.tid })
+      router.push(`/supplier-invoices/${data.supplierInvoiceId}`)
+    },
+    onError: (_e, _id, ctx) => toast.error('Erreur lors de la création de la FF', { id: ctx?.tid }),
+  })
+}
+
+export function useLinkedSupplierInvoices(poId: string) {
+  return useQuery({
+    queryKey: ['purchase-orders', poId, 'supplier-invoices'],
+    queryFn:  () => purchaseOrdersApi.getSupplierInvoices(poId),
+    enabled:  !!poId,
+    staleTime: 30_000,
   })
 }

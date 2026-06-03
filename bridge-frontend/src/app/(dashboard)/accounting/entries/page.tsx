@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Plus, Search, PenLine, XCircle, ChevronLeft, ChevronRight, AlertCircle, CheckCircle2 } from 'lucide-react'
-import { useEntries, useCancelEntry, useJournals, useFiscalYears } from '@/features/accounting/hooks'
+import { Plus, Search, PenLine, XCircle, RotateCcw, ChevronLeft, ChevronRight, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { useEntries, useCancelEntry, useReverseEntry, useJournals, useFiscalYears } from '@/features/accounting/hooks'
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import { formatDate } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
@@ -27,6 +27,7 @@ const JOURNAL_COLOR: Record<JournalType, string> = {
 const SOURCE_LABEL: Record<EntrySource, string> = {
   manual: 'Manuel', invoice: 'Facture', payment: 'Paiement',
   expense: 'Dépense', purchase_order: 'BC',
+  extourne: 'Extourne', payment_reversal: 'Extourne paiement',
 }
 
 function KpiCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
@@ -47,7 +48,8 @@ export default function EntriesPage() {
 
   const { data, isLoading } = useEntries({ ...params, search: search || undefined })
   const { data: journals = [] } = useJournals()
-  const cancel = useCancelEntry()
+  const cancel  = useCancelEntry()
+  const reverse = useReverseEntry()
 
   const entries = data?.data ?? []
   const totalPages = data?.totalPages ?? 1
@@ -59,10 +61,18 @@ export default function EntriesPage() {
   if (!can('accounting', 'read')) return <AccessDenied message="Vous n'avez pas accès à la comptabilité." />
 
   async function handleCancel(id: string, num: string) {
-    if (!confirm(`Annuler l'écriture ${num} ? Une contre-écriture sera générée.`)) return
+    if (!confirm(`Annuler le brouillon ${num} ? Cette action est irréversible.`)) return
     try {
       await cancel.mutateAsync(id)
       toast.success('Écriture annulée')
+    } catch (e: unknown) { toast.error((e as Error).message) }
+  }
+
+  async function handleReverse(id: string, num: string) {
+    if (!confirm(`Extourner l'écriture ${num} ? Une contre-écriture miroir sera créée en brouillon.`)) return
+    try {
+      await reverse.mutateAsync(id)
+      toast.success('Extourne créée — à valider dans les écritures')
     } catch (e: unknown) { toast.error((e as Error).message) }
   }
 
@@ -185,7 +195,12 @@ export default function EntriesPage() {
                       </td>
                       <td style={{ padding: '8px 6px', textAlign: 'right' }}>
                         <ActionMenu items={[
-                          ...(can('accounting', 'update') ? [{ label: 'Annuler', icon: XCircle, onClick: () => handleCancel(entry.id, entry.number), danger: true }] : []),
+                          ...(can('accounting', 'update') && entry.status === 'draft'
+                            ? [{ label: 'Annuler', icon: XCircle, onClick: () => handleCancel(entry.id, entry.number), danger: true }]
+                            : []),
+                          ...(can('accounting', 'update') && (entry.status === 'validated' || entry.status === 'locked')
+                            ? [{ label: 'Extourner', icon: RotateCcw, onClick: () => handleReverse(entry.id, entry.number) }]
+                            : []),
                         ]} />
                       </td>
                     </tr>

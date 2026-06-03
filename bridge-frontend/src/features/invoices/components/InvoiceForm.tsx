@@ -1054,6 +1054,7 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
               lines={form.lines}
               onChange={(lines) => setF('lines', lines)}
               clientId={form.clientId || undefined}
+              stockMode="warn"
             />
           </div>
 

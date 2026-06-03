@@ -851,10 +851,16 @@ export function parseStatementFile(
   } else if (fileFormat === 'mt940') {
     transactions = parseMt940(content, bankAccountId);
   } else {
-    detectedFormat = autoDetectFormat(content, overrideProfileData);
-    const result   = parseAllTransactions(content, detectedFormat, bankAccountId);
-    transactions   = result.transactions;
-    errors         = result.errors;
+    // Si overrideProfileData est déjà un DetectedFormat complet (a columnMapping),
+    // l'utiliser directement — sinon passer par autoDetectFormat (BankProfile override)
+    if (overrideProfileData?.columnMapping) {
+      detectedFormat = overrideProfileData as DetectedFormat;
+    } else {
+      detectedFormat = autoDetectFormat(content, overrideProfileData);
+    }
+    const result = parseAllTransactions(content, detectedFormat, bankAccountId);
+    transactions  = result.transactions;
+    errors        = result.errors;
   }
 
   let totalDebits = 0;

@@ -6,6 +6,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../../prisma/prisma.service';
 import { hashPassword, comparePassword } from '../../lib/bcrypt';
+import { toRelativeUpload, resolveUpload } from '../../lib/uploads';
 import { AppError } from '../../common/errors/app-error';
 import type { EmailJobData, NotificationJobData } from '../../jobs/job-types';
 import type {
@@ -304,16 +305,20 @@ export class UsersService {
 
   async uploadAvatar(userId: string, filePath: string): Promise<void> {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { avatarPath: true } });
-    if (user?.avatarPath && fs.existsSync(user.avatarPath)) {
-      fs.unlinkSync(user.avatarPath);
+    // Supprime l'ancien avatar (résout relatif récent ou absolu hérité)
+    if (user?.avatarPath) {
+      const oldAbs = resolveUpload(user.avatarPath);
+      if (fs.existsSync(oldAbs)) fs.unlinkSync(oldAbs);
     }
-    await this.prisma.user.update({ where: { id: userId }, data: { avatarPath: filePath } });
+    // Stocke un chemin RELATIF (portable), pas le chemin absolu de multer
+    await this.prisma.user.update({ where: { id: userId }, data: { avatarPath: toRelativeUpload(filePath) } });
   }
 
   async deleteAvatar(userId: string): Promise<void> {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { avatarPath: true } });
-    if (user?.avatarPath && fs.existsSync(user.avatarPath)) {
-      fs.unlinkSync(user.avatarPath);
+    if (user?.avatarPath) {
+      const oldAbs = resolveUpload(user.avatarPath);
+      if (fs.existsSync(oldAbs)) fs.unlinkSync(oldAbs);
     }
     await this.prisma.user.update({ where: { id: userId }, data: { avatarPath: null } });
   }

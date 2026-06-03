@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
+import { APPROVAL_COMPLETED, type ApprovalCompletedEvent, type AutoExecResult } from '../../common/events/approval.events';
 import { generateDocumentNumber, getDefaultOfficeId } from '../../lib/documentNumber';
 import { generatePdf, buildDocumentHtml, imgToBase64, resolveDocumentAssets } from '../../lib/pdf';
 import { DashboardCacheService } from '../../common/services/dashboard-cache.service';
@@ -388,7 +389,12 @@ export class InvoicesService {
 
     const pendingRequest = await this.approvals.getDocumentPendingRequest('invoice', id);
     if (pendingRequest) {
-      throw AppError.forbidden(`Cette facture est en attente d'approbation (étape ${pendingRequest.currentStep}/${pendingRequest.totalSteps})`);
+      // Ce n'est pas un refus d'accès (403) : la facture suit son workflow normal.
+      // Code dédié → le frontend l'affiche comme une info, pas une erreur rouge.
+      throw AppError.badRequest(
+        `Cette facture est en attente d'approbation (étape ${pendingRequest.currentStep}/${pendingRequest.totalSteps}).`,
+        'APPROVAL_PENDING',
+      );
     }
     const approvedRequest = await this.prisma.approvalRequest.findFirst({
       where: { documentId: id, documentType: 'invoice', status: 'approved' },
@@ -403,7 +409,10 @@ export class InvoicesService {
       });
       if (request) {
         await this.prisma.invoice.update({ where: { id }, data: { requiresApproval: true } });
-        throw AppError.badRequest('Cette facture a été soumise pour approbation. Elle sera émise après validation.');
+        throw AppError.badRequest(
+          'Cette facture a été soumise pour approbation. Elle sera émise après validation.',
+          'APPROVAL_SUBMITTED',
+        );
       }
     }
 
@@ -416,8 +425,22 @@ export class InvoicesService {
       },
     });
 
+    // ── Sortie de stock : lignes suivies ───────────────────────────────────────
+    // Pré-contrôle de disponibilité AVANT d'émettre (règle métier : on ne vend
+    // pas ce qu'on n'a pas en stock), avec un message clair par ligne.
+    const trackedLines = (invoiceWithLines?.lines ?? [])
+      .filter((l) => l.product?.trackStock && l.productId);
+    for (const line of trackedLines) {
+      const available = Number(line.product?.stockQuantity ?? 0);
+      if (available < Number(line.quantity)) {
+        throw AppError.badRequest(
+          `Stock insuffisant pour « ${line.designation} » : disponible ${available}, demandé ${Number(line.quantity)}`,
+        );
+      }
+    }
+
     const updated = await this.prisma.$transaction(async (tx) => {
-      const inv = await tx.invoice.update({
+      return tx.invoice.update({
         where: { id },
         data: {
           status: 'issued',
@@ -428,22 +451,22 @@ export class InvoicesService {
           },
         },
       });
-
-      for (const line of invoiceWithLines?.lines ?? []) {
-        if (!line.product?.trackStock || !line.productId) continue;
-        await this.stockSvc.createStockMovement({
-          productId:   line.productId,
-          quantity:    Number(line.quantity),
-          type:        'sale',
-          sourceType:  'invoice',
-          sourceId:    id,
-          sourceLabel: `FAC ${invoice.number}`,
-          createdById: userId,
-        }, tx as any);
-      }
-
-      return inv;
     });
+
+    // Mouvements de stock dans leur PROPRE transaction : une erreur (compte
+    // comptable manquant, etc.) ne doit pas annuler l'émission de la facture.
+    // Exécutés hors transaction → l'alerte « stock bas » se déclenche aussi.
+    for (const line of trackedLines) {
+      this.stockSvc.createStockMovement({
+        productId:   line.productId!,
+        quantity:    Number(line.quantity),
+        type:        'sale',
+        sourceType:  'invoice',
+        sourceId:    id,
+        sourceLabel: `FAC ${invoice.number}`,
+        createdById: userId,
+      }).catch((e) => console.error('[invoice.issue] mouvement stock échoué, ligne', line.id, e?.message));
+    }
 
     void broadcastNotification(this.prisma as any, this.notifQueue, {
       type:    'invoice_issued',
@@ -464,6 +487,23 @@ export class InvoicesService {
     void this.emitter.emit('invoice.issued', { invoiceId: id, amount: Number(invoice.totalTtc), clientId: invoice.clientId, userId });
     await this.cache.invalidate();
     return updated;
+  }
+
+  /**
+   * Auto-émission après approbation finale. On appelle `issue()` avec le
+   * `requestedById` (le maker) → l'émission, l'historique de statut, le stock et
+   * l'écriture comptable lui sont imputés (séparation des tâches). `issue()`
+   * trouve l'approbation déjà accordée et déroule normalement.
+   */
+  @OnEvent(APPROVAL_COMPLETED)
+  async onApprovalCompleted(payload: ApprovalCompletedEvent): Promise<AutoExecResult | void> {
+    if (payload.documentType !== 'invoice') return;
+    try {
+      await this.issue(payload.documentId, payload.requestedById);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, message: e instanceof AppError ? e.message : "Erreur lors de l'émission automatique" };
+    }
   }
 
   async cancel(id: string, userId: string, reason?: string) {
@@ -546,7 +586,9 @@ export class InvoicesService {
         data:    { invoiceId: invoice.id, invoiceNumber: invoice.number, avoirId, avoirNumber },
       }, { excludeUserId: userId });
       void this.emitter.emit('invoice.cancelled', { invoiceId: invoice.id, userId });
-      void this.prisma.$transaction((tx) => accountingEngine.onInvoiceCancelled(id, tx));
+      this.prisma.$transaction((tx) => accountingEngine.onInvoiceCancelled(id, tx)).catch(e =>
+        console.error('[accounting] onInvoiceCancelled invoice', id, e)
+      );
       await this.cache.invalidate();
       return { ...cancelled, avoirId, avoirNumber };
     });
@@ -713,7 +755,9 @@ export class InvoicesService {
       data:    { invoiceId: invoice.id, avoirId: avoir.id, avoirNumber: avoir.number },
     });
 
-    void this.prisma.$transaction((tx) => accountingEngine.onInvoiceCancelled(avoir.id, tx));
+    this.prisma.$transaction((tx) => accountingEngine.onInvoiceCancelled(avoir.id, tx)).catch(e =>
+      console.error('[accounting] onInvoiceCancelled avoir', avoir.id, e)
+    );
     await this.cache.invalidate();
     return avoir;
   }

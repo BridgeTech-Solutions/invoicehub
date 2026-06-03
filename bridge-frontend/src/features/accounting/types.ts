@@ -4,7 +4,7 @@ export type AccountType    = 'asset' | 'liability' | 'equity' | 'revenue' | 'exp
 export type AccountClass   = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 export type JournalType    = 'purchases' | 'sales' | 'bank' | 'cash' | 'operations' | 'misc' | 'opening' | 'closing'
 export type PeriodStatus   = 'open' | 'closed' | 'locked'
-export type EntrySource    = 'manual' | 'invoice' | 'payment' | 'expense' | 'purchase_order'
+export type EntrySource    = 'manual' | 'invoice' | 'payment' | 'expense' | 'purchase_order' | 'extourne' | 'payment_reversal'
 export type TaxDeclStatus  = 'draft' | 'submitted' | 'validated' | 'to_pay'
 
 // ─── Account (Plan comptable) ─────────────────────────────────

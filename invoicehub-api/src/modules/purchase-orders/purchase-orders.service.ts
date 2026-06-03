@@ -1,12 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ApprovalsService } from '../approvals/approvals.service';
+import { APPROVAL_COMPLETED, type ApprovalCompletedEvent, type AutoExecResult } from '../../common/events/approval.events';
 import { StockService } from '../stock/stock.service';
 import { AppError } from '../../common/errors/app-error';
 import { generatePdf, buildDocumentHtml, imgToBase64 } from '../../lib/pdf';
 import type { DocumentLine } from '../../lib/pdf';
 import { CreatePurchaseOrderInput, UpdatePurchaseOrderInput, ReceiveInput } from './purchase-orders.schema';
+import { generateDocumentNumber } from '../../lib/documentNumber';
 
 interface LineInput {
   productId?: string | null;
@@ -124,10 +126,30 @@ export class PurchaseOrdersService {
     return po;
   }
 
+  async stats() {
+    const now   = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const [total, sent, confirmed, received, agg] = await Promise.all([
+      this.prisma.purchaseOrder.count({ where: { deletedAt: null } }),
+      // « En attente » = envoyés au fournisseur, en attente de confirmation
+      this.prisma.purchaseOrder.count({ where: { deletedAt: null, status: 'sent' as any } }),
+      // « Confirmés » = validés par le fournisseur
+      this.prisma.purchaseOrder.count({ where: { deletedAt: null, status: 'confirmed' as any } }),
+      // « Réceptionnés » = totalement ou partiellement reçus
+      this.prisma.purchaseOrder.count({ where: { deletedAt: null, status: { in: ['received', 'partially_received'] as any } } }),
+      this.prisma.purchaseOrder.aggregate({
+        where: { deletedAt: null, issueDate: { gte: start } },
+        _sum:  { totalTtc: true },
+      }),
+    ]);
+    return { total, pending: sent, approved: confirmed, received, totalAmountMonth: Number(agg._sum.totalTtc ?? 0) };
+  }
+
   async create(data: CreatePurchaseOrderInput, userId: string) {
     const {
       lines, supplierId, officeId,
       // Normalise les alias front → noms Prisma
+      orderDate,
       expectedDate, expectedDeliveryDate,
       reference, internalRef,
       paymentTermDays,
@@ -136,6 +158,7 @@ export class PurchaseOrdersService {
     const { lines: computed, subtotalHt, totalHt, totalTax, totalTtc } = computeLines(lines);
 
     // Résolution des alias : préférer le nom canonique s'il est fourni
+    const resolvedIssueDate            = orderDate ?? undefined;
     const resolvedExpectedDeliveryDate = expectedDeliveryDate ?? expectedDate ?? undefined;
     // `reference` / `internalRef` → stocké dans `supplierReference` (texte libre)
     const resolvedSupplierReference    = internalRef ?? reference ?? undefined;
@@ -148,18 +171,19 @@ export class PurchaseOrdersService {
       await this.prisma.agencyOffice.findFirst({ where: { deletedAt: null }, select: { id: true } })
     )?.id ?? undefined;
 
-    const [orderNumber] = await this.prisma.$queryRaw<[{ fn_next_document_number: string }]>`
-      SELECT fn_next_document_number('purchase_order', ${officeIdResolved ?? null}::uuid)
-    `;
+    if (!officeIdResolved) throw AppError.badRequest('Aucune agence configurée — créez une agence dans Paramètres');
+
+    const orderNumber = await generateDocumentNumber(this.prisma, officeIdResolved, 'purchase_order');
 
     return this.prisma.$transaction(async (tx) => {
       const po = await tx.purchaseOrder.create({
         data: {
           ...(rest as any), supplierId, officeId: officeIdResolved!,
+          ...(resolvedIssueDate ? { issueDate: resolvedIssueDate } : {}),
           expectedDeliveryDate: resolvedExpectedDeliveryDate,
           supplierReference:    resolvedSupplierReference,
           paymentConditions:    resolvedPaymentConditions,
-          number: orderNumber.fn_next_document_number,
+          number: orderNumber,
           status: 'draft' as any,
           subtotalHt, totalHt, totalTax, totalTtc, createdById: userId,
           lines: { create: computed.map((l, i) => ({ ...l, sortOrder: i + 1 })) },
@@ -231,7 +255,10 @@ export class PurchaseOrdersService {
 
     const pendingRequest = await this.approvalsService.getDocumentPendingRequest('purchase_order', id);
     if (pendingRequest) {
-      throw AppError.forbidden(`En attente d'approbation (étape ${pendingRequest.currentStep}/${pendingRequest.totalSteps})`);
+      throw AppError.badRequest(
+        `Ce bon de commande est en attente d'approbation (étape ${pendingRequest.currentStep}/${pendingRequest.totalSteps}).`,
+        'APPROVAL_PENDING',
+      );
     }
     const approvedRequest = await this.prisma.approvalRequest.findFirst({
       where: { documentId: id, documentType: 'purchase_order', status: 'approved' },
@@ -246,7 +273,10 @@ export class PurchaseOrdersService {
       });
       if (request) {
         await this.prisma.purchaseOrder.update({ where: { id }, data: { requiresApproval: true } });
-        throw AppError.badRequest('Bon de commande soumis pour approbation. Il sera envoyé après validation.');
+        throw AppError.badRequest(
+          'Ce bon de commande a été soumis pour approbation. Il sera envoyé après validation.',
+          'APPROVAL_SUBMITTED',
+        );
       }
     }
 
@@ -255,10 +285,27 @@ export class PurchaseOrdersService {
     return result;
   }
 
+  /** Auto-envoi après approbation finale, au nom du demandeur (maker). */
+  @OnEvent(APPROVAL_COMPLETED)
+  async onApprovalCompleted(payload: ApprovalCompletedEvent): Promise<AutoExecResult | void> {
+    if (payload.documentType !== 'purchase_order') return;
+    try {
+      await this.send(payload.documentId, payload.requestedById);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, message: e instanceof AppError ? e.message : "Erreur lors de l'envoi automatique" };
+    }
+  }
+
   async confirm(id: string, userId: string) {
     const result = await this.transition(id, 'sent', 'confirmed', userId);
     this.eventEmitter.emit('purchase_order.confirmed', { purchaseOrderId: id });
     return result;
+  }
+
+  async close(id: string, userId: string) {
+    // On peut clôturer un BC réceptionné, partiellement reçu ou déjà facturé.
+    return this.transition(id, ['received', 'partially_received', 'invoiced'], 'closed', userId);
   }
 
   async cancel(id: string, userId: string, comment?: string) {
@@ -283,7 +330,9 @@ export class PurchaseOrdersService {
 
         const line = po.lines.find(l => l.id === recv.lineId);
         if (line?.productId) {
-          await this.stockService.createStockMovement({
+          // Mouvement de stock dans sa propre transaction — une erreur (service sans
+          // stock, compte comptable manquant) ne doit pas avorter la réception BC.
+          this.stockService.createStockMovement({
             productId:   line.productId,
             quantity:    recv.quantityReceived,
             type:        'purchase_receipt',
@@ -293,7 +342,11 @@ export class PurchaseOrdersService {
             sourceLabel: `BC ${po.number}`,
             notes:       input.notes ?? null,
             createdById: userId,
-          }, tx as any);
+          }).catch(e => {
+            if (!e?.message?.includes('ne gère pas le stock')) {
+              console.error('[receive] stock movement failed for line', line.id, e?.message);
+            }
+          });
         }
       }
 
@@ -302,13 +355,119 @@ export class PurchaseOrdersService {
       const anyReceived  = updatedLines.some(l => Number(l.quantityReceived) > 0);
       const newStatus    = allReceived ? 'received' : anyReceived ? 'partially_received' : String(po.status);
 
-      const updated = await tx.purchaseOrder.update({ where: { id }, data: { status: newStatus as any } });
+      const updated = await tx.purchaseOrder.update({
+        where: { id },
+        data: {
+          status: newStatus as any,
+          ...(allReceived && input.receivedDate ? { deliveredAt: input.receivedDate } : {}),
+          ...(allReceived && !input.receivedDate ? { deliveredAt: new Date() } : {}),
+        },
+      });
       await this.recordHistory(tx, id, newStatus, userId, input.notes);
 
       if (newStatus === 'received') {
         this.eventEmitter.emit('purchase_order.received', { purchaseOrderId: id });
       }
       return updated;
+    });
+  }
+
+  async createSupplierInvoice(id: string, userId: string) {
+    const po = await this.prisma.purchaseOrder.findFirst({
+      where: { id, deletedAt: null },
+      include: { lines: { orderBy: { sortOrder: 'asc' } }, supplier: true },
+    });
+    if (!po) throw AppError.notFound('Bon de commande introuvable');
+    if (!['received', 'partially_received'].includes(String(po.status))) {
+      throw AppError.badRequest('Le BC doit être réceptionné avant de créer une facture fournisseur');
+    }
+
+    const officeIdResolved = po.officeId ?? (
+      await this.prisma.agencyOffice.findFirst({ where: { deletedAt: null }, select: { id: true } })
+    )?.id;
+    if (!officeIdResolved) throw AppError.badRequest('Aucune agence configurée');
+
+    const ffNumber = await generateDocumentNumber(this.prisma, officeIdResolved, 'supplier_invoice');
+
+    let subtotalHt = 0, totalTax = 0;
+    const ffLines = po.lines.map((l, i) => {
+      const netHt   = Number(l.netHt);
+      const taxAmt  = Number(l.taxAmount);
+      subtotalHt   += netHt;
+      totalTax     += taxAmt;
+      return {
+        purchaseOrderLineId: l.id,
+        designation:  l.designation,
+        description:  l.description ?? undefined,
+        unit:         l.unit as any,
+        quantity:     Number(l.quantityOrdered),
+        unitPriceHt:  Number(l.unitPriceHt),
+        discountType:   l.discountType,
+        discountValue:  Number(l.discountValue),
+        discountAmount: Number(l.discountAmount),
+        taxRate:      Number(l.taxRate),
+        subtotalHt:   Number(l.subtotalHt),
+        netHt,
+        taxAmount:    taxAmt,
+        totalTtc:     Number(l.totalTtc),
+        sortOrder:    i + 1,
+      };
+    });
+    const totalTtc = subtotalHt + totalTax;
+
+    return this.prisma.$transaction(async (tx) => {
+      const ff = await tx.supplierInvoice.create({
+        data: {
+          number:                ffNumber,
+          supplierId:            po.supplierId,
+          purchaseOrderId:       id,
+          officeId:              officeIdResolved,
+          supplierInvoiceNumber: '',
+          invoiceDate:           new Date(),
+          dueDate:               (() => {
+            const days = po.paymentConditions
+              ? parseInt(po.paymentConditions, 10) || 30
+              : 30;
+            const d = new Date(); d.setDate(d.getDate() + days); return d;
+          })(),
+          status:                'received' as any,
+          currency:              po.currency,
+          subtotalHt,
+          totalHt:               subtotalHt,
+          totalTax,
+          totalTtc,
+          amountPaid:            0,
+          balanceDue:            totalTtc,
+          createdById:           userId,
+          lines:                 { create: ffLines as any },
+        } as any,
+        select: { id: true, number: true },
+      });
+
+      // Mise à jour quantityInvoiced sur les lignes BC
+      for (const l of po.lines) {
+        await tx.purchaseOrderLine.update({
+          where: { id: l.id },
+          data:  { quantityInvoiced: l.quantityOrdered },
+        });
+      }
+
+      // BC → invoiced + fullyInvoiced
+      await tx.purchaseOrder.update({
+        where: { id },
+        data:  { status: 'invoiced' as any, fullyInvoiced: true },
+      });
+
+      await this.recordHistory(tx, id, 'invoiced', userId, `FF ${ff.number} créée`);
+      return { supplierInvoiceId: ff.id, supplierInvoiceNumber: ff.number };
+    });
+  }
+
+  async getLinkedSupplierInvoices(id: string) {
+    return this.prisma.supplierInvoice.findMany({
+      where:   { purchaseOrderId: id, deletedAt: null },
+      select:  { id: true, number: true, status: true, totalTtc: true, invoiceDate: true, amountPaid: true, balanceDue: true },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -333,7 +492,7 @@ export class PurchaseOrdersService {
     }));
 
     const html = buildDocumentHtml({
-      type: 'Proforma', number: po.number,
+      type: 'Bon de Commande', number: po.number,
       issueDate: new Date(po.issueDate).toLocaleDateString('fr-FR'),
       dueDate:   po.expectedDeliveryDate ? new Date(po.expectedDeliveryDate).toLocaleDateString('fr-FR') : undefined,
       clientName: po.supplier.name, clientStreet: po.supplier.address ?? undefined,

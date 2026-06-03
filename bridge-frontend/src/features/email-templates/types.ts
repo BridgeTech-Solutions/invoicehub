@@ -86,6 +86,9 @@ export const TEMPLATE_VARIABLES: Record<string, string[]> = {
   budget_exceeded:             ['{{categoryName}}','{{periodLabel}}','{{percentUsed}}','{{companyName}}'],
 }
 
+const _APP_URL = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_APP_URL)
+  || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001')
+
 // Valeurs de prévisualisation par défaut (utilisées pour le preview en un clic)
 export const SAMPLE_PREVIEW_VALUES: Record<string, string> = {
   // Destinataire (membre BTS)
@@ -113,12 +116,12 @@ export const SAMPLE_PREVIEW_VALUES: Record<string, string> = {
   paymentDate:     '28/05/2026',
   daysOverdue:     '7',
   reminderLevel:   '2',
-  // Liens vers l'app
-  invoiceLink:     'https://app.bts.cm/invoices/fac001',
-  proformaLink:    'https://app.bts.cm/proformas/pfm001',
-  resetLink:       'https://app.bts.cm/reset-password?token=abc123',
-  loginLink:       'https://app.bts.cm/login',
-  appUrl:          'https://app.bts.cm',
+  // Liens vers l'app — dynamiques depuis NEXT_PUBLIC_APP_URL
+  invoiceLink:     `${_APP_URL}/invoices/fac001`,
+  proformaLink:    `${_APP_URL}/proformas/pfm001`,
+  resetLink:       `${_APP_URL}/reset-password?token=abc123`,
+  loginLink:       `${_APP_URL}/login`,
+  appUrl:          _APP_URL,
   documentUrl:     'invoices/fac002',
   // Approbations
   approverName:    'Pierre Owono',
@@ -144,7 +147,6 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     subject: '[{{companyName}}] Facture émise — {{invoiceNumber}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
   <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">📄</div>
     <h2 style="color:#fff;margin:0;font-size:18px;">Facture émise : {{invoiceNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -159,7 +161,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     <div style="text-align:center;margin:24px 0;">
       <a href="{{invoiceLink}}" style="display:inline-block;background:#2D7DD2;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.3px;">Voir la facture →</a>
     </div>
-    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
+    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
   </div>
 </div>`,
   },
@@ -167,7 +169,6 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     subject: '[{{companyName}}] Facture {{invoiceNumber}} intégralement soldée — {{clientName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
   <div style="background:#16a34a;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">✅</div>
     <h2 style="color:#fff;margin:0;font-size:18px;">Facture soldée : {{invoiceNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -182,7 +183,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     <div style="text-align:center;margin:24px 0;">
       <a href="{{invoiceLink}}" style="display:inline-block;background:#16a34a;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.3px;">Voir la facture →</a>
     </div>
-    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
+    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
   </div>
 </div>`,
   },
@@ -190,7 +191,6 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     subject: '[{{companyName}}] Paiement partiel — {{invoiceNumber}} — Solde restant {{balanceDue}} XAF',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
   <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">💳</div>
     <h2 style="color:#fff;margin:0;font-size:18px;">Paiement partiel : {{invoiceNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -206,7 +206,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     <div style="text-align:center;margin:24px 0;">
       <a href="{{invoiceLink}}" style="display:inline-block;background:#2D7DD2;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.3px;">Voir la facture →</a>
     </div>
-    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
+    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
   </div>
 </div>`,
   },
@@ -214,7 +214,6 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     subject: '[{{companyName}}] ALERTE — Facture {{invoiceNumber}} en retard ({{daysOverdue}} j)',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
   <div style="background:#dc2626;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">⚠</div>
     <h2 style="color:#fff;margin:0;font-size:18px;">Facture en retard : {{invoiceNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -229,7 +228,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     <div style="text-align:center;margin:24px 0;">
       <a href="{{invoiceLink}}" style="display:inline-block;background:#dc2626;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.3px;">Voir la facture →</a>
     </div>
-    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
+    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
   </div>
 </div>`,
   },
@@ -237,7 +236,6 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     subject: '[{{companyName}}] Paiement reçu — {{invoiceNumber}} — {{amountPaid}} XAF',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
   <div style="background:#16a34a;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">✓</div>
     <h2 style="color:#fff;margin:0;font-size:18px;">Paiement enregistré : {{invoiceNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -253,7 +251,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     <div style="text-align:center;margin:24px 0;">
       <a href="{{invoiceLink}}" style="display:inline-block;background:#16a34a;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.3px;">Voir la facture →</a>
     </div>
-    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
+    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
   </div>
 </div>`,
   },
@@ -261,7 +259,6 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     subject: '[{{companyName}}] Proforma envoyée — {{proformaNumber}} — {{clientName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
   <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">📋</div>
     <h2 style="color:#fff;margin:0;font-size:18px;">Proforma envoyée : {{proformaNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -276,7 +273,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     <div style="text-align:center;margin:24px 0;">
       <a href="{{proformaLink}}" style="display:inline-block;background:#2D7DD2;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.3px;">Voir la proforma →</a>
     </div>
-    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
+    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
   </div>
 </div>`,
   },
@@ -284,7 +281,6 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     subject: '[{{companyName}}] Proforma {{proformaNumber}} acceptée par {{clientName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
   <div style="background:#16a34a;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">✅</div>
     <h2 style="color:#fff;margin:0;font-size:18px;">Proforma acceptée : {{proformaNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -298,7 +294,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     <div style="text-align:center;margin:24px 0;">
       <a href="{{proformaLink}}" style="display:inline-block;background:#16a34a;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.3px;">Voir la proforma →</a>
     </div>
-    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
+    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
   </div>
 </div>`,
   },
@@ -306,7 +302,6 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     subject: '[{{companyName}}] Proforma {{proformaNumber}} refusée — {{clientName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
   <div style="background:#dc2626;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">✗</div>
     <h2 style="color:#fff;margin:0;font-size:18px;">Proforma refusée : {{proformaNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -321,7 +316,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     <div style="text-align:center;margin:24px 0;">
       <a href="{{proformaLink}}" style="display:inline-block;background:#dc2626;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.3px;">Voir la proforma →</a>
     </div>
-    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
+    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
   </div>
 </div>`,
   },
@@ -329,7 +324,6 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     subject: '[{{companyName}}] Proforma {{proformaNumber}} expirée — {{clientName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
   <div style="background:#d97706;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">⌛</div>
     <h2 style="color:#fff;margin:0;font-size:18px;">Proforma expirée : {{proformaNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -344,7 +338,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     <div style="text-align:center;margin:24px 0;">
       <a href="{{proformaLink}}" style="display:inline-block;background:#d97706;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.3px;">Voir la proforma →</a>
     </div>
-    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
+    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
   </div>
 </div>`,
   },
@@ -352,7 +346,6 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     subject: '[{{companyName}}] Relance niveau {{reminderLevel}} — {{invoiceNumber}} — {{clientName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
   <div style="background:#d97706;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">🔔</div>
     <h2 style="color:#fff;margin:0;font-size:18px;">Relance niveau {{reminderLevel}} — {{invoiceNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -368,7 +361,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     <div style="text-align:center;margin:24px 0;">
       <a href="{{invoiceLink}}" style="display:inline-block;background:#d97706;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.3px;">Voir la facture →</a>
     </div>
-    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement. Aucun email n'a été envoyé directement au client.</p>
+    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement. Aucun email n'a été envoyé directement au client.</p>
   </div>
 </div>`,
   },
@@ -376,7 +369,6 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     subject: '[{{companyName}}] Réinitialisation de votre mot de passe',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
   <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">🔐</div>
     <h2 style="color:#fff;margin:0;font-size:18px;">Réinitialisation du mot de passe</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -385,8 +377,8 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     <div style="text-align:center;margin:28px 0;">
       <a href="{{resetLink}}" style="display:inline-block;background:#2D7DD2;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.3px;">Réinitialiser mon mot de passe →</a>
     </div>
-    <p style="margin:0 0 20px;padding:14px 16px;background:#f0f7ff;border-left:3px solid #2D7DD2;border-radius:4px;font-size:13px;color:#1e40af;">⏱ Ce lien est valable <strong>1 heure</strong>. Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.</p>
-    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
+    <p style="margin:0 0 20px;padding:14px 16px;background:#f0f7ff;border-left:3px solid #2D7DD2;border-radius:4px;font-size:13px;color:#1e40af;">Ce lien est valable <strong>1 heure</strong>. Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.</p>
+    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
   </div>
 </div>`,
   },
@@ -394,7 +386,6 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     subject: '[{{companyName}}] Bienvenue {{firstName}} — Votre accès InvoiceHub',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
   <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
-    <div style="background:rgba(255,255,255,0.2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;">👋</div>
     <h2 style="color:#fff;margin:0;font-size:18px;">Bienvenue sur InvoiceHub !</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -407,7 +398,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, { subject: string; bodyHtml
     <div style="text-align:center;margin:24px 0;">
       <a href="{{loginLink}}" style="display:inline-block;background:#2D7DD2;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.3px;">Accéder à la plateforme →</a>
     </div>
-    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">📌 Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
+    <p style="margin:20px 0 0;padding:14px 16px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:12px;color:#92400e;">Notification interne — ce message est destiné aux membres de <strong>{{companyName}}</strong> uniquement.</p>
   </div>
 </div>`,
   },

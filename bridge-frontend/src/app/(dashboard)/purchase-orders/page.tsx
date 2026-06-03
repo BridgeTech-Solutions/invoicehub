@@ -13,8 +13,9 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import {
-  usePurchaseOrders, usePurchaseOrderStats, useApprovePurchaseOrder,
-  useCancelPurchaseOrder, useDuplicatePurchaseOrder, useDeletePurchaseOrder,
+  usePurchaseOrders, usePurchaseOrderStats, useSendPurchaseOrder,
+  useConfirmPurchaseOrder, useCancelPurchaseOrder, useDuplicatePurchaseOrder,
+  useDeletePurchaseOrder,
 } from '@/features/purchase-orders/hooks'
 import { formatDate } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
@@ -23,14 +24,14 @@ import type { PurchaseOrderListItem, PurchaseOrderStatus } from '@/features/purc
 
 // ─── Status config ────────────────────────────────────────────
 const STATUS_CONFIG: Record<PurchaseOrderStatus, { label: string; color: string; bg: string }> = {
-  draft:               { label: 'Brouillon',    color: 'var(--s-po-draft)',     bg: 'var(--s-po-draft-bg)' },
-  pending:             { label: 'En attente',   color: 'var(--s-po-pending)',   bg: 'var(--s-po-pending-bg)' },
-  approved:            { label: 'Approuvé',     color: 'var(--s-po-approved)',  bg: 'var(--s-po-approved-bg)' },
-  ordered:             { label: 'Commandé',     color: 'var(--s-po-ordered)',   bg: 'var(--s-po-ordered-bg)' },
-  partially_received:  { label: 'Partiel',      color: 'var(--s-po-partial)',   bg: 'var(--s-po-partial-bg)' },
-  received:            { label: 'Reçu',         color: 'var(--s-po-received)',  bg: 'var(--s-po-received-bg)' },
-  billed:              { label: 'Facturé',      color: 'var(--s-po-billed)',    bg: 'var(--s-po-billed-bg)' },
-  cancelled:           { label: 'Annulé',       color: 'var(--s-po-cancelled)', bg: 'var(--s-po-cancelled-bg)' },
+  draft:              { label: 'Brouillon',          color: '#64748b', bg: 'rgba(148,163,184,0.15)' },
+  sent:               { label: 'Envoyé',             color: '#d97706', bg: 'rgba(245,158,11,0.1)'   },
+  confirmed:          { label: 'Confirmé',           color: '#2D7DD2', bg: 'rgba(45,125,210,0.1)'   },
+  partially_received: { label: 'Partiel',            color: '#d97706', bg: 'rgba(245,158,11,0.1)'   },
+  received:           { label: 'Réceptionné',        color: '#16a34a', bg: 'rgba(16,163,74,0.1)'    },
+  invoiced:           { label: 'Facturé',            color: '#7c3aed', bg: 'rgba(124,58,237,0.1)'   },
+  cancelled:          { label: 'Annulé',             color: '#dc2626', bg: 'rgba(239,68,68,0.1)'    },
+  closed:             { label: 'Clôturé',            color: '#7c3aed', bg: 'rgba(124,58,237,0.1)'   },
 }
 
 function StatusBadge({ status }: { status: PurchaseOrderStatus }) {
@@ -93,7 +94,8 @@ export default function PurchaseOrdersPage() {
 
   const { data, isLoading }       = usePurchaseOrders(params)
   const { data: stats }           = usePurchaseOrderStats()
-  const approveMutation           = useApprovePurchaseOrder()
+  const sendMutation              = useSendPurchaseOrder()
+  const confirmMutation           = useConfirmPurchaseOrder()
   const cancelMutation            = useCancelPurchaseOrder()
   const duplicateMutation         = useDuplicatePurchaseOrder()
   const deleteMutation            = useDeletePurchaseOrder()
@@ -129,9 +131,9 @@ export default function PurchaseOrdersPage() {
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
         <KpiCard label="Total BC" value={data ? String(data.total) : '—'} icon={ShoppingCart} color="var(--primary)" />
-        <KpiCard label="En attente" value={stats ? String(stats.pending) : '—'} icon={Clock} color="var(--s-po-pending)" />
-        <KpiCard label="Approuvés" value={stats ? String(stats.approved) : '—'} icon={CheckCircle} color="var(--s-po-approved)" />
-        <KpiCard label="Reçus" value={stats ? String(stats.received) : '—'} icon={PackageCheck} color="var(--s-po-received)" />
+        <KpiCard label="Envoyés" value={stats ? String(stats.pending) : '—'} icon={Clock} color="var(--s-po-pending)" />
+        <KpiCard label="Confirmés" value={stats ? String(stats.approved) : '—'} icon={CheckCircle} color="var(--s-po-approved)" />
+        <KpiCard label="Réceptionnés" value={stats ? String(stats.received) : '—'} icon={PackageCheck} color="var(--s-po-received)" />
       </div>
 
       <div className="card" style={{ overflow: 'hidden', padding: 0 }}>
@@ -188,45 +190,45 @@ export default function PurchaseOrdersPage() {
               </thead>
               <tbody>
                 {orders.map(order => {
-                  const overdueDelivery = isOverdue(order.expectedDate) && !['received', 'billed', 'cancelled'].includes(order.status)
+                  const overdueDelivery = isOverdue(order.expectedDeliveryDate) && !['received', 'invoiced', 'closed', 'cancelled'].includes(order.status)
                   const actions = [
-                    { label: 'Voir le détail',  icon: ShoppingCart, onClick: () => router.push(`${ROUTES.PURCHASE_ORDERS}/${order.id}`) },
-                    ...(order.status === 'draft' || order.status === 'pending'
+                    { label: 'Voir le détail', icon: ShoppingCart, onClick: () => router.push(`${ROUTES.PURCHASE_ORDERS}/${order.id}`) },
+                    ...(['draft', 'sent'].includes(order.status)
                       ? [{ label: 'Modifier', icon: Pencil, onClick: () => router.push(`${ROUTES.PURCHASE_ORDERS}/${order.id}/edit`) }]
                       : []),
-                    ...(order.status === 'pending'
-                      ? [{ label: 'Approuver', icon: CheckCircle, onClick: () => approveMutation.mutate(order.id) }]
+                    ...(order.status === 'draft'
+                      ? [{ label: 'Envoyer', icon: CheckCircle, onClick: () => sendMutation.mutate(order.id) }]
+                      : []),
+                    ...(order.status === 'sent'
+                      ? [{ label: 'Confirmer', icon: CheckCircle, onClick: () => confirmMutation.mutate(order.id) }]
                       : []),
                     { label: 'Dupliquer', icon: Copy, onClick: () => duplicateMutation.mutate(order.id) },
-                    ...(['draft', 'pending', 'approved'].includes(order.status)
+                    ...(['draft', 'sent', 'confirmed'].includes(order.status)
                       ? [{ label: 'Annuler', icon: XCircle, onClick: () => cancelMutation.mutate(order.id), danger: true, separator: true }]
                       : []),
-                    ...(['draft'].includes(order.status)
+                    ...(order.status === 'draft'
                       ? [{ label: 'Supprimer', icon: Trash2, onClick: () => deleteMutation.mutate(order.id), danger: true }]
                       : []),
                   ]
                   return (
-                    <tr key={order.id}>
+                    <tr key={order.id} style={{ cursor: 'pointer' }}
+                      onClick={() => router.push(`${ROUTES.PURCHASE_ORDERS}/${order.id}`)}>
                       <td>
-                        <Link href={`${ROUTES.PURCHASE_ORDERS}/${order.id}`} style={{ textDecoration: 'none' }}>
-                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 600, color: 'var(--primary)' }}>{order.number}</span>
-                        </Link>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 600, color: 'var(--primary)' }}>{order.number}</span>
                       </td>
                       <td>
-                        <Link href={`${ROUTES.SUPPLIERS}/${order.supplierId}`} style={{ textDecoration: 'none' }}>
-                          <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)' }}>{order.supplier.name}</span>
-                        </Link>
+                        <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)' }}>{order.supplier.name}</span>
                       </td>
-                      <td style={{ fontSize: 13, color: 'var(--text-2)' }}>{formatDate(order.orderDate)}</td>
+                      <td style={{ fontSize: 13, color: 'var(--text-2)' }}>{formatDate(order.issueDate)}</td>
                       <td style={{ fontSize: 13, color: overdueDelivery ? '#dc2626' : 'var(--text-2)', fontWeight: overdueDelivery ? 600 : 400 }}>
-                        {order.expectedDate ? formatDate(order.expectedDate) : <span style={{ color: 'var(--border)' }}>—</span>}
+                        {order.expectedDeliveryDate ? formatDate(order.expectedDeliveryDate) : <span style={{ color: 'var(--border)' }}>—</span>}
                         {overdueDelivery && <span style={{ fontSize: 10, marginLeft: 4, background: '#fef2f2', color: '#dc2626', padding: '1px 5px', borderRadius: 4, fontWeight: 600 }}>En retard</span>}
                       </td>
                       <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: 'var(--text-1)' }}>
                         {format(order.totalTtc)}
                       </td>
                       <td><StatusBadge status={order.status} /></td>
-                      <td><ActionMenu items={actions} /></td>
+                      <td onClick={e => e.stopPropagation()}><ActionMenu items={actions} /></td>
                     </tr>
                   )
                 })}

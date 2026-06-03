@@ -10,6 +10,7 @@ import { AppError } from '../../common/errors/app-error';
 import { DashboardCacheService } from '../../common/services/dashboard-cache.service';
 import { EventsGateway } from '../../gateway/events.gateway';
 import { generatePdf, buildReceiptHtml, imgToBase64 } from '../../lib/pdf';
+import { toRelativeUpload, resolveUpload } from '../../lib/uploads';
 import * as accountingEngine from '../../lib/accountingEngine';
 import type { NotificationJobData } from '../../jobs/job-types';
 import type { CreatePaymentInput, ListPaymentsInput } from './payments.schema';
@@ -160,7 +161,8 @@ export class PaymentsService {
 
       // Écriture comptable escompte accordé (Dr 673 / Cr 411)
       if (escompteApplied && escompteAmount > 0) {
-        const clientAccount = (invoice.client as any)?.accountingAccount ?? '411000';
+        // null → le moteur reprend le compte client par défaut configuré (pas de numéro en dur)
+        const clientAccount = (invoice.client as any)?.accountingAccount ?? null;
         await accountingEngine.onEscompteAccorde({
           paymentId:      payment.id,
           invoiceId,
@@ -248,11 +250,14 @@ export class PaymentsService {
     });
     if (!payment) throw AppError.notFound('Paiement introuvable');
 
-    if (payment.attachmentPath && fs.existsSync(payment.attachmentPath)) {
-      fs.unlinkSync(payment.attachmentPath);
+    // Remplace l'ancien justificatif (résout relatif récent ou absolu hérité)
+    if (payment.attachmentPath) {
+      const oldAbs = resolveUpload(payment.attachmentPath);
+      if (fs.existsSync(oldAbs)) fs.unlinkSync(oldAbs);
     }
 
-    await this.prisma.payment.update({ where: { id }, data: { attachmentPath: filePath } });
+    // Stocke un chemin RELATIF (portable), pas le chemin absolu de multer
+    await this.prisma.payment.update({ where: { id }, data: { attachmentPath: toRelativeUpload(filePath) } });
   }
 
   async getAttachment(id: string): Promise<{ filePath: string; filename: string }> {
@@ -262,11 +267,12 @@ export class PaymentsService {
     });
     if (!payment) throw AppError.notFound('Paiement introuvable');
     if (!payment.attachmentPath) throw AppError.notFound('Aucun justificatif attaché à ce paiement');
-    if (!fs.existsSync(payment.attachmentPath)) throw AppError.notFound('Fichier introuvable sur le serveur');
+    const absPath = resolveUpload(payment.attachmentPath);
+    if (!fs.existsSync(absPath)) throw AppError.notFound('Fichier introuvable sur le serveur');
 
-    const ext = path.extname(payment.attachmentPath);
+    const ext = path.extname(absPath);
     const ref = payment.reference ?? id.slice(0, 8).toUpperCase();
-    return { filePath: payment.attachmentPath, filename: `justificatif-${ref}${ext}` };
+    return { filePath: absPath, filename: `justificatif-${ref}${ext}` };
   }
 
   async deleteAttachment(id: string): Promise<void> {
@@ -277,9 +283,8 @@ export class PaymentsService {
     if (!payment) throw AppError.notFound('Paiement introuvable');
     if (!payment.attachmentPath) throw AppError.notFound('Aucun justificatif à supprimer');
 
-    if (fs.existsSync(payment.attachmentPath)) {
-      fs.unlinkSync(payment.attachmentPath);
-    }
+    const absPath = resolveUpload(payment.attachmentPath);
+    if (fs.existsSync(absPath)) fs.unlinkSync(absPath);
     await this.prisma.payment.update({ where: { id }, data: { attachmentPath: null } });
   }
 

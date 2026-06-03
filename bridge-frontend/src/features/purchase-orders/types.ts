@@ -1,23 +1,27 @@
 // ─── Purchase Orders feature — types ─────────────────────────
 
 export type PurchaseOrderStatus =
-  | 'draft' | 'pending' | 'approved' | 'ordered'
-  | 'partially_received' | 'received' | 'billed' | 'cancelled'
+  | 'draft' | 'sent' | 'confirmed'
+  | 'partially_received' | 'received' | 'invoiced' | 'cancelled' | 'closed'
 
 export interface PurchaseOrderLine {
-  id:             string
-  sortOrder:      number
-  productId:      string | null
-  designation:    string
-  description:    string | null
-  unit:           string
-  quantity:       number
-  unitPriceHt:    number
-  taxRate:        number
-  subtotalHt:     number
-  taxAmount:      number
-  totalTtc:       number
-  receivedQty:    number
+  id:               string
+  sortOrder:        number
+  productId:        string | null
+  designation:      string
+  description:      string | null
+  unit:             string
+  quantityOrdered:  number
+  quantityReceived: number
+  unitPriceHt:      number
+  discountType:     string
+  discountValue:    number
+  discountAmount:   number
+  taxRate:          number
+  subtotalHt:       number
+  netHt:            number
+  taxAmount:        number
+  totalTtc:         number
 }
 
 export interface PurchaseOrderSupplier {
@@ -45,8 +49,8 @@ export interface PurchaseOrder {
   approvedById:     string | null
   approvedBy:       PurchaseOrderUser | null
   approvedAt:       string | null
-  orderDate:        string
-  expectedDate:     string | null
+  issueDate:        string
+  expectedDeliveryDate: string | null
   receivedDate:     string | null
   reference:        string | null
   notes:            string | null
@@ -54,6 +58,7 @@ export interface PurchaseOrder {
   subtotalHt:       number
   totalTax:         number
   totalTtc:         number
+  fullyInvoiced:    boolean
   lines:            PurchaseOrderLine[]
   // Workflow d'approbation
   requiresApproval:  boolean
@@ -69,8 +74,8 @@ export interface PurchaseOrderListItem {
   status:          PurchaseOrderStatus
   supplierId:      string
   supplier:        PurchaseOrderSupplier
-  orderDate:       string
-  expectedDate:    string | null
+  issueDate:       string
+  expectedDeliveryDate: string | null
   totalTtc:        number
   createdAt:       string
 }
@@ -115,6 +120,16 @@ export interface CreatePurchaseOrderPayload {
 }
 
 export type UpdatePurchaseOrderPayload = Partial<CreatePurchaseOrderPayload>
+
+export interface LinkedSupplierInvoice {
+  id:          string
+  number:      string
+  status:      string
+  totalTtc:    number
+  invoiceDate: string
+  amountPaid:  number
+  balanceDue:  number
+}
 
 export interface PurchaseOrderStats {
   total:            number

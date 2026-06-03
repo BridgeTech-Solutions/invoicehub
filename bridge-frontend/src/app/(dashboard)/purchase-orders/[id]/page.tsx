@@ -6,183 +6,330 @@ import { usePermission } from '@/hooks/usePermission'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import {
   ChevronLeft, CheckCircle2, XCircle, PackageCheck, Copy,
-  Pencil, Clock, ShoppingCart, Building2, Calendar, Hash,
+  Pencil, Download, Calendar, Hash, Clock, Building2,
+  History, CheckCircle, PenLine, Shield, AlertTriangle, FileText,
 } from 'lucide-react'
-import { PageHeader } from '@/components/layout/PageHeader'
 import {
-  usePurchaseOrder, useApprovePurchaseOrder, useReceivePurchaseOrder,
-  useCancelPurchaseOrder, useDuplicatePurchaseOrder,
+  usePurchaseOrder, useSendPurchaseOrder, useConfirmPurchaseOrder,
+  useReceivePurchaseOrder, useClosePurchaseOrder, useCancelPurchaseOrder,
+  useDuplicatePurchaseOrder, useDownloadPurchaseOrderPdf,
+  useCreateSupplierInvoiceFromBC, useLinkedSupplierInvoices,
 } from '@/features/purchase-orders/hooks'
-import { formatDate } from '@/lib/utils'
+import { ReceiveDrawer } from '@/features/purchase-orders/components/ReceiveDrawer'
+import { formatDate, getInitials } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
-import type { PurchaseOrderStatus } from '@/features/purchase-orders/types'
+import type { PurchaseOrderStatus, PurchaseOrder, LinkedSupplierInvoice } from '@/features/purchase-orders/types'
+
+// ─── Status config ────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<PurchaseOrderStatus, { label: string; color: string; bg: string }> = {
-  draft:              { label: 'Brouillon',         color: '#64748b', bg: '#f1f5f9' },
-  pending:            { label: 'En attente',         color: '#d97706', bg: '#fffbeb' },
-  approved:           { label: 'Approuvé',           color: '#2D7DD2', bg: '#eff6ff' },
-  ordered:            { label: 'Commandé',           color: '#0891b2', bg: '#ecfeff' },
-  partially_received: { label: 'Partiellement reçu', color: '#d97706', bg: '#fffbeb' },
-  received:           { label: 'Reçu',               color: '#16a34a', bg: '#f0fdf4' },
-  billed:             { label: 'Facturé',            color: '#7c3aed', bg: '#faf5ff' },
-  cancelled:          { label: 'Annulé',             color: '#94a3b8', bg: '#f8fafc' },
+  draft:              { label: 'Brouillon',          color: '#64748b', bg: 'rgba(148,163,184,0.15)' },
+  sent:               { label: 'Envoyé',             color: '#d97706', bg: 'rgba(245,158,11,0.1)'   },
+  confirmed:          { label: 'Confirmé',           color: '#2D7DD2', bg: 'rgba(45,125,210,0.1)'   },
+  partially_received: { label: 'Partiellement reçu', color: '#d97706', bg: 'rgba(245,158,11,0.1)'   },
+  received:           { label: 'Réceptionné',        color: '#16a34a', bg: 'rgba(16,163,74,0.1)'    },
+  invoiced:           { label: 'Facturé',            color: '#7c3aed', bg: 'rgba(124,58,237,0.1)'   },
+  cancelled:          { label: 'Annulé',             color: '#dc2626', bg: 'rgba(239,68,68,0.1)'    },
+  closed:             { label: 'Clôturé',            color: '#7c3aed', bg: 'rgba(124,58,237,0.1)'   },
 }
 
 const TIMELINE: { status: PurchaseOrderStatus; label: string }[] = [
-  { status: 'draft',    label: 'Brouillon' },
-  { status: 'pending',  label: 'En attente' },
-  { status: 'approved', label: 'Approuvé' },
-  { status: 'ordered',  label: 'Commandé' },
-  { status: 'received', label: 'Reçu' },
-  { status: 'billed',   label: 'Facturé' },
+  { status: 'draft',     label: 'Brouillon'   },
+  { status: 'sent',      label: 'Envoyé'      },
+  { status: 'confirmed', label: 'Confirmé'    },
+  { status: 'received',  label: 'Réceptionné' },
+  { status: 'invoiced',  label: 'Facturé'     },
+  { status: 'closed',    label: 'Clôturé'     },
 ]
+
 const STATUS_ORDER: Record<PurchaseOrderStatus, number> = {
-  draft: 0, pending: 1, approved: 2, ordered: 3,
-  partially_received: 3.5, received: 4, billed: 5, cancelled: -1,
+  draft: 0, sent: 1, confirmed: 2,
+  partially_received: 2.5, received: 3, invoiced: 3.5, closed: 4, cancelled: -1,
 }
 
-function ReceiveModal({ onConfirm, onClose, isPending }: {
-  onConfirm: (data: { receivedDate: string; notes: string }) => void
-  onClose: () => void
-  isPending: boolean
-}) {
-  const [receivedDate, setReceivedDate] = useState(new Date().toISOString().slice(0, 10))
-  const [notes, setNotes]               = useState('')
-  const inp: React.CSSProperties = { width: '100%', padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13.5, color: 'var(--text-1)', outline: 'none' }
+// ─── Reception progress ───────────────────────────────────────────
+
+function ReceptionProgress({ po }: { po: PurchaseOrder }) {
+  const totalOrdered  = po.lines.reduce((s, l) => s + Number(l.quantityOrdered),  0)
+  const totalReceived = po.lines.reduce((s, l) => s + Number(l.quantityReceived), 0)
+  const pct = totalOrdered > 0 ? Math.min(100, Math.round(totalReceived / totalOrdered * 100)) : 0
+
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div className="card" style={{ padding: '28px 32px', width: 440, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <h3 style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--text-1)' }}>Enregistrer la réception</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)' }}>Date de réception</label>
-          <input type="date" value={receivedDate} onChange={e => setReceivedDate(e.target.value)} style={inp}
-            onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
-            onBlur={e  => (e.target.style.borderColor = 'var(--border)')} />
+    <div style={{ padding: '16px 18px', background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+        <span style={{ fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)' }}>Réception</span>
+        <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', fontWeight: 700, color: pct === 100 ? '#10b981' : 'var(--primary)' }}>{pct}%</span>
+      </div>
+      <div style={{ height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden', marginBottom: 10 }}>
+        <div style={{ height: '100%', borderRadius: 3, background: pct === 100 ? '#10b981' : 'var(--primary)', width: `${pct}%`, transition: 'width 0.4s' }} />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div>
+          <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-display)', fontWeight: 600 }}>Reçu</p>
+          <p style={{ fontSize: 14, fontWeight: 700, color: '#10b981', fontFamily: 'var(--font-mono)', margin: 0 }}>{totalReceived}</p>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)' }}>Notes (facultatif)</label>
-          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
-            placeholder="Observations sur la livraison…"
-            style={{ ...inp, resize: 'vertical' }}
-            onFocus={e => (e.target.style.borderColor = 'var(--primary)')}
-            onBlur={e  => (e.target.style.borderColor = 'var(--border)')} />
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 4 }}>
-          <button onClick={onClose} style={{ padding: '8px 18px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>Annuler</button>
-          <button onClick={() => onConfirm({ receivedDate, notes })} disabled={isPending}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 'var(--radius-md)', background: '#16a34a', color: '#fff', border: 'none', cursor: isPending ? 'not-allowed' : 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: isPending ? 0.7 : 1 }}>
-            <PackageCheck size={14} /> Confirmer réception
-          </button>
+        <div>
+          <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-display)', fontWeight: 600 }}>Commandé</p>
+          <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', margin: 0 }}>{totalOrdered}</p>
         </div>
       </div>
     </div>
   )
 }
 
+// ─── Status timeline (sidebar) ────────────────────────────────────
+
+const HISTORY_META: Record<string, { label: string; color: string; Icon: React.ElementType }> = {
+  draft:              { label: 'Brouillon créé',    color: '#64748b', Icon: PenLine      },
+  sent:               { label: 'Envoyé',            color: '#d97706', Icon: Shield       },
+  confirmed:          { label: 'Confirmé',          color: '#2D7DD2', Icon: CheckCircle2 },
+  partially_received: { label: 'Partiellement reçu',color: '#d97706', Icon: PackageCheck },
+  received:           { label: 'Réceptionné',       color: '#16a34a', Icon: PackageCheck },
+  invoiced:           { label: 'Facturé',           color: '#7c3aed', Icon: FileText     },
+  closed:             { label: 'Clôturé',           color: '#7c3aed', Icon: CheckCircle  },
+  cancelled:          { label: 'Annulé',            color: '#dc2626', Icon: XCircle      },
+}
+
+function StatusHistory({ history }: { history: Array<{ id: string; newStatus: string; changedAt: string; changedBy?: { firstName: string; lastName: string } | null }> }) {
+  if (!history || history.length === 0) return (
+    <p style={{ fontSize: 12.5, color: 'var(--text-3)', margin: 0, textAlign: 'center', padding: '8px 0' }}>Aucun événement</p>
+  )
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {history.map((h, idx) => {
+        const meta   = HISTORY_META[h.newStatus] ?? { label: h.newStatus, color: '#64748b', Icon: History }
+        const { Icon } = meta
+        const isLast = idx === history.length - 1
+        const who    = h.changedBy ? `${h.changedBy.firstName} ${h.changedBy.lastName}` : 'Système'
+        const when   = new Date(h.changedAt).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+        return (
+          <div key={h.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', position: 'relative' }}>
+            {!isLast && <div style={{ position: 'absolute', left: 13, top: 28, width: 2, height: 'calc(100% - 4px)', background: 'var(--border)', zIndex: 0 }} />}
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: `${meta.color}18`, border: `1.5px solid ${meta.color}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, zIndex: 1 }}>
+              <Icon size={13} style={{ color: meta.color }} />
+            </div>
+            <div style={{ paddingBottom: isLast ? 0 : 14, flex: 1 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: meta.color, fontFamily: 'var(--font-display)' }}>{meta.label}</span>
+              <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+                <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{who}</span>
+                <span style={{ fontSize: 11.5, color: 'var(--border)' }}>·</span>
+                <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{when}</span>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Approval warning ─────────────────────────────────────────────
+
+function ApprovalBanner({ po }: { po: PurchaseOrder }) {
+  if (!po.approvalRequest || po.approvalRequest.status === 'approved') return null
+  const colors: Record<string, { bg: string; color: string; label: string }> = {
+    pending:  { bg: 'rgba(245,158,11,0.08)', color: '#d97706', label: `Approbation en attente (étape ${po.approvalRequest.currentStep}/${po.approvalRequest.totalSteps})` },
+    rejected: { bg: 'rgba(239,68,68,0.08)',  color: '#dc2626', label: 'Approbation rejetée' },
+    expired:  { bg: 'rgba(148,163,184,0.1)', color: '#64748b', label: 'Demande d\'approbation expirée' },
+  }
+  const cfg = colors[po.approvalRequest.status] ?? colors.pending
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: cfg.bg, border: `1px solid ${cfg.color}33`, borderRadius: 'var(--radius-md)', marginTop: 14 }}>
+      <AlertTriangle size={14} style={{ color: cfg.color, flexShrink: 0 }} />
+      <p style={{ fontSize: 13, color: cfg.color, fontWeight: 600, fontFamily: 'var(--font-display)', margin: 0 }}>{cfg.label}</p>
+    </div>
+  )
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────
+
+function Skeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ height: 13, width: 120, background: 'var(--border)', borderRadius: 4 }} className="animate-pulse" />
+      <div style={{ height: 28, width: 300, background: 'var(--border)', borderRadius: 4 }} className="animate-pulse" />
+      <div className="card" style={{ padding: 24, height: 200 }}>
+        <div style={{ height: '100%', background: 'var(--border)', borderRadius: 6, opacity: 0.5 }} className="animate-pulse" />
+      </div>
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────
+
 export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { can } = usePermission()
+  const { can }    = usePermission()
   const { format } = useCurrency()
-  const { id }    = use(params)
+  const { id }     = use(params)
   const [showReceiveModal, setShowReceiveModal] = useState(false)
 
   const { data: po, isLoading } = usePurchaseOrder(id)
-  const approveMutation  = useApprovePurchaseOrder()
-  const receiveMutation  = useReceivePurchaseOrder()
-  const cancelMutation   = useCancelPurchaseOrder()
+  const sendMutation      = useSendPurchaseOrder()
+  const confirmMutation   = useConfirmPurchaseOrder()
+  const receiveMutation   = useReceivePurchaseOrder()
+  const closeMutation     = useClosePurchaseOrder()
+  const cancelMutation    = useCancelPurchaseOrder()
   const duplicateMutation = useDuplicatePurchaseOrder()
+  const pdfMutation       = useDownloadPurchaseOrderPdf()
+  const createFFMutation  = useCreateSupplierInvoiceFromBC()
+  const { data: linkedFFs = [] } = useLinkedSupplierInvoices(id)
 
-  if (isLoading) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <div style={{ height: 24, width: 240, background: 'var(--border)', borderRadius: 4 }} className="animate-pulse" />
-        <div className="card animate-pulse" style={{ height: 80 }} />
-        <div className="card animate-pulse" style={{ height: 300 }} />
-      </div>
-    )
-  }
-
-  if (!po) return null
-
-  const cfg        = STATUS_CONFIG[po.status]
-  const statusRank = STATUS_ORDER[po.status]
-  const canEdit    = ['draft', 'pending'].includes(po.status)
-  const canApprove = po.status === 'pending'
-  const canReceive = ['approved', 'ordered', 'partially_received'].includes(po.status)
-  const canCancel  = !['received', 'billed', 'cancelled'].includes(po.status)
+  if (isLoading) return <Skeleton />
+  if (!po) return (
+    <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+      <p style={{ fontSize: 14, color: 'var(--text-3)' }}>Bon de commande introuvable</p>
+      <Link href={ROUTES.PURCHASE_ORDERS} style={{ fontSize: 13, color: 'var(--primary)', textDecoration: 'none', marginTop: 8, display: 'inline-block' }}>← Retour aux bons de commande</Link>
+    </div>
+  )
 
   if (!can('purchase-order', 'read')) return <AccessDenied message="Vous n'avez pas accès aux bons de commande." />
 
+  const cfg        = STATUS_CONFIG[po.status]
+  const statusRank = STATUS_ORDER[po.status]
+  const canEdit    = ['draft', 'sent'].includes(po.status)
+  const canSend    = po.status === 'draft'
+  const canConfirm = po.status === 'sent'
+  const canReceive  = ['confirmed', 'partially_received'].includes(po.status)
+  const canCreateFF = ['received', 'partially_received'].includes(po.status) && !po.fullyInvoiced
+  const canClose    = ['received', 'partially_received', 'invoiced'].includes(po.status)
+  const canCancel   = !['received', 'invoiced', 'closed', 'cancelled'].includes(po.status)
+
+  const statusHistory = (po as any).statusHistory as Array<{ id: string; newStatus: string; changedAt: string; changedBy?: { firstName: string; lastName: string } | null }> | undefined
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 980, animation: 'page-in 0.2s ease' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
       {showReceiveModal && (
-        <ReceiveModal
+        <ReceiveDrawer
+          po={po}
           isPending={receiveMutation.isPending}
           onClose={() => setShowReceiveModal(false)}
-          onConfirm={data => { receiveMutation.mutate({ id, data }); setShowReceiveModal(false) }}
+          onConfirm={({ lines, receivedDate, notes }) => {
+            receiveMutation.mutate(
+              { id, data: { lines, receivedDate, notes } },
+              { onSuccess: () => setShowReceiveModal(false) },
+            )
+          }}
         />
       )}
 
-      {/* Back + header */}
-      <div>
-        <Link href={ROUTES.PURCHASE_ORDERS} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, color: 'var(--text-3)', textDecoration: 'none', marginBottom: 12 }}
-          onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary)')}
-          onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-3)')}>
-          <ChevronLeft size={14} /> Bons de commande
-        </Link>
-        <PageHeader
-          title={po.number}
-          description={`Bon de commande · ${formatDate(po.orderDate)}`}
-          actions={
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => duplicateMutation.mutate(id)}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-                <Copy size={13} /> Dupliquer
-              </button>
-              {canEdit && (
-                <Link href={`${ROUTES.PURCHASE_ORDERS}/${id}/edit`}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)', textDecoration: 'none', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-                  <Pencil size={13} /> Modifier
-                </Link>
+      {/* Back */}
+      <Link href={ROUTES.PURCHASE_ORDERS} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, color: 'var(--text-3)', textDecoration: 'none' }}
+        onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary)')}
+        onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-3)')}>
+        <ChevronLeft size={14} /> Bons de commande
+      </Link>
+
+      {/* Header card */}
+      <div className="card" style={{ padding: '20px 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          {/* Left: number + status + dates */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
+              <h1 className="font-display" style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-1)', margin: 0, fontFamily: 'var(--font-mono)' }}>
+                {po.number}
+              </h1>
+              <span style={{ ...cfg, fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 700, letterSpacing: '0.05em', padding: '5px 14px', borderRadius: 20, textTransform: 'uppercase' }}>
+                {cfg.label}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--text-3)' }}>
+                <Calendar size={13} /> {formatDate(po.issueDate)}
+              </div>
+              {po.expectedDeliveryDate && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--text-3)' }}>
+                  <Clock size={13} /> Livraison prévue {formatDate(po.expectedDeliveryDate)}
+                </div>
               )}
-              {canApprove && (
-                <button onClick={() => approveMutation.mutate(id)} disabled={approveMutation.isPending}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-                  <CheckCircle2 size={13} /> Approuver
-                </button>
-              )}
-              {canReceive && (
-                <button onClick={() => setShowReceiveModal(true)} disabled={receiveMutation.isPending}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius-md)', background: '#16a34a', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-                  <PackageCheck size={13} /> Réceptionner
-                </button>
-              )}
-              {canCancel && (
-                <button onClick={() => cancelMutation.mutate(id)} disabled={cancelMutation.isPending}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid #dc2626', background: 'transparent', color: '#dc2626', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-                  <XCircle size={13} /> Annuler
-                </button>
+              {po.reference && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--text-3)' }}>
+                  <Hash size={13} /> Réf. {po.reference}
+                </div>
               )}
             </div>
-          }
-        />
-      </div>
+          </div>
+          {/* Right: total */}
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: '0 0 4px', fontFamily: 'var(--font-display)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Total TTC</p>
+            <p style={{ fontSize: 24, fontWeight: 800, color: 'var(--primary)', fontFamily: 'var(--font-mono)', margin: 0 }}>{format(Number(po.totalTtc))}</p>
+          </div>
+        </div>
 
-      {/* Status badge + timeline */}
-      <div className="card" style={{ padding: '16px 24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, background: cfg.bg, color: cfg.color, fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-display)' }}>
-            {cfg.label}
-          </span>
-          {po.status === 'cancelled' && (
-            <span style={{ fontSize: 12.5, color: '#94a3b8', fontStyle: 'italic' }}>Ce bon de commande a été annulé</span>
+        {/* Approval warning */}
+        <ApprovalBanner po={po} />
+
+        {/* Actions */}
+        <div style={{ marginTop: 18, paddingTop: 18, borderTop: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            onClick={() => pdfMutation.mutate({ id, filename: `${po.number.replace(/\//g, '-')}.pdf` })}
+            disabled={pdfMutation.isPending}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)', cursor: pdfMutation.isPending ? 'not-allowed' : 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: pdfMutation.isPending ? 0.65 : 1 }}>
+            <Download size={13} /> PDF
+          </button>
+          <button onClick={() => duplicateMutation.mutate(id)} disabled={duplicateMutation.isPending}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+            <Copy size={13} /> Dupliquer
+          </button>
+          {canEdit && (
+            <Link href={`${ROUTES.PURCHASE_ORDERS}/${id}/edit`}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)', textDecoration: 'none', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+              <Pencil size={13} /> Modifier
+            </Link>
+          )}
+          {canSend && (
+            <button onClick={() => sendMutation.mutate(id)} disabled={sendMutation.isPending}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+              <CheckCircle2 size={13} /> Envoyer
+            </button>
+          )}
+          {canConfirm && (
+            <button onClick={() => confirmMutation.mutate(id)} disabled={confirmMutation.isPending}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius-md)', background: '#0891b2', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+              <CheckCircle2 size={13} /> Confirmer
+            </button>
+          )}
+          {canReceive && (
+            <button onClick={() => setShowReceiveModal(true)} disabled={receiveMutation.isPending}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius-md)', background: '#16a34a', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+              <PackageCheck size={13} /> Réceptionner
+            </button>
+          )}
+          {canCreateFF && (
+            <button
+              onClick={() => createFFMutation.mutate(id)}
+              disabled={createFFMutation.isPending}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px',
+                borderRadius:'var(--radius-md)', background:'#7c3aed', color:'#fff',
+                border:'none', cursor: createFFMutation.isPending ? 'not-allowed' : 'pointer',
+                fontSize:13, fontFamily:'var(--font-display)', fontWeight:600,
+                opacity: createFFMutation.isPending ? 0.65 : 1 }}>
+              <FileText size={13} /> Créer facture fournisseur
+            </button>
+          )}
+          {canClose && (
+            <button onClick={() => closeMutation.mutate(id)} disabled={closeMutation.isPending}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius-md)', background: '#7c3aed', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+              <CheckCircle2 size={13} /> Clôturer
+            </button>
+          )}
+          {canCancel && (
+            <button onClick={() => cancelMutation.mutate(id)} disabled={cancelMutation.isPending}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid #dc2626', background: 'transparent', color: '#dc2626', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+              <XCircle size={13} /> Annuler
+            </button>
           )}
         </div>
-        {po.status !== 'cancelled' && (
+      </div>
+
+      {/* Status stepper */}
+      {po.status !== 'cancelled' && (
+        <div className="card" style={{ padding: '16px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
             {TIMELINE.map(({ status, label }, i) => {
-              const rank = STATUS_ORDER[status]
-              const done = statusRank >= rank
+              const rank    = STATUS_ORDER[status]
+              const done    = statusRank >= rank
               const current = po.status === status || (status === 'received' && po.status === 'partially_received')
               return (
                 <div key={status} style={{ display: 'flex', alignItems: 'center', flex: i < TIMELINE.length - 1 ? 1 : 'none' }}>
@@ -199,117 +346,205 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
               )
             })}
           </div>
-        )}
-      </div>
-
-      {/* Meta info */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        {/* Supplier */}
-        <div className="card" style={{ padding: '18px 22px' }}>
-          <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>Fournisseur</h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(45,125,210,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Building2 size={18} style={{ color: 'var(--primary)' }} />
-            </div>
-            <div>
-              <Link href={`${ROUTES.SUPPLIERS}/${po.supplierId}`} style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)', textDecoration: 'none', fontFamily: 'var(--font-display)' }}
-                onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary)')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-1)')}>
-                {po.supplier.name}
-              </Link>
-              {po.supplier.email && <p style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 2 }}>{po.supplier.email}</p>}
-              {po.supplier.phone && <p style={{ fontSize: 12.5, color: 'var(--text-3)' }}>{po.supplier.phone}</p>}
-            </div>
-          </div>
-        </div>
-
-        {/* Dates & details */}
-        <div className="card" style={{ padding: '18px 22px' }}>
-          <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>Détails</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[
-              { icon: Calendar, label: 'Date commande', value: formatDate(po.orderDate) },
-              { icon: Calendar, label: 'Livraison prévue', value: po.expectedDate ? formatDate(po.expectedDate) : '—' },
-              { icon: Calendar, label: 'Date réception', value: po.receivedDate ? formatDate(po.receivedDate) : '—' },
-              { icon: Hash, label: 'Référence', value: po.reference ?? '—' },
-              { icon: Clock, label: 'Délai paiement', value: `${po.paymentTermDays} jours` },
-            ].map(({ icon: Icon, label: lbl, value }) => (
-              <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Icon size={13} style={{ color: 'var(--text-3)', flexShrink: 0 }} />
-                <span style={{ fontSize: 12.5, color: 'var(--text-3)', fontFamily: 'var(--font-display)', width: 120 }}>{lbl}</span>
-                <span style={{ fontSize: 13, color: 'var(--text-1)', fontWeight: 500 }}>{value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Lines */}
-      <div className="card" style={{ padding: '20px 24px' }}>
-        <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 16 }}>Lignes de commande</h3>
-
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: 'var(--surface-2)' }}>
-                {['Désignation', 'Unité', 'Qté commandée', 'Qté reçue', 'P.U. HT', 'TVA', 'Total TTC'].map(h => (
-                  <th key={h} style={{ padding: '8px 12px', textAlign: h === 'Désignation' ? 'left' : 'right', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {po.lines.map((line, i) => (
-                <tr key={line.id} style={{ borderBottom: i < po.lines.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                  <td style={{ padding: '10px 12px', color: 'var(--text-1)', fontWeight: 500 }}>
-                    <div>{line.designation}</div>
-                    {line.description && <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>{line.description}</div>}
-                  </td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--text-2)' }}>{line.unit}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--text-1)', fontWeight: 600 }}>{line.quantity}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', color: line.receivedQty > 0 ? '#16a34a' : 'var(--text-3)', fontWeight: 600 }}>{line.receivedQty}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--text-2)' }}>{new Intl.NumberFormat('fr-FR').format(line.unitPriceHt)}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--text-3)' }}>{line.taxRate}%</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-1)' }}>{new Intl.NumberFormat('fr-FR').format(Math.round(line.totalTtc))}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Totaux */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-          <div style={{ minWidth: 280, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-              <span style={{ color: 'var(--text-3)' }}>Sous-total HT</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-1)' }}>{format(po.subtotalHt)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-              <span style={{ color: 'var(--text-3)' }}>TVA</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-1)' }}>{format(po.totalTax)}</span>
-            </div>
-            <div style={{ height: 1, background: 'var(--border)' }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--text-1)' }}>Total TTC</span>
-              <span style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>{format(po.totalTtc)}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Notes */}
-      {po.notes && (
-        <div className="card" style={{ padding: '16px 20px' }}>
-          <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>Notes</h3>
-          <p style={{ fontSize: 13.5, color: 'var(--text-2)', lineHeight: 1.6 }}>{po.notes}</p>
         </div>
       )}
 
-      {/* Meta footer */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-3)', padding: '4px 2px' }}>
-        <span>Créé par {po.createdBy.firstName} {po.createdBy.lastName} · {formatDate(po.createdAt)}</span>
-        {po.approvedBy && (
-          <span>Approuvé par {po.approvedBy.firstName} {po.approvedBy.lastName} · {po.approvedAt ? formatDate(po.approvedAt) : ''}</span>
-        )}
+      {/* Body grid */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_280px]" style={{ alignItems: 'start' }}>
+
+        {/* Main */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {/* Lines table */}
+          <div className="card" style={{ padding: '20px 24px' }}>
+            <p style={{ fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 14 }}>
+              Lignes de commande
+            </p>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
+                <thead>
+                  <tr>
+                    {['#', 'Désignation', 'Unité', 'Qté cmdée', 'Qté reçue', 'P.U. HT', 'TVA', 'Total HT'].map((h, i) => (
+                      <th key={h} scope="col" style={{ padding: '8px 10px', fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-3)', background: 'var(--surface-2)', borderBottom: '2px solid var(--border)', textAlign: i >= 2 ? 'right' : 'left', whiteSpace: 'nowrap' }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {po.lines.map((line, i) => {
+                    const received = Number(line.quantityReceived)
+                    const ordered  = Number(line.quantityOrdered)
+                    const full     = received >= ordered
+                    return (
+                      <tr key={line.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '11px 10px', fontSize: 12, color: 'var(--text-3)', width: 32 }}>{i + 1}</td>
+                        <td style={{ padding: '11px 10px', minWidth: 180 }}>
+                          <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)', margin: 0 }}>{line.designation}</p>
+                          {line.description && <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '2px 0 0', lineHeight: 1.4 }}>{line.description}</p>}
+                        </td>
+                        <td style={{ padding: '11px 10px', textAlign: 'right', fontSize: 12.5, color: 'var(--text-3)' }}>{line.unit ?? '—'}</td>
+                        <td style={{ padding: '11px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-2)', fontWeight: 600 }}>{ordered}</td>
+                        <td style={{ padding: '11px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: full ? '#10b981' : received > 0 ? '#d97706' : 'var(--text-3)' }}>{received}</td>
+                        <td style={{ padding: '11px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
+                          {new Intl.NumberFormat('fr-FR').format(Number(line.unitPriceHt))}
+                        </td>
+                        <td style={{ padding: '11px 10px', textAlign: 'right', fontSize: 12.5, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{Number(line.taxRate)}%</td>
+                        <td style={{ padding: '11px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>
+                          {new Intl.NumberFormat('fr-FR').format(Math.round(Number(line.netHt)))}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Totals */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
+              <div style={{ minWidth: 300, display: 'flex', flexDirection: 'column', gap: 7 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span style={{ color: 'var(--text-3)' }}>Sous-total HT</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-2)' }}>{format(Number(po.subtotalHt))}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span style={{ color: 'var(--text-3)' }}>TVA</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-2)' }}>{format(Number(po.totalTax))}</span>
+                </div>
+                <div style={{ height: 1, background: 'var(--border)' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--text-1)' }}>Total TTC</span>
+                  <span style={{ fontSize: 16, fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>{format(Number(po.totalTtc))}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Notes & conditions */}
+          {(po.notes || (po as any).paymentConditions) && (
+            <div className="card" style={{ padding: '20px 24px' }}>
+              <p style={{ fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 14 }}>
+                Conditions & Notes
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                {(po as any).paymentConditions && (
+                  <div>
+                    <p style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Conditions de paiement</p>
+                    <p style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5, margin: 0 }}>{(po as any).paymentConditions}</p>
+                  </div>
+                )}
+                {po.notes && (
+                  <div>
+                    <p style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Notes</p>
+                    <p style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5, margin: 0 }}>{po.notes}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Sidebar */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Factures fournisseurs liées */}
+          {linkedFFs.length > 0 && (
+            <div className="card" style={{ padding:'16px 18px' }}>
+              <p style={{ fontSize:11, fontFamily:'var(--font-display)', fontWeight:700,
+                textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-3)', marginBottom:10 }}>
+                Factures fournisseurs liées
+              </p>
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {linkedFFs.map((ff: LinkedSupplierInvoice) => (
+                  <Link key={ff.id} href={`/supplier-invoices/${ff.id}`}
+                    style={{ display:'flex', flexDirection:'column', gap:3, padding:'10px 12px',
+                      borderRadius:'var(--radius-md)', background:'var(--surface)',
+                      border:'1px solid var(--border)', textDecoration:'none' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                      <span style={{ fontSize:12.5, fontWeight:700, color:'var(--primary)',
+                        fontFamily:'var(--font-mono)' }}>{ff.number}</span>
+                      <span style={{ fontSize:11, padding:'2px 7px', borderRadius:99,
+                        background:'rgba(124,58,237,0.1)', color:'#7c3aed',
+                        fontFamily:'var(--font-display)', fontWeight:600 }}>
+                        {ff.status}
+                      </span>
+                    </div>
+                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'var(--text-3)' }}>
+                      <span>{new Date(ff.invoiceDate).toLocaleDateString('fr-FR')}</span>
+                      <span style={{ fontFamily:'var(--font-mono)', fontWeight:600, color:'var(--text-1)' }}>
+                        {new Intl.NumberFormat('fr-FR').format(Math.round(ff.totalTtc))} XAF
+                      </span>
+                    </div>
+                    {ff.balanceDue > 0 && (
+                      <span style={{ fontSize:11, color:'#dc2626', fontWeight:600 }}>
+                        Solde dû : {new Intl.NumberFormat('fr-FR').format(Math.round(ff.balanceDue))} XAF
+                      </span>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Reception progress */}
+          {!['draft', 'cancelled'].includes(po.status) && (
+            <ReceptionProgress po={po} />
+          )}
+
+          {/* Supplier */}
+          <div className="card" style={{ padding: '16px 18px' }}>
+            <p style={{ fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 12 }}>Fournisseur</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <span style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(45,125,210,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: 'var(--primary)', fontFamily: 'var(--font-display)', flexShrink: 0 }}>
+                {getInitials(po.supplier.name)}
+              </span>
+              <div>
+                <Link href={`${ROUTES.SUPPLIERS}/${po.supplierId}`} style={{ textDecoration: 'none' }}>
+                  <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)', margin: 0 }}>{po.supplier.name}</p>
+                </Link>
+                {po.supplier.email && <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '2px 0 0' }}>{po.supplier.email}</p>}
+                {po.supplier.phone && <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '1px 0 0' }}>{po.supplier.phone}</p>}
+              </div>
+            </div>
+            <Link href={`${ROUTES.SUPPLIERS}/${po.supplierId}`} style={{ fontSize: 12.5, color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}>
+              Voir la fiche fournisseur →
+            </Link>
+          </div>
+
+          {/* Meta info */}
+          <div className="card" style={{ padding: '16px 18px' }}>
+            <p style={{ fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 12 }}>Informations</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+              {([
+                ['Créé par',         `${po.createdBy.firstName} ${po.createdBy.lastName}`],
+                ['Créé le',          formatDate(po.createdAt)],
+                ['Modifié le',       formatDate(po.updatedAt)],
+                ...(po.approvedBy ? [['Approuvé par', `${po.approvedBy.firstName} ${po.approvedBy.lastName}`]] : []),
+                ...(po.approvedAt ? [['Approuvé le',  formatDate(po.approvedAt)]] : []),
+                ...((po as any).deliveredAt ? [['Réceptionné le', formatDate((po as any).deliveredAt)]] : []),
+                ...(po.paymentTermDays != null ? [['Délai paiement', `${po.paymentTermDays} jours`]] : []),
+              ] as [string, string][]).map(([l, v]) => (
+                <div key={l} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>{l}</span>
+                  <span style={{ fontSize: 12.5, color: 'var(--text-2)', fontWeight: 500, maxWidth: 150, textAlign: 'right', wordBreak: 'break-word' }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Status history */}
+          {statusHistory && statusHistory.length > 0 && (
+            <div className="card" style={{ padding: '16px 18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14 }}>
+                <History size={13} style={{ color: 'var(--text-3)' }} />
+                <p style={{ fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', margin: 0 }}>
+                  Cycle de vie
+                </p>
+              </div>
+              <StatusHistory history={statusHistory} />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

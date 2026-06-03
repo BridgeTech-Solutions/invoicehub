@@ -40,6 +40,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Claude Code local settings (peut contenir des secrets)
+.claude/settings.local.json
+
 # TypeScript build info
 tsconfig.tsbuildinfo
 

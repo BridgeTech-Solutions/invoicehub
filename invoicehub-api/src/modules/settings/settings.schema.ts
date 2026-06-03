@@ -36,17 +36,37 @@ export const updateSettingsSchema = z.object({
     })).max(10).optional().default([]),
     checkLevels: z.array(z.object({
       daysSince:      z.number().int().min(1),
+      level:          z.number().int().min(1),
       notifyManagers: z.boolean(),
       sendEmail:      z.boolean(),
     })).max(10).optional(),
     draftCheckLevels: z.array(z.object({
       daysSince:      z.number().int().min(1),
+      level:          z.number().int().min(1),
       notifyManagers: z.boolean(),
       sendEmail:      z.boolean(),
     })).max(10).optional(),
   }).optional(),
 
   footerSafeZonePx: z.number().int().min(0).optional(),
+
+  // Comptes comptables SYSCOHADA
+  initialStockAccount:         z.string().max(20).optional(),
+  escompteAccountingAccount:   z.string().max(20).optional(),
+  collectedTaxAccount:         z.string().max(20).optional(),
+  deductibleTaxAccount:        z.string().max(20).optional(),
+  // Comptes de mouvement de stock (inventaire permanent SYSCOHADA)
+  stockAccount:                z.string().max(20).optional(),
+  stockVariationAccount:       z.string().max(20).optional(),
+  stockLossAccount:            z.string().max(20).optional(),
+  // Comptes par défaut tiers / ventes / achats
+  defaultClientAccount:        z.string().max(20).optional(),
+  defaultSupplierAccount:      z.string().max(20).optional(),
+  defaultBankAccount:          z.string().max(20).optional(),
+  defaultSalesGoodsAccount:    z.string().max(20).optional(),
+  defaultSalesServiceAccount:  z.string().max(20).optional(),
+  defaultPurchaseAccount:      z.string().max(20).optional(),
+  defaultExpenseAccount:       z.string().max(20).optional(),
 });
 
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;

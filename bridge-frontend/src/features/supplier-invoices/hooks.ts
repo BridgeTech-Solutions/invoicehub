@@ -9,6 +9,7 @@ import type {
   ListSupplierInvoicesParams, RecordSupplierPaymentPayload,
 } from './types'
 import { ROUTES } from '@/lib/constants'
+import { getApiErrorMessage, getApiErrorCode, isApprovalFlowCode } from '@/lib/api-error'
 
 export const SI_KEYS = {
   all:    ['supplier-invoices'] as const,
@@ -70,7 +71,14 @@ export function useValidateSupplierInvoice() {
       qc.invalidateQueries({ queryKey: SI_KEYS.all })
       toast.success('Facture validée')
     },
-    onError: () => toast.error('Erreur lors de la validation'),
+    onError: (e, id) => {
+      qc.invalidateQueries({ queryKey: SI_KEYS.detail(id) })
+      qc.invalidateQueries({ queryKey: SI_KEYS.all })
+      const code = getApiErrorCode(e)
+      const msg  = getApiErrorMessage(e, 'Erreur lors de la validation')
+      if (isApprovalFlowCode(code)) toast.info(msg)
+      else toast.error(msg)
+    },
   })
 }
 
@@ -85,6 +93,39 @@ export function useDisputeSupplierInvoice() {
       toast.success('Facture contestée')
     },
     onError: () => toast.error('Erreur lors de la contestation'),
+  })
+}
+
+export function useUploadSupplierInvoiceAttachment(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file: File) => supplierInvoicesApi.uploadAttachment(id, file),
+    onMutate: () => ({ tid: toast.loading('Envoi du document en cours…') }),
+    onSuccess: (_d, _v, ctx) => {
+      qc.invalidateQueries({ queryKey: SI_KEYS.detail(id) })
+      toast.success('Document fournisseur enregistré', { id: ctx?.tid })
+    },
+    onError: (_e, _v, ctx) => toast.error('Erreur lors de l\'envoi du document', { id: ctx?.tid }),
+  })
+}
+
+export function useDownloadSupplierInvoiceAttachment() {
+  return useMutation({
+    mutationFn: ({ id, filename }: { id: string; filename: string }) =>
+      supplierInvoicesApi.downloadAttachment(id, filename),
+    onError: () => toast.error('Erreur lors du téléchargement du document'),
+  })
+}
+
+export function useDeleteSupplierInvoiceAttachment(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => supplierInvoicesApi.deleteAttachment(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: SI_KEYS.detail(id) })
+      toast.success('Document supprimé')
+    },
+    onError: () => toast.error('Erreur lors de la suppression du document'),
   })
 }
 

@@ -47,6 +47,21 @@ export interface CompanySettings {
     checkLevels?:     CheckLevel[]
     draftCheckLevels?: CheckLevel[]
   } | null
+  // Comptes comptables SYSCOHADA
+  initialStockAccount:          string
+  escompteAccountingAccount:    string
+  collectedTaxAccount:          string
+  deductibleTaxAccount:         string
+  stockAccount:                 string
+  stockVariationAccount:        string
+  stockLossAccount:             string
+  defaultClientAccount:         string
+  defaultSupplierAccount:       string
+  defaultBankAccount:           string
+  defaultSalesGoodsAccount:     string
+  defaultSalesServiceAccount:   string
+  defaultPurchaseAccount:       string
+  defaultExpenseAccount:        string
   createdAt:                    string
   updatedAt:                    string
 }

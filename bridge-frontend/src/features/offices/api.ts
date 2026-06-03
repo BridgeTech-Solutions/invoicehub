@@ -11,7 +11,7 @@ export const officesApi = {
     return data
   },
   async update(id: string, payload: UpdateOfficePayload): Promise<Office> {
-    const { data } = await apiClient.put<Office>(`/offices/${id}`, payload)
+    const { data } = await apiClient.patch<Office>(`/offices/${id}`, payload)
     return data
   },
   async delete(id: string): Promise<void> {

@@ -8,7 +8,8 @@ import {
   Send, ThumbsUp, ThumbsDown, Clock, FileText,
   CreditCard, Coins, AlertCircle, Bell, UserPlus, Info,
   ChevronLeft, ChevronRight, CheckCircle2, XCircle,
-  Receipt, ShoppingCart, PackageCheck,
+  Receipt, ShoppingCart, PackageCheck, Package, FileCheck,
+  TrendingDown, Landmark, CalendarClock, UserCog, ClipboardCheck, ClipboardX, Timer,
 } from 'lucide-react'
 import {
   useNotifications, useMarkRead, useMarkAllRead,
@@ -38,9 +39,23 @@ const TYPE_CONFIG: Record<NotificationType, {
   expense_submitted:      { label: 'Dépense soumise',     color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  Icon: Receipt,      href: (id) => id ? `/expenses/${id}` : '/expenses' },
   expense_approved:       { label: 'Dépense approuvée',   color: '#10b981', bg: 'rgba(16,185,129,0.1)',  Icon: CheckCircle2, href: (id) => id ? `/expenses/${id}` : '/expenses' },
   expense_rejected:       { label: 'Dépense rejetée',     color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   Icon: XCircle,      href: (id) => id ? `/expenses/${id}` : '/expenses' },
-  purchase_order_received:{ label: 'Bon de commande reçu',color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',  Icon: ShoppingCart, href: (id) => id ? `/purchase-orders/${id}` : '/purchase-orders' },
-  supplier_invoice_due:   { label: 'Facture fournisseur', color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   Icon: PackageCheck, href: (id) => id ? `/supplier-invoices/${id}` : '/supplier-invoices' },
-  system:                 { label: 'Système',             color: '#6b7280', bg: 'rgba(107,114,128,0.1)', Icon: Info },
+  purchase_order_created:  { label: 'BC créé',             color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',  Icon: ShoppingCart, href: (id) => id ? `/purchase-orders/${id}` : '/purchase-orders' },
+  purchase_order_approved: { label: 'BC approuvé',         color: '#10b981', bg: 'rgba(16,185,129,0.1)',  Icon: ClipboardCheck, href: (id) => id ? `/purchase-orders/${id}` : '/purchase-orders' },
+  purchase_order_rejected: { label: 'BC rejeté',           color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   Icon: ClipboardX, href: (id) => id ? `/purchase-orders/${id}` : '/purchase-orders' },
+  purchase_order_received: { label: 'BC réceptionné',      color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',  Icon: Package, href: (id) => id ? `/purchase-orders/${id}` : '/purchase-orders' },
+  supplier_invoice_received:{ label: 'Facture fournisseur reçue', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', Icon: FileCheck, href: (id) => id ? `/supplier-invoices/${id}` : '/supplier-invoices' },
+  supplier_invoice_due:    { label: 'Facture fournisseur échue', color: '#ef4444', bg: 'rgba(239,68,68,0.1)', Icon: PackageCheck, href: (id) => id ? `/supplier-invoices/${id}` : '/supplier-invoices' },
+  approval_requested:      { label: 'Approbation demandée', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', Icon: ClipboardCheck },
+  approval_approved:       { label: 'Approbation validée', color: '#10b981', bg: 'rgba(16,185,129,0.1)',  Icon: CheckCircle2 },
+  approval_rejected:       { label: 'Approbation rejetée', color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   Icon: ClipboardX },
+  approval_expired:        { label: 'Approbation expirée', color: '#6b7280', bg: 'rgba(107,114,128,0.1)', Icon: Timer },
+  approval_delegated:      { label: 'Approbation déléguée', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', Icon: UserCog },
+  budget_exceeded:         { label: 'Budget dépassé',      color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   Icon: TrendingDown },
+  low_stock_alert:         { label: 'Stock bas',           color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  Icon: AlertCircle },
+  bank_reconciliation_pending: { label: 'Rapprochement bancaire', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', Icon: Landmark },
+  fiscal_period_closing:   { label: 'Clôture fiscale',    color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)',  Icon: CalendarClock },
+  role_changed:            { label: 'Rôle modifié',        color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)',  Icon: UserCog, href: () => '/users' },
+  system:                  { label: 'Système',             color: '#6b7280', bg: 'rgba(107,114,128,0.1)', Icon: Info },
 }
 
 // ─── Relative time ────────────────────────────────────────────
@@ -222,7 +237,10 @@ function NotifItem({
 }) {
   const router      = useRouter()
   const cfg         = TYPE_CONFIG[type] ?? { label: type, color: '#6b7280', bg: 'rgba(107,114,128,0.1)', Icon: Bell }
-  const href        = cfg.href?.(entityId)
+  // Lien profond fourni par le backend (ex. notifs d'approbation) prioritaire,
+  // sinon route dérivée du type via la config.
+  const docLink     = typeof data?.documentLink === 'string' ? data.documentLink : undefined
+  const href        = docLink ?? cfg.href?.(entityId)
   const hasActions  = !!data?.action
   // Notifications avec boutons d'action ne sont pas cliquables globalement
   const isClickable = !hasActions && (!isRead || !!href)

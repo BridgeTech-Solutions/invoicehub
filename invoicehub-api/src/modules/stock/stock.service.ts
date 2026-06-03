@@ -109,19 +109,30 @@ export class StockService {
       });
 
       // ── Écriture comptable SYSCOHADA (silencieuse) ────────────────────────
+      // Comptes résolus en cascade : produit > catégorie > paramètres entreprise.
+      // Aucun numéro de compte codé en dur : si un compte essentiel n'est pas
+      // configuré, l'écriture est simplement ignorée (le mouvement physique reste).
+      const settings = await tx.companySettings.findFirst({
+        select: {
+          initialStockAccount:   true,
+          stockAccount:          true,
+          stockVariationAccount: true,
+          stockLossAccount:      true,
+        },
+      });
+
       const stockAccount = product.stockAccountingAccount
         ?? product.category?.stockAccountingAccount
-        ?? '311000';
+        ?? settings?.stockAccount
+        ?? null;
       const cogsAccount  = product.cogsAccountingAccount
         ?? product.category?.cogsAccountingAccount
-        ?? '603100';
+        ?? settings?.stockVariationAccount
+        ?? null;
       const lossAccount  = product.lossAccountingAccount
         ?? product.category?.lossAccountingAccount
-        ?? '603200';
-
-      const settings = await tx.companySettings.findFirst({
-        select: { initialStockAccount: true },
-      });
+        ?? settings?.stockLossAccount
+        ?? null;
 
       await onStockMovement({
         movementId:           movement.id,
@@ -133,8 +144,8 @@ export class StockService {
         stockAccount,
         cogsAccount,
         lossAccount,
-        supplierAccount:      (product.defaultSupplier as any)?.accountingAccount ?? '401000',
-        initialStockAccount:  (settings as any)?.initialStockAccount ?? '108000',
+        supplierAccount:      (product.defaultSupplier as any)?.accountingAccount ?? null,
+        initialStockAccount:  settings?.initialStockAccount ?? null,
         sourceLabel:          data.sourceLabel ?? null,
       }, tx);
 
