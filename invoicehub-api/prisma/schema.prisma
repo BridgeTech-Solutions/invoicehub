@@ -168,6 +168,7 @@ enum AuditAction {
   EXPENSE_SUBMITTED
   EXPENSE_APPROVED
   EXPENSE_REJECTED
+  JOB_FAILED
 
   @@map("audit_action")
 }

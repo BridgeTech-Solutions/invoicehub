@@ -99,7 +99,8 @@
       "Bash(echo \"EXIT=$?\")",
       "Read(//d/d/Bel/projets/BRIDGE/invoicehub-api/prisma/**)",
       "Read(//d/d/Bel/projets/BRIDGE/invoicehub-api/**)",
-      "Bash(grep -v \"//.*key\")"
+      "Bash(grep -v \"//.*key\")",
+      "Bash(wsl -- grep -n \"appendonly\\\\|appendfsync\\\\|^dir \\\\|^save \" /etc/redis/redis.conf)"
     ]
   },
   "mcpServers": {
