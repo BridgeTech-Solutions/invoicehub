@@ -1400,7 +1400,6 @@ ALTER TYPE audit_action ADD VALUE IF NOT EXISTS 'EXPENSE_SUBMITTED';
 ALTER TYPE audit_action ADD VALUE IF NOT EXISTS 'EXPENSE_APPROVED';
 ALTER TYPE audit_action ADD VALUE IF NOT EXISTS 'EXPENSE_REJECTED';
 ALTER TYPE audit_action ADD VALUE IF NOT EXISTS 'JOB_FAILED';
-ALTER TYPE purchase_order_status ADD VALUE IF NOT EXISTS 'invoiced';
 
 -- ================================================================
 -- 2.4 Étendre `notification_status` ENUM — nouveaux modules

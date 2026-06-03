@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(ls D:/Bel/projets/BRIDGE/bridge-backend/*.bat)",
-      "Read(//d/Bel/projets/BRIDGE/**)",
-      "Bash(ls D:/Bel/projets/BRIDGE/bridge-backend/deploy*)"
-    ]
-  }
-}
