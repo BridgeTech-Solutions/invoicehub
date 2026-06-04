@@ -514,7 +514,13 @@ function LineRow({ line, index, clientId, disabled, allService, stockMode, stock
             onChange={(e) => update('unit', e.target.value)}
             style={{ ...inputCss, cursor: disabled ? 'default' : 'pointer', appearance: 'none' }}
           >
-            {UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+            {UNITS.map(u => {
+              const full = unitsData?.find(ud => ud.code === u.value)
+              const label = full?.labelPlural && full.labelPlural !== full.label
+                ? `${full.label} / ${full.labelPlural}`
+                : u.label
+              return <option key={u.value} value={u.value}>{label}</option>
+            })}
           </select>
         </td>
       )}

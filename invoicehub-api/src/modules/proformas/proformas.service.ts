@@ -7,6 +7,7 @@ import { AppError } from '../../common/errors/app-error';
 import { generateDocumentNumber, getDefaultOfficeId } from '../../lib/documentNumber';
 import { broadcastNotification } from '../../lib/broadcast';
 import { generatePdf, buildDocumentHtml, resolveDocumentAssets } from '../../lib/pdf';
+import { loadUnits, resolveUnitLabel } from '../../lib/units';
 import { computeLine, computeTotals } from '../../lib/document-math';
 import type { NotificationJobData, EmailJobData } from '../../jobs/job-types';
 import type { CreateProformaInput, UpdateProformaInput, ListProformasInput, ConvertProformaInput } from './proformas.schema';
@@ -405,9 +406,10 @@ export class ProformasService {
   }
 
   async generatePdfResponse(id: string) {
-    const [proforma, settings] = await Promise.all([
+    const [proforma, settings, units] = await Promise.all([
       this.findById(id),
       this.prisma.companySettings.findFirst({ select: { headerImagePath: true, footerImagePath: true, stampPath: true, footerSafeZonePx: true, email: true } }),
+      loadUnits(this.prisma as any),
     ]);
 
     const { headerImageB64, footerImageB64, sealImageB64 } = resolveDocumentAssets(settings ?? null);
@@ -427,6 +429,7 @@ export class ProformasService {
           description: l.description ?? undefined,
           quantity:    Number(l.quantity),
           unit:        l.unit,
+          unitLabel:   resolveUnitLabel(units, l.unit, Number(l.quantity)),
           unitPriceHt: Number(l.unitPriceHt),
           netHt:       Number(l.netHt),
           taxRate:     Number(l.taxRate),

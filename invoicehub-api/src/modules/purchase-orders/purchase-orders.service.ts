@@ -10,6 +10,7 @@ import { AppError } from '../../common/errors/app-error';
 import { broadcastNotification } from '../../lib/broadcast';
 import { generatePdf, buildDocumentHtml, imgToBase64 } from '../../lib/pdf';
 import type { DocumentLine } from '../../lib/pdf';
+import { loadUnits, resolveUnitLabel } from '../../lib/units';
 import { CreatePurchaseOrderInput, UpdatePurchaseOrderInput, ReceiveInput } from './purchase-orders.schema';
 import { generateDocumentNumber } from '../../lib/documentNumber';
 import type { NotificationJobData } from '../../jobs/job-types';
@@ -536,18 +537,26 @@ export class PurchaseOrdersService {
     });
     if (!po) throw AppError.notFound('Bon de commande introuvable');
 
-    const settings       = await this.prisma.companySettings.findFirst();
+    const [settings, units] = await Promise.all([
+      this.prisma.companySettings.findFirst(),
+      loadUnits(this.prisma as any),
+    ]);
     const headerImageB64 = settings?.headerImagePath ? imgToBase64(settings.headerImagePath) : undefined;
     const footerImageB64 = settings?.footerImagePath ? imgToBase64(settings.footerImagePath) : undefined;
     const sealImageB64   = settings?.stampPath       ? imgToBase64(settings.stampPath)       : undefined;
 
-    const lines: DocumentLine[] = po.lines.map(l => ({
-      designation: l.designation, description: l.description ?? undefined,
-      quantity:    Number(l.quantityOrdered), unit: String(l.unit ?? 'pcs'),
-      unitPriceHt: Number(l.unitPriceHt), netHt: Number(l.netHt),
-      taxRate:     Number(l.taxRate),
-      discountLabel: Number(l.discountValue) > 0 ? `${l.discountValue}%` : undefined,
-    }));
+    const lines: DocumentLine[] = po.lines.map(l => {
+      const qty = Number(l.quantityOrdered);
+      const unitCode = String(l.unit ?? 'piece');
+      return {
+        designation: l.designation, description: l.description ?? undefined,
+        quantity:    qty, unit: unitCode,
+        unitLabel:   resolveUnitLabel(units, unitCode, qty),
+        unitPriceHt: Number(l.unitPriceHt), netHt: Number(l.netHt),
+        taxRate:     Number(l.taxRate),
+        discountLabel: Number(l.discountValue) > 0 ? `${l.discountValue}%` : undefined,
+      };
+    });
 
     const html = buildDocumentHtml({
       type: 'Bon de Commande', number: po.number,

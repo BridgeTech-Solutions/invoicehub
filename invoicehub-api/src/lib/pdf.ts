@@ -411,6 +411,8 @@ export interface DocumentLine {
   designation: string;
   quantity: number;
   unit: string;
+  /** Libellé résolu de l'unité (singulier ou pluriel selon qty). Si absent, `unit` (code) est affiché. */
+  unitLabel?: string;
   /** Prix unitaire HT */
   unitPriceHt: number;
   /**
@@ -658,7 +660,7 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
         ${isFacture ? `<td style="${td}text-align:center;">${l.reference ?? '-'}</td>` : ''}
         <td style="${td}">${l.description || l.designation}</td>
         <td style="${td}text-align:right;">${fmt(l.unitPriceHt)}</td>
-        <td style="${td}text-align:center;">${String(l.quantity) + (l.unit ? `&nbsp;<span style="font-size:9px;color:#666;">${l.unit}</span>` : '')}</td>
+        <td style="${td}text-align:center;">${String(l.quantity) + (l.unitLabel ? `&nbsp;<span style="font-size:9px;color:#666;">${l.unitLabel}</span>` : (l.unit ? `&nbsp;<span style="font-size:9px;color:#666;">${l.unit}</span>` : ''))}</td>
         ${remiseCell}
         <td style="${td}text-align:right;">${fmt(l.netHt)}</td>
       </tr>`;

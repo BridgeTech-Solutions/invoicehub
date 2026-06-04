@@ -8,6 +8,7 @@ import { AppError } from '../../common/errors/app-error';
 import { APPROVAL_COMPLETED, type ApprovalCompletedEvent, type AutoExecResult } from '../../common/events/approval.events';
 import { generateDocumentNumber, getDefaultOfficeId } from '../../lib/documentNumber';
 import { generatePdf, buildDocumentHtml, imgToBase64, resolveDocumentAssets } from '../../lib/pdf';
+import { loadUnits, resolveUnitLabel } from '../../lib/units';
 import { DashboardCacheService } from '../../common/services/dashboard-cache.service';
 import { computeLine, computeTotals } from '../../lib/document-math';
 import { PaymentsService } from '../payments/payments.service';
@@ -761,9 +762,10 @@ export class InvoicesService {
   }
 
   async generatePdfResponse(id: string) {
-    const [invoice, settings] = await Promise.all([
+    const [invoice, settings, units] = await Promise.all([
       this.findById(id),
       this.prisma.companySettings.findFirst({ select: { headerImagePath: true, footerImagePath: true, stampPath: true, footerSafeZonePx: true, email: true } }),
+      loadUnits(this.prisma as any),
     ]);
 
     const isAcompte = invoice.type === 'acompte';
@@ -831,6 +833,7 @@ export class InvoicesService {
           description: l.description ?? undefined,
           quantity:    Number(l.quantity),
           unit:        l.unit,
+          unitLabel:   resolveUnitLabel(units, l.unit, Number(l.quantity)),
           unitPriceHt: Number(l.unitPriceHt),
           netHt:       Number(l.netHt),
           taxRate:     Number(l.taxRate),
