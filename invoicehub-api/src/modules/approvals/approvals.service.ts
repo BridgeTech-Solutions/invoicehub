@@ -559,7 +559,7 @@ export class ApprovalsService {
     userId: string, type: string, title: string, message: string, requestId: string,
     extra?: Record<string, unknown>,
   ) {
-    await this.notifQueue.add('notify', {
+    await this.notifQueue.add('notification', {
       userId, type, title, message,
       data: { requestId, ...extra },
     })

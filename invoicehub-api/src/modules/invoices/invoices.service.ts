@@ -272,17 +272,6 @@ export class InvoicesService {
       include: { lines: true, client: { select: { id: true, name: true, email: true, phone: true } } },
     });
 
-    const typeLabel = created.type === 'acompte' ? 'acompte'
-      : created.type === 'solde' ? 'solde'
-      : created.type === 'avoir' ? "note d'avoir"
-      : 'facture';
-    void broadcastNotification(this.prisma as any, this.notifQueue, {
-      type:    'invoice_issued',
-      title:   `Nouvelle ${typeLabel} : ${created.number}`,
-      message: `La ${typeLabel} ${created.number} a été créée pour ${created.client.name}.`,
-      data:    { invoiceId: created.id, invoiceNumber: created.number },
-    });
-
     return created;
   }
 
@@ -589,10 +578,10 @@ export class InvoicesService {
       return { cancelled, avoirId: avoirCreated.id, avoirNumber: avoirCreated.number };
     }).then(async ({ cancelled, avoirId, avoirNumber }) => {
       void broadcastNotification(this.prisma as any, this.notifQueue, {
-        type:    'invoice_issued',
+        type:    'system',
         title:   `Facture annulée : ${invoice.number}`,
         message: `La facture ${invoice.number} pour ${(invoice as any).client?.name} a été annulée. Avoir ${avoirNumber} généré automatiquement.`,
-        data:    { invoiceId: invoice.id, invoiceNumber: invoice.number, avoirId, avoirNumber },
+        data:    { invoiceId: invoice.id, invoiceNumber: invoice.number, avoirId, avoirNumber, documentLink: `/invoices/${invoice.id}` },
       }, { excludeUserId: userId });
       void this.emitter.emit('invoice.cancelled', { invoiceId: invoice.id, userId });
       this.prisma.$transaction((tx) => accountingEngine.onInvoiceCancelled(id, tx)).catch(e =>
@@ -758,10 +747,10 @@ export class InvoicesService {
     });
 
     void broadcastNotification(this.prisma as any, this.notifQueue, {
-      type:    'invoice_issued',
+      type:    'system',
       title:   `Avoir créé : ${avoir.number}`,
       message: `Un avoir ${avoir.number} a été créé sur la facture ${invoice.number} pour ${(invoice as any).client?.name}. Motif : ${input.reason}`,
-      data:    { invoiceId: invoice.id, avoirId: avoir.id, avoirNumber: avoir.number },
+      data:    { invoiceId: invoice.id, avoirId: avoir.id, avoirNumber: avoir.number, documentLink: `/invoices/${avoir.id}` },
     });
 
     this.prisma.$transaction((tx) => accountingEngine.onInvoiceCancelled(avoir.id, tx)).catch(e =>

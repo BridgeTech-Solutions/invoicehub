@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue, QueueEvents } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
+import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -70,7 +71,7 @@ export class JobFailureListener implements OnModuleInit {
             data: {
               action:     'JOB_FAILED',
               entityType: 'job_queue',
-              entityId:   jobId,
+              entityId:   uuidv4(),   // BullMQ jobId is an int — store as metadata in newState
               newState:   payload as any,
               // userId null : c'est un job système, pas une action utilisateur.
             },

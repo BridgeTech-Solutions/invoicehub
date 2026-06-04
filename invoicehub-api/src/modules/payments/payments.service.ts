@@ -8,7 +8,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { DashboardCacheService } from '../../common/services/dashboard-cache.service';
-import { EventsGateway } from '../../gateway/events.gateway';
+import { broadcastNotification } from '../../lib/broadcast';
 import { generatePdf, buildReceiptHtml, imgToBase64 } from '../../lib/pdf';
 import { toRelativeUpload, resolveUpload } from '../../lib/uploads';
 import * as accountingEngine from '../../lib/accountingEngine';
@@ -20,7 +20,6 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: DashboardCacheService,
-    private readonly events: EventsGateway,
     private readonly emitter: EventEmitter2,
     @InjectQueue('notification') private readonly notifQueue: Queue<NotificationJobData>,
   ) {}
@@ -184,13 +183,13 @@ export class PaymentsService {
         ? ` (escompte de ${escompteAmount.toLocaleString('fr-FR')} XAF accordé)`
         : '';
 
-      this.events.server.emit('notification', {
-        type: fullyPaid ? 'invoice_paid' : 'payment_registered',
-        title: fullyPaid ? `Facture payée : ${invoice.number}` : `Paiement reçu : ${invoice.number}`,
+      void broadcastNotification(this.prisma as any, this.notifQueue, {
+        type:    fullyPaid ? 'invoice_paid' : 'payment_registered',
+        title:   fullyPaid ? `Facture payée : ${invoice.number}` : `Paiement reçu : ${invoice.number}`,
         message: fullyPaid
           ? `La facture ${invoice.number} est entièrement réglée${escompteMsg}.`
           : `Un paiement de ${input.amount.toLocaleString('fr-FR')} XAF a été enregistré sur la facture ${invoice.number}${escompteMsg}.`,
-        data: { invoiceId: invoice.id, invoiceNumber: invoice.number, amount: input.amount },
+        data:    { invoiceId: invoice.id, invoiceNumber: invoice.number, amount: input.amount, documentLink: `/invoices/${invoice.id}` },
       });
 
       void this.prisma.$transaction((tx) => accountingEngine.onPaymentReceived(payment.id, tx));

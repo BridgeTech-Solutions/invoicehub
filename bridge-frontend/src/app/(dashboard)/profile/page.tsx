@@ -858,23 +858,23 @@ function ProfileHero({ active, setActive }: { active: ActiveTab; setActive: (t: 
                 {initials}
               </div>
           }
-          {/* Name + role */}
+          {/* Name + role — texte blanc car visuellement sur le banner bleu */}
           <div style={{ paddingBottom: 12, flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <h1 style={{ fontSize: isMobile ? 15 : 18, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <h1 style={{ fontSize: isMobile ? 15 : 18, fontWeight: 800, color: '#fff', fontFamily: 'var(--font-display)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {name || '—'}
               </h1>
               {roleLabel && (
-                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--primary)', background: 'var(--primary-light)', padding: '2px 8px', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-display)', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: 'rgba(255,255,255,0.18)', padding: '2px 9px', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-display)', whiteSpace: 'nowrap', backdropFilter: 'blur(4px)' }}>
                   {roleLabel}
                 </span>
               )}
             </div>
-            <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '2px 0 0', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', margin: '2px 0 0', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {user?.email ?? ''}
             </p>
             {me?.lastLoginAt && (
-              <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '2px 0 0' }}>
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', margin: '2px 0 0' }}>
                 Dernière connexion : <time dateTime={me.lastLoginAt}>{formatDate(me.lastLoginAt)}</time>
               </p>
             )}

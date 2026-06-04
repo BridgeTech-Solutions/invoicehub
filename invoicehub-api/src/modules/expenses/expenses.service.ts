@@ -1,11 +1,13 @@
 import * as fs   from 'fs';
 import * as path from 'path';
 import { Injectable } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ApprovalsService } from '../approvals/approvals.service';
-import { NotificationsService } from '../notifications/notifications.service';
 import { AppError } from '../../common/errors/app-error';
+import type { NotificationJobData } from '../../jobs/job-types';
 import * as accountingEngine from '../../lib/accountingEngine';
 import {
   CreateExpenseCategoryInput, CreateExpenseInput,
@@ -18,7 +20,7 @@ export class ExpensesService {
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
     private approvalsService: ApprovalsService,
-    private notificationsService: NotificationsService,
+    @InjectQueue('notification') private readonly notifQueue: Queue<NotificationJobData>,
   ) {}
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -153,15 +155,15 @@ export class ExpensesService {
       }
 
       for (const notif of notifications) {
-        for (const admin of admins) {
-          await this.notificationsService.create(
-            admin.id,
-            'budget_exceeded' as any,
-            notif.title,
-            notif.message,
-            { budgetId: budget.id, categoryId, threshold: notif.threshold, percentUsed: Math.round(newPct) },
-          );
-        }
+        await Promise.all(admins.map(admin =>
+          this.notifQueue.add('notification', {
+            userId:  admin.id,
+            type:    'budget_exceeded',
+            title:   notif.title,
+            message: notif.message,
+            data:    { budgetId: budget.id, categoryId, threshold: notif.threshold, percentUsed: Math.round(newPct) },
+          }),
+        ));
       }
     }
   }

@@ -502,6 +502,19 @@
    mobile overlay is controlled by Zustand mobileOpen state.
    No global aside overrides needed. */
 
+/* ─── User detail page grid ──────────────────────────────────── */
+.user-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .user-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ─── Reduced motion ─────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .page-enter  { animation: none; }

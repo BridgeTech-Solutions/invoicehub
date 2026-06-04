@@ -421,7 +421,7 @@ export default function UserDetailPage() {
         />
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 760, margin: '0 auto', width: '100%' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%' }}>
 
         {/* ── Bouton retour ── */}
         <button type="button" onClick={() => router.push(ROUTES.USERS)}
@@ -496,7 +496,7 @@ export default function UserDetailPage() {
           </div>
         </div>
 
-        {/* ── Alerte activation ── */}
+        {/* ── Alerte activation (pleine largeur) ── */}
         {isPendingActivation && (
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 18px', borderRadius: 'var(--radius-md)', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)' }}>
             <AlertTriangle size={16} style={{ color: '#d97706', flexShrink: 0, marginTop: 1 }} aria-hidden="true" />
@@ -512,76 +512,84 @@ export default function UserDetailPage() {
           </div>
         )}
 
-        {/* ── Informations ── */}
-        <Section icon={<Mail size={16} />} title="Informations">
-          <div style={{ marginTop: -10 }}>
-            <InfoRow icon={<Mail size={14} />}     label="Email"              value={user.email} />
-            <InfoRow icon={<Phone size={14} />}    label="Téléphone"          value={user.phone ?? <span style={{ color: 'var(--text-3)', fontStyle: 'italic' }}>Non renseigné</span>} />
-            <InfoRow icon={<Shield size={14} />}   label="Rôle"               value={<span style={{ background: roleCfg.bg, color: roleCfg.color, padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 700 }}>{roleCfg.label}</span>} />
-            <InfoRow icon={<Clock size={14} />}    label="Dernière connexion" value={user.lastLoginAt ? formatDate(user.lastLoginAt) : <span style={{ color: 'var(--text-3)', fontStyle: 'italic' }}>Jamais connecté</span>} />
-            <InfoRow icon={<Calendar size={14} />} label="Membre depuis"      value={formatDate(user.createdAt)} />
-          </div>
-        </Section>
+        {/* ── Grille 2 colonnes ── */}
+        <div className="user-detail-grid">
 
-        {/* ── Sécurité ── */}
-        <Section icon={<Shield size={16} />} title="Sécurité & Accès">
-          <div style={{ marginTop: -10 }}>
-            <InfoRow
-              icon={user.twoFactorEnabled ? <ShieldCheck size={14} style={{ color: '#059669' }} /> : <ShieldOff size={14} style={{ color: 'var(--text-3)' }} />}
-              label="Double authentification"
-              value={user.twoFactorEnabled
-                ? <span style={{ color: '#059669', fontWeight: 600 }}>Activée</span>
-                : <span style={{ color: 'var(--text-3)' }}>Non activée</span>
-              }
-            />
-            <InfoRow
-              icon={<KeyRound size={14} style={{ color: user.mustChangePassword ? '#d97706' : 'var(--text-3)' }} />}
-              label="Changement de MDP"
-              value={user.mustChangePassword
-                ? <span style={{ color: '#d97706', fontWeight: 600 }}>Requis à la prochaine connexion</span>
-                : <span style={{ color: 'var(--text-3)' }}>Non requis</span>
-              }
-              highlight={false}
-            />
-          </div>
-        </Section>
+          {/* Colonne gauche : Informations + Sécurité */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        {/* ── Activité récente ── */}
-        <Section icon={<Activity size={16} />} title="Activité récente">
-          {activityLoading ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {[...Array(5)].map((_, i) => (
-                <div key={i} style={{ height: 12, background: 'var(--border)', borderRadius: 4, width: `${50 + i * 8}%` }} className="animate-pulse" />
-              ))}
-            </div>
-          ) : activity.length === 0 ? (
-            <p style={{ fontSize: 13.5, color: 'var(--text-3)', margin: 0, textAlign: 'center', padding: '12px 0' }}>
-              Aucune activité enregistrée.
-            </p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginTop: -10 }}>
-              {activity.map((entry) => (
-                <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
-                  <div aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--primary)', flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, color: 'var(--text-1)', margin: 0, fontWeight: 500 }}>
-                      {ACTION_LABELS[entry.action] ?? entry.action}
-                      {entry.entityType && (
-                        <span style={{ marginLeft: 6, fontSize: 11.5, color: 'var(--text-3)', fontWeight: 400 }}>
-                          · {entry.entityType}
-                          {entry.entityId && <span style={{ fontFamily: 'var(--font-mono)' }}> #{entry.entityId.slice(0, 8)}</span>}
-                        </span>
-                      )}
-                    </p>
+            <Section icon={<Mail size={16} />} title="Informations">
+              <div style={{ marginTop: -10 }}>
+                <InfoRow icon={<Mail size={14} />}     label="Email"              value={user.email} />
+                <InfoRow icon={<Phone size={14} />}    label="Téléphone"          value={user.phone ?? <span style={{ color: 'var(--text-3)', fontStyle: 'italic' }}>Non renseigné</span>} />
+                <InfoRow icon={<Shield size={14} />}   label="Rôle"               value={<span style={{ background: roleCfg.bg, color: roleCfg.color, padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 700 }}>{roleCfg.label}</span>} />
+                <InfoRow icon={<Clock size={14} />}    label="Dernière connexion" value={user.lastLoginAt ? formatDate(user.lastLoginAt) : <span style={{ color: 'var(--text-3)', fontStyle: 'italic' }}>Jamais connecté</span>} />
+                <InfoRow icon={<Calendar size={14} />} label="Membre depuis"      value={formatDate(user.createdAt)} />
+              </div>
+            </Section>
+
+            <Section icon={<Shield size={16} />} title="Sécurité & Accès">
+              <div style={{ marginTop: -10 }}>
+                <InfoRow
+                  icon={user.twoFactorEnabled ? <ShieldCheck size={14} style={{ color: '#059669' }} /> : <ShieldOff size={14} style={{ color: 'var(--text-3)' }} />}
+                  label="Double authentification"
+                  value={user.twoFactorEnabled
+                    ? <span style={{ color: '#059669', fontWeight: 600 }}>Activée</span>
+                    : <span style={{ color: 'var(--text-3)' }}>Non activée</span>
+                  }
+                />
+                <InfoRow
+                  icon={<KeyRound size={14} style={{ color: user.mustChangePassword ? '#d97706' : 'var(--text-3)' }} />}
+                  label="Changement de MDP"
+                  value={user.mustChangePassword
+                    ? <span style={{ color: '#d97706', fontWeight: 600 }}>Requis à la prochaine connexion</span>
+                    : <span style={{ color: 'var(--text-3)' }}>Non requis</span>
+                  }
+                  highlight={false}
+                />
+              </div>
+            </Section>
+
+          </div>
+
+          {/* Colonne droite : Activité récente */}
+          <Section icon={<Activity size={16} />} title="Activité récente">
+            {activityLoading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[...Array(8)].map((_, i) => (
+                  <div key={i} style={{ height: 12, background: 'var(--border)', borderRadius: 4, width: `${50 + i * 5}%` }} className="animate-pulse" />
+                ))}
+              </div>
+            ) : activity.length === 0 ? (
+              <p style={{ fontSize: 13.5, color: 'var(--text-3)', margin: 0, textAlign: 'center', padding: '12px 0' }}>
+                Aucune activité enregistrée.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginTop: -10 }}>
+                {activity.map((entry) => (
+                  <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+                    <div aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--primary)', flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, color: 'var(--text-1)', margin: 0, fontWeight: 500 }}>
+                        {ACTION_LABELS[entry.action] ?? entry.action}
+                        {entry.entityType && (
+                          <span style={{ marginLeft: 6, fontSize: 11.5, color: 'var(--text-3)', fontWeight: 400 }}>
+                            · {entry.entityType}
+                            {entry.entityId && <span style={{ fontFamily: 'var(--font-mono)' }}> #{entry.entityId.slice(0, 8)}</span>}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <time dateTime={entry.createdAt} style={{ fontSize: 11.5, color: 'var(--text-3)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      {formatDate(entry.createdAt)}
+                    </time>
                   </div>
-                  <time dateTime={entry.createdAt} style={{ fontSize: 11.5, color: 'var(--text-3)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                    {formatDate(entry.createdAt)}
-                  </time>
-                </div>
-              ))}
-            </div>
-          )}
-        </Section>
+                ))}
+              </div>
+            )}
+          </Section>
+
+        </div>
 
       </div>
     </>
