@@ -1,14 +1,18 @@
 import { Injectable } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ApprovalsService } from '../approvals/approvals.service';
 import { APPROVAL_COMPLETED, type ApprovalCompletedEvent, type AutoExecResult } from '../../common/events/approval.events';
 import { StockService } from '../stock/stock.service';
 import { AppError } from '../../common/errors/app-error';
+import { broadcastNotification } from '../../lib/broadcast';
 import { generatePdf, buildDocumentHtml, imgToBase64 } from '../../lib/pdf';
 import type { DocumentLine } from '../../lib/pdf';
 import { CreatePurchaseOrderInput, UpdatePurchaseOrderInput, ReceiveInput } from './purchase-orders.schema';
 import { generateDocumentNumber } from '../../lib/documentNumber';
+import type { NotificationJobData } from '../../jobs/job-types';
 
 interface LineInput {
   productId?: string | null;
@@ -56,6 +60,7 @@ export class PurchaseOrdersService {
     private eventEmitter: EventEmitter2,
     private approvalsService: ApprovalsService,
     private stockService: StockService,
+    @InjectQueue('notification') private readonly notifQueue: Queue<NotificationJobData>,
   ) {}
 
   private async recordHistory(
@@ -192,6 +197,13 @@ export class PurchaseOrdersService {
       });
       await this.recordHistory(tx, po.id, 'draft', userId);
       return po;
+    }).then(po => {
+      void broadcastNotification(this.prisma as any, this.notifQueue, {
+        type: 'purchase_order_created', title: `Nouveau bon de commande : ${po.number}`,
+        message: `Le BC ${po.number} a été créé.`,
+        data: { purchaseOrderId: po.id, purchaseOrderNumber: po.number, documentLink: `/purchase-orders/${po.id}` },
+      }, { excludeUserId: userId, permission: 'purchases:read' });
+      return po;
     });
   }
 
@@ -282,6 +294,11 @@ export class PurchaseOrdersService {
 
     const result = await this.transition(id, 'draft', 'sent', userId);
     if (po) this.eventEmitter.emit('purchase_order.sent', { purchaseOrderId: id, supplierId: po.supplierId });
+    void broadcastNotification(this.prisma as any, this.notifQueue, {
+      type: 'purchase_order_approved', title: `BC envoyé au fournisseur : ${po?.number ?? id}`,
+      message: `Le bon de commande ${po?.number ?? id} a été envoyé au fournisseur.`,
+      data: { purchaseOrderId: id, documentLink: `/purchase-orders/${id}` },
+    }, { excludeUserId: userId, permission: 'purchases:read' });
     return result;
   }
 
@@ -309,7 +326,13 @@ export class PurchaseOrdersService {
   }
 
   async cancel(id: string, userId: string, comment?: string) {
-    return this.transition(id, ['draft', 'sent', 'confirmed'], 'cancelled', userId, comment);
+    const result = await this.transition(id, ['draft', 'sent', 'confirmed'], 'cancelled', userId, comment);
+    void broadcastNotification(this.prisma as any, this.notifQueue, {
+      type: 'system', title: `BC annulé : ${result.number}`,
+      message: `Le bon de commande ${result.number} a été annulé.${comment ? ` Motif : ${comment}` : ''}`,
+      data: { purchaseOrderId: id, documentLink: `/purchase-orders/${id}` },
+    }, { excludeUserId: userId, permission: 'purchases:read' });
+    return result;
   }
 
   async receive(id: string, input: ReceiveInput, userId: string) {
@@ -395,6 +418,14 @@ export class PurchaseOrdersService {
       if (newStatus === 'received') {
         this.eventEmitter.emit('purchase_order.received', { purchaseOrderId: id });
       }
+      return updated;
+    }).then(updated => {
+      void broadcastNotification(this.prisma as any, this.notifQueue, {
+        type: 'purchase_order_received' as any,
+        title: `BC réceptionné : ${updated.number}`,
+        message: `Le bon de commande ${updated.number} a été ${updated.status === 'received' ? 'entièrement' : 'partiellement'} réceptionné.`,
+        data: { purchaseOrderId: id, documentLink: `/purchase-orders/${id}` },
+      }, { excludeUserId: userId, permission: 'purchases:read' });
       return updated;
     });
   }

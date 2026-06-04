@@ -190,7 +190,7 @@ export class PaymentsService {
           ? `La facture ${invoice.number} est entièrement réglée${escompteMsg}.`
           : `Un paiement de ${input.amount.toLocaleString('fr-FR')} XAF a été enregistré sur la facture ${invoice.number}${escompteMsg}.`,
         data:    { invoiceId: invoice.id, invoiceNumber: invoice.number, amount: input.amount, documentLink: `/invoices/${invoice.id}` },
-      });
+      }, { permission: 'invoices:read' });
 
       void this.prisma.$transaction((tx) => accountingEngine.onPaymentReceived(payment.id, tx));
       if (fullyPaid) {

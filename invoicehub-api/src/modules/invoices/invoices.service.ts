@@ -479,7 +479,7 @@ export class InvoicesService {
         invoiceLink:   `${process.env.APP_URL ?? 'http://localhost:3001'}/invoices/${invoice.id}`,
         issuedBy:      userId,
       },
-    }, { excludeUserId: userId });
+    }, { excludeUserId: userId, permission: 'invoices:read' });
 
     void this.prisma.$transaction((tx) => accountingEngine.onInvoiceIssued(id, tx));
     void this.emitter.emit('invoice.issued', { invoiceId: id, amount: Number(invoice.totalTtc), clientId: invoice.clientId, userId });
@@ -582,7 +582,7 @@ export class InvoicesService {
         title:   `Facture annulée : ${invoice.number}`,
         message: `La facture ${invoice.number} pour ${(invoice as any).client?.name} a été annulée. Avoir ${avoirNumber} généré automatiquement.`,
         data:    { invoiceId: invoice.id, invoiceNumber: invoice.number, avoirId, avoirNumber, documentLink: `/invoices/${invoice.id}` },
-      }, { excludeUserId: userId });
+      }, { excludeUserId: userId, permission: 'invoices:read' });
       void this.emitter.emit('invoice.cancelled', { invoiceId: invoice.id, userId });
       this.prisma.$transaction((tx) => accountingEngine.onInvoiceCancelled(id, tx)).catch(e =>
         console.error('[accounting] onInvoiceCancelled invoice', id, e)
@@ -751,7 +751,7 @@ export class InvoicesService {
       title:   `Avoir créé : ${avoir.number}`,
       message: `Un avoir ${avoir.number} a été créé sur la facture ${invoice.number} pour ${(invoice as any).client?.name}. Motif : ${input.reason}`,
       data:    { invoiceId: invoice.id, avoirId: avoir.id, avoirNumber: avoir.number, documentLink: `/invoices/${avoir.id}` },
-    });
+    }, { permission: 'invoices:read' });
 
     this.prisma.$transaction((tx) => accountingEngine.onInvoiceCancelled(avoir.id, tx)).catch(e =>
       console.error('[accounting] onInvoiceCancelled avoir', avoir.id, e)

@@ -1,14 +1,18 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { Injectable } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ApprovalsService } from '../approvals/approvals.service';
 import { AppError } from '../../common/errors/app-error';
 import { APPROVAL_COMPLETED, type ApprovalCompletedEvent, type AutoExecResult } from '../../common/events/approval.events';
+import { broadcastNotification } from '../../lib/broadcast';
 import * as accountingEngine from '../../lib/accountingEngine';
 import { generateDocumentNumber } from '../../lib/documentNumber';
 import { toRelativeUpload, resolveUpload } from '../../lib/uploads';
+import type { NotificationJobData } from '../../jobs/job-types';
 import {
   CreateSupplierInvoiceInput, UpdateSupplierInvoiceInput, PaySupplierInvoiceInput,
 } from './supplier-invoices.schema';
@@ -57,6 +61,7 @@ export class SupplierInvoicesService {
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
     private approvalsService: ApprovalsService,
+    @InjectQueue('notification') private readonly notifQueue: Queue<NotificationJobData>,
   ) {}
 
   private async recordHistory(
@@ -179,6 +184,13 @@ export class SupplierInvoicesService {
         }
       }
 
+      return inv;
+    }).then(inv => {
+      void broadcastNotification(this.prisma as any, this.notifQueue, {
+        type: 'supplier_invoice_received', title: `Facture fournisseur reçue : ${inv.number}`,
+        message: `La facture fournisseur ${inv.number} a été enregistrée.`,
+        data: { supplierInvoiceId: inv.id, supplierInvoiceNumber: inv.number, documentLink: `/supplier-invoices/${inv.id}` },
+      }, { excludeUserId: userId, permission: 'purchases:read' });
       return inv;
     });
   }

@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { generateDocumentNumber, getDefaultOfficeId } from '../../lib/documentNumber';
+import { broadcastNotification } from '../../lib/broadcast';
 import { generatePdf, buildDocumentHtml, resolveDocumentAssets } from '../../lib/pdf';
 import { computeLine, computeTotals } from '../../lib/document-math';
 import type { NotificationJobData, EmailJobData } from '../../jobs/job-types';
@@ -17,26 +18,6 @@ export class ProformasService {
     @InjectQueue('notification') private readonly notificationQueue: Queue<NotificationJobData>,
     @InjectQueue('email') private readonly emailQueue: Queue<EmailJobData>,
   ) {}
-
-  private async _notifyProforma(
-    type: string,
-    title: string,
-    message: string,
-    data: Record<string, unknown>,
-    excludeUserId: string,
-    extraUserId?: string | null,
-  ): Promise<void> {
-    const admins = await this.prisma.user.findMany({
-      where: { role: { is: { name: 'admin' } }, status: 'active', deletedAt: null } as any,
-      select: { id: true },
-    });
-    const targets = new Set<string>(admins.map(a => a.id));
-    if (extraUserId) targets.add(extraUserId);
-    targets.delete(excludeUserId);
-    for (const userId of targets) {
-      void this.notificationQueue.add('notification', { userId, type: type as any, title, message, data });
-    }
-  }
 
 
   async list(input: ListProformasInput) {
@@ -172,13 +153,11 @@ export class ProformasService {
       include: { lines: true, client: true },
     });
 
-    void this._notifyProforma(
-      'system',
-      `Nouvelle proforma : ${created.number}`,
-      `La proforma ${created.number} a été créée pour ${created.client.name}.`,
-      { proformaId: created.id, proformaNumber: created.number, documentLink: `/proformas/${created.id}` },
-      createdById,
-    );
+    void broadcastNotification(this.prisma as any, this.notificationQueue, {
+      type: 'system', title: `Nouvelle proforma : ${created.number}`,
+      message: `La proforma ${created.number} a été créée pour ${created.client.name}.`,
+      data: { proformaId: created.id, proformaNumber: created.number, documentLink: `/proformas/${created.id}` },
+    }, { excludeUserId: createdById, permission: 'proformas:read' });
 
     return created;
   }
@@ -279,14 +258,11 @@ export class ProformasService {
       },
     });
 
-    void this._notifyProforma(
-      'proforma_sent',
-      `Proforma envoyée : ${proforma.number}`,
-      `La proforma ${proforma.number} pour ${proforma.client.name} a été envoyée au client.`,
-      { proformaId: proforma.id, proformaNumber: proforma.number, documentLink: `/proformas/${proforma.id}` },
-      userId,
-      proforma.createdById !== userId ? proforma.createdById : undefined,
-    );
+    void broadcastNotification(this.prisma as any, this.notificationQueue, {
+      type: 'proforma_sent', title: `Proforma envoyée : ${proforma.number}`,
+      message: `La proforma ${proforma.number} pour ${proforma.client.name} a été envoyée au client.`,
+      data: { proformaId: proforma.id, proformaNumber: proforma.number, documentLink: `/proformas/${proforma.id}` },
+    }, { excludeUserId: userId, permission: 'proformas:read' });
 
     return updated;
   }
@@ -307,14 +283,11 @@ export class ProformasService {
       },
     });
 
-    void this._notifyProforma(
-      'proforma_accepted',
-      `Proforma acceptée : ${proforma.number}`,
-      `La proforma ${proforma.number} pour ${proforma.client.name} a été acceptée.`,
-      { proformaId: proforma.id, proformaNumber: proforma.number, documentLink: `/proformas/${proforma.id}` },
-      userId,
-      proforma.createdById !== userId ? proforma.createdById : undefined,
-    );
+    void broadcastNotification(this.prisma as any, this.notificationQueue, {
+      type: 'proforma_accepted', title: `Proforma acceptée : ${proforma.number}`,
+      message: `La proforma ${proforma.number} pour ${proforma.client.name} a été acceptée.`,
+      data: { proformaId: proforma.id, proformaNumber: proforma.number, documentLink: `/proformas/${proforma.id}` },
+    }, { excludeUserId: userId, permission: 'proformas:read' });
 
     return updated;
   }
@@ -335,14 +308,11 @@ export class ProformasService {
       },
     });
 
-    void this._notifyProforma(
-      'proforma_rejected',
-      `Proforma rejetée : ${proforma.number}`,
-      `La proforma ${proforma.number} pour ${proforma.client.name} a été rejetée.${reason ? ` Motif : ${reason}` : ''}`,
-      { proformaId: proforma.id, proformaNumber: proforma.number, reason, documentLink: `/proformas/${proforma.id}` },
-      userId,
-      proforma.createdById !== userId ? proforma.createdById : undefined,
-    );
+    void broadcastNotification(this.prisma as any, this.notificationQueue, {
+      type: 'proforma_rejected', title: `Proforma rejetée : ${proforma.number}`,
+      message: `La proforma ${proforma.number} pour ${proforma.client.name} a été rejetée.${reason ? ` Motif : ${reason}` : ''}`,
+      data: { proformaId: proforma.id, proformaNumber: proforma.number, reason, documentLink: `/proformas/${proforma.id}` },
+    }, { excludeUserId: userId, permission: 'proformas:read' });
 
     return updated;
   }
