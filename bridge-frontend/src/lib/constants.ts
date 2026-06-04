@@ -75,6 +75,7 @@ export const ROUTES = {
   SETTINGS_IP_WHITELIST:  '/settings/ip-whitelist',
   SETTINGS_CUSTOM_FIELDS: '/settings/custom-fields',
   SETTINGS_EXPORTS:       '/settings/exports',
+  SETTINGS_UNITS:         '/settings/units',
 } as const
 
 export const ROLES = {

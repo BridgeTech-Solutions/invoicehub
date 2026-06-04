@@ -69,6 +69,7 @@ const LABELS: Record<string, string> = {
   guide:                'Guide',
   offices:              'Bureaux',
   'tax-rates':          'Taux de TVA',
+  'units':              'Unités de mesure',
   'email-templates':    'Templates email',
   webhooks:             'Webhooks',
   'api-keys':           'Clés API',

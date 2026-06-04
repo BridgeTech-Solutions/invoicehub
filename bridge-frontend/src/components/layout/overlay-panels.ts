@@ -7,7 +7,7 @@ import {
   GitBranch, Settings2, Image as ImageIcon,
   Warehouse, Package, Tag, BarChart2, AlertTriangle,
   Wallet, ReceiptText, PieChart,
-  KeyRound, Webhook, Sliders,
+  KeyRound, Webhook, Sliders, Ruler,
 } from 'lucide-react'
 import { ROUTES } from '@/lib/constants'
 import type { Resource, Action } from '@/hooks/usePermission'
@@ -167,6 +167,7 @@ export const OVERLAY_PANELS: Record<string, OverlayPanel> = {
           { label: 'Informations générales', href: ROUTES.SETTINGS_COMPANY,  icon: Building2,  permission: { resource: 'settings', action: 'update' } },
           { label: 'Branding & Documents',   href: ROUTES.SETTINGS_BRANDING, icon: ImageIcon,  permission: { resource: 'settings', action: 'update' } },
           { label: 'Finance & TVA',          href: ROUTES.SETTINGS_BILLING,  icon: Percent,    permission: { resource: 'settings', action: 'update' } },
+          { label: 'Unités de mesure',       href: ROUTES.SETTINGS_UNITS,    icon: Ruler,      permission: { resource: 'settings', action: 'update' } },
         ],
       },
       {
