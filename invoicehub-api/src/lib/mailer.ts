@@ -1,4 +1,4 @@
-import { default as nodemailer } from 'nodemailer';
+import * as nodemailer from 'nodemailer';
 import { PrismaClient } from '@prisma/client';
 
 let transporter: nodemailer.Transporter | null = null;
