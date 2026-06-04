@@ -44,17 +44,6 @@ enum ProductType {
   @@map("product_type")
 }
 
-enum ProductUnit {
-  heure
-  jour
-  forfait
-  piece
-  licence
-  mois
-  annee
-
-  @@map("product_unit")
-}
 
 enum DocumentType {
   proforma
@@ -583,6 +572,20 @@ model AgencyOffice {
   @@map("agency_offices")
 }
 
+model Unit {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code        String   @unique @db.VarChar(20)
+  label       String   @db.VarChar(50)
+  labelPlural String?  @map("label_plural") @db.VarChar(50)
+  showOnPdf   Boolean  @default(true) @map("show_on_pdf")
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order") @db.SmallInt
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@map("units")
+}
+
 model TaxRate {
   id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   name        String    @db.VarChar(100)
@@ -801,7 +804,7 @@ model Product {
   reference     String?      @db.VarChar(100)
   type          ProductType  @default(product)
   description   String?
-  unit          ProductUnit  @default(piece)
+  unit String @default("piece") @db.VarChar(20)
   unitPriceHt   Decimal      @default(0) @map("unit_price_ht") @db.Decimal(15, 2)
   taxRateId     String?      @map("tax_rate_id") @db.Uuid
   taxRate       TaxRate?     @relation(fields: [taxRateId], references: [id], onDelete: Restrict)
@@ -950,7 +953,7 @@ model ProformaLine {
   sortOrder      Int          @default(0) @map("sort_order") @db.SmallInt
   designation    String       @db.VarChar(500)
   description    String?
-  unit           ProductUnit  @default(piece)
+  unit String @default("piece") @db.VarChar(20)
   quantity       Decimal      @default(1) @db.Decimal(10, 3)
   unitPriceHt    Decimal      @default(0) @map("unit_price_ht") @db.Decimal(15, 2)
   discountType   DiscountType @default(none) @map("discount_type")
@@ -1066,7 +1069,7 @@ model InvoiceLine {
   sortOrder      Int          @default(0) @map("sort_order") @db.SmallInt
   designation    String       @db.VarChar(500)
   description    String?
-  unit           ProductUnit  @default(piece)
+  unit String @default("piece") @db.VarChar(20)
   quantity       Decimal      @default(1) @db.Decimal(10, 3)
   unitPriceHt    Decimal      @default(0) @map("unit_price_ht") @db.Decimal(15, 2)
   discountType   DiscountType @default(none) @map("discount_type")
@@ -1160,7 +1163,7 @@ model RecurringInvoiceTemplateLine {
   sortOrder      Int                      @default(0) @map("sort_order") @db.SmallInt
   designation    String                   @db.VarChar(500)
   description    String?
-  unit           ProductUnit              @default(piece)
+  unit String @default("piece") @db.VarChar(20)
   quantity       Decimal                  @default(1) @db.Decimal(10, 3)
   unitPriceHt    Decimal                  @default(0) @map("unit_price_ht") @db.Decimal(15, 2)
   discountType   DiscountType             @default(none) @map("discount_type")
@@ -1421,7 +1424,7 @@ model PurchaseOrderLine {
   sortOrder         Int           @default(0) @map("sort_order") @db.SmallInt
   designation       String        @db.VarChar(500)
   description       String?
-  unit              ProductUnit   @default(piece)
+  unit String @default("piece") @db.VarChar(20)
   supplierReference String?       @map("supplier_reference") @db.VarChar(100)
   quantityOrdered   Decimal       @default(1) @map("quantity_ordered") @db.Decimal(10, 3)
   quantityReceived  Decimal       @default(0) @map("quantity_received") @db.Decimal(10, 3)
@@ -1519,7 +1522,7 @@ model SupplierInvoiceLine {
   sortOrder           Int             @default(0) @map("sort_order") @db.SmallInt
   designation         String          @db.VarChar(500)
   description         String?
-  unit                ProductUnit     @default(piece)
+  unit String @default("piece") @db.VarChar(20)
   quantity            Decimal         @default(1) @db.Decimal(10, 3)
   unitPriceHt         Decimal         @default(0) @map("unit_price_ht") @db.Decimal(15, 2)
   discountType        DiscountType    @default(none) @map("discount_type")

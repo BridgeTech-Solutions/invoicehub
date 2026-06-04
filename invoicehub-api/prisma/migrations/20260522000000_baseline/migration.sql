@@ -1,5 +1,0 @@
--- Baseline migration — schéma initial créé depuis invoicehub_schema_v3.sql
--- Cette migration représente l'état de la base avant l'introduction de Prisma Migrate.
--- Elle est marquée comme "already applied" avec :
---   npx prisma migrate resolve --applied "20260522000000_baseline"
--- NE PAS exécuter ce fichier SQL sur une base existante.

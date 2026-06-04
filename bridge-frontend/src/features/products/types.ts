@@ -114,7 +114,7 @@ export interface CreateCategoryPayload {
 
 // ── Import en masse ───────────────────────────────────────────────────────────
 
-export type ProductUnit = 'heure' | 'jour' | 'forfait' | 'piece' | 'licence' | 'mois' | 'annee'
+export type ProductUnit = string
 
 export interface ImportProductRow {
   name:          string

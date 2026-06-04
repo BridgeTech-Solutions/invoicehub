@@ -20,6 +20,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
 // Phase 2 — Modules simples
 import { TaxRatesModule } from './modules/tax-rates/tax-rates.module';
+import { UnitsModule } from './modules/units/units.module';
 import { OfficesModule } from './modules/offices/offices.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { EmailTemplatesModule } from './modules/email-templates/email-templates.module';
@@ -80,6 +81,7 @@ import { AiModule } from './modules/ai/ai.module';
     HealthModule,
     // Phase 2
     TaxRatesModule,
+    UnitsModule,
     OfficesModule,
     RolesModule,
     EmailTemplatesModule,

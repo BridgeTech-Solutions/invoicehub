@@ -67,6 +67,7 @@ export function useCreateBankAccount() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: BANK_KEYS.accounts })
       qc.invalidateQueries({ queryKey: BANK_KEYS.summary })
+      qc.invalidateQueries({ queryKey: ['bank-accounts'] }) // dropdowns factures/proformas
       toast.success('Compte bancaire créé')
     },
     onError: () => toast.error('Erreur lors de la création du compte'),
@@ -82,6 +83,7 @@ export function useUpdateBankAccount() {
       qc.invalidateQueries({ queryKey: BANK_KEYS.accounts })
       qc.invalidateQueries({ queryKey: BANK_KEYS.account(id) })
       qc.invalidateQueries({ queryKey: BANK_KEYS.summary })
+      qc.invalidateQueries({ queryKey: ['bank-accounts'] })
       toast.success('Compte mis à jour')
     },
     onError: () => toast.error('Erreur lors de la mise à jour'),
@@ -95,6 +97,7 @@ export function useDeleteBankAccount() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: BANK_KEYS.accounts })
       qc.invalidateQueries({ queryKey: BANK_KEYS.summary })
+      qc.invalidateQueries({ queryKey: ['bank-accounts'] })
       toast.success('Compte supprimé')
     },
     onError: () => toast.error('Erreur lors de la suppression'),

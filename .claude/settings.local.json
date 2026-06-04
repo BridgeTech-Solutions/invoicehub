@@ -103,7 +103,9 @@
       "Bash(wsl -- grep -n \"appendonly\\\\|appendfsync\\\\|^dir \\\\|^save \" /etc/redis/redis.conf)",
       "Bash(python3 *)",
       "Bash(pm2 restart *)",
-      "Bash(sort -t: -k2 -rn)"
+      "Bash(sort -t: -k2 -rn)",
+      "Bash(sed -i 's/export type LineUnit *= *'\\\\''heure'\\\\'' | '\\\\''jour'\\\\'' | '\\\\''forfait'\\\\'' | '\\\\''piece'\\\\'' | '\\\\''licence'\\\\'' | '\\\\''mois'\\\\'' | '\\\\''annee'\\\\''/export type LineUnit = string/' D:/Bel/projets/BRIDGE/bridge-frontend/src/features/invoices/types.ts D:/Bel/projets/BRIDGE/bridge-frontend/src/features/proformas/types.ts)",
+      "Bash(sed -i 's/export type ProductUnit *= *'\\\\''heure'\\\\'' | '\\\\''jour'\\\\'' | '\\\\''forfait'\\\\'' | '\\\\''piece'\\\\'' | '\\\\''licence'\\\\'' | '\\\\''mois'\\\\'' | '\\\\''annee'\\\\''/export type ProductUnit = string/' D:/Bel/projets/BRIDGE/bridge-frontend/src/features/products/types.ts)"
     ]
   },
   "mcpServers": {

@@ -4,7 +4,7 @@ const lineSchema = z.object({
   sortOrder: z.number().int().default(0),
   designation: z.string().min(1).max(500),
   description: z.string().optional(),
-  unit: z.enum(['heure', 'jour', 'forfait', 'piece', 'licence', 'mois', 'annee']).default('piece'),
+  unit: z.string().min(1).max(20).default('piece'),
   quantity: z.coerce.number().positive(),
   unitPriceHt: z.coerce.number().min(0),
   discountType: z.enum(['none', 'percentage', 'fixed']).default('none'),

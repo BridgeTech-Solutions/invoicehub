@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { Plus, Trash2, Search, AlertCircle, GripVertical, EyeOff, Eye, PackagePlus } from 'lucide-react'
 import { useProducts } from '@/features/products/hooks'
 import { useProductLineDefaults } from '@/features/products/hooks'
+import { useUnits } from '@/features/units/hooks'
 import type { FormLine, DiscountType } from '@/features/proformas/types'
 import type { Product } from '@/features/products/types'
 import { computeLineValues, makeBlankLine } from '@/lib/document-math'
@@ -13,14 +14,11 @@ import { ProductDrawer } from '@/features/products/components/ProductDrawer'
 
 // ─── Constants ─────────────────────────────────────────────────
 
-const UNITS: { value: string; label: string }[] = [
-  { value: 'forfait',  label: 'Forfait'  },
-  { value: 'heure',    label: 'Heure'    },
-  { value: 'jour',     label: 'Jour'     },
-  { value: 'piece',    label: 'Pièce'    },
-  { value: 'licence',  label: 'Licence'  },
-  { value: 'mois',     label: 'Mois'     },
-  { value: 'annee',    label: 'Année'    },
+const UNITS_FALLBACK: { value: string; label: string }[] = [
+  { value: 'piece',   label: 'Pièce'   },
+  { value: 'forfait', label: 'Forfait' },
+  { value: 'heure',   label: 'Heure'  },
+  { value: 'kg',      label: 'kg'     },
 ]
 
 // ─── Types ─────────────────────────────────────────────────────
@@ -65,7 +63,8 @@ function ProductCombo({ value, onChange, onSelect, disabled }: ProductComboProps
 
   useEffect(() => { setMounted(true) }, [])
 
-  const { data: productsData } = useProducts({ limit: 100, isActive: true })
+  const { data: unitsForCombo } = useUnits()
+  const { data: productsData }  = useProducts({ limit: 100, isActive: true })
   const products = productsData?.data ?? []
 
   const filtered = search.length >= 1
@@ -200,7 +199,7 @@ function ProductCombo({ value, onChange, onSelect, disabled }: ProductComboProps
               {new Intl.NumberFormat('fr-FR').format(p.unitPriceHt)} XAF
             </p>
             <p style={{ fontSize: 11, color: 'var(--text-3)', margin: 0 }}>
-              / {UNITS.find(u => u.value === p.unit)?.label ?? p.unit}
+              / {unitsForCombo?.find(u => u.code === p.unit)?.label ?? p.unit}
             </p>
           </div>
         </button>
@@ -392,6 +391,8 @@ interface LineRowProps {
 }
 
 function LineRow({ line, index, clientId, disabled, allService, stockMode, stock, onUpdate, onRemove, isDragging, isOver, onDragStart, onDragOver, onDrop, onDragEnd }: LineRowProps) {
+  const { data: unitsData } = useUnits()
+  const UNITS = unitsData?.map(u => ({ value: u.code, label: u.label })) ?? UNITS_FALLBACK
   // ── Stock (ventes uniquement) ──────────────────────────────────
   const stockTracked  = stockMode === 'warn' && !!stock?.trackStock && stock.stockQuantity != null
   const available     = stockTracked ? Number(stock!.stockQuantity) : null
@@ -634,6 +635,9 @@ export function LineItemsEditor({ lines, onChange, clientId, disabled = false, s
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [overIndex, setOverIndex] = useState<number | null>(null)
   const allService = lines.length > 0 && lines.every(l => l.hideDetails)
+
+  const { data: unitsData } = useUnits()
+  const UNITS = unitsData?.map(u => ({ value: u.code, label: u.label })) ?? UNITS_FALLBACK
 
   // Stock live par produit — uniquement en mode 'warn' (ventes). Même clé de
   // requête que le combo produit → servi depuis le cache React Query.

@@ -1,6 +1,6 @@
 export type InvoiceType   = 'standard' | 'acompte' | 'solde' | 'avoir' | 'recurring'
 export type InvoiceStatus = 'draft' | 'issued' | 'partially_paid' | 'paid' | 'overdue' | 'cancelled'
-export type LineUnit      = 'heure' | 'jour' | 'forfait' | 'piece' | 'licence' | 'mois' | 'annee'
+export type LineUnit = string
 export type PaymentMethod = 'virement' | 'especes' | 'cheque' | 'mobile_money' | 'autre'
 // Shared with proformas — import for in-file use + re-export for consumers
 import type { DiscountType } from '@/features/proformas/types'

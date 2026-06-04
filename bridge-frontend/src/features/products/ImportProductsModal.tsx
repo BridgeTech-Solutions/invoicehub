@@ -21,8 +21,8 @@ import {
 import { useImportProducts } from './hooks'
 import type { ImportPreviewProductRow, ImportProductRow, ProductUnit, ProductCategory } from './types'
 
-// ─── Unités valides ───────────────────────────────────────────────────────────
-const VALID_UNITS: ProductUnit[] = ['heure', 'jour', 'forfait', 'piece', 'licence', 'mois', 'annee']
+// Les unités sont dynamiques (table units) — on accepte n'importe quelle string non vide
+const VALID_UNITS: ProductUnit[] = [] // conservé pour compat, non utilisé pour validation
 
 // ─── Colonnes attendues → mapping souple (insensible à la casse) ──────────────
 const COLUMN_MAP: Record<string, keyof ImportProductRow | 'categoryName'> = {
@@ -61,7 +61,7 @@ function validateRow(row: ImportProductRow, idx: number): ImportPreviewProductRo
   if (row.type && !['product', 'service'].includes(row.type)) {
     return { ...row, _rowIndex: idx, _status: 'error', _message: `Type invalide (product ou service) : ${row.type}` }
   }
-  if (row.unit && !VALID_UNITS.includes(row.unit as ProductUnit)) {
+  if (row.unit && !row.unit.trim()) {
     return { ...row, _rowIndex: idx, _status: 'error', _message: `Unité invalide : ${row.unit} (valeurs : ${VALID_UNITS.join(', ')})` }
   }
   if (row.unitPriceHt !== undefined && (isNaN(row.unitPriceHt) || row.unitPriceHt < 0)) {

@@ -2,7 +2,7 @@ export type ProformaStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'expir
 
 export type DiscountType = 'none' | 'percentage' | 'fixed'
 
-export type LineUnit = 'heure' | 'jour' | 'forfait' | 'piece' | 'licence' | 'mois' | 'annee'
+export type LineUnit = string
 
 export interface ProformaLineBase {
   id: string

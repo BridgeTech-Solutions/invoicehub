@@ -38,7 +38,7 @@ CREATE TYPE client_type   AS ENUM ('company', 'individual');
 CREATE TYPE client_status AS ENUM ('active', 'archived');
 
 CREATE TYPE product_type  AS ENUM ('product', 'service');
-CREATE TYPE product_unit  AS ENUM ('heure', 'jour', 'forfait', 'piece', 'licence', 'mois', 'annee');
+-- product_unit supprimé : les unités sont désormais gérées dans la table `units` (configurables).
 
 CREATE TYPE document_type AS ENUM ('proforma', 'invoice', 'purchase_order', 'supplier_invoice', 'expense', 'delivery_note');
 CREATE TYPE discount_type AS ENUM ('none', 'percentage', 'fixed');
@@ -314,6 +314,50 @@ INSERT INTO tax_rates (name, code, rate, description)
 VALUES ('Exonéré', 'EXONERE', 0.00, 'Produit ou service exonéré de TVA');
 
 -- ================================================================
+-- 4b. UNITS — Unités de mesure configurables
+-- ================================================================
+
+CREATE TABLE units (
+    id           UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
+    code         VARCHAR(20)  NOT NULL UNIQUE,
+    label        VARCHAR(50)  NOT NULL,
+    label_plural VARCHAR(50),
+    show_on_pdf  BOOLEAN      NOT NULL DEFAULT TRUE,
+    is_active    BOOLEAN      NOT NULL DEFAULT TRUE,
+    sort_order   SMALLINT     NOT NULL DEFAULT 0,
+    created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE TRIGGER tg_units_updated_at
+    BEFORE UPDATE ON units
+    FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
+
+INSERT INTO units (code, label, label_plural, show_on_pdf, sort_order) VALUES
+    ('piece',   'Pièce',    'Pièces',   TRUE,  1),
+    ('forfait', 'Forfait',  'Forfaits', FALSE, 2),
+    ('heure',   'Heure',    'Heures',   TRUE,  3),
+    ('jour',    'Jour',     'Jours',    TRUE,  4),
+    ('mois',    'Mois',     'Mois',     TRUE,  5),
+    ('annee',   'Année',    'Années',   TRUE,  6),
+    ('licence', 'Licence',  'Licences', TRUE,  7),
+    ('kg',      'kg',       NULL,       TRUE,  10),
+    ('g',       'g',        NULL,       TRUE,  11),
+    ('T',       'T',        NULL,       TRUE,  12),
+    ('m',       'm',        NULL,       TRUE,  20),
+    ('m2',      'm²',       NULL,       TRUE,  21),
+    ('m3',      'm³',       NULL,       TRUE,  22),
+    ('L',       'L',        NULL,       TRUE,  30),
+    ('cL',      'cL',       NULL,       TRUE,  31),
+    ('boite',   'Boîte',    'Boîtes',   TRUE,  40),
+    ('carton',  'Carton',   'Cartons',  TRUE,  41),
+    ('sachet',  'Sachet',   'Sachets',  TRUE,  42),
+    ('lot',     'Lot',      'Lots',     TRUE,  43),
+    ('palette', 'Palette',  'Palettes', TRUE,  44);
+
+COMMENT ON TABLE units IS 'Unités de mesure configurables par l''admin (API /units).';
+
+-- ================================================================
 -- 4. USERS — Employés BTS avec RBAC dynamique
 -- role_id remplace l'ancien enum user_role (RBAC v3)
 -- ================================================================
@@ -559,7 +603,7 @@ CREATE TABLE products (
     type            product_type NOT NULL DEFAULT 'product',
     description     TEXT,
 
-    unit            product_unit NOT NULL DEFAULT 'piece',
+    unit            VARCHAR(20) NOT NULL DEFAULT 'piece',
     unit_price_ht   NUMERIC(15,2) NOT NULL DEFAULT 0,
 
     tax_rate_id     UUID        REFERENCES tax_rates(id) ON DELETE RESTRICT,
@@ -790,7 +834,7 @@ CREATE TABLE proforma_lines (
     sort_order      SMALLINT    NOT NULL DEFAULT 0,
     designation     VARCHAR(500) NOT NULL,
     description     TEXT,
-    unit            product_unit NOT NULL DEFAULT 'piece',
+    unit            VARCHAR(20) NOT NULL DEFAULT 'piece',
     quantity        NUMERIC(10,3) NOT NULL DEFAULT 1,
     unit_price_ht   NUMERIC(15,2) NOT NULL DEFAULT 0,
     discount_type   discount_type NOT NULL DEFAULT 'none',
@@ -973,7 +1017,7 @@ CREATE TABLE invoice_lines (
     sort_order      SMALLINT     NOT NULL DEFAULT 0,
     designation     VARCHAR(500) NOT NULL,
     description     TEXT,
-    unit            product_unit NOT NULL DEFAULT 'piece',
+    unit            VARCHAR(20) NOT NULL DEFAULT 'piece',
     quantity        NUMERIC(10,3) NOT NULL DEFAULT 1,
     unit_price_ht   NUMERIC(15,2) NOT NULL DEFAULT 0,
     discount_type   discount_type NOT NULL DEFAULT 'none',
@@ -1103,7 +1147,7 @@ CREATE TABLE recurring_invoice_template_lines (
     designation     VARCHAR(500) NOT NULL,
     description     TEXT,
     quantity        NUMERIC(10,3) NOT NULL DEFAULT 1,
-    unit            product_unit NOT NULL DEFAULT 'piece',
+    unit            VARCHAR(20) NOT NULL DEFAULT 'piece',
     unit_price_ht   NUMERIC(15,2) NOT NULL DEFAULT 0,
     discount_type   discount_type NOT NULL DEFAULT 'none',
     discount_value  NUMERIC(15,2) NOT NULL DEFAULT 0,
@@ -1813,7 +1857,7 @@ CREATE TABLE purchase_order_lines (
 
     designation       VARCHAR(500) NOT NULL,
     description       TEXT,
-    unit              product_unit NOT NULL DEFAULT 'piece',
+    unit              VARCHAR(20) NOT NULL DEFAULT 'piece',
     supplier_reference VARCHAR(100),
 
     quantity_ordered  NUMERIC(10,3) NOT NULL DEFAULT 1,
@@ -1960,7 +2004,7 @@ CREATE TABLE supplier_invoice_lines (
 
     designation            VARCHAR(500) NOT NULL,
     description            TEXT,
-    unit                   product_unit NOT NULL DEFAULT 'piece',
+    unit                   VARCHAR(20) NOT NULL DEFAULT 'piece',
     quantity               NUMERIC(10,3) NOT NULL DEFAULT 1,
     unit_price_ht          NUMERIC(15,2) NOT NULL DEFAULT 0,
 

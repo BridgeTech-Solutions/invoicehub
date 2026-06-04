@@ -11,6 +11,7 @@ import { TAX_RATE_DEFAULT } from '@/lib/constants'
 import { MiniRichEditor } from '@/components/ui/MiniRichEditor'
 import { useSettings } from '@/features/settings/hooks'
 import { useIsMobile } from '@/hooks/useMediaQuery'
+import { useUnits } from '@/features/units/hooks'
 
 interface ProductFormProps {
   product?: Product
@@ -27,7 +28,7 @@ interface ProductFormProps {
   onPendingChange?: (pending: boolean) => void
 }
 
-const UNITS = ['heure', 'jour', 'forfait', 'piece', 'licence', 'mois', 'annee']
+const UNITS_FALLBACK = ['piece', 'forfait', 'heure', 'kg']
 const STOCK_UNITS = ['pièce', 'unité', 'carton', 'lot', 'kg', 'g', 'litre', 'ml', 'm', 'm²', 'm³']
 
 // ─── Field wrapper ─────────────────────────────────────────────
@@ -116,6 +117,9 @@ export function ProductForm({ product, onClose, initialName, onCreated, formId, 
       setForm(prev => ({ ...prev, trackStock: false }))
     }
   }, [form.type]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const { data: unitsData } = useUnits()
+  const UNITS = unitsData?.map(u => u.code) ?? UNITS_FALLBACK
 
   const createMutation = useCreateProduct()
   const updateMutation = useUpdateProduct(product?.id ?? '')
@@ -317,7 +321,11 @@ export function ProductForm({ product, onClose, initialName, onCreated, formId, 
             style={{ ...inputStyle, cursor: 'pointer' }}
             onFocus={focusOn} onBlur={focusOff}
           >
-            {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+            {UNITS.map((u) => (
+              <option key={u} value={u}>
+                {unitsData?.find(ud => ud.code === u)?.label ?? u}
+              </option>
+            ))}
           </select>
         </Field>
         <Field label="TVA (%)" htmlFor={idTax}>

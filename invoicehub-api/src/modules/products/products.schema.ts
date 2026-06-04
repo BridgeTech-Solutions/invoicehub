@@ -17,7 +17,7 @@ export const createProductSchema = z.object({
   reference:         z.string().max(100).optional(),
   type:              z.enum(['product', 'service']).default('product'),
   description:       z.string().optional(),
-  unit:              z.enum(['heure', 'jour', 'forfait', 'piece', 'licence', 'mois', 'annee']).default('piece'),
+  unit:              z.string().min(1).max(20).default('piece'),
   unitPriceHt:       z.coerce.number().min(0).default(0),
   taxRateId:         z.string().uuid().optional(),
   taxRateValue:      z.coerce.number().min(0).max(100).default(19.25),
@@ -74,7 +74,7 @@ export const importProductRowSchema = z.object({
   categoryName: z.string().max(100).optional(),
   unitPriceHt:  z.coerce.number().min(0).default(0),
   taxRateValue: z.coerce.number().min(0).max(100).default(19.25),
-  unit:         z.enum(['heure', 'jour', 'forfait', 'piece', 'licence', 'mois', 'annee']).default('piece'),
+  unit:         z.string().min(1).max(20).default('piece'),
   description:  z.string().optional(),
   isActive:     z.boolean().default(true),
 });
