@@ -1310,8 +1310,8 @@ model Supplier {
   paymentMethod      PaymentMethod  @default(virement) @map("payment_method")
   bankName           String?        @map("bank_name") @db.VarChar(255)
   bankAccount        String?        @map("bank_account") @db.VarChar(100)
-  bankCode           String?        @map("bank_code") @db.VarChar(50)
-  iban               String?        @db.VarChar(34)
+  bankRib            String?        @map("bank_rib") @db.VarChar(100)
+  bankSwift          String?        @map("bank_swift") @db.VarChar(20)
   category           String?        @db.VarChar(100)
   rating             Int?           @default(3) @db.SmallInt
   isPreferred        Boolean        @default(false) @map("is_preferred")
