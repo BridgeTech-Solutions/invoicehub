@@ -158,6 +158,14 @@ export class UsersController implements OnModuleInit {
     return { success: true, message: 'Utilisateur réactivé' };
   }
 
+  @Post(':id/resend-invitation')
+  @Permission('users:manage')
+  @Audit('user', 'UPDATE')
+  async resendInvitation(@Param('id') id: string) {
+    await this.svc.resendInvitation(id);
+    return { success: true, message: 'Email d\'invitation renvoyé avec succès' };
+  }
+
   @Post(':id/reset-password')
   @Permission('users:manage')
   @Audit('user', 'PASSWORD_RESET')

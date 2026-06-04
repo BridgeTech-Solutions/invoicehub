@@ -4,7 +4,7 @@ import { Job, Queue } from 'bullmq';
 import { NotificationStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EventsGateway } from '../../gateway/events.gateway';
-import { renderEmailTemplate } from '../../lib/mailer';
+import { renderEmailTemplate, setMailerPrisma } from '../../lib/mailer';
 import type { NotificationJobData, EmailJobData } from '../job-types';
 
 @Processor('notification')
@@ -15,6 +15,9 @@ export class NotificationProcessor extends WorkerHost {
     @InjectQueue('email') private readonly emailQueue: Queue<EmailJobData>,
   ) {
     super();
+    // Initialise le singleton mailer avec l'instance Prisma injectée pour
+    // permettre le rendu des templates email stockés en base.
+    setMailerPrisma(prisma as any);
   }
 
   async process(job: Job<NotificationJobData>): Promise<void> {

@@ -101,7 +101,8 @@
       "Read(//d/d/Bel/projets/BRIDGE/invoicehub-api/**)",
       "Bash(grep -v \"//.*key\")",
       "Bash(wsl -- grep -n \"appendonly\\\\|appendfsync\\\\|^dir \\\\|^save \" /etc/redis/redis.conf)",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(pm2 restart *)"
     ]
   },
   "mcpServers": {

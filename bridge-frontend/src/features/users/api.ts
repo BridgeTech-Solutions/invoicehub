@@ -51,6 +51,11 @@ export const usersApi = {
     await apiClient.post(`/users/${id}/reactivate`)
   },
 
+  /** POST /users/:id/resend-invitation — renvoyer le mail d'activation (admin) */
+  async resendInvitation(id: string): Promise<void> {
+    await apiClient.post(`/users/${id}/resend-invitation`)
+  },
+
   /** POST /users/:id/reset-password — réinitialiser le mot de passe (admin) */
   async resetPassword(id: string, newPassword: string): Promise<void> {
     await apiClient.post(`/users/${id}/reset-password`, { newPassword })

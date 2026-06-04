@@ -5,9 +5,9 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Pencil, KeyRound, UserCheck, UserX, Trash2,
   Shield, Phone, Mail, Clock, Calendar, Loader2,
-  ShieldCheck, ShieldOff, AlertTriangle, Activity, X, Eye, EyeOff,
+  ShieldCheck, ShieldOff, AlertTriangle, Activity, X, Eye, EyeOff, Send,
 } from 'lucide-react'
-import { useUser, useUpdateUser, useReactivateUser, useResetUserPassword, useDeleteUser, useUserActivity, useRoles } from '@/features/users/hooks'
+import { useUser, useUpdateUser, useReactivateUser, useResetUserPassword, useDeleteUser, useUserActivity, useRoles, useResendInvitation } from '@/features/users/hooks'
 import { usePermission } from '@/hooks/usePermission'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, getInitials } from '@/lib/utils'
@@ -363,8 +363,9 @@ export default function UserDetailPage() {
   const { data: activity = [], isLoading: activityLoading } = useUserActivity(id)
   const { data: roles = [] } = useRoles()
 
-  const suspendM    = useDeleteUser()
-  const reactivateM = useReactivateUser()
+  const suspendM        = useDeleteUser()
+  const reactivateM     = useReactivateUser()
+  const resendInviteM   = useResendInvitation()
 
   if (isLoading) return <Skeleton />
   if (isError || !user) {
@@ -376,6 +377,7 @@ export default function UserDetailPage() {
     )
   }
 
+  const isPendingActivation = (user.status as string) === 'pending_activation'
   const safeRole  = (user.role && typeof user.role === 'string') ? user.role : ''
   const roleIdx   = safeRole ? safeRole.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % ROLE_COLORS.length : 0
   const roleLabel = safeRole
@@ -464,7 +466,17 @@ export default function UserDetailPage() {
                     <KeyRound size={13} aria-hidden="true" />
                     Réinitialiser MDP
                   </button>
-                  {!isSelf && !isSuspended && (
+                  {isPendingActivation && (
+                    <button
+                      type="button"
+                      onClick={() => resendInviteM.mutate(user.id)}
+                      disabled={resendInviteM.isPending}
+                      style={{ ...btnBase, border: '1.5px solid rgba(45,125,210,0.35)', background: 'rgba(45,125,210,0.06)', color: 'var(--primary)', opacity: resendInviteM.isPending ? 0.65 : 1, cursor: resendInviteM.isPending ? 'not-allowed' : 'pointer' }}>
+                      {resendInviteM.isPending ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Send size={13} aria-hidden="true" />}
+                      Renvoyer l&apos;invitation
+                    </button>
+                  )}
+                  {!isSelf && !isSuspended && !isPendingActivation && (
                     <button type="button" onClick={() => setShowSuspend(true)}
                       style={{ ...btnBase, border: '1.5px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.05)', color: '#dc2626' }}>
                       <UserX size={13} aria-hidden="true" />
@@ -483,6 +495,22 @@ export default function UserDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* ── Alerte activation ── */}
+        {isPendingActivation && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 18px', borderRadius: 'var(--radius-md)', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)' }}>
+            <AlertTriangle size={16} style={{ color: '#d97706', flexShrink: 0, marginTop: 1 }} aria-hidden="true" />
+            <div>
+              <p style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: '#92400e', fontFamily: 'var(--font-display)' }}>
+                Compte en attente d&apos;activation
+              </p>
+              <p style={{ margin: '4px 0 0', fontSize: 13, color: '#b45309', lineHeight: 1.5 }}>
+                L&apos;utilisateur n&apos;a pas encore activé son compte. Le lien d&apos;invitation est valable 24&nbsp;h.
+                S&apos;il a expiré, cliquez sur <strong>Renvoyer l&apos;invitation</strong> pour en générer un nouveau.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── Informations ── */}
         <Section icon={<Mail size={16} />} title="Informations">

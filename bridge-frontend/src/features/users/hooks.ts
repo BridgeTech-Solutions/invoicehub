@@ -90,6 +90,17 @@ export function useReactivateUser() {
   })
 }
 
+// ─── Resend invitation (admin) ────────────────────────────────
+export function useResendInvitation() {
+  return useMutation({
+    mutationFn: (id: string) => usersApi.resendInvitation(id),
+    onSuccess: () => toast.success('Email d\'invitation renvoyé avec succès'),
+    onError:   (e: { response?: { data?: { error?: string } } }) => {
+      toast.error(e.response?.data?.error ?? 'Erreur lors de l\'envoi')
+    },
+  })
+}
+
 // ─── Reset password (admin) ───────────────────────────────────
 export function useResetUserPassword() {
   return useMutation({

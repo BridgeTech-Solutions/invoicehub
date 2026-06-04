@@ -197,6 +197,67 @@ export class UsersService {
     return formatUser(user);
   }
 
+  async resendInvitation(id: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id, deletedAt: null },
+      select: { id: true, email: true, firstName: true, lastName: true, status: true, role: { select: { name: true } } },
+    });
+    if (!user) throw AppError.notFound('Utilisateur introuvable');
+    if ((user.status as string) !== 'pending_activation') {
+      throw AppError.badRequest('Seuls les comptes en attente d\'activation peuvent recevoir un nouvel email d\'invitation');
+    }
+
+    // Invalide tous les anciens tokens en attente
+    await this.prisma.passwordResetToken.updateMany({
+      where: { userId: id, usedAt: null },
+      data:  { usedAt: new Date() },
+    });
+
+    const rawToken  = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 24 * 3600 * 1000);
+
+    await this.prisma.passwordResetToken.create({
+      data: { userId: id, tokenHash, expiresAt },
+    });
+
+    const appUrl        = process.env['APP_URL'] ?? 'http://localhost:3001';
+    const activationUrl = `${appUrl}/reset-password?token=${rawToken}`;
+    const roleName      = user.role?.name ?? '';
+
+    void this.emailQueue.add('email', {
+      to:      user.email,
+      subject: 'Activation de votre compte InvoiceHub — Nouveau lien',
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">
+          <h2 style="color:#0f2d4a">Activation de votre compte</h2>
+          <p>Bonjour <strong>${user.firstName} ${user.lastName}</strong>,</p>
+          <p>Un nouveau lien d'activation a été généré pour votre compte InvoiceHub. Le lien précédent a expiré.</p>
+          <p style="margin:24px 0">
+            <a href="${activationUrl}" style="display:inline-block;padding:12px 24px;background:#2D7DD2;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold">
+              Activer mon compte
+            </a>
+          </p>
+          <p style="font-size:13px;color:#718096">Ce lien est valable pendant 24 heures.</p>
+          <table style="border-collapse:collapse;width:100%;margin:16px 0;font-size:13px">
+            <tr>
+              <td style="padding:8px 12px;background:#f5f7fa;border:1px solid #e2e8f0;font-weight:bold;width:120px">Email</td>
+              <td style="padding:8px 12px;border:1px solid #e2e8f0">${user.email}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 12px;background:#f5f7fa;border:1px solid #e2e8f0;font-weight:bold">Rôle</td>
+              <td style="padding:8px 12px;border:1px solid #e2e8f0;text-transform:capitalize">${roleName}</td>
+            </tr>
+          </table>
+          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0"/>
+          <p style="font-size:12px;color:#718096">InvoiceHub — Bridge Technologies Solutions</p>
+        </div>
+      `,
+    });
+
+    this.logger.log(`Invitation renvoyée pour ${user.email}`);
+  }
+
   async update(id: string, input: UpdateUserInput) {
     const oldUser = await this.findById(id);
 
