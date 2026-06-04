@@ -2891,7 +2891,7 @@ CREATE TABLE bank_import_profiles (
 
 CREATE TRIGGER tg_bank_import_profiles_updated_at
     BEFORE UPDATE ON bank_import_profiles
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+    FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
 
 CREATE INDEX idx_bip_source     ON bank_import_profiles(source)     WHERE deleted_at IS NULL;
 CREATE INDEX idx_bip_is_public  ON bank_import_profiles(is_public)  WHERE deleted_at IS NULL;
