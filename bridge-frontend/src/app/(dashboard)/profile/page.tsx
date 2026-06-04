@@ -207,6 +207,8 @@ function ProfileTab() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {updateMut.isError && <ErrBanner msg="Erreur lors de la mise à jour. Veuillez réessayer." />}
 
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '320px 1fr', gap: 14, alignItems: 'start' }}>
+
       {/* Avatar */}
       <Card>
         <CardTitle>Photo de profil</CardTitle>
@@ -348,6 +350,8 @@ function ProfileTab() {
           </div>
         )}
       </Card>
+
+      </div>
     </div>
   )
 }
@@ -904,7 +908,7 @@ export default function ProfilePage() {
   const [active, setActive] = useState<ActiveTab>('profile')
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 780 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
       <ProfileHero active={active} setActive={setActive} />
       <div role="tabpanel">
         {active === 'profile'       && <ProfileTab />}

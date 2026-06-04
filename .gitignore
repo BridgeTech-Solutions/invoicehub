@@ -48,3 +48,6 @@ tsconfig.tsbuildinfo
 
 # Redis dump
 dump.rdb
+
+# Claude Code conversation exports (/export)
+20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*.txt
