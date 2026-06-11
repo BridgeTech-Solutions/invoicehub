@@ -105,7 +105,20 @@
       "Bash(pm2 restart *)",
       "Bash(sort -t: -k2 -rn)",
       "Bash(sed -i 's/export type LineUnit *= *'\\\\''heure'\\\\'' | '\\\\''jour'\\\\'' | '\\\\''forfait'\\\\'' | '\\\\''piece'\\\\'' | '\\\\''licence'\\\\'' | '\\\\''mois'\\\\'' | '\\\\''annee'\\\\''/export type LineUnit = string/' D:/Bel/projets/BRIDGE/bridge-frontend/src/features/invoices/types.ts D:/Bel/projets/BRIDGE/bridge-frontend/src/features/proformas/types.ts)",
-      "Bash(sed -i 's/export type ProductUnit *= *'\\\\''heure'\\\\'' | '\\\\''jour'\\\\'' | '\\\\''forfait'\\\\'' | '\\\\''piece'\\\\'' | '\\\\''licence'\\\\'' | '\\\\''mois'\\\\'' | '\\\\''annee'\\\\''/export type ProductUnit = string/' D:/Bel/projets/BRIDGE/bridge-frontend/src/features/products/types.ts)"
+      "Bash(sed -i 's/export type ProductUnit *= *'\\\\''heure'\\\\'' | '\\\\''jour'\\\\'' | '\\\\''forfait'\\\\'' | '\\\\''piece'\\\\'' | '\\\\''licence'\\\\'' | '\\\\''mois'\\\\'' | '\\\\''annee'\\\\''/export type ProductUnit = string/' D:/Bel/projets/BRIDGE/bridge-frontend/src/features/products/types.ts)",
+      "Bash(export PGPASSWORD='Bts112021@Douala2026!')",
+      "Bash(\"/c/Program Files/PostgreSQL/15/bin/psql.exe\" -U postgres -d invoicehub -h localhost -c \"SELECT column_name FROM information_schema.columns WHERE table_name='suppliers' AND column_name LIKE '%bank%' OR \\(table_name='suppliers' AND column_name IN \\('iban','rib','swift'\\)\\) ORDER BY column_name;\")",
+      "Read(//c/Program Files/PostgreSQL//**)",
+      "Read(//c/Program Files/PostgreSQL/15/**)",
+      "PowerShell($pg = Get-ChildItem -Path \"C:\\\\Program Files\\\\PostgreSQL\",\"C:\\\\Program Files \\(x86\\)\\\\PostgreSQL\" -Directory -ErrorAction SilentlyContinue; $pg | ForEach-Object { Get-ChildItem -Path $_.FullName -Recurse -Filter \"psql.exe\" -ErrorAction SilentlyContinue } | Select-Object -ExpandProperty FullName; \\(Get-Command psql -ErrorAction SilentlyContinue\\).Source)",
+      "Bash(node _check_cols.mjs)",
+      "Bash(rm -f _check_cols.mjs)",
+      "Bash(node _migrate_bank.mjs)",
+      "Bash(rm -f _migrate_bank.mjs)",
+      "Bash(node _inspect.mjs)",
+      "Bash(rm -f _inspect.mjs)",
+      "Bash(node _finish.mjs)",
+      "Bash(rm -f _finish.mjs)"
     ]
   },
   "mcpServers": {

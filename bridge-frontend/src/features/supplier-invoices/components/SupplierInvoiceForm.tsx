@@ -9,7 +9,7 @@ import { usePurchaseOrders } from '@/features/purchase-orders/hooks'
 import { useSettings } from '@/features/settings/hooks'
 import { LineItemsEditor } from '@/components/document/LineItemsEditor'
 import { TotalsPanel } from '@/components/document/TotalsPanel'
-import { makeBlankLine } from '@/lib/document-math'
+import { makeBlankLine, uuid } from '@/lib/document-math'
 import { ROUTES } from '@/lib/constants'
 import type { FormLine, DiscountType } from '@/features/proformas/types'
 import type { SupplierInvoice, SupplierInvoiceLine } from '../types'
@@ -38,7 +38,7 @@ interface FormState {
 
 function siLineToFormLine(l: SupplierInvoiceLine, i: number): FormLine {
   return {
-    _localId:       crypto.randomUUID(),
+    _localId:       uuid(),
     productId:      l.productId  ?? undefined,
     sortOrder:      l.sortOrder  ?? i,
     designation:    l.designation,

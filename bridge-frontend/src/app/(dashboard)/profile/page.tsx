@@ -20,7 +20,7 @@ import {
 import type { NotificationType, NotificationChannel } from '@/features/notifications/types'
 import type { Session } from '@/features/auth/types'
 import { useAuthStore } from '@/store/auth'
-import { getInitials, formatDate } from '@/lib/utils'
+import { getInitials, formatDate, copyToClipboard } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 
 // ─── Tab config ───────────────────────────────────────────────
@@ -491,7 +491,7 @@ function TwoFACard() {
             {backupCodes.map(code => <code key={code} style={{ fontSize: 12.5, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', textAlign: 'center' }}>{code}</code>)}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <GhostBtn onClick={() => { navigator.clipboard.writeText(backupCodes.join('\n')); setCopied(true); setTimeout(() => setCopied(false), 2000) }}>
+            <GhostBtn onClick={() => { copyToClipboard(backupCodes.join('\n')); setCopied(true); setTimeout(() => setCopied(false), 2000) }}>
               {copied ? <><Check size={12} aria-hidden /> Copié !</> : <><Copy size={12} aria-hidden /> Copier les codes</>}
             </GhostBtn>
             <GhostBtn onClick={() => setBackupCodes([])}>Fermer</GhostBtn>
@@ -506,7 +506,7 @@ function TwoFACard() {
               <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 6px' }}>Ou saisir manuellement</p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <code style={{ fontSize: 12.5, fontFamily: 'var(--font-mono)', color: 'var(--text-1)', wordBreak: 'break-all', flex: 1 }}>{secret}</code>
-                <button type="button" onClick={() => { navigator.clipboard.writeText(secret); setSecretCopied(true); setTimeout(() => setSecretCopied(false), 2000) }}
+                <button type="button" onClick={() => { copyToClipboard(secret); setSecretCopied(true); setTimeout(() => setSecretCopied(false), 2000) }}
                   aria-label="Copier le secret" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 4, flexShrink: 0 }}>
                   {secretCopied ? <Check size={13} aria-hidden /> : <Copy size={13} aria-hidden />}
                 </button>

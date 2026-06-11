@@ -64,6 +64,37 @@ export function buildPageRange(current: number, total: number): (number | '…')
 }
 
 /**
+ * Copie un texte dans le presse-papier.
+ * `navigator.clipboard` n'existe qu'en contexte sécurisé (HTTPS/localhost) ;
+ * en HTTP simple on retombe sur l'ancien document.execCommand('copy').
+ * Retourne true si la copie a réussi.
+ */
+export async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+  } catch {
+    // bascule sur le fallback ci-dessous
+  }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.left = '-9999px'
+    ta.setAttribute('readonly', '')
+    document.body.appendChild(ta)
+    ta.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(ta)
+    return ok
+  } catch {
+    return false
+  }
+}
+
+/**
  * Debounce a function
  */
 export function debounce<T extends (...args: unknown[]) => unknown>(fn: T, ms: number): (...args: Parameters<T>) => void {

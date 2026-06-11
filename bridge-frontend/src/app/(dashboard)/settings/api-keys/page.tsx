@@ -7,13 +7,14 @@ import { API_KEY_PERMISSIONS, type ApiKey, type CreateApiKeyPayload } from '@/fe
 import { usePermission } from '@/hooks/usePermission'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { useQueryClient } from '@tanstack/react-query'
+import { copyToClipboard } from '@/lib/utils'
 
 // ─── Copy button ───────────────────────────────────────────────
 function CopyButton({ value, label = 'Copier' }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false)
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(value)
+    await copyToClipboard(value)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
