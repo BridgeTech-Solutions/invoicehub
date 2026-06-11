@@ -141,7 +141,9 @@ function AutoMatchModal({
 
   const handleApply = async () => {
     const res = await autoMatch.mutateAsync(highOnly)
-    setResult({ applied: res.applied, skipped: (res.medium?.length ?? 0) })
+    // En mode étendu, les correspondances moyennes (70–89 %) sont appliquées,
+    // donc elles ne sont « ignorées » qu'en mode haute confiance uniquement.
+    setResult({ applied: res.applied, skipped: highOnly ? (res.medium?.length ?? 0) : 0 })
     setApplied(true)
   }
 

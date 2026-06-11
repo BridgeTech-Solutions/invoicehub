@@ -78,6 +78,62 @@ Pour ajouter plusieurs produits en une fois :
 
 > La gestion de stock ne concerne que les produits de **type Produit** avec l'option **Gestion de stock activée**.
 
+---
+
+### Concepts clés à comprendre
+
+#### Le CMUP — Coût Moyen Unitaire Pondéré
+
+Le CMUP est le **prix de revient moyen** d'un article en stock. Comme un même produit est souvent acheté à des prix différents au fil du temps, le CMUP lisse ces variations en une seule valeur moyenne, **pondérée par les quantités**.
+
+À chaque **entrée** de stock dont le coût d'achat est connu, il est recalculé :
+
+```
+CMUP = (valeur du stock actuel + valeur de l'entrée) ÷ (quantité totale après entrée)
+```
+
+**Exemple :**
+- 10 unités achetées à 1 000 F → valeur 10 000 F, CMUP = **1 000 F**
+- Réception de 10 unités à 1 400 F → valeur 10 000 + 14 000 = 24 000 F ; quantité 20 → CMUP = 24 000 ÷ 20 = **1 200 F**
+- Vente de 5 unités → la sortie est valorisée au CMUP (1 200 F). Il reste 15 unités, valeur 18 000 F, et le **CMUP ne change pas** (les sorties ne modifient jamais la moyenne).
+
+> Le CMUP est l'une des deux méthodes de valorisation autorisées par **OHADA / SYSCOHADA** (l'autre étant le PEPS / FIFO). Il sert à valoriser le stock au bilan et à calculer la marge (coût des marchandises vendues).
+
+#### La valeur de stock
+
+```
+Valeur de stock = Quantité en stock × CMUP
+```
+
+C'est ce que vaut réellement l'inventaire, **à son coût d'achat moyen** (et non au prix de vente). Dans l'exemple ci-dessus : 15 × 1 200 = **18 000 F**. Cette valeur est affichée en haut de la page Stock (« valeur totale du stock ») et alimente le bilan comptable.
+
+> En résumé : le **CMUP** est le coût moyen **par unité** ; la **valeur de stock** est ce coût **multiplié par la quantité** — c'est-à-dire l'argent immobilisé dans le magasin.
+
+---
+
+### Faut-il activer la gestion de stock sur tous les produits ?
+
+**Non.** On l'active de façon ciblée :
+
+| | Activer la gestion de stock ? |
+|---|---|
+| **Prestations / services** (type Prestation) | ❌ Jamais — un service ne se stocke pas |
+| **Produits physiques tenus en magasin** (revente, matières premières) | ✅ Oui |
+| **Produits fabriqués / commandés à la demande**, jamais stockés | ❌ Non |
+
+**Pourquoi l'activer :**
+- Connaître la quantité disponible en temps réel
+- Recevoir des **alertes** avant la rupture
+- **Empêcher la survente** (l'émission d'une facture est bloquée si le stock est insuffisant)
+- **Valoriser** l'inventaire pour le bilan
+- Tracer chaque mouvement et calculer la marge via le CMUP
+
+**⚠️ Le piège à connaître :** une fois activée, la gestion de stock **doit être entretenue** (stock initial, réceptions, inventaires). Si on l'active sur un produit **sans jamais l'alimenter**, son stock reste à 0 → on reçoit de **fausses alertes de rupture** et, surtout, on **ne peut plus émettre de facture** pour ce produit (message « Stock insuffisant »).
+
+> **Règle d'or :** activer la gestion de stock **uniquement** sur les produits réellement tenus en magasin et que l'on veut suivre. Pour les services et les articles non stockés, la laisser désactivée — sinon le logiciel bloquerait la vente en croyant à une rupture.
+
+---
+
 ### Vue d'ensemble des stocks
 
 #### Accès
@@ -196,6 +252,25 @@ Sur chaque ligne, deux boutons :
 
 ---
 
+## Règles importantes (automatisations & contrôles)
+
+Le stock se met à jour **automatiquement** au fil des opérations. Trois règles sont essentielles à connaître :
+
+1. **La vente est bloquée si le stock est insuffisant.**
+   Lorsqu'on émet une facture contenant un produit suivi en stock, l'émission est **refusée** si la quantité demandée dépasse la quantité disponible :
+   > « Stock insuffisant pour « *Produit X* » : disponible 3, demandé 5 »
+   On ne peut donc pas vendre ce qu'on n'a pas en stock.
+
+2. **Le déstockage se fait à l'ÉMISSION, pas au brouillon.**
+   Une facture en **brouillon** ne touche pas le stock. La sortie de stock (mouvement *Vente*) n'est enregistrée qu'au moment où la facture est **émise**.
+
+3. **Annuler une facture restaure le stock.**
+   Lorsqu'une facture émise est **annulée**, le système recrée automatiquement une entrée (mouvement *Retour client*) : les quantités vendues reviennent en stock.
+
+> Les **réceptions de bons de commande** (mouvement *Réception achat*) augmentent le stock, et c'est à ce moment que le **CMUP** est recalculé avec le coût d'achat de la commande.
+
+---
+
 ## Flux de travail recommandé
 
 ### Mise en place initiale
@@ -214,3 +289,40 @@ Sur chaque ligne, deux boutons :
 1. Comparez les quantités dans InvoiceHub avec les quantités réelles (comptage physique)
 2. Pour chaque écart, faites un **ajustement manuel** (entrée ou sortie) avec le motif « Inventaire »
 3. Le journal conserve la trace de tous les ajustements d'inventaire
+
+---
+
+## Questions fréquentes
+
+**Comment le stock se met-il à jour ?**
+Automatiquement : la **réception d'un bon de commande** l'augmente, l'**émission d'une facture** le diminue. À cela s'ajoutent les **ajustements manuels** (stock initial, inventaire, mise au rebut, retours…).
+
+**Qu'est-ce que le CMUP ?**
+Le Coût Moyen Unitaire Pondéré : le coût d'achat moyen d'un article, recalculé à chaque entrée. Il valorise le stock à son vrai coût moyen et sert au calcul de la marge.
+
+**Comment est calculée la valeur de stock ?**
+Quantité en stock × CMUP. C'est la valeur de l'inventaire à son coût d'achat moyen (pas au prix de vente).
+
+**Comment saisir mon stock de départ ?**
+Par un ajustement manuel de type **Stock initial** sur chaque produit concerné.
+
+**Que se passe-t-il si je vends plus que mon stock ?**
+L'émission de la facture est **bloquée** avec un message indiquant la quantité disponible et la quantité demandée.
+
+**Le stock bouge-t-il quand j'enregistre une facture en brouillon ?**
+Non. Le stock n'est déduit qu'à l'**émission** de la facture.
+
+**Et si je me trompe de facture et que je l'annule ?**
+Le stock est **restauré** automatiquement (mouvement *Retour client*).
+
+**Dois-je activer la gestion de stock sur tous les produits ?**
+Non — uniquement sur les **produits physiques réellement tenus en magasin**. Jamais sur les services. Activer le suivi sur un produit non alimenté provoque de fausses ruptures et bloque sa facturation.
+
+**Peut-on gérer plusieurs dépôts ?**
+Le modèle prévoit des mouvements de transfert entre emplacements, mais l'interface fonctionne aujourd'hui avec un **emplacement unique** (« Magasin Principal »). La gestion multi-dépôts n'est pas encore activée dans l'application.
+
+**Comment savoir quoi recommander ?**
+La page **Alertes** liste tout ce qui est en rupture ou sous le seuil minimum, avec le déficit par rapport au seuil.
+
+**Tout est-il tracé ?**
+Oui. Le **Journal des mouvements** enregistre chaque entrée et sortie avec la date, la source (ex. FAC-001), la quantité avant/après et le coût.

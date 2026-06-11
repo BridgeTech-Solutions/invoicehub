@@ -177,13 +177,16 @@ Pour créer un avoir partiel sur une facture encore active :
 
 ## 8. Émettre une facture
 
-L'émission est l'action qui **valide et envoie** la facture.
+L'émission est l'action qui **valide** la facture et déclenche ses effets de stock et de comptabilité.
 
 1. Depuis la liste ou le détail → **Émettre** (icône ⚡)
-2. La facture passe en statut **Émise**
-3. Un **email automatique** est envoyé au client avec le montant et la date d'échéance
-4. Une **notification in-app** est diffusée à toute l'équipe BTS
-5. La facture est **verrouillée** (plus modifiable)
+2. **Contrôle du stock** : si une ligne porte sur un produit suivi en stock et que la quantité demandée dépasse le disponible, l'émission est **refusée** (« Stock insuffisant pour … : disponible X, demandé Y »).
+3. La facture passe en statut **Émise** et est **verrouillée** (plus modifiable).
+4. **Sortie de stock automatique** : les produits suivis en stock sont décrémentés (mouvement *Vente*).
+5. **Écriture comptable automatique** : génération de l'écriture de vente — Débit **411** Client / Crédit **70x** Ventes / Crédit **TVA collectée** — créée en brouillon, conforme SYSCOHADA.
+6. **Notification in-app** diffusée aux membres de l'équipe BTS ayant le droit de lecture sur les factures.
+
+> ⚠️ **L'émission n'envoie PAS d'email au client.** Le client n'est pas notifié automatiquement. Pour lui transmettre la facture, téléchargez le **PDF** (section 13) et envoyez-le par votre canal habituel. Les relances escaladées (section 10) vont également à l'équipe BTS, **jamais au client**.
 
 ---
 

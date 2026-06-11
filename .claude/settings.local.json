@@ -118,7 +118,22 @@
       "Bash(node _inspect.mjs)",
       "Bash(rm -f _inspect.mjs)",
       "Bash(node _finish.mjs)",
-      "Bash(rm -f _finish.mjs)"
+      "Bash(rm -f _finish.mjs)",
+      "Bash(mkdir -p presentation)",
+      "Bash(npm init *)",
+      "Bash(npm install *)",
+      "Bash(node *)",
+      "Bash(awk '{print $5\"\\\\t\"$9}')",
+      "Bash(sed -n '815,835p' prisma/schema.prisma)",
+      "Bash(sed -n '1589,1625p' prisma/schema.prisma)",
+      "Bash(grep -rhoE \"title=\\\\\"[^\\\\\"]{4,40}\\\\\"|<h1[^>]*>[^<]+|PageHeader[^>]*title=\\\\{?\\\\\"[^\\\\\"]+\" \"src/app/\\(dashboard\\)/accounting\")",
+      "Bash(grep -viE \"//|notif\")",
+      "Bash(awk '/async autoMatch/{f=1} f{print NR\": \"$0} f&&/^  }/{c++; if\\(c>=1\\)exit}' src/modules/bank/bank.service.ts)",
+      "Bash(awk '/auto-match/{f=NR} f&&NR>=f&&NR<=f+12{print NR\": \"$0}' src/modules/bank/bank.controller.ts)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(head -40 bridge-frontend/public/docs/GUIDE_FACTURES.md)",
+      "Bash(wc -l)",
+      "Bash(awk '/async issue\\\\\\(/{f=1} f{print NR\": \"$0} f&&/broadcastNotification|accountingEngine|stockSvc|emailQueue|mailer|client.*email|notifQueue/{} f&&NR>520{exit}' src/modules/invoices/invoices.service.ts)"
     ]
   },
   "mcpServers": {

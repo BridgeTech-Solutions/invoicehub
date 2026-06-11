@@ -14,6 +14,19 @@ Le module bancaire regroupe 5 sections accessibles depuis le menu **Banque** :
 
 ---
 
+## Comprendre le rapprochement bancaire
+
+**Rapprocher**, c'est vérifier que ce que dit votre **relevé bancaire** (l'argent réellement entré et sorti à la banque) correspond à ce qui est enregistré dans InvoiceHub (paiements clients, paiements fournisseurs, dépenses). On associe chaque ligne du relevé à l'opération correspondante dans le logiciel.
+
+Pourquoi c'est important :
+- **Détecter les écarts** : un paiement oublié, un frais bancaire non saisi, une erreur de montant
+- **Connaître la trésorerie réelle** : savoir exactement ce qu'on a en banque
+- **Fiabiliser la comptabilité** : chaque mouvement bancaire est justifié
+
+> Le module ne se contente pas de pointer à la main : il **importe le relevé**, **propose les correspondances** automatiquement, et ne demande une intervention que sur les cas incertains.
+
+---
+
 ## 1. Comptes bancaires
 
 ### Accès
@@ -168,6 +181,10 @@ Deux modes disponibles :
 - **Haute confiance uniquement (≥ 90%)** — recommandé : seules les correspondances quasi-certaines sont appliquées. Plus sûr.
 - **Mode étendu (≥ 70%)** — applique aussi les correspondances moyennement certaines. Vérifiez le résultat après.
 
+**Deux atouts du moteur de rapprochement :**
+- **Affectation optimale** — le système ne prend pas la première correspondance venue : il calcule la **meilleure combinaison d'ensemble** entre toutes les transactions et toutes les écritures, pour maximiser le nombre de rapprochements justes.
+- **Rapprochement par combinaison** — une seule ligne bancaire peut correspondre à **plusieurs écritures à la fois** : par exemple un virement groupé qui règle 3 factures d'un coup. Le système retrouve la combinaison qui totalise le bon montant.
+
 ### Clôturer une session
 Une fois toutes les transactions traitées (ou si vous acceptez un écart résiduel), cliquez sur **Terminer**.
 - Si le solde est équilibré → clôture normale
@@ -221,3 +238,38 @@ La liste affiche pour chaque règle :
 5. **Rapprocher manuellement** les transactions restantes en cliquant dessus et en choisissant la correspondance
 6. **Clôturer la session** une fois l'écart à zéro
 7. **Créer des règles** pour les transactions récurrentes afin d'automatiser les prochains mois
+
+---
+
+## Règles importantes
+
+- **Les doublons sont ignorés automatiquement** — réimporter le même relevé ne crée pas de transactions en double (détection par empreinte de chaque ligne).
+- **Ignorer ≠ supprimer** — marquer une transaction « Ignorée » (ex. virement interne) ne modifie pas les soldes ; elle sort simplement de la liste à traiter.
+- **Une session clôturée est figée** — on peut la consulter mais plus la modifier.
+- **On peut clôturer avec un écart** — si un écart résiduel subsiste, le système avertit mais autorise la clôture avec une note (à utiliser avec prudence).
+- **L'apprentissage est automatique** — chaque rapprochement manuel renforce ou crée une règle ; le système devient plus précis au fil des mois.
+
+---
+
+## Questions fréquentes
+
+**Quels formats de relevés puis-je importer ?**
+CSV, OFX (Open Financial Exchange) et MT940 (Swift). Le système détecte le format automatiquement.
+
+**Que se passe-t-il si j'importe deux fois le même relevé ?**
+Les transactions déjà présentes sont **ignorées** (détection de doublons par empreinte). Aucun risque de double comptage.
+
+**Comment le système devine-t-il la correspondance ?**
+Il compare le **montant**, la **date** et le **libellé** de chaque transaction avec vos paiements et dépenses, et attribue un **score de confiance**. Plus le score est élevé, plus la correspondance est sûre.
+
+**L'auto-matching peut-il se tromper ?**
+En mode haute confiance, le risque est très faible. En mode étendu, certaines correspondances sont incertaines — d'où l'invitation à vérifier après application. Un rapprochement erroné peut toujours être **dé-rapproché**.
+
+**Une transaction peut-elle correspondre à plusieurs factures ?**
+Oui — le rapprochement par combinaison retrouve les cas où un seul versement règle plusieurs factures.
+
+**À quoi servent les règles de matching ?**
+À reconnaître automatiquement les opérations récurrentes (frais bancaires, loyers, abonnements) à partir de leur libellé, sans rapprochement manuel à chaque fois.
+
+**Le rapprochement bancaire fait-il partie de la comptabilité ?**
+Il est dans le module **Banque**, mais il fiabilise la comptabilité : chaque transaction rapprochée est justifiée. La tenue des comptes, elle, est dans le module Comptabilité.

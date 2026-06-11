@@ -1086,7 +1086,7 @@ export class BankService {
 
   // ── Auto-match Hungarian ────────────────────────────────────────────────────
 
-  async getAutoMatchBatch(reconciliationId: string, applyHighConfidence: boolean) {
+  async getAutoMatchBatch(reconciliationId: string, highConfidenceOnly: boolean) {
     const r = await this.prisma.bankReconciliation.findUnique({ where: { id: reconciliationId } });
     if (!r) throw AppError.notFound('Session de rapprochement introuvable');
 
@@ -1129,14 +1129,18 @@ export class BankService {
       const c  = candidates[j]!;
       const detail = computeScore({ entityAmount: c.amount, entityDate: c.date, entityLabel: c.label,
                                     txAmount: Number(tx.amount), txDate: tx.transactionDate, txLabel: tx.label });
-      if (detail.total >= 80)      high.push({ txId: tx.id, entityType: c.entityType, entityId: c.entityId, score: detail.total });
-      else if (detail.total >= 50) medium.push({ txId: tx.id, entityType: c.entityType, entityId: c.entityId, score: detail.total });
+      if (detail.total >= 90)      high.push({ txId: tx.id, entityType: c.entityType, entityId: c.entityId, score: detail.total });
+      else if (detail.total >= 70) medium.push({ txId: tx.id, entityType: c.entityType, entityId: c.entityId, score: detail.total });
     }
 
+    // highConfidenceOnly = true  → on applique uniquement la haute confiance (≥ 90 %)
+    // highConfidenceOnly = false → mode étendu : on applique aussi les 70–89 %
+    const toApply = highConfidenceOnly ? high : [...high, ...medium];
+
     let applied = 0;
-    if (applyHighConfidence && high.length > 0) {
+    if (toApply.length > 0) {
       await this.prisma.$transaction(async (tx) => {
-        for (const m of high) {
+        for (const m of toApply) {
           await tx.bankTransaction.update({
             where: { id: m.txId },
             data:  { reconciliationStatus: 'reconciled', reconciledAt: new Date(),
@@ -1144,7 +1148,7 @@ export class BankService {
           });
         }
       });
-      applied = high.length;
+      applied = toApply.length;
     }
 
     return { applied, high, medium };
