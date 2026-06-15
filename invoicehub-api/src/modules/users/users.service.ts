@@ -198,7 +198,14 @@ export class UsersService {
         type:    'user_created',
         title:   'Nouveau compte utilisateur',
         message: `${user.firstName} ${user.lastName} (${roleName}) a rejoint l'équipe.`,
-        data:    { userId: user.id },
+        // Variables attendues par le template email user_created (sinon {{…}} bruts).
+        data: {
+          userId:    user.id,
+          firstName: `${user.firstName} ${user.lastName}`.trim(),
+          userEmail: user.email,
+          roleName,
+          loginLink: `${appUrl}/login`,
+        },
       });
     }
 
