@@ -43,6 +43,7 @@ export interface AuditStats {
   topTables:     { table: string; count: number }[]
   topActions:    { action: string; count: number }[]
   dailyActivity: { day: string; count: number }[]
+  entityTypes:   string[]
 }
 
 export interface PaginatedAuditLogs {

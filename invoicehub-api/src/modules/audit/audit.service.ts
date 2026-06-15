@@ -67,7 +67,7 @@ export class AuditService {
   }
 
   async stats() {
-    const [topUsers, topTables, topActions, dailyActivity] = await Promise.all([
+    const [topUsers, topTables, topActions, dailyActivity, distinctTables] = await Promise.all([
       this.prisma.auditLog.groupBy({
         by:      ['userId'],
         where:   { userId: { not: null } },
@@ -93,6 +93,12 @@ export class AuditService {
         WHERE created_at >= NOW() - INTERVAL '30 days'
         GROUP BY day ORDER BY day ASC
       `,
+      // Liste complète des tables réellement présentes (pour alimenter le filtre)
+      this.prisma.auditLog.groupBy({
+        by:      ['entityType'],
+        where:   { entityType: { not: null } },
+        orderBy: { entityType: 'asc' },
+      }),
     ]);
 
     const userIds = topUsers.map(u => u.userId).filter(Boolean) as string[];
@@ -107,6 +113,7 @@ export class AuditService {
       topTables:     topTables.map(t => ({ table: t.entityType, count: t._count })),
       topActions:    topActions.map(a => ({ action: a.action, count: a._count })),
       dailyActivity: dailyActivity.map(d => ({ day: d.day, count: Number(d.count) })),
+      entityTypes:   distinctTables.map(t => t.entityType).filter(Boolean) as string[],
     };
   }
 }

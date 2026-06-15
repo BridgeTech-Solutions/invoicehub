@@ -295,6 +295,9 @@ export default function AuditPage() {
   const topAction   = stats?.topActions?.[0]
   const topUser     = stats?.topUsers?.[0]
   const topTable    = stats?.topTables?.[0]
+  // Tables réellement présentes en base (dynamique) ; repli sur la liste statique
+  // tant que les stats ne sont pas chargées.
+  const tableOptions = stats?.entityTypes?.length ? stats.entityTypes : ENTITY_TYPES
   const totalMonth  = stats?.dailyActivity?.reduce((s, d) => s + d.count, 0) ?? 0
   const todayStr    = new Date().toISOString().slice(0, 10)
   const todayCount  = stats?.dailyActivity?.find(d => d.day?.slice(0, 10) === todayStr)?.count ?? 0
@@ -424,7 +427,7 @@ export default function AuditPage() {
                 style={{ ...inputCss, cursor: 'pointer' }}
               >
                 <option value="">Toutes les tables</option>
-                {ENTITY_TYPES.map((t) => (
+                {tableOptions.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
