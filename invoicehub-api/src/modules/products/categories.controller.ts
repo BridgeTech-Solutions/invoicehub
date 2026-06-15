@@ -10,10 +10,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import {
   createCategorySchema,
   updateCategorySchema,
-} from './products.schema';
-import type {
-  CreateCategoryInput,
-  UpdateCategoryInput,
+  CreateCategoryDto,
+  UpdateCategoryDto,
 } from './products.schema';
 import type { JwtPayload } from '../../common/types/jwt-payload.type';
 
@@ -37,7 +35,7 @@ export class CategoriesController {
   @Permission('products:create')
   @HttpCode(201)
   createCategory(
-    @Body(new ZodValidationPipe(createCategorySchema)) body: CreateCategoryInput,
+    @Body(new ZodValidationPipe(createCategorySchema)) body: CreateCategoryDto,
     @CurrentUser() user: JwtPayload,
   ) {
     return this.svc.createCategory(body, user.sub);
@@ -47,7 +45,7 @@ export class CategoriesController {
   @Permission('products:update')
   updateCategory(
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(updateCategorySchema)) body: UpdateCategoryInput,
+    @Body(new ZodValidationPipe(updateCategorySchema)) body: UpdateCategoryDto,
   ) {
     return this.svc.updateCategory(id, body);
   }

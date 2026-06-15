@@ -14,12 +14,14 @@ import {
   updateProductSchema,
   listProductsSchema,
   importProductsSchema,
+  CreateProductDto,
+  UpdateProductDto,
+  ImportProductsDto,
 } from './products.schema';
 import type {
+  ListProductsInput,
   CreateProductInput,
   UpdateProductInput,
-  ListProductsInput,
-  ImportProductsInput,
 } from './products.schema';
 import type { JwtPayload } from '../../common/types/jwt-payload.type';
 
@@ -41,7 +43,7 @@ export class ProductsController {
   @Audit('product', 'CREATE')
   @HttpCode(200)
   async importProducts(
-    @Body(new ZodValidationPipe(importProductsSchema)) body: ImportProductsInput,
+    @Body(new ZodValidationPipe(importProductsSchema)) body: ImportProductsDto,
     @CurrentUser() user: JwtPayload,
   ) {
     return this.svc.importProducts(body.rows, user.sub);
@@ -70,10 +72,12 @@ export class ProductsController {
   @Permission('products:create')
   @HttpCode(201)
   create(
-    @Body(new ZodValidationPipe(createProductSchema)) body: CreateProductInput,
+    @Body(new ZodValidationPipe(createProductSchema)) body: CreateProductDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.svc.create(body, user.sub);
+    // La pipe renvoie la valeur transformée (CreateProductInput) ; le type DTO ne
+    // sert qu'à Swagger, d'où le cast.
+    return this.svc.create(body as unknown as CreateProductInput, user.sub);
   }
 
   @Put(':id')
@@ -81,9 +85,9 @@ export class ProductsController {
   @Audit('product', 'UPDATE')
   update(
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(updateProductSchema)) body: UpdateProductInput,
+    @Body(new ZodValidationPipe(updateProductSchema)) body: UpdateProductDto,
   ) {
-    return this.svc.update(id, body);
+    return this.svc.update(id, body as unknown as UpdateProductInput);
   }
 
   @Delete(':id')

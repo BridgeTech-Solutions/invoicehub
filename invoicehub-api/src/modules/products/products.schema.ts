@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createZodDto } from 'nestjs-zod';
 
 export const createCategorySchema = z.object({
   name:        z.string().min(1).max(100),
@@ -90,3 +91,11 @@ export type UpdateProductInput   = z.infer<typeof updateProductSchema>;
 export type ListProductsInput    = z.infer<typeof listProductsSchema>;
 export type ImportProductRow     = z.infer<typeof importProductRowSchema>;
 export type ImportProductsInput  = z.infer<typeof importProductsSchema>;
+
+// DTO Swagger (corps documentés). Pour les schémas à .transform() (ZodEffects),
+// on documente l'objet interne ; la validation garde le schéma complet via la pipe.
+export class CreateCategoryDto extends createZodDto(createCategorySchema) {}
+export class UpdateCategoryDto extends createZodDto(updateCategorySchema) {}
+export class CreateProductDto  extends createZodDto(createProductSchema.innerType()) {}
+export class UpdateProductDto  extends createZodDto(createProductSchema.innerType().partial()) {}
+export class ImportProductsDto extends createZodDto(importProductsSchema) {}

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createZodDto } from 'nestjs-zod';
 
 export const createClientSchema = z.object({
   type: z.enum(['company', 'individual']).default('company'),
@@ -53,3 +54,8 @@ export type CreateClientInput = z.infer<typeof createClientSchema>;
 export type UpdateClientInput = z.infer<typeof updateClientSchema>;
 export type ListClientsInput = z.infer<typeof listClientsSchema>;
 export type ImportClientsBody = z.infer<typeof importClientsBodySchema>;
+
+// DTO Swagger (corps de requête documentés) — validation via ZodValidationPipe.
+export class CreateClientDto       extends createZodDto(createClientSchema) {}
+export class UpdateClientDto       extends createZodDto(updateClientSchema) {}
+export class ImportClientsBodyDto  extends createZodDto(importClientsBodySchema) {}

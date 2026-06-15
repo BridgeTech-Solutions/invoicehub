@@ -9,6 +9,7 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import {
   createSupplierSchema, updateSupplierSchema,
   createContactSchema, updateContactSchema,
+  CreateSupplierDto, UpdateSupplierDto, CreateContactDto, UpdateContactDto,
 } from './suppliers.schema';
 import type { JwtPayload } from '../../common/types/jwt-payload.type';
 
@@ -38,7 +39,7 @@ export class SuppliersController {
   @Permission('suppliers:write')
   @HttpCode(HttpStatus.CREATED)
   async create(
-    @Body(new ZodValidationPipe(createSupplierSchema)) body: any,
+    @Body(new ZodValidationPipe(createSupplierSchema)) body: CreateSupplierDto,
     @CurrentUser() user: JwtPayload,
   ) {
     return this.svc.createSupplier(body, user.sub);
@@ -80,7 +81,7 @@ export class SuppliersController {
   @Permission('suppliers:write')
   async update(
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(updateSupplierSchema)) body: any,
+    @Body(new ZodValidationPipe(updateSupplierSchema)) body: UpdateSupplierDto,
   ) {
     return this.svc.updateSupplier(id, body);
   }
@@ -105,7 +106,7 @@ export class SuppliersController {
   @HttpCode(HttpStatus.CREATED)
   async addContact(
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(createContactSchema)) body: any,
+    @Body(new ZodValidationPipe(createContactSchema)) body: CreateContactDto,
   ) {
     return this.svc.addContact(id, body);
   }
@@ -115,7 +116,7 @@ export class SuppliersController {
   async updateContact(
     @Param('id')        id: string,
     @Param('contactId') contactId: string,
-    @Body(new ZodValidationPipe(updateContactSchema)) body: any,
+    @Body(new ZodValidationPipe(updateContactSchema)) body: UpdateContactDto,
   ) {
     return this.svc.updateContact(id, contactId, body);
   }

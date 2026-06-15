@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createZodDto } from 'nestjs-zod';
 
 export const createSupplierSchema = z.object({
   name:           z.string().min(2).max(255),
@@ -40,3 +41,9 @@ export type CreateSupplierInput = z.infer<typeof createSupplierSchema>;
 export type UpdateSupplierInput = z.infer<typeof updateSupplierSchema>;
 export type CreateContactInput  = z.infer<typeof createContactSchema>;
 export type UpdateContactInput  = z.infer<typeof updateContactSchema>;
+
+// DTO Swagger (corps documentés) — validation via ZodValidationPipe.
+export class CreateSupplierDto extends createZodDto(createSupplierSchema) {}
+export class UpdateSupplierDto extends createZodDto(updateSupplierSchema) {}
+export class CreateContactDto  extends createZodDto(createContactSchema) {}
+export class UpdateContactDto  extends createZodDto(updateContactSchema) {}

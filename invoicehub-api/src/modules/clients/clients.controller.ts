@@ -16,10 +16,12 @@ import {
   importClientsBodySchema,
 } from './clients.schema';
 import type {
-  CreateClientInput,
-  UpdateClientInput,
   ListClientsInput,
-  ImportClientsBody,
+} from './clients.schema';
+import {
+  CreateClientDto,
+  UpdateClientDto,
+  ImportClientsBodyDto,
 } from './clients.schema';
 import type { JwtPayload } from '../../common/types/jwt-payload.type';
 
@@ -42,7 +44,7 @@ export class ClientsController {
   @Audit('client', 'CREATE')
   @HttpCode(200)
   async importClients(
-    @Body(new ZodValidationPipe(importClientsBodySchema)) body: ImportClientsBody,
+    @Body(new ZodValidationPipe(importClientsBodySchema)) body: ImportClientsBodyDto,
     @CurrentUser() user: JwtPayload,
   ) {
     return this.svc.importClients(body.rows, user.sub);
@@ -77,7 +79,7 @@ export class ClientsController {
   @Audit('client', 'CREATE')
   @HttpCode(201)
   create(
-    @Body(new ZodValidationPipe(createClientSchema)) body: CreateClientInput,
+    @Body(new ZodValidationPipe(createClientSchema)) body: CreateClientDto,
     @CurrentUser() user: JwtPayload,
   ) {
     const canEditAccounting = user.permissions.includes('*') || user.permissions.includes('accounting:*') || user.permissions.includes('accounting:update');
@@ -90,7 +92,7 @@ export class ClientsController {
   @Audit('client', 'UPDATE')
   update(
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(updateClientSchema)) body: UpdateClientInput,
+    @Body(new ZodValidationPipe(updateClientSchema)) body: UpdateClientDto,
     @CurrentUser() user: JwtPayload,
   ) {
     const canEditAccounting = user.permissions.includes('*') || user.permissions.includes('accounting:*') || user.permissions.includes('accounting:update');
