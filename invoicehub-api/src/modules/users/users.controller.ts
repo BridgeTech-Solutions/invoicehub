@@ -25,12 +25,14 @@ import {
   adminResetPasswordSchema,
 } from './users.schema';
 import type {
-  CreateUserInput,
-  UpdateUserInput,
-  UpdateMeInput,
-  ChangePasswordInput,
   ListUsersInput,
-  AdminResetPasswordInput,
+} from './users.schema';
+import {
+  CreateUserDto,
+  UpdateUserDto,
+  UpdateMeDto,
+  ChangePasswordDto,
+  AdminResetPasswordDto,
 } from './users.schema';
 import type { JwtPayload } from '../../common/types/jwt-payload.type';
 
@@ -57,7 +59,7 @@ export class UsersController implements OnModuleInit {
 
   @Put('me')
   updateMe(
-    @Body(new ZodValidationPipe(updateMeSchema)) body: UpdateMeInput,
+    @Body(new ZodValidationPipe(updateMeSchema)) body: UpdateMeDto,
     @CurrentUser() user: JwtPayload,
   ) {
     return this.svc.updateMe(user.sub, body);
@@ -65,7 +67,7 @@ export class UsersController implements OnModuleInit {
 
   @Put('me/password')
   async changePassword(
-    @Body(new ZodValidationPipe(changePasswordSchema)) body: ChangePasswordInput,
+    @Body(new ZodValidationPipe(changePasswordSchema)) body: ChangePasswordDto,
     @CurrentUser() user: JwtPayload,
   ) {
     await this.svc.changePassword(user.sub, body);
@@ -120,7 +122,7 @@ export class UsersController implements OnModuleInit {
   @Audit('user', 'CREATE')
   @HttpCode(201)
   create(
-    @Body(new ZodValidationPipe(createUserSchema)) body: CreateUserInput,
+    @Body(new ZodValidationPipe(createUserSchema)) body: CreateUserDto,
     @CurrentUser() user: JwtPayload,
   ) {
     return this.svc.create(body, user.sub);
@@ -137,7 +139,7 @@ export class UsersController implements OnModuleInit {
   @Audit('user', 'UPDATE')
   update(
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(updateUserSchema)) body: UpdateUserInput,
+    @Body(new ZodValidationPipe(updateUserSchema)) body: UpdateUserDto,
     @CurrentUser() user: JwtPayload,
   ) {
     return this.svc.update(id, body, user.sub);
@@ -172,7 +174,7 @@ export class UsersController implements OnModuleInit {
   @Audit('user', 'PASSWORD_RESET')
   async resetPassword(
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(adminResetPasswordSchema)) body: AdminResetPasswordInput,
+    @Body(new ZodValidationPipe(adminResetPasswordSchema)) body: AdminResetPasswordDto,
     @CurrentUser() user: JwtPayload,
   ) {
     await this.svc.resetPassword(id, body.newPassword, user.sub);

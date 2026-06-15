@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createZodDto } from 'nestjs-zod';
 
 export const createUserSchema = z.object({
   firstName: z.string().min(1).max(100),
@@ -69,3 +70,11 @@ export type UpdateMeInput        = z.infer<typeof updateMeSchema>;
 export type ChangePasswordInput  = z.infer<typeof changePasswordSchema>;
 export type ListUsersInput       = z.infer<typeof listUsersSchema>;
 export type AdminResetPasswordInput = z.infer<typeof adminResetPasswordSchema>;
+
+// DTO Swagger (corps de requête documentés) — la validation reste assurée par
+// ZodValidationPipe dans les contrôleurs ; ces classes ne servent qu'à OpenAPI.
+export class CreateUserDto         extends createZodDto(createUserSchema) {}
+export class UpdateUserDto         extends createZodDto(updateUserSchema) {}
+export class UpdateMeDto           extends createZodDto(updateMeSchema) {}
+export class ChangePasswordDto     extends createZodDto(changePasswordSchema) {}
+export class AdminResetPasswordDto extends createZodDto(adminResetPasswordSchema) {}

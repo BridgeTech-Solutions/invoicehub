@@ -1,6 +1,7 @@
 import { NestFactory, Reflector } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { patchNestJsSwagger } from 'nestjs-zod';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { default as helmet } from 'helmet';
@@ -81,6 +82,9 @@ async function bootstrap() {
   const docsEnabled = process.env.NODE_ENV !== 'production'
     || /^(true|1|yes)$/i.test(process.env.ENABLE_DOCS ?? '');
   if (docsEnabled) {
+    // Permet à @nestjs/swagger de générer les schémas OpenAPI à partir des
+    // DTO Zod (createZodDto) — donc les corps de requête sont documentés.
+    patchNestJsSwagger();
     const swaggerConfig = new DocumentBuilder()
       .setTitle('InvoiceHub API')
       .setDescription('API InvoiceHub v2.0 — Bridge Technologies Solutions')
