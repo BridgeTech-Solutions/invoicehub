@@ -71,6 +71,10 @@ interface BankAccountDrawerProps {
 
 export function BankAccountDrawer({ account, onClose, onSuccess }: BankAccountDrawerProps) {
   const isEdit  = !!account
+  // Le solde d'ouverture reste modifiable tant que le compte n'a aucun mouvement.
+  // Dès qu'une transaction existe, il est figé (sinon le solde courant et les
+  // rapprochements seraient désynchronisés).
+  const openingLocked = isEdit && (account?._count?.transactions ?? 0) > 0
   const titleId = useId()
 
   const [isVisible, setIsVisible] = useState(false)
@@ -131,7 +135,10 @@ export function BankAccountDrawer({ account, onClose, onSuccess }: BankAccountDr
       notes:             form.notes             || null,
     }
     if (isEdit) {
-      const { openingBalance: _, ...updateData } = payload
+      // On n'envoie le solde d'ouverture que s'il est encore modifiable (aucun mouvement).
+      const { openingBalance, ...rest } = payload
+      const updateData = openingLocked ? rest : payload
+      void openingBalance
       const result = await updateMutation.mutateAsync({ id: account.id, data: updateData })
       onSuccess?.(result as BankAccount)
     } else {
@@ -291,11 +298,15 @@ export function BankAccountDrawer({ account, onClose, onSuccess }: BankAccountDr
                 value={form.openingBalance}
                 onChange={e => set('openingBalance', parseFloat(e.target.value) || 0)}
                 onFocus={focusStyle} onBlur={blurStyle}
-                disabled={isEdit}
-                style={{ ...INPUT_STYLE, fontFamily: 'var(--font-mono)', opacity: isEdit ? 0.6 : 1, cursor: isEdit ? 'not-allowed' : 'text' }} />
-              {isEdit && (
+                disabled={openingLocked}
+                style={{ ...INPUT_STYLE, fontFamily: 'var(--font-mono)', opacity: openingLocked ? 0.6 : 1, cursor: openingLocked ? 'not-allowed' : 'text' }} />
+              {openingLocked ? (
                 <span style={{ fontSize: 11, color: 'var(--text-3)' }}>
-                  Le solde d'ouverture ne peut pas être modifié après création.
+                  Figé : le compte a déjà des mouvements. Pour corriger, passez par une transaction d'ajustement.
+                </span>
+              ) : isEdit && (
+                <span style={{ fontSize: 11, color: 'var(--text-3)' }}>
+                  Modifiable tant qu'aucun mouvement n'existe sur le compte.
                 </span>
               )}
             </Field>

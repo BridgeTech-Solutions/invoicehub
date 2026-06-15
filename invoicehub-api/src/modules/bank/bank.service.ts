@@ -126,6 +126,24 @@ export class BankService {
     const account = await this.prisma.bankAccount.findFirst({ where: { id, deletedAt: null } });
     if (!account) throw AppError.notFound('Compte bancaire introuvable');
 
+    // Le solde d'ouverture est figé dès qu'il existe au moins un mouvement (sinon il
+    // désynchroniserait le solde courant et fausserait les rapprochements). On
+    // l'autorise tant que le compte n'a aucune transaction, en resynchronisant alors
+    // le solde courant. Sinon on l'ignore / le rejette.
+    const { openingBalance, ...rest } = data;
+    const updateData: Record<string, unknown> = { ...rest };
+
+    if (openingBalance !== undefined && Number(openingBalance) !== Number(account.openingBalance)) {
+      const movements = await this.prisma.bankTransaction.count({ where: { bankAccountId: id } });
+      if (movements > 0) {
+        throw AppError.conflict(
+          "Le solde d'ouverture ne peut plus être modifié : ce compte a déjà des mouvements.",
+        );
+      }
+      updateData['openingBalance'] = openingBalance;
+      updateData['currentBalance'] = openingBalance; // aucun mouvement → resynchronisation
+    }
+
     return this.prisma.$transaction(async (tx) => {
       if (data.isDefault) {
         await tx.bankAccount.updateMany({
@@ -133,7 +151,7 @@ export class BankService {
           data:  { isDefault: false },
         });
       }
-      return tx.bankAccount.update({ where: { id }, data });
+      return tx.bankAccount.update({ where: { id }, data: updateData });
     });
   }
 
