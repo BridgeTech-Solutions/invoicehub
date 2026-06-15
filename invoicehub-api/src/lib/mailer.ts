@@ -68,10 +68,16 @@ export async function renderEmailTemplate(
   let subject = template.subject;
   let html    = template.bodyHtml;
   for (const [key, value] of Object.entries(variables)) {
-    const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+    const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g');
     subject = subject.replace(regex, value);
     html    = html.replace(regex, value);
   }
+  // Filet de sécurité : on retire tout placeholder non résolu pour ne jamais
+  // afficher d'accolades brutes ({{xxx}}) au lecteur, même si un site d'envoi
+  // a oublié de fournir une variable.
+  const stripUnresolved = (s: string) => s.replace(/\{\{\s*[\w.]+\s*\}\}/g, '');
+  subject = stripUnresolved(subject);
+  html    = stripUnresolved(html);
   return { subject, html };
 }
 

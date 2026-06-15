@@ -262,7 +262,14 @@ export class ProformasService {
     void broadcastNotification(this.prisma as any, this.notificationQueue, {
       type: 'proforma_sent', title: `Proforma envoyée : ${proforma.number}`,
       message: `La proforma ${proforma.number} pour ${proforma.client.name} a été envoyée au client.`,
-      data: { proformaId: proforma.id, proformaNumber: proforma.number, documentLink: `/proformas/${proforma.id}` },
+      data: {
+        proformaId:     proforma.id,
+        proformaNumber: proforma.number,
+        clientName:     proforma.client.name,
+        totalTtc:       Number(proforma.totalTtc).toLocaleString('fr-FR'),
+        validUntil:     new Date(proforma.validUntil).toLocaleDateString('fr-FR'),
+        proformaLink:   `${process.env.APP_URL ?? 'http://localhost:3001'}/proformas/${proforma.id}`,
+      },
     }, { excludeUserId: userId, permission: 'proformas:read' });
 
     return updated;
@@ -287,7 +294,13 @@ export class ProformasService {
     void broadcastNotification(this.prisma as any, this.notificationQueue, {
       type: 'proforma_accepted', title: `Proforma acceptée : ${proforma.number}`,
       message: `La proforma ${proforma.number} pour ${proforma.client.name} a été acceptée.`,
-      data: { proformaId: proforma.id, proformaNumber: proforma.number, documentLink: `/proformas/${proforma.id}` },
+      data: {
+        proformaId:     proforma.id,
+        proformaNumber: proforma.number,
+        clientName:     proforma.client.name,
+        totalTtc:       Number(proforma.totalTtc).toLocaleString('fr-FR'),
+        proformaLink:   `${process.env.APP_URL ?? 'http://localhost:3001'}/proformas/${proforma.id}`,
+      },
     }, { excludeUserId: userId, permission: 'proformas:read' });
 
     return updated;
@@ -312,7 +325,14 @@ export class ProformasService {
     void broadcastNotification(this.prisma as any, this.notificationQueue, {
       type: 'proforma_rejected', title: `Proforma rejetée : ${proforma.number}`,
       message: `La proforma ${proforma.number} pour ${proforma.client.name} a été rejetée.${reason ? ` Motif : ${reason}` : ''}`,
-      data: { proformaId: proforma.id, proformaNumber: proforma.number, reason, documentLink: `/proformas/${proforma.id}` },
+      data: {
+        proformaId:     proforma.id,
+        proformaNumber: proforma.number,
+        clientName:     proforma.client.name,
+        totalTtc:       Number(proforma.totalTtc).toLocaleString('fr-FR'),
+        comment:        reason ?? '',
+        proformaLink:   `${process.env.APP_URL ?? 'http://localhost:3001'}/proformas/${proforma.id}`,
+      },
     }, { excludeUserId: userId, permission: 'proformas:read' });
 
     return updated;

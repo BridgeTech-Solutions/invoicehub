@@ -35,7 +35,7 @@ export class RecurringProcessor extends WorkerHost {
 
         await this.notificationQueue.add('notification', {
           userId:  template.createdById,
-          type:    'invoice_issued',
+          type:    'system',
           title:   'Facture récurrente à générer',
           message: `Un gabarit récurrent est dû pour ${template.client.name}.`,
           data:    { templateId: template.id },

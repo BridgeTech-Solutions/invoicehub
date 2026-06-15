@@ -22,10 +22,13 @@ export class OverdueProcessor extends WorkerHost {
         status: { in: ['issued', 'partially_paid'] },
         dueDate: { lt: now },
       },
-      select: { id: true, number: true, status: true, createdById: true, client: { select: { name: true } } },
+      select: { id: true, number: true, status: true, createdById: true, totalTtc: true, dueDate: true, client: { select: { name: true } } },
     });
 
+    const appUrl = process.env.APP_URL ?? 'http://localhost:3001';
+
     for (const inv of overdueInvoices) {
+      const daysOverdue = Math.max(1, Math.ceil((now.getTime() - new Date(inv.dueDate).getTime()) / (24 * 60 * 60 * 1000)));
       await this.prisma.$transaction([
         this.prisma.invoice.update({ where: { id: inv.id }, data: { status: 'overdue' } }),
         this.prisma.invoiceStatusHistory.create({
@@ -38,14 +41,21 @@ export class OverdueProcessor extends WorkerHost {
         type:    'invoice_overdue',
         title:   `Facture en retard : ${inv.number}`,
         message: `La facture ${inv.number} pour ${inv.client.name} est en retard de paiement.`,
-        data:    { invoiceId: inv.id, invoiceNumber: inv.number },
+        data:    {
+          invoiceId:     inv.id,
+          invoiceNumber: inv.number,
+          clientName:    inv.client.name,
+          totalTtc:      Number(inv.totalTtc).toLocaleString('fr-FR'),
+          daysOverdue:   String(daysOverdue),
+          invoiceLink:   `${appUrl}/invoices/${inv.id}`,
+        },
       });
     }
 
     // 2. Proformas expirées
     const expiredProformas = await this.prisma.proforma.findMany({
       where: { deletedAt: null, status: 'sent', validUntil: { lt: now } },
-      select: { id: true, number: true, status: true, createdById: true, client: { select: { name: true } } },
+      select: { id: true, number: true, status: true, createdById: true, totalTtc: true, validUntil: true, client: { select: { name: true } } },
     });
 
     for (const pf of expiredProformas) {
@@ -61,7 +71,14 @@ export class OverdueProcessor extends WorkerHost {
         type:    'proforma_expired',
         title:   `Proforma expirée : ${pf.number}`,
         message: `La proforma ${pf.number} pour ${pf.client.name} a expiré.`,
-        data:    { proformaId: pf.id, proformaNumber: pf.number },
+        data:    {
+          proformaId:     pf.id,
+          proformaNumber: pf.number,
+          clientName:     pf.client.name,
+          totalTtc:       Number(pf.totalTtc).toLocaleString('fr-FR'),
+          validUntil:     new Date(pf.validUntil).toLocaleDateString('fr-FR'),
+          proformaLink:   `${appUrl}/proformas/${pf.id}`,
+        },
       });
     }
 
@@ -72,7 +89,7 @@ export class OverdueProcessor extends WorkerHost {
 
     const expiringProformas = await this.prisma.proforma.findMany({
       where: { deletedAt: null, status: 'sent', validUntil: { gte: now, lte: in3Days } },
-      select: { id: true, number: true, validUntil: true, createdById: true, client: { select: { name: true } } },
+      select: { id: true, number: true, validUntil: true, totalTtc: true, createdById: true, client: { select: { name: true } } },
     });
 
     const alreadyAlerted = expiringProformas.length > 0
@@ -96,7 +113,15 @@ export class OverdueProcessor extends WorkerHost {
         type:    'proforma_expired',
         title:   `Proforma expire ${expiryLabel} : ${pf.number}`,
         message: `La proforma ${pf.number} pour ${pf.client.name} expire ${expiryLabel}. Relancez le client si nécessaire.`,
-        data:    { proformaId: pf.id, proformaNumber: pf.number, clientName: pf.client.name, validUntil: pf.validUntil, daysLeft },
+        data:    {
+          proformaId:     pf.id,
+          proformaNumber: pf.number,
+          clientName:     pf.client.name,
+          totalTtc:       Number(pf.totalTtc).toLocaleString('fr-FR'),
+          validUntil:     new Date(pf.validUntil).toLocaleDateString('fr-FR'),
+          proformaLink:   `${appUrl}/proformas/${pf.id}`,
+          daysLeft:       String(daysLeft),
+        },
       });
     }
   }

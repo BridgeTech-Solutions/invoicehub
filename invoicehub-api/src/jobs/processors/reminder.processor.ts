@@ -107,7 +107,15 @@ export class ReminderProcessor extends WorkerHost {
           type:    'invoice_overdue',
           title:   `[${nextLevel.label}] Facture en retard J+${daysOverdue} : ${inv.number}`,
           message: `La facture ${inv.number} (${inv.client.name}) est en retard de ${daysOverdue} jour(s).`,
-          data:    { invoiceId: inv.id, invoiceNumber: inv.number, level: nextLevel.label },
+          data:    {
+          invoiceId:     inv.id,
+          invoiceNumber: inv.number,
+          clientName:    inv.client.name,
+          totalTtc:      Number(inv.totalTtc).toLocaleString('fr-FR'),
+          daysOverdue:   String(daysOverdue),
+          invoiceLink:   `${process.env.APP_URL ?? 'http://localhost:3001'}/invoices/${inv.id}`,
+          level:         nextLevel.label,
+        },
         });
       }
 
@@ -119,7 +127,15 @@ export class ReminderProcessor extends WorkerHost {
             type:    'invoice_overdue',
             title:   `[${nextLevel.label}] Facture en retard J+${daysOverdue} : ${inv.number}`,
             message: `La facture ${inv.number} (${inv.client.name}) est en retard de ${daysOverdue} jour(s).`,
-            data:    { invoiceId: inv.id, invoiceNumber: inv.number, level: nextLevel.label },
+            data:    {
+          invoiceId:     inv.id,
+          invoiceNumber: inv.number,
+          clientName:    inv.client.name,
+          totalTtc:      Number(inv.totalTtc).toLocaleString('fr-FR'),
+          daysOverdue:   String(daysOverdue),
+          invoiceLink:   `${process.env.APP_URL ?? 'http://localhost:3001'}/invoices/${inv.id}`,
+          level:         nextLevel.label,
+        },
           });
         }
       }
@@ -129,7 +145,7 @@ export class ReminderProcessor extends WorkerHost {
   private async _processIssuedChecks(now: Date, levels: CheckLevel[], managers: { id: string }[]) {
     const issuedInvoices = await this.prisma.invoice.findMany({
       where: { deletedAt: null, status: 'issued' },
-      select: { id: true, number: true, issueDate: true, reminderEscalationLevel: true, createdById: true, clientId: true },
+      select: { id: true, number: true, issueDate: true, totalTtc: true, reminderEscalationLevel: true, createdById: true, clientId: true, client: { select: { name: true } } },
     });
 
     for (const inv of issuedInvoices) {
@@ -144,7 +160,15 @@ export class ReminderProcessor extends WorkerHost {
         type:    'invoice_overdue',
         title:   `Vérification paiement J+${daysSince} : ${inv.number}`,
         message: `La facture ${inv.number} est émise depuis ${daysSince} jours. Avez-vous confirmé le paiement ?`,
-        data:    { invoiceId: inv.id, invoiceNumber: inv.number, action: 'confirm_payment' },
+        data:    {
+          invoiceId:     inv.id,
+          invoiceNumber: inv.number,
+          clientName:    inv.client.name,
+          totalTtc:      Number(inv.totalTtc).toLocaleString('fr-FR'),
+          daysOverdue:   String(daysSince),
+          invoiceLink:   `${process.env.APP_URL ?? 'http://localhost:3001'}/invoices/${inv.id}`,
+          action:        'confirm_payment',
+        },
       });
     }
   }
@@ -152,7 +176,7 @@ export class ReminderProcessor extends WorkerHost {
   private async _processProformaChecks(now: Date, levels: CheckLevel[]) {
     const sentProformas = await this.prisma.proforma.findMany({
       where: { deletedAt: null, status: 'sent' },
-      select: { id: true, number: true, lastSentAt: true, reminderCount: true, createdById: true, clientId: true },
+      select: { id: true, number: true, lastSentAt: true, totalTtc: true, validUntil: true, reminderCount: true, createdById: true, clientId: true, client: { select: { name: true } } },
     });
 
     for (const pf of sentProformas) {
@@ -167,7 +191,15 @@ export class ReminderProcessor extends WorkerHost {
         type:    'proforma_expired',
         title:   `Vérification statut J+${daysSince} : ${pf.number}`,
         message: `La proforma ${pf.number} est envoyée depuis ${daysSince} jours. Avez-vous eu une réponse ?`,
-        data:    { proformaId: pf.id, proformaNumber: pf.number, action: 'confirm_proforma_status' },
+        data:    {
+          proformaId:     pf.id,
+          proformaNumber: pf.number,
+          clientName:     pf.client.name,
+          totalTtc:       Number(pf.totalTtc).toLocaleString('fr-FR'),
+          validUntil:     pf.validUntil ? new Date(pf.validUntil).toLocaleDateString('fr-FR') : '',
+          proformaLink:   `${process.env.APP_URL ?? 'http://localhost:3001'}/proformas/${pf.id}`,
+          action:         'confirm_proforma_status',
+        },
       });
     }
   }

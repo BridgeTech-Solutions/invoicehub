@@ -25,8 +25,13 @@ export class ApprovalProcessor extends WorkerHost {
     const now = new Date();
     const expired = await this.prisma.approvalRequest.findMany({
       where: { status: 'pending', expiresAt: { lt: now } },
-      select: { id: true, requestedById: true, documentNumber: true },
+      select: {
+        id: true, requestedById: true, documentNumber: true, documentType: true,
+        requestedBy: { select: { firstName: true, lastName: true } },
+      },
     });
+
+    const appUrl = process.env.APP_URL ?? 'http://localhost:3001';
 
     for (const req of expired) {
       await this.prisma.approvalRequest.update({
@@ -39,7 +44,13 @@ export class ApprovalProcessor extends WorkerHost {
         type:    'approval_expired',
         title:   `Demande d'approbation expirée`,
         message: `La demande pour le document "${req.documentNumber ?? req.id}" a expiré sans réponse.`,
-        data:    { requestId: req.id },
+        data:    {
+          requestId:      req.id,
+          requesterName:  `${req.requestedBy?.firstName ?? ''} ${req.requestedBy?.lastName ?? ''}`.trim(),
+          documentType:   req.documentType ?? '',
+          documentNumber: req.documentNumber ?? '',
+          appUrl,
+        },
       });
 
       this.logger.log(`[Approval] Demande expirée : ${req.id}`);

@@ -183,13 +183,24 @@ export class PaymentsService {
         ? ` (escompte de ${escompteAmount.toLocaleString('fr-FR')} XAF accordé)`
         : '';
 
+      const appUrl = process.env.APP_URL ?? 'http://localhost:3001';
       void broadcastNotification(this.prisma as any, this.notifQueue, {
         type:    fullyPaid ? 'invoice_paid' : 'payment_registered',
         title:   fullyPaid ? `Facture payée : ${invoice.number}` : `Paiement reçu : ${invoice.number}`,
         message: fullyPaid
           ? `La facture ${invoice.number} est entièrement réglée${escompteMsg}.`
           : `Un paiement de ${input.amount.toLocaleString('fr-FR')} XAF a été enregistré sur la facture ${invoice.number}${escompteMsg}.`,
-        data:    { invoiceId: invoice.id, invoiceNumber: invoice.number, amount: input.amount, documentLink: `/invoices/${invoice.id}` },
+        // Variables des templates invoice_paid / payment_registered (superset).
+        data:    {
+          invoiceId:     invoice.id,
+          invoiceNumber: invoice.number,
+          clientName:    (invoice.client as any)?.name ?? '',
+          totalTtc:      Number((invoice as any).totalTtc ?? invoice.amountDue).toLocaleString('fr-FR'),
+          amountPaid:    input.amount.toLocaleString('fr-FR'),
+          balanceDue:    Math.max(0, remaining).toLocaleString('fr-FR'),
+          paymentDate:   new Date(paymentDate).toLocaleDateString('fr-FR'),
+          invoiceLink:   `${appUrl}/invoices/${invoice.id}`,
+        },
       }, { permission: 'invoices:read' });
 
       void this.prisma.$transaction((tx) => accountingEngine.onPaymentReceived(payment.id, tx));

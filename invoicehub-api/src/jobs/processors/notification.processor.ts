@@ -61,7 +61,11 @@ export class NotificationProcessor extends WorkerHost {
       ...Object.fromEntries(Object.entries(data ?? {}).map(([k, v]) => [k, String(v)])),
     };
 
-    const rendered = await renderEmailTemplate(type, variables);
+    // 'system' est un type de notification générique (proforma créée, brouillon,
+    // annulation…). Le template email de type 'system' est en réalité l'email de
+    // réinitialisation de mot de passe — on ne doit donc PAS l'utiliser ici : on
+    // bascule sur le rendu générique (titre + message).
+    const rendered = type === 'system' ? null : await renderEmailTemplate(type, variables);
 
     await this.emailQueue.add('email', {
       to:      user.email,
