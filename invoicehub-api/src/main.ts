@@ -75,7 +75,12 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter());
   app.useGlobalInterceptors(new ResponseInterceptor(reflector));
 
-  if (process.env.NODE_ENV !== 'production') {
+  // Doc Swagger : activée hors production, OU explicitement via ENABLE_DOCS=true
+  // (permet d'y accéder sur le serveur de prod quand on en a besoin, sans l'exposer
+  // par défaut). URL : {API_PREFIX}/api/docs — ex. http://localhost:3000/api/docs
+  const docsEnabled = process.env.NODE_ENV !== 'production'
+    || /^(true|1|yes)$/i.test(process.env.ENABLE_DOCS ?? '');
+  if (docsEnabled) {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('InvoiceHub API')
       .setDescription('API InvoiceHub v2.0 — Bridge Technologies Solutions')
@@ -83,6 +88,7 @@ async function bootstrap() {
       .addBearerAuth()
       .build();
     SwaggerModule.setup('api/docs', app, SwaggerModule.createDocument(app, swaggerConfig));
+    console.log('Swagger docs activées sur /api/docs');
   }
 
   app.enableShutdownHooks();
