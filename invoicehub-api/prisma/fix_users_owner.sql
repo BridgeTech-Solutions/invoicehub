@@ -6,4 +6,4 @@
 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_owner BOOLEAN NOT NULL DEFAULT false;
 
 -- Désigne le propriétaire (un seul compte attendu)
-UPDATE users SET is_owner = true WHERE email = 'belcodeur2005@gmail.com';
+UPDATE users SET is_owner = true WHERE email = 'admin@bts.cm';
