@@ -7,6 +7,7 @@ export interface User {
   lastName:           string
   role:               string
   status:             UserStatus
+  isOwner?:           boolean
   phone:              string | null
   avatarUrl:          string | null
   lastLoginAt:        string | null

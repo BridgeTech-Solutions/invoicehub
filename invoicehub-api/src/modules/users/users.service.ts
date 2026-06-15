@@ -26,6 +26,7 @@ const USER_SELECT = {
   roleId:     true,
   role:       { select: { name: true, permissions: true } },
   status:     true,
+  isOwner:    true,
   mustChangePassword:   true,
   twoFactorEnabled:     true,
   language:   true,
@@ -74,12 +75,16 @@ export class UsersService {
 
     const where: Record<string, unknown> = {};
     if (status === 'suspended') {
-      where['status']    = 'suspended';
-      where['deletedAt'] = { not: null };
-    } else {
+      // Suspendu = quel que soit deletedAt. La suspension archive (deletedAt set),
+      // mais une suspension via update peut laisser deletedAt à null : on s'appuie
+      // donc sur le statut, pas sur deletedAt.
+      where['status'] = 'suspended';
+    } else if (status) {
+      where['status']    = status;
       where['deletedAt'] = null;
-      if (status) where['status'] = status;
     }
+    // Sinon « Tous les statuts » : aucun filtre de statut ni de deletedAt → la liste
+    // inclut désormais aussi les comptes suspendus (avant, deletedAt:null les masquait).
     if (role) where['role'] = { is: { name: role } };
     if (search) {
       where['OR'] = [
@@ -104,8 +109,11 @@ export class UsersService {
   }
 
   async findById(id: string) {
+    // Pas de filtre deletedAt : un admin doit pouvoir consulter (et réactiver) la
+    // fiche d'un compte suspendu/archivé — sinon le bouton « Réactiver » de la fiche
+    // serait inatteignable (la suspension renseigne deletedAt).
     const user = await this.prisma.user.findFirst({
-      where:  { id, deletedAt: null },
+      where:  { id },
       select: USER_SELECT,
     });
     if (!user) throw AppError.notFound('Utilisateur introuvable');
@@ -258,8 +266,13 @@ export class UsersService {
     this.logger.log(`Invitation renvoyée pour ${user.email}`);
   }
 
-  async update(id: string, input: UpdateUserInput) {
+  async update(id: string, input: UpdateUserInput, currentUserId?: string) {
     const oldUser = await this.findById(id);
+
+    // Compte propriétaire : modifiable uniquement par lui-même.
+    if ((oldUser as any).isOwner && currentUserId && currentUserId !== id) {
+      throw AppError.forbidden('Le compte propriétaire ne peut être modifié que par son titulaire.');
+    }
 
     if (input.role && input.role !== oldUser.role) {
       await this.prisma.refreshToken.updateMany({
@@ -270,6 +283,7 @@ export class UsersService {
     }
 
     if (input.status === 'suspended' && oldUser.status !== 'suspended') {
+      await this.assertNotLastActiveAdmin(id);
       await this.prisma.refreshToken.updateMany({
         where: { userId: id, revokedAt: null },
         data:  { revokedAt: new Date(), revokeReason: 'account_suspended' },
@@ -319,7 +333,46 @@ export class UsersService {
     });
   }
 
-  async softDelete(id: string): Promise<void> {
+  /**
+   * Empêche de suspendre/archiver le dernier administrateur actif — sinon plus
+   * personne ne peut gérer les utilisateurs (verrouillage total de l'organisation).
+   */
+  private async assertNotLastActiveAdmin(id: string): Promise<void> {
+    const target = await this.prisma.user.findUnique({
+      where:  { id },
+      select: { status: true, role: { select: { name: true } } },
+    });
+    if (target?.role?.name !== 'admin' || target.status !== 'active') return;
+    const activeAdmins = await this.prisma.user.count({
+      where: { role: { is: { name: 'admin' } }, status: 'active', deletedAt: null } as any,
+    });
+    if (activeAdmins <= 1) {
+      throw AppError.badRequest('Impossible de suspendre le dernier administrateur actif.');
+    }
+  }
+
+  /**
+   * Protège le compte propriétaire (is_owner) : il ne peut être suspendu, archivé,
+   * réinitialisé ni voir son rôle/statut changé par quelqu'un d'autre que lui-même.
+   * Si `currentUserId` est fourni, l'owner agissant sur lui-même est autorisé.
+   */
+  private async assertNotProtectedOwner(id: string, currentUserId?: string): Promise<void> {
+    if (currentUserId && currentUserId === id) return; // l'owner peut modifier ses propres données
+    const target = await this.prisma.user.findUnique({
+      where:  { id },
+      select: { isOwner: true } as any,
+    });
+    if ((target as any)?.isOwner) {
+      throw AppError.forbidden('Le compte propriétaire est protégé : seul son titulaire peut le modifier.');
+    }
+  }
+
+  async softDelete(id: string, currentUserId?: string): Promise<void> {
+    if (currentUserId && currentUserId === id) {
+      throw AppError.badRequest('Vous ne pouvez pas suspendre votre propre compte.');
+    }
+    await this.assertNotProtectedOwner(id); // l'owner ne peut jamais être archivé par autrui
+    await this.assertNotLastActiveAdmin(id);
     const user = await this.findById(id);
 
     await this.prisma.user.update({
@@ -335,7 +388,8 @@ export class UsersService {
     this.logger.log(`Utilisateur archivé : ${user.email}`);
   }
 
-  async resetPassword(id: string, newPassword: string): Promise<void> {
+  async resetPassword(id: string, newPassword: string, currentUserId?: string): Promise<void> {
+    await this.assertNotProtectedOwner(id, currentUserId);
     const user         = await this.findById(id);
     const passwordHash = await hashPassword(newPassword);
     await this.prisma.user.update({

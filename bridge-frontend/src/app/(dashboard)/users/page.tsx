@@ -2,9 +2,9 @@
 
 import { useState, useRef, useEffect, useId } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, UserPlus, Loader2, Shield, Pencil, Trash2, KeyRound, X, AlertTriangle, ShieldCheck, ShieldOff, Users, UserCheck } from 'lucide-react'
+import { Search, UserPlus, Loader2, Shield, Pencil, Trash2, KeyRound, X, AlertTriangle, ShieldCheck, ShieldOff, Users, UserCheck, RotateCcw } from 'lucide-react'
 import { ActionMenu } from '@/components/ui/ActionMenu'
-import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useRoles } from '@/features/users/hooks'
+import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useReactivateUser, useRoles } from '@/features/users/hooks'
 import { usePermission } from '@/hooks/usePermission'
 import { useAuthStore } from '@/features/auth/store'
 import { formatDate, getInitials } from '@/lib/utils'
@@ -147,18 +147,22 @@ function ConfirmSuspendModal({ userName, onConfirm, onCancel }: {
 }
 
 // ─── Row actions (C5: ConfirmSuspendModal au lieu de confirm()) ─
-function UserRowActions({ user, onEdit, onDelete, isSelf }: {
-  user: User; onEdit: () => void; onDelete: () => void; isSelf: boolean
+function UserRowActions({ user, onEdit, onDelete, onReactivate, isSelf }: {
+  user: User; onEdit: () => void; onDelete: () => void; onReactivate: () => void; isSelf: boolean
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const isSuspended = user.status === 'suspended'
+  // Le compte propriétaire ne peut pas être suspendu par autrui → on masque l'action.
+  const canSuspend = !isSelf && !user.isOwner
 
   const items = [
     { label: 'Modifier', icon: Pencil, onClick: onEdit },
-    ...(!isSelf ? [{
-      label: 'Suspendre', icon: Trash2,
-      onClick: () => setConfirmOpen(true),
-      danger: true, separator: true,
-    }] : []),
+    ...(canSuspend
+      ? [ isSuspended
+          ? { label: 'Réactiver', icon: RotateCcw, onClick: onReactivate, separator: true }
+          : { label: 'Suspendre', icon: Trash2, onClick: () => setConfirmOpen(true), danger: true, separator: true }
+        ]
+      : []),
   ]
 
   return (
@@ -504,6 +508,7 @@ export default function UsersPage() {
   const { data, isLoading } = useUsers({ page, limit: 20, search: search || undefined, role: roleFilter || undefined, status: statusFilter || undefined })
   const { data: roles = [] } = useRoles()
   const deleteMut  = useDeleteUser()
+  const reactivateMut = useReactivateUser()
   const users      = data?.data       ?? []
   const total      = data?.total      ?? 0
   const totalPages = data?.totalPages ?? 1
@@ -678,6 +683,7 @@ export default function UsersPage() {
                             user={u}
                             onEdit={() => setEditUser(u)}
                             onDelete={() => deleteMut.mutate(u.id)}
+                            onReactivate={() => reactivateMut.mutate(u.id)}
                             isSelf={u.id === me?.id}
                           />
                         )}

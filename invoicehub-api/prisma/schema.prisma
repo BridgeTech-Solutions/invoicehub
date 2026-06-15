@@ -617,6 +617,7 @@ model User {
   roleId               String      @map("role_id") @db.Uuid
   role                 Role        @relation("UserRole", fields: [roleId], references: [id], onDelete: Restrict)
   status               UserStatus  @default(pending_activation)
+  isOwner              Boolean     @default(false) @map("is_owner")
   mustChangePassword   Boolean     @default(true) @map("must_change_password")
   failedLoginAttempts  Int         @default(0) @map("failed_login_attempts") @db.SmallInt
   lastFailedLoginAt    DateTime?   @map("last_failed_login_at") @db.Timestamptz()

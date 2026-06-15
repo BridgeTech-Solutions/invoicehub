@@ -379,6 +379,9 @@ CREATE TABLE users (
     role_id                 UUID         NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
 
     status                  user_status  NOT NULL DEFAULT 'pending_activation',
+    -- Compte propriétaire protégé : ne peut être ni suspendu, ni archivé, ni voir
+    -- son rôle/statut modifié par un autre utilisateur (seul son titulaire le gère).
+    is_owner                BOOLEAN      NOT NULL DEFAULT FALSE,
     must_change_password    BOOLEAN      NOT NULL DEFAULT TRUE,
 
     -- Sécurité anti-brute-force

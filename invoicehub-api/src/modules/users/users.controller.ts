@@ -138,15 +138,16 @@ export class UsersController implements OnModuleInit {
   update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateUserSchema)) body: UpdateUserInput,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.svc.update(id, body);
+    return this.svc.update(id, body, user.sub);
   }
 
   @Delete(':id')
   @Permission('users:manage')
   @Audit('user', 'SOFT_DELETE')
-  async remove(@Param('id') id: string) {
-    await this.svc.softDelete(id);
+  async remove(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    await this.svc.softDelete(id, user.sub);
     return { success: true, message: 'Utilisateur archivé' };
   }
 
@@ -172,8 +173,9 @@ export class UsersController implements OnModuleInit {
   async resetPassword(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(adminResetPasswordSchema)) body: AdminResetPasswordInput,
+    @CurrentUser() user: JwtPayload,
   ) {
-    await this.svc.resetPassword(id, body.newPassword);
+    await this.svc.resetPassword(id, body.newPassword, user.sub);
     return { success: true, message: "Mot de passe réinitialisé — l'utilisateur devra le changer à sa prochaine connexion" };
   }
 

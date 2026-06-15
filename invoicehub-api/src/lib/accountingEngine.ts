@@ -650,6 +650,16 @@ export async function onInvoiceCancelled(invoiceId: string, tx: Tx): Promise<voi
       ...l,
       taxRateCollectedAccount: accounts.collectedTaxAccount,
     }));
+    // Garde anti-double-contre-passation : si une extourne d'annulation a déjà été
+    // passée pour cette facture (précédente annulation, ou extourne enregistrée sous
+    // ce type), on n'en crée pas une seconde — sinon l'émission serait inversée deux
+    // fois et le compte 411 client se déséquilibrerait.
+    const existingReversal = await tx.journalEntry.findFirst({
+      where: { sourceType: 'invoice_reversal', sourceId: invoiceId, status: { not: 'cancelled' } },
+      select: { id: true },
+    });
+    if (existingReversal) return;
+
     const { salesLines, taxLines } = buildSalesBreakdown(
       linesWithTax, accounts.collectedTaxAccount,
       accounts.defaultSalesGoodsAccount, accounts.defaultSalesServiceAccount,
@@ -676,8 +686,8 @@ export async function onInvoiceCancelled(invoiceId: string, tx: Tx): Promise<voi
         entryDate,
         accountingDate: entryDate,
         entryNumber,
-        label:       `AVOIR sur FAC ${invoice.number} — ${invoice.client?.name ?? ''}`,  
-        sourceType:  'invoice',
+        label:       `AVOIR sur FAC ${invoice.number} — ${invoice.client?.name ?? ''}`,
+        sourceType:  'invoice_reversal',
         sourceId:    invoice.id,
         totalDebit:  Number(invoice.totalTtc),
         totalCredit: Number(invoice.totalTtc),

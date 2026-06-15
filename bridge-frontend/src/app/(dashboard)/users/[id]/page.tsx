@@ -386,6 +386,9 @@ export default function UserDetailPage() {
   const roleCfg   = { ...ROLE_COLORS[roleIdx]!, label: roleLabel }
   const statusCfg = STATUS_CFG[user.status] ?? STATUS_CFG.active
   const isSuspended = user.status === 'suspended'
+  // Compte propriétaire consulté par quelqu'un d'autre → actions interdites côté API,
+  // on masque donc Modifier / Réinitialiser MDP / Suspendre.
+  const isProtectedOwner = !!user.isOwner && !isSelf
 
   const btnBase: React.CSSProperties = {
     display: 'flex', alignItems: 'center', gap: 6,
@@ -448,6 +451,12 @@ export default function UserDetailPage() {
                   <span aria-hidden="true" style={{ width: 5, height: 5, borderRadius: '50%', background: statusCfg.color }} />
                   {statusCfg.label}
                 </span>
+                {user.isOwner && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: 'rgba(217,119,6,0.1)', color: '#b45309', fontFamily: 'var(--font-display)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                    <ShieldCheck size={11} aria-hidden="true" />
+                    Propriétaire
+                  </span>
+                )}
               </div>
               <p style={{ fontSize: 13.5, color: 'var(--text-3)', margin: '0 0 16px', fontFamily: 'var(--font-body)' }}>
                 {user.email}
@@ -456,16 +465,20 @@ export default function UserDetailPage() {
               {/* Boutons actions — admin seulement */}
               {can('user', 'manage') && (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button type="button" onClick={() => setShowEdit(true)}
-                    style={{ ...btnBase, border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)' }}>
-                    <Pencil size={13} aria-hidden="true" />
-                    Modifier
-                  </button>
-                  <button type="button" onClick={() => setShowResetPwd(true)}
-                    style={{ ...btnBase, border: '1.5px solid rgba(217,119,6,0.4)', background: 'rgba(245,158,11,0.06)', color: '#d97706' }}>
-                    <KeyRound size={13} aria-hidden="true" />
-                    Réinitialiser MDP
-                  </button>
+                  {!isProtectedOwner && (
+                    <>
+                      <button type="button" onClick={() => setShowEdit(true)}
+                        style={{ ...btnBase, border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-2)' }}>
+                        <Pencil size={13} aria-hidden="true" />
+                        Modifier
+                      </button>
+                      <button type="button" onClick={() => setShowResetPwd(true)}
+                        style={{ ...btnBase, border: '1.5px solid rgba(217,119,6,0.4)', background: 'rgba(245,158,11,0.06)', color: '#d97706' }}>
+                        <KeyRound size={13} aria-hidden="true" />
+                        Réinitialiser MDP
+                      </button>
+                    </>
+                  )}
                   {isPendingActivation && (
                     <button
                       type="button"
@@ -476,7 +489,7 @@ export default function UserDetailPage() {
                       Renvoyer l&apos;invitation
                     </button>
                   )}
-                  {!isSelf && !isSuspended && !isPendingActivation && (
+                  {!isSelf && !isProtectedOwner && !isSuspended && !isPendingActivation && (
                     <button type="button" onClick={() => setShowSuspend(true)}
                       style={{ ...btnBase, border: '1.5px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.05)', color: '#dc2626' }}>
                       <UserX size={13} aria-hidden="true" />
