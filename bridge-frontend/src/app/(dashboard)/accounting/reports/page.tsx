@@ -6,6 +6,7 @@ import { BarChart3, Download, Search, ChevronLeft, ChevronRight } from 'lucide-r
 import Link from 'next/link'
 import { useBalance, useGeneralLedger, useFiscalYears } from '@/features/accounting/hooks'
 import { AccountPicker } from '@/features/accounting/components/AccountPicker'
+import { BilanReport, CompteResultatReport } from '@/features/accounting/components/FinancialStatements'
 import { formatDate } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
 import { usePermission } from '@/hooks/usePermission'
@@ -237,12 +238,14 @@ function LedgerTab({ periodId, initialAccountId }: { periodId?: string; initialA
   )
 }
 
+type ReportTab = 'balance' | 'ledger' | 'bilan' | 'compte-resultat'
+
 // ─── Main page ────────────────────────────────────────────────
 export default function ReportsPage() {
   const { can } = usePermission()
   const searchParams     = useSearchParams()
   const router           = useRouter()
-  const [tab, setTab]    = useState<'balance' | 'ledger'>((searchParams.get('tab') as 'balance' | 'ledger') ?? 'balance')
+  const [tab, setTab]    = useState<ReportTab>((searchParams.get('tab') as ReportTab) ?? 'balance')
   const [ledgerAccount, setLedgerAccount] = useState<AccountListItem | null>(null)
   const [periodId, setPeriodId]           = useState<string | undefined>(undefined)
 
@@ -287,8 +290,10 @@ export default function ReportsPage() {
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: '2px solid var(--border)' }}>
         {[
-          { id: 'balance' as const, label: 'Balance des comptes' },
-          { id: 'ledger'  as const, label: 'Grand livre' },
+          { id: 'balance' as const,         label: 'Balance des comptes' },
+          { id: 'ledger'  as const,         label: 'Grand livre' },
+          { id: 'bilan'   as const,         label: 'Bilan' },
+          { id: 'compte-resultat' as const, label: 'Compte de résultat' },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             style={{ height: 40, padding: '0 20px', border: 'none', background: 'transparent', fontSize: 13.5, fontWeight: tab === t.id ? 700 : 400, color: tab === t.id ? 'var(--primary)' : 'var(--text-2)', cursor: 'pointer', borderBottom: `2px solid ${tab === t.id ? 'var(--primary)' : 'transparent'}`, marginBottom: -2, fontFamily: 'var(--font-display)', transition: 'all 0.15s' }}>
@@ -299,9 +304,10 @@ export default function ReportsPage() {
 
       {/* Tab content */}
       <div className="card" style={{ padding: '20px 24px' }}>
-        {tab === 'balance'
-          ? <BalanceTab periodId={periodId} onAccountSelect={handleAccountSelect} />
-          : <LedgerTab periodId={periodId} initialAccountId={ledgerAccount?.id} />}
+        {tab === 'balance'         && <BalanceTab periodId={periodId} onAccountSelect={handleAccountSelect} />}
+        {tab === 'ledger'          && <LedgerTab periodId={periodId} initialAccountId={ledgerAccount?.id} />}
+        {tab === 'bilan'           && <BilanReport periodId={periodId} />}
+        {tab === 'compte-resultat' && <CompteResultatReport periodId={periodId} />}
       </div>
     </div>
   )

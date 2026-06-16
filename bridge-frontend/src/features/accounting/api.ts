@@ -10,6 +10,7 @@ import type {
   LetterableEntryLine, LetteredGroup,
   TaxDeclaration, TaxDeclarationDetail, CreateTaxDeclPayload,
   AccountingStats, ExportConfig, AccountClass,
+  Bilan, CompteResultat,
 } from './types'
 
 // ── Normalizers ──────────────────────────────────────────────────
@@ -322,4 +323,20 @@ export const accountingApi = {
   // ─── Dashboard stats ─────────────────────────────────────────
 
   getStats: () => apiClient.get<AccountingStats>('/accounting/stats').then(r => r.data),
+
+  // ─── États financiers SYSCOHADA ──────────────────────────────
+
+  getBilan: (params: { periodId?: string; year?: number }) => {
+    const q = new URLSearchParams()
+    if (params.periodId) q.set('periodId', params.periodId)
+    if (params.year)     q.set('year', String(params.year))
+    return apiClient.get<Bilan>(`/accounting/reports/bilan${q.toString() ? `?${q}` : ''}`).then(r => r.data)
+  },
+
+  getCompteResultat: (params: { periodId?: string; year?: number }) => {
+    const q = new URLSearchParams()
+    if (params.periodId) q.set('periodId', params.periodId)
+    if (params.year)     q.set('year', String(params.year))
+    return apiClient.get<CompteResultat>(`/accounting/reports/compte-resultat${q.toString() ? `?${q}` : ''}`).then(r => r.data)
+  },
 }

@@ -328,3 +328,21 @@ export function useAccountingStats() {
     staleTime: 5 * 60 * 1000,
   })
 }
+
+// ─── États financiers (Bilan & Compte de résultat) ───────────
+
+export function useBilan(params: { periodId?: string; year?: number } = {}) {
+  return useQuery({
+    queryKey: ['accounting-bilan', params],
+    queryFn:  () => accountingApi.getBilan(params),
+    staleTime: 2 * 60 * 1000,
+  })
+}
+
+export function useCompteResultat(params: { periodId?: string; year?: number } = {}) {
+  return useQuery({
+    queryKey: ['accounting-compte-resultat', params],
+    queryFn:  () => accountingApi.getCompteResultat(params),
+    staleTime: 2 * 60 * 1000,
+  })
+}

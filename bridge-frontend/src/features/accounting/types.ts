@@ -311,6 +311,30 @@ export interface AccountingStats {
   }[]
 }
 
+// ─── États financiers SYSCOHADA (Bilan & Compte de résultat) ──
+
+export interface BilanActifLine  { code: string; label: string; brut: number; amortissements: number; net: number }
+export interface BilanPassifLine { code: string; label: string; net: number }
+
+export interface Bilan {
+  actif:              BilanActifLine[]
+  passif:             BilanPassifLine[]
+  totalActif:         number
+  totalPassif:        number
+  resultatNet:        number
+  equilibre:          boolean
+  ecart:              number
+  comptesNonVentiles: number
+}
+
+export interface SIGLine { code: string; label: string; amount: number; kind: 'produit' | 'charge' | 'solde' }
+
+export interface CompteResultat {
+  lines:       SIGLine[]
+  resultatNet: number
+  coherent:    boolean
+}
+
 // ─── Export ──────────────────────────────────────────────────
 
 export type ExportFormat = 'sage100' | 'csv' | 'fec'
