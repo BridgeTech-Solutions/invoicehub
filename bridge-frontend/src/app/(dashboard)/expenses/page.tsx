@@ -9,8 +9,9 @@ import { Plus, Search, TrendingDown, Clock, RefreshCw, BarChart2, MoreHorizontal
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
   useExpenses, useExpenseStats, useExpenseCategories,
-  useSubmitExpense, useApproveExpense, useMarkExpensePaid, useDeleteExpense,
+  useSubmitExpense, useApproveExpense, useDeleteExpense,
 } from '@/features/expenses/hooks'
+import { PayExpenseDrawer } from '@/features/expenses/components/PayExpenseDrawer'
 import { formatDate, buildPageRange } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
@@ -65,10 +66,10 @@ function KpiCard({ label, value, sub, color, icon: Icon }: { label: string; valu
 
 function ActionMenu({ exp }: { exp: ExpenseListItem }) {
   const [open, setOpen]     = useState(false)
+  const [showPay, setShowPay] = useState(false)
   const router              = useRouter()
   const submitMutation      = useSubmitExpense()
   const approveMutation     = useApproveExpense()
-  const markPaidMutation    = useMarkExpensePaid()
   const deleteMutation      = useDeleteExpense()
 
   const canEdit    = ['draft', 'rejected'].includes(exp.status)
@@ -92,7 +93,7 @@ function ActionMenu({ exp }: { exp: ExpenseListItem }) {
               { show: canEdit,   icon: Pencil,       label: 'Modifier',     action: () => router.push(`${ROUTES.EXPENSES}/${exp.id}/edit`) },
               { show: canSubmit, icon: Send,         label: 'Soumettre',    action: () => { submitMutation.mutate(exp.id) } },
               { show: canApprove,icon: CheckCircle2, label: 'Approuver',   action: () => { approveMutation.mutate(exp.id) } },
-              { show: canMarkPaid,icon: Banknote,    label: 'Marquer payé', action: () => { markPaidMutation.mutate(exp.id) } },
+              { show: canMarkPaid,icon: Banknote,    label: 'Marquer payé', action: () => { setShowPay(true) } },
               { show: canDelete, icon: Trash2,       label: 'Supprimer',    action: () => { if (confirm('Supprimer cette dépense ?')) deleteMutation.mutate(exp.id) }, danger: true },
             ].filter(a => a.show).map(({ icon: Icon, label, action, danger }) => (
               <button key={label} onClick={() => { action(); setOpen(false) }}
@@ -104,6 +105,11 @@ function ActionMenu({ exp }: { exp: ExpenseListItem }) {
             ))}
           </div>
         </>
+      )}
+      {showPay && (
+        <PayExpenseDrawer
+          expense={{ id: exp.id, designation: exp.designation, amountTtc: exp.amountTtc, bankAccountId: null }}
+          onClose={() => setShowPay(false)} />
       )}
     </div>
   )

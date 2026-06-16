@@ -48,6 +48,14 @@ export const rejectExpenseSchema = z.object({
   reason: z.string().min(1),
 });
 
+// Paiement d'une dépense : on capture le compte de trésorerie réellement utilisé
+// (banque OU caisse — un BankAccount de type petty_cash) pour que l'écriture
+// comptable crédite le bon compte 5xx, et le moyen de paiement.
+export const payExpenseSchema = z.object({
+  bankAccountId: z.string().uuid().optional().nullable(),
+  paymentMethod: z.enum(['cash', 'bank_transfer', 'check', 'mobile_money', 'card', 'other']).optional().nullable(),
+});
+
 // ── Budgets ───────────────────────────────────────────────────────────────────
 
 export const createBudgetSchema = z.object({
@@ -62,6 +70,7 @@ export const createBudgetSchema = z.object({
 
 export const updateBudgetSchema = createBudgetSchema.partial();
 
+export type PayExpenseInput            = z.infer<typeof payExpenseSchema>;
 export type CreateExpenseCategoryInput = z.infer<typeof createExpenseCategorySchema>;
 export type CreateExpenseInput         = z.infer<typeof createExpenseSchema>;
 export type UpdateExpenseInput         = z.infer<typeof updateExpenseSchema>;

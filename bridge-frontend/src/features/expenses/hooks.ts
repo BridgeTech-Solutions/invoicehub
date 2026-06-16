@@ -128,9 +128,10 @@ export function useRejectExpense() {
 export function useMarkExpensePaid() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => expensesApi.markPaid(id),
-    onSuccess: (_, id) => {
-      qc.invalidateQueries({ queryKey: EXPENSE_KEYS.detail(id) })
+    mutationFn: (vars: { id: string; bankAccountId?: string | null; paymentMethod?: string | null }) =>
+      expensesApi.markPaid(vars.id, { bankAccountId: vars.bankAccountId, paymentMethod: vars.paymentMethod }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: EXPENSE_KEYS.detail(vars.id) })
       qc.invalidateQueries({ queryKey: EXPENSE_KEYS.all })
       toast.success('Dépense marquée comme payée')
     },

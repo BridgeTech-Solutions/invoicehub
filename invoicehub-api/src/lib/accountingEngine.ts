@@ -706,20 +706,25 @@ export async function onInvoiceCancelled(invoiceId: string, tx: Tx): Promise<voi
  */
 export async function onExpensePaid(expenseId: string, tx: Tx): Promise<void> {
   try {
-    const [expense, bankAccountInfo, accounts] = await Promise.all([
+    const [expense, accounts] = await Promise.all([
       tx.expense.findUnique({
         where:   { id: expenseId },
         include: {
           category: { select: { id: true, accountingAccount: true } },
         },
       }),
-      tx.bankAccount.findFirst({
-        where: { id: expenseId },
-        select: { accountingAccount: true, name: true },
-      }),
       getCompanyAccounts(tx),
     ]);
     if (!expense || !accounts) return;
+
+    // Compte bancaire réellement utilisé pour la dépense (et non l'id de la
+    // dépense — bug corrigé) : sinon repli sur la banque par défaut.
+    const bankAccountInfo = expense.bankAccountId
+      ? await tx.bankAccount.findUnique({
+          where:  { id: expense.bankAccountId },
+          select: { accountingAccount: true, name: true },
+        })
+      : null;
 
     const chargeAccount = expense.accountingAccount ?? expense.category?.accountingAccount ?? accounts.defaultExpenseAccount;
     const bankAccount   = bankAccountInfo?.accountingAccount ?? accounts.defaultBankAccount;

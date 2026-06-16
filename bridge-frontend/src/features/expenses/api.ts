@@ -32,8 +32,8 @@ export const expensesApi = {
   reject: (id: string, reason: string) =>
     apiClient.post<Expense>(`/expenses/${id}/reject`, { reason }).then(r => r.data),
 
-  markPaid: (id: string) =>
-    apiClient.post<Expense>(`/expenses/${id}/pay`).then(r => r.data),
+  markPaid: (id: string, payload?: { bankAccountId?: string | null; paymentMethod?: string | null }) =>
+    apiClient.post<Expense>(`/expenses/${id}/pay`, payload ?? {}).then(r => r.data),
 
   delete: (id: string) =>
     apiClient.delete(`/expenses/${id}`),

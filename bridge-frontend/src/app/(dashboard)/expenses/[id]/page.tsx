@@ -8,8 +8,9 @@ import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
   useExpense, useSubmitExpense, useApproveExpense,
-  useRejectExpense, useMarkExpensePaid,
+  useRejectExpense,
 } from '@/features/expenses/hooks'
+import { PayExpenseDrawer } from '@/features/expenses/components/PayExpenseDrawer'
 import { formatDate } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
@@ -56,12 +57,12 @@ export default function ExpenseDetailPage({ params }: { params: Promise<{ id: st
   const { format } = useCurrency()
   const { id }       = use(params)
   const [showReject, setShowReject] = useState(false)
+  const [showPay,    setShowPay]    = useState(false)
 
   const { data: exp, isLoading } = useExpense(id)
   const submitMutation   = useSubmitExpense()
   const approveMutation  = useApproveExpense()
   const rejectMutation   = useRejectExpense()
-  const markPaidMutation = useMarkExpensePaid()
 
   if (isLoading) {
     return (
@@ -87,6 +88,12 @@ export default function ExpenseDetailPage({ params }: { params: Promise<{ id: st
         <RejectModal isPending={rejectMutation.isPending}
           onClose={() => setShowReject(false)}
           onConfirm={reason => { rejectMutation.mutate({ id, reason }); setShowReject(false) }} />
+      )}
+
+      {showPay && (
+        <PayExpenseDrawer
+          expense={{ id, designation: exp.designation, amountTtc: exp.amountTtc, bankAccountId: (exp as { bankAccountId?: string | null }).bankAccountId ?? null }}
+          onClose={() => setShowPay(false)} />
       )}
 
       <div>
@@ -119,7 +126,7 @@ export default function ExpenseDetailPage({ params }: { params: Promise<{ id: st
                 </button>
               )}
               {canMarkPaid && (
-                <button onClick={() => markPaidMutation.mutate(id)} disabled={markPaidMutation.isPending}
+                <button onClick={() => setShowPay(true)}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius-md)', background: '#16a34a', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
                   <Banknote size={13} /> Marquer payée
                 </button>

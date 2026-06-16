@@ -9,8 +9,9 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Permission } from '../../common/decorators/permission.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import {
-  createExpenseSchema, updateExpenseSchema, rejectExpenseSchema,
+  createExpenseSchema, updateExpenseSchema, rejectExpenseSchema, payExpenseSchema,
 } from './expenses.schema';
+import type { PayExpenseInput } from './expenses.schema';
 import type { JwtPayload } from '../../common/types/jwt-payload.type';
 
 @Controller('expenses')
@@ -111,9 +112,10 @@ export class ExpensesController {
   @Permission('expenses:pay')
   async pay(
     @Param('id') id: string,
+    @Body(new ZodValidationPipe(payExpenseSchema)) body: PayExpenseInput,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.svc.payExpense(id, user.sub);
+    return this.svc.payExpense(id, user.sub, body);
   }
 
   @Post(':id/cancel')

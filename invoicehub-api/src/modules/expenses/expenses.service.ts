@@ -11,7 +11,7 @@ import type { NotificationJobData } from '../../jobs/job-types';
 import * as accountingEngine from '../../lib/accountingEngine';
 import {
   CreateExpenseCategoryInput, CreateExpenseInput,
-  UpdateExpenseInput, CreateBudgetInput,
+  UpdateExpenseInput, CreateBudgetInput, PayExpenseInput,
 } from './expenses.schema';
 
 @Injectable()
@@ -389,12 +389,30 @@ export class ExpensesService {
     return this.transition(id, 'submitted', 'rejected', userId, { rejectionReason: reason }, reason);
   }
 
-  async payExpense(id: string, userId: string) {
+  async payExpense(id: string, userId: string, input: PayExpenseInput = {}) {
     const expense = await this.prisma.expense.findFirst({
       where:  { id, deletedAt: null },
       select: { categoryId: true, amountTtc: true },
     });
-    const result = await this.transition(id, 'approved', 'paid', userId, { paidAt: new Date() });
+
+    // Compte de trésorerie réellement utilisé (banque ou caisse). On le valide et
+    // on l'enregistre sur la dépense au moment du paiement → l'écriture comptable
+    // créditera ce compte 5xx précis au lieu de retomber sur la banque par défaut.
+    const extra: Record<string, unknown> = { paidAt: new Date() };
+    if (input.bankAccountId) {
+      // Refuse un compte inexistant, archivé ou désactivé (on ne paie pas depuis
+      // une trésorerie hors service). Mono-entreprise : pas de cloisonnement tenant.
+      const account = await this.prisma.bankAccount.findFirst({
+        where: { id: input.bankAccountId, deletedAt: null, isActive: true },
+      });
+      if (!account) throw AppError.badRequest('Compte de trésorerie introuvable ou inactif');
+      extra['bankAccountId'] = input.bankAccountId;
+    }
+    if (input.paymentMethod) {
+      extra['paymentMethod'] = ExpensesService.PM_TO_DB[input.paymentMethod] ?? input.paymentMethod;
+    }
+
+    const result = await this.transition(id, 'approved', 'paid', userId, extra);
     void this.prisma.$transaction((tx: any) => accountingEngine.onExpensePaid(id, tx));
     this.eventEmitter.emit('expense.paid', { expenseId: id });
     // Alertes budget (fire-and-forget — ne bloque pas la réponse)
