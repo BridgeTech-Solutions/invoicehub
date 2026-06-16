@@ -115,6 +115,65 @@ const LAUNCH_ARGS = [
   '--disable-extensions',
 ];
 
+/**
+ * Résout le chemin du binaire Chromium à utiliser, dans l'ordre :
+ *   1. `PUPPETEER_EXECUTABLE_PATH` (.env) — s'il pointe vers un fichier existant
+ *   2. Microsoft Edge (présent par défaut sur Windows Server, chemin stable)
+ *   3. Google Chrome installé classiquement
+ *   4. chrome-headless-shell / chrome téléchargé dans le cache Puppeteer
+ * Retourne `undefined` si rien trouvé → Puppeteer tentera sa résolution auto.
+ */
+function resolveChromePath(): string | undefined {
+  // 1. Variable d'environnement (on trim : espaces parasites collés dans le .env)
+  const envPath = process.env.PUPPETEER_EXECUTABLE_PATH?.trim();
+  if (envPath && fs.existsSync(envPath)) return envPath;
+  if (envPath) {
+    logger.warn(`[pdf] PUPPETEER_EXECUTABLE_PATH défini mais introuvable: "${envPath}" — recherche d'un fallback`);
+  }
+
+  // 2. Microsoft Edge (Chromium) — chemins stables, indépendants de la version
+  const edgePaths = [
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+  ];
+  // 3. Google Chrome installé
+  const chromePaths = [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+  ];
+  for (const p of [...edgePaths, ...chromePaths]) {
+    if (fs.existsSync(p)) return p;
+  }
+
+  // 4. Cache Puppeteer (chrome-headless-shell ou chrome téléchargé) — version dynamique
+  try {
+    const cacheRoot =
+      process.env.PUPPETEER_CACHE_DIR?.trim() ||
+      path.join(process.env.USERPROFILE || process.env.HOME || '', '.cache', 'puppeteer');
+    for (const flavor of ['chrome-headless-shell', 'chrome']) {
+      const dir = path.join(cacheRoot, flavor);
+      if (!fs.existsSync(dir)) continue;
+      // ex: win64-148.0.7778.97/chrome-headless-shell-win64/chrome-headless-shell.exe
+      for (const versionDir of fs.readdirSync(dir)) {
+        const inner = path.join(dir, versionDir);
+        const stack = [inner];
+        while (stack.length) {
+          const cur = stack.pop()!;
+          for (const entry of fs.readdirSync(cur, { withFileTypes: true })) {
+            const full = path.join(cur, entry.name);
+            if (entry.isDirectory()) stack.push(full);
+            else if (entry.name === `${flavor}.exe` || entry.name === 'chrome.exe') return full;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    logger.warn(`[pdf] échec de la recherche dans le cache Puppeteer: ${(e as Error).message}`);
+  }
+
+  return undefined;
+}
+
 async function getBrowser(): Promise<Browser> {
   if (_browser) {
     try {
@@ -125,9 +184,15 @@ async function getBrowser(): Promise<Browser> {
       _browser = null;
     }
   }
+  const executablePath = resolveChromePath();
+  // chrome-headless-shell correspond au mode 'shell' de Puppeteer ; les autres
+  // binaires (Edge, Chrome) utilisent le headless standard.
+  const headless: true | 'shell' =
+    executablePath?.includes('chrome-headless-shell') ? 'shell' : true;
+  logger.info(`[pdf] Chromium: ${executablePath ?? '(résolution auto Puppeteer)'} [headless=${headless}]`);
   _browser = await puppeteer.launch({
-    headless: true,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+    headless,
+    executablePath,
     args: LAUNCH_ARGS,
   });
   return _browser;
