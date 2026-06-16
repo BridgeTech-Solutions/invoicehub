@@ -4,6 +4,8 @@ import {
   UseGuards, Res, StreamableFile,
 } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { ApiTags, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import { zodToOpenAPI } from 'nestjs-zod';
 import { Response } from 'express';
 import { ProformasService } from './proformas.service';
 import { Permission } from '../../common/decorators/permission.decorator';
@@ -15,9 +17,16 @@ import {
   createProformaSchema,
   updateProformaSchema,
   listProformasSchema,
+  rejectProformaSchema,
   convertProformaSchema,
 } from './proformas.schema';
 
+// Documente le corps de requête Zod dans Swagger (validation faite dans le service).
+const ApiZodBody = (schema: Parameters<typeof zodToOpenAPI>[0]) =>
+  ApiBody({ schema: zodToOpenAPI(schema) as any });
+
+@ApiTags('Proformas')
+@ApiBearerAuth()
 @Controller('proformas')
 export class ProformasController {
   constructor(private readonly svc: ProformasService) {}
@@ -46,6 +55,7 @@ export class ProformasController {
   @HttpCode(HttpStatus.CREATED)
   @Permission('proformas:create')
   @Audit('proforma', 'CREATE')
+  @ApiZodBody(createProformaSchema)
   create(@Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.svc.create(createProformaSchema.parse(body), user.sub);
   }
@@ -53,6 +63,7 @@ export class ProformasController {
   @Put(':id')
   @Permission('proformas:update')
   @Audit('proforma', 'UPDATE')
+  @ApiZodBody(updateProformaSchema)
   update(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.svc.update(id, updateProformaSchema.parse(body), user.sub);
   }
@@ -83,6 +94,7 @@ export class ProformasController {
   @Post(':id/reject')
   @Permission('proformas:update')
   @Audit('proforma', 'STATUS_CHANGE')
+  @ApiZodBody(rejectProformaSchema)
   reject(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
     const { reason } = (body as any) ?? {};
     return this.svc.reject(id, user.sub, reason);
@@ -91,6 +103,7 @@ export class ProformasController {
   @Post(':id/convert')
   @Permission('proformas:update')
   @Audit('proforma', 'CONVERT_TO_INVOICE')
+  @ApiZodBody(convertProformaSchema)
   convert(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.svc.convertToInvoice(id, user.sub, convertProformaSchema.parse(body));
   }

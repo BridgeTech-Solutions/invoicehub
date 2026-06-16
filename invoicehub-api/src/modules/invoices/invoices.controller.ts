@@ -4,6 +4,8 @@ import {
   UseGuards, Res, StreamableFile,
 } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { ApiTags, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import { zodToOpenAPI } from 'nestjs-zod';
 import { Response } from 'express';
 import { InvoicesService } from './invoices.service';
 import { PaymentsService } from '../payments/payments.service';
@@ -17,10 +19,17 @@ import {
   updateInvoiceSchema,
   listInvoicesSchema,
   computeInvoiceSchema,
+  cancelInvoiceSchema,
   createAvoirSchema,
 } from './invoices.schema';
 import { createPaymentSchema } from '../payments/payments.schema';
 
+// Documente le corps de requête Zod dans Swagger (validation faite dans le service).
+const ApiZodBody = (schema: Parameters<typeof zodToOpenAPI>[0]) =>
+  ApiBody({ schema: zodToOpenAPI(schema) as any });
+
+@ApiTags('Factures')
+@ApiBearerAuth()
 @Controller('invoices')
 export class InvoicesController {
   constructor(
@@ -39,6 +48,7 @@ export class InvoicesController {
   // ⚠️ Routes statiques AVANT /:id
   @Post('compute')
   @Permission('invoices:read')
+  @ApiZodBody(computeInvoiceSchema)
   compute(@Body() body: unknown) {
     return this.svc.compute(computeInvoiceSchema.parse(body));
   }
@@ -51,6 +61,7 @@ export class InvoicesController {
   @HttpCode(HttpStatus.CREATED)
   @Permission('invoices:create')
   @Audit('invoice', 'CREATE')
+  @ApiZodBody(createInvoiceSchema)
   create(@Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.svc.create(createInvoiceSchema.parse(body), user.sub);
   }
@@ -76,6 +87,7 @@ export class InvoicesController {
   @Put(':id')
   @Permission('invoices:update')
   @Audit('invoice', 'UPDATE')
+  @ApiZodBody(updateInvoiceSchema)
   update(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.svc.update(id, updateInvoiceSchema.parse(body), user.sub);
   }
@@ -90,6 +102,7 @@ export class InvoicesController {
   @Post(':id/cancel')
   @Permission('invoices:cancel')
   @Audit('invoice', 'STATUS_CHANGE')
+  @ApiZodBody(cancelInvoiceSchema)
   cancel(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
     const { reason } = (body as { reason?: string }) ?? {};
     return this.svc.cancel(id, user.sub, reason);
@@ -116,6 +129,7 @@ export class InvoicesController {
   @HttpCode(HttpStatus.CREATED)
   @Permission('invoices:cancel')
   @Audit('invoice', 'CREATE')
+  @ApiZodBody(createAvoirSchema)
   createAvoir(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.svc.createAvoir(id, createAvoirSchema.parse(body), user.sub);
   }
@@ -138,6 +152,7 @@ export class InvoicesController {
   @HttpCode(HttpStatus.CREATED)
   @Permission('payments:create')
   @Audit('payment', 'PAYMENT_REGISTERED')
+  @ApiZodBody(createPaymentSchema)
   createPayment(
     @Param('id') invoiceId: string,
     @Body() body: unknown,
@@ -151,6 +166,7 @@ export class InvoicesController {
   @HttpCode(HttpStatus.CREATED)
   @Permission('payments:create')
   @Audit('payment', 'PAYMENT_REGISTERED')
+  @ApiZodBody(createPaymentSchema)
   quickConfirmPayment(
     @Param('id') invoiceId: string,
     @Body() body: unknown,
