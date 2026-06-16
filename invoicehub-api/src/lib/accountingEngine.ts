@@ -42,10 +42,16 @@ async function nextLetteringCode(tx: Tx, accountNumber: string): Promise<string>
   return 'A' + chars.join('');
 }
 
-// ── nextEntryNumber atomique (findFirst + orderBy desc, sans race condition)
+// ── nextEntryNumber : numérotation séquentielle par (journal, année), atomique
+// Un verrou transactionnel Postgres sérialise les appels concurrents sur la même
+// clé (journal+année). Libéré automatiquement au commit/rollback de la
+// transaction englobante → plus de collision de entry_number (contrainte @unique)
+// qui ferait silencieusement échouer l'écriture sous charge concurrente.
 async function nextEntryNumber(tx: Tx, journalCode: string, date: Date): Promise<string> {
   const year   = date.getFullYear();
   const prefix = `${journalCode}-${year}-`;
+
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`jentry:${journalCode}:${year}`}))`;
 
   const last = await tx.journalEntry.findFirst({
     where: {
