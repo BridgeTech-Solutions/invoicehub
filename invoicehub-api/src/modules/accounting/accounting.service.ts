@@ -308,13 +308,111 @@ export class AccountingService {
   }
 
   async validateEntry(id: string, userId: string) {
-    const entry = await this.prisma.journalEntry.findUnique({ where: { id } });
+    const entry = await this.prisma.journalEntry.findUnique({
+      where:   { id },
+      include: { fiscalPeriod: { select: { status: true } } },
+    });
     if (!entry) throw AppError.notFound('Écriture introuvable');
     if (entry.status !== 'draft') throw AppError.badRequest('Seuls les brouillons peuvent être validés');
+    if (entry.fiscalPeriod.status !== 'open')
+      throw AppError.forbidden('La période de cette écriture n\'est pas ouverte');
+    if (Math.abs(Number(entry.totalDebit) - Number(entry.totalCredit)) >= 0.01)
+      throw AppError.badRequest('Écriture non équilibrée : débit ≠ crédit');
     return this.prisma.journalEntry.update({
       where: { id },
       data:  { status: 'validated', validatedById: userId, validatedAt: new Date() },
     });
+  }
+
+  /**
+   * Validation en masse d'une sélection d'écritures (workflow DAF).
+   * Chaque écriture est contrôlée individuellement : seules les brouillons
+   * équilibrées d'une période ouverte sont validées ; les autres sont ignorées
+   * et listées dans `skipped` avec le motif.
+   */
+  async validateEntries(ids: string[], userId: string) {
+    if (!ids?.length) throw AppError.badRequest('Aucune écriture sélectionnée');
+
+    const entries = await this.prisma.journalEntry.findMany({
+      where:   { id: { in: ids } },
+      include: { fiscalPeriod: { select: { status: true } } },
+    });
+
+    const found   = new Set(entries.map((e) => e.id));
+    const skipped: { id: string; reason: string }[] = [];
+    const toValidate: string[] = [];
+
+    for (const id of ids) {
+      if (!found.has(id)) skipped.push({ id, reason: 'introuvable' });
+    }
+    for (const e of entries) {
+      if (e.status !== 'draft') { skipped.push({ id: e.id, reason: `statut « ${e.status} »` }); continue; }
+      if (e.fiscalPeriod.status !== 'open') { skipped.push({ id: e.id, reason: 'période non ouverte' }); continue; }
+      if (Math.abs(Number(e.totalDebit) - Number(e.totalCredit)) >= 0.01) {
+        skipped.push({ id: e.id, reason: 'non équilibrée' }); continue;
+      }
+      toValidate.push(e.id);
+    }
+
+    if (toValidate.length) {
+      await this.prisma.journalEntry.updateMany({
+        where: { id: { in: toValidate } },
+        data:  { status: 'validated', validatedById: userId, validatedAt: new Date() },
+      });
+    }
+    return { validated: toValidate.length, skipped };
+  }
+
+  /**
+   * Valide toutes les écritures en brouillon équilibrées correspondant aux
+   * filtres (période/journal/dates), pour les périodes ouvertes uniquement.
+   * Permet à la DAF de « tout valider » d'un mois en une action.
+   */
+  async validateAllDraftEntries(
+    filters: { fiscalPeriodId?: string; journalId?: string; dateFrom?: string; dateTo?: string },
+    userId: string,
+  ) {
+    const where: Prisma.JournalEntryWhereInput = {
+      status:       'draft' as never,
+      fiscalPeriod: { status: 'open' as never },
+    };
+    if (filters.fiscalPeriodId) where.fiscalPeriodId = filters.fiscalPeriodId;
+    if (filters.journalId)      where.journalId      = filters.journalId;
+    if (filters.dateFrom || filters.dateTo) {
+      where.entryDate = {
+        ...(filters.dateFrom ? { gte: new Date(filters.dateFrom) } : {}),
+        ...(filters.dateTo   ? { lte: new Date(filters.dateTo)   } : {}),
+      };
+    }
+
+    const candidates = await this.prisma.journalEntry.findMany({
+      where,
+      select: { id: true, totalDebit: true, totalCredit: true },
+    });
+    const balanced = candidates
+      .filter((e) => Math.abs(Number(e.totalDebit) - Number(e.totalCredit)) < 0.01)
+      .map((e) => e.id);
+    const skippedUnbalanced = candidates.length - balanced.length;
+
+    if (balanced.length) {
+      await this.prisma.journalEntry.updateMany({
+        where: { id: { in: balanced } },
+        data:  { status: 'validated', validatedById: userId, validatedAt: new Date() },
+      });
+    }
+    return { validated: balanced.length, skippedUnbalanced, totalDraft: candidates.length };
+  }
+
+  /** Compte/somme des écritures en attente de validation (brouillons). */
+  async getPendingValidationSummary(fiscalPeriodId?: string) {
+    const where: Prisma.JournalEntryWhereInput = { status: 'draft' as never };
+    if (fiscalPeriodId) where.fiscalPeriodId = fiscalPeriodId;
+    const agg = await this.prisma.journalEntry.aggregate({
+      where,
+      _count: true,
+      _sum:   { totalDebit: true },
+    });
+    return { count: agg._count, amount: Number(agg._sum.totalDebit ?? 0) };
   }
 
   async cancelEntry(id: string) {
@@ -445,12 +543,24 @@ export class AccountingService {
     }));
   }
 
-  async getAccountLedger(accountNumber: string, params: { page: number; limit: number; fiscalPeriodId?: string }) {
+  async getAccountLedger(accountNumber: string, params: { page: number; limit: number; fiscalPeriodId?: string; includeDraft?: boolean }) {
     const account = await this.prisma.chartOfAccount.findUnique({ where: { accountNumber } });
     if (!account) throw AppError.notFound('Compte introuvable');
 
-    const where: Prisma.JournalEntryLineWhereInput = { accountNumber };
-    if (params.fiscalPeriodId) where.journalEntry = { fiscalPeriodId: params.fiscalPeriodId };
+    // Cohérence avec la balance : par défaut seules les écritures définitives
+    // (validated/locked). includeDraft = vue « brouillard » incluant les saisies
+    // automatiques pas encore validées par la DAF. Les écritures annulées
+    // (cancelled) sont toujours exclues.
+    const statuses = params.includeDraft
+      ? ['draft', 'validated', 'locked']
+      : ['validated', 'locked'];
+    const where: Prisma.JournalEntryLineWhereInput = {
+      accountNumber,
+      journalEntry: {
+        status: { in: statuses as never[] },
+        ...(params.fiscalPeriodId ? { fiscalPeriodId: params.fiscalPeriodId } : {}),
+      },
+    };
 
     const [lines, total] = await Promise.all([
       this.prisma.journalEntryLine.findMany({
@@ -527,12 +637,25 @@ export class AccountingService {
       if (cls === 'c6') expensesMonth += Number(l.debit)  - Number(l.credit);
     }
 
+    // Écritures en attente de validation DAF (brouillons) — pour ne pas laisser
+    // croire que l'activité est nulle quand les écritures auto ne sont pas encore
+    // validées.
+    const pendingAgg = await this.prisma.journalEntry.aggregate({
+      where:  { status: 'draft' as never },
+      _count: true,
+      _sum:   { totalDebit: true },
+    });
+
     return {
       revenueMonth,
       expensesMonth,
       netResult: revenueMonth - expensesMonth,
       vatDue:    0,
       trend:     [],
+      pendingValidation: {
+        count:  pendingAgg._count,
+        amount: Number(pendingAgg._sum.totalDebit ?? 0),
+      },
     };
   }
 
@@ -676,14 +799,16 @@ export class AccountingService {
     const where: Prisma.JournalEntryLineWhereInput = {
       accountNumber,
       letteringCode: null,
-      ...(dateFrom || dateTo ? {
-        journalEntry: {
+      // Les lignes d'écritures annulées ne sont pas lettrables.
+      journalEntry: {
+        status: { not: 'cancelled' as never },
+        ...(dateFrom || dateTo ? {
           entryDate: {
             ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
             ...(dateTo   ? { lte: new Date(dateTo)   } : {}),
           },
-        },
-      } : {}),
+        } : {}),
+      },
     };
 
     const [data, total] = await Promise.all([
@@ -713,14 +838,15 @@ export class AccountingService {
       where: {
         account: { accountNumber },
         letteringCode: { not: null },
-        ...(dateFrom || dateTo ? {
-          journalEntry: {
+        journalEntry: {
+          status: { not: 'cancelled' as never },
+          ...(dateFrom || dateTo ? {
             entryDate: {
               ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
               ...(dateTo   ? { lte: new Date(dateTo)   } : {}),
-            }
-          }
-        } : {}),
+            },
+          } : {}),
+        },
       },
       include: {
         journalEntry: { select: { id: true, entryNumber: true, journalId: true, journal: { select: { code: true } }, entryDate: true } },

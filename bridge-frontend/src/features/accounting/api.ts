@@ -202,6 +202,21 @@ export const accountingApi = {
   validateEntry: (id: string) =>
     apiClient.post<AccountingEntry>(`/accounting/entries/${id}/validate`).then(r => r.data),
 
+  validateEntriesBulk: (ids: string[]) =>
+    apiClient.post<{ validated: number; skipped: { id: string; reason: string }[] }>(
+      '/accounting/entries/validate-bulk', { ids },
+    ).then(r => r.data),
+
+  validateAllDraft: (filters: { periodId?: string; journalId?: string; dateFrom?: string; dateTo?: string }) =>
+    apiClient.post<{ validated: number; skippedUnbalanced: number; totalDraft: number }>(
+      '/accounting/entries/validate-all', filters,
+    ).then(r => r.data),
+
+  getPendingValidation: (periodId?: string) =>
+    apiClient.get<{ count: number; amount: number }>(
+      `/accounting/entries-pending${periodId ? `?periodId=${periodId}` : ''}`,
+    ).then(r => r.data),
+
   cancelEntry: (id: string) =>
     apiClient.post<AccountingEntry>(`/accounting/entries/${id}/cancel`).then(r => r.data),
 

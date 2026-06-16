@@ -173,6 +173,46 @@ export function useCreateEntry() {
   })
 }
 
+function invalidateAccounting(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ['accounting-entries'] })
+  qc.invalidateQueries({ queryKey: ['accounting-balance'] })
+  qc.invalidateQueries({ queryKey: ['accounting-stats'] })
+  qc.invalidateQueries({ queryKey: ['accounting-pending'] })
+}
+
+export function useValidateEntry() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => accountingApi.validateEntry(id),
+    onSuccess: () => invalidateAccounting(qc),
+  })
+}
+
+export function useValidateEntriesBulk() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (ids: string[]) => accountingApi.validateEntriesBulk(ids),
+    onSuccess: () => invalidateAccounting(qc),
+  })
+}
+
+export function useValidateAllDraft() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (filters: { periodId?: string; journalId?: string; dateFrom?: string; dateTo?: string }) =>
+      accountingApi.validateAllDraft(filters),
+    onSuccess: () => invalidateAccounting(qc),
+  })
+}
+
+export function usePendingValidation(periodId?: string) {
+  return useQuery({
+    queryKey: ['accounting-pending', periodId],
+    queryFn:  () => accountingApi.getPendingValidation(periodId),
+    staleTime: 60 * 1000,
+  })
+}
+
 export function useCancelEntry() {
   const qc = useQueryClient()
   return useMutation({

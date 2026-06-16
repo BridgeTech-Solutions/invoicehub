@@ -201,6 +201,38 @@ export class AccountingController {
     return this.svc.validateEntry(id, user.sub);
   }
 
+  // Validation en masse d'une sélection d'écritures (workflow DAF)
+  @Post('entries/validate-bulk')
+  @Permission('accounting:write')
+  @HttpCode(HttpStatus.OK)
+  validateEntriesBulk(
+    @Body() body: { ids: string[] },
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.svc.validateEntries(body?.ids ?? [], user.sub);
+  }
+
+  // Valider toutes les écritures brouillon d'une période/journal/intervalle
+  @Post('entries/validate-all')
+  @Permission('accounting:write')
+  @HttpCode(HttpStatus.OK)
+  validateAllDraft(
+    @Body() body: { periodId?: string; journalId?: string; dateFrom?: string; dateTo?: string },
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.svc.validateAllDraftEntries(
+      { fiscalPeriodId: body?.periodId, journalId: body?.journalId, dateFrom: body?.dateFrom, dateTo: body?.dateTo },
+      user.sub,
+    );
+  }
+
+  // Résumé des écritures en attente de validation (pour le dashboard / badge)
+  @Get('entries-pending')
+  @Permission('accounting:read')
+  pendingValidation(@Query('periodId') periodId?: string) {
+    return this.svc.getPendingValidationSummary(periodId);
+  }
+
   @Post('entries/:id/cancel')
   @Permission('accounting:write')
   @HttpCode(HttpStatus.OK)
@@ -236,12 +268,14 @@ export class AccountingController {
     @Query('periodId')      periodId?: string,
     @Query('page')          page  = '1',
     @Query('limit')         limit = '50',
+    @Query('includeDraft')  includeDraft?: string,
   ) {
     if (!accountNumber) return [];
     return this.svc.getAccountLedger(accountNumber, {
       page:          parseInt(page,  10),
       limit:         parseInt(limit, 10),
       fiscalPeriodId: periodId,
+      includeDraft:  includeDraft === 'true',
     });
   }
 
