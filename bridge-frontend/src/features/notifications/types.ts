@@ -34,6 +34,7 @@ export type NotificationType =
   | 'fiscal_period_closing'
   | 'role_changed'
   | 'budget_exceeded'
+  | 'accounting_entry_failed'
 
 export interface Notification {
   id:        string

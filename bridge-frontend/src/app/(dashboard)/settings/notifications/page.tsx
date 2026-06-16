@@ -59,6 +59,7 @@ const NOTIF_LABELS: Record<NotificationType, string> = {
   low_stock_alert:            'Alerte stock bas',
   bank_reconciliation_pending:'Rapprochement bancaire en attente',
   fiscal_period_closing:      'Clôture de période fiscale',
+  accounting_entry_failed:    'Écriture comptable échouée',
 }
 
 const inputCss: React.CSSProperties = {

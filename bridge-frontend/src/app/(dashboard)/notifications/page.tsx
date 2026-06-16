@@ -55,6 +55,7 @@ const TYPE_CONFIG: Record<NotificationType, {
   bank_reconciliation_pending: { label: 'Rapprochement bancaire', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', Icon: Landmark },
   fiscal_period_closing:   { label: 'Clôture fiscale',    color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)',  Icon: CalendarClock },
   role_changed:            { label: 'Rôle modifié',        color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)',  Icon: UserCog, href: () => '/users' },
+  accounting_entry_failed: { label: 'Écriture comptable échouée', color: '#ef4444', bg: 'rgba(239,68,68,0.1)', Icon: AlertCircle, href: () => '/accounting/entries' },
   system:                  { label: 'Système',             color: '#6b7280', bg: 'rgba(107,114,128,0.1)', Icon: Info },
 }
 

@@ -201,6 +201,7 @@ enum NotificationStatus {
   fiscal_period_closing
   role_changed
   budget_exceeded
+  accounting_entry_failed
 
   @@map("notification_status")
 }

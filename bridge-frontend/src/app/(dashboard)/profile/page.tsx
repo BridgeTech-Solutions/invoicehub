@@ -697,6 +697,7 @@ const NOTIF_LABELS: Record<NotificationType, string> = {
   bank_reconciliation_pending: 'Rapprochement bancaire en attente',
   fiscal_period_closing:   'Clôture de période fiscale',
   role_changed:            'Rôle utilisateur modifié',
+  accounting_entry_failed: 'Écriture comptable échouée',
   system:                  'Événement système',
 }
 
@@ -705,6 +706,7 @@ const NOTIF_GROUPS: { label: string; types: NotificationType[] }[] = [
   { label: 'Factures',          types: ['invoice_issued', 'invoice_paid', 'invoice_partially_paid', 'invoice_overdue'] },
   { label: 'Paiements',         types: ['payment_registered'] },
   { label: 'Achats & Dépenses', types: ['expense_submitted', 'expense_approved', 'expense_rejected', 'purchase_order_received', 'supplier_invoice_due'] },
+  { label: 'Comptabilité',      types: ['accounting_entry_failed'] },
   { label: 'Alertes',           types: ['reminder_sent', 'user_created', 'system'] },
 ]
 

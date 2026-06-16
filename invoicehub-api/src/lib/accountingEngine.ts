@@ -1,7 +1,29 @@
 import { JournalType, PrismaClient } from '@prisma/client';
 
-const logErr = (fn: string, err: unknown) =>
-  console.error(`[accountingEngine.${fn}]`, err instanceof Error ? err.message : err);
+// ── Observateur d'échec (Option B : non bloquant mais visible) ─────────────────
+// Les écritures auto côté client/stock n'interrompent pas l'opération métier ;
+// en cas d'échec, on prévient les responsables (in-app + email) au lieu de perdre
+// l'information silencieusement. Le handler est branché au démarrage par
+// AccountingNotifierService. Toute erreur DANS le handler est ignorée pour ne
+// jamais casser le flux comptable.
+export interface AccountingFailure {
+  fn:          string;
+  sourceType?: string;
+  sourceId?:   string;
+  error:       string;
+}
+type FailureHandler = (f: AccountingFailure) => void;
+let _onFailure: FailureHandler | null = null;
+export function setAccountingFailureHandler(h: FailureHandler | null): void {
+  _onFailure = h;
+}
+
+const logErr = (fn: string, err: unknown, ctx?: { sourceType?: string; sourceId?: string }) => {
+  const error = err instanceof Error ? err.message : String(err);
+  console.error(`[accountingEngine.${fn}]`, error);
+  try { _onFailure?.({ fn, error, sourceType: ctx?.sourceType, sourceId: ctx?.sourceId }); }
+  catch { /* la notification ne doit jamais casser le flux */ }
+};
 
 type Tx = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
 
@@ -251,7 +273,7 @@ export async function onInvoiceIssued(invoiceId: string, tx: Tx): Promise<void> 
         lines: { create: lineItems },
       },
     });
-  } catch (e) { logErr('onInvoiceIssued', e); }
+  } catch (e) { logErr('onInvoiceIssued', e, { sourceType: 'invoice', sourceId: invoiceId }); }
 }
 
 // ── Étape 2.3 — onPaymentReceived : banque dynamique + compte client dynamique ──
@@ -350,8 +372,8 @@ export async function onPaymentReceived(paymentId: string, tx: Tx): Promise<void
           }
         }
       }
-    } catch (e) { logErr('onPaymentReceived.lettering', e); }
-  } catch (e) { logErr('engine', e); }
+    } catch (e) { console.error('[accountingEngine.onPaymentReceived.lettering]', e instanceof Error ? e.message : e); }
+  } catch (e) { logErr('onPaymentReceived', e, { sourceType: 'payment', sourceId: paymentId }); }
 }
 
 // ── Extourne paiement client supprimé ────────────────────────────────────────
@@ -403,7 +425,7 @@ export async function onPaymentDeleted(paymentId: string, tx: Tx): Promise<void>
       where: { id: original.id },
       data:  { status: 'cancelled' },
     });
-  } catch (e) { logErr('onPaymentDeleted', e); }
+  } catch (e) { logErr('onPaymentDeleted', e, { sourceType: 'payment_reversal', sourceId: paymentId }); }
 }
 
 // ── Étape 3.1 — onSupplierInvoiceValidated : fournisseur + compte achat dynamiques
@@ -561,7 +583,7 @@ export async function onSupplierPaymentMade(supplierPaymentId: string, tx: Tx): 
           });
         }
       }
-    } catch (e) { logErr('engine.inner', e); }
+    } catch (e) { console.error('[accountingEngine.onSupplierPaymentMade.lettering]', e instanceof Error ? e.message : e); }
   }
 }
 
@@ -701,7 +723,7 @@ export async function onInvoiceCancelled(invoiceId: string, tx: Tx): Promise<voi
         lines: { create: counterLines },
       },
     });
-  } catch (e) { logErr('engine', e); }
+  } catch (e) { logErr('onInvoiceCancelled', e, { sourceType: 'invoice_reversal', sourceId: invoiceId }); }
 }
 
 // ── onExpensePaid — inchangé sauf nextEntryNumber atomique ──────────────────────
@@ -761,7 +783,7 @@ export async function onExpensePaid(expenseId: string, tx: Tx): Promise<void> {
         },
       },
     });
-  } catch (e) { logErr('engine', e); }
+  } catch (e) { logErr('onExpensePaid', e, { sourceType: 'expense', sourceId: expenseId }); }
 }
 
 // ── onStockMovement — SYSCOHADA : écriture mouvements de stock ────────────────
@@ -874,7 +896,7 @@ export async function onStockMovement(params: {
         },
       },
     });
-  } catch (e) { logErr('onStockMovement', e); }
+  } catch (e) { logErr('onStockMovement', e, { sourceType: 'stock_movement', sourceId: params.movementId }); }
 }
 
 // ── onEscompteAccorde — escompte de règlement accordé (compte 673) ─────────────
@@ -941,6 +963,6 @@ export async function onEscompteAccorde(params: {
         },
       },
     });
-  } catch (e) { logErr('onEscompteAccorde', e); }
+  } catch (e) { logErr('onEscompteAccorde', e, { sourceType: 'payment', sourceId: params.paymentId }); }
 }
 

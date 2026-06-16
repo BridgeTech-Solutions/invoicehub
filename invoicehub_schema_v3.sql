@@ -1465,6 +1465,7 @@ ALTER TYPE notification_status ADD VALUE IF NOT EXISTS 'fiscal_period_closing';
 ALTER TYPE notification_status ADD VALUE IF NOT EXISTS 'role_changed';
 ALTER TYPE notification_status ADD VALUE IF NOT EXISTS 'approval_requested';
 ALTER TYPE notification_status ADD VALUE IF NOT EXISTS 'budget_exceeded';
+ALTER TYPE notification_status ADD VALUE IF NOT EXISTS 'accounting_entry_failed';
 
 -- ================================================================
 -- 2.5 Étendre `company_settings` — paramètres nouveaux modules
