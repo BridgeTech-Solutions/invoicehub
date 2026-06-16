@@ -1,9 +1,29 @@
 'use client'
 
-import { CheckCircle2, AlertTriangle, Scale, FileSpreadsheet } from 'lucide-react'
+import { useState } from 'react'
+import { CheckCircle2, AlertTriangle, Scale, FileSpreadsheet, Download } from 'lucide-react'
+import { toast } from 'sonner'
 import { useBilan, useCompteResultat } from '../hooks'
+import { accountingApi } from '../api'
 import { useCurrency } from '@/hooks/useCurrency'
 import type { BilanActifLine, BilanPassifLine, SIGLine } from '../types'
+
+// ─── Bouton export PDF ─────────────────────────────────────────────────────────
+function ExportPdfButton({ kind, periodId, year }: { kind: 'bilan' | 'compte-resultat'; periodId?: string; year?: number }) {
+  const [loading, setLoading] = useState(false)
+  async function onClick() {
+    setLoading(true)
+    try { await accountingApi.downloadStatementPdf(kind, { periodId, year }) }
+    catch (e: unknown) { toast.error((e as Error).message) }
+    finally { setLoading(false) }
+  }
+  return (
+    <button onClick={onClick} disabled={loading}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border-strong)', background: 'var(--surface)', color: 'var(--text-2)', fontSize: 12.5, fontWeight: 600, cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.7 : 1 }}>
+      <Download size={14} /> {loading ? 'Génération…' : 'Export PDF'}
+    </button>
+  )
+}
 
 // ─── Voyant de contrôle (icône + couleur + texte — jamais la couleur seule) ────
 function ControlBadge({ ok, okText, koText }: { ok: boolean; okText: string; koText: string }) {
@@ -66,14 +86,17 @@ export function BilanReport({ periodId, year }: { periodId?: string; year?: numb
 
   return (
     <div>
-      {/* Voyants de contrôle */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
-        <ControlBadge ok={data.equilibre} okText="Bilan équilibré" koText={`Déséquilibre : ${format(Math.abs(data.ecart))}`} />
-        {Math.abs(data.comptesNonVentiles) > 0.5 && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600, background: 'rgba(217,119,6,0.1)', color: '#b45309' }}>
-            <AlertTriangle size={14} /> Comptes non ventilés : {format(Math.abs(data.comptesNonVentiles))} à reclasser
-          </span>
-        )}
+      {/* Voyants de contrôle + export */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <ControlBadge ok={data.equilibre} okText="Bilan équilibré" koText={`Déséquilibre : ${format(Math.abs(data.ecart))}`} />
+          {Math.abs(data.comptesNonVentiles) > 0.5 && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600, background: 'rgba(217,119,6,0.1)', color: '#b45309' }}>
+              <AlertTriangle size={14} /> Comptes non ventilés : {format(Math.abs(data.comptesNonVentiles))} à reclasser
+            </span>
+          )}
+        </div>
+        <ExportPdfButton kind="bilan" periodId={periodId} year={year} />
       </div>
 
       {/* Actif | Passif */}
@@ -173,8 +196,9 @@ export function CompteResultatReport({ periodId, year }: { periodId?: string; ye
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center', justifyContent: 'space-between' }}>
         <ControlBadge ok={data.coherent} okText="Cascade des SIG cohérente" koText="Incohérence SIG — un compte échappe au calcul" />
+        <ExportPdfButton kind="compte-resultat" periodId={periodId} year={year} />
       </div>
 
       <div style={{ overflowX: 'auto' }}>

@@ -318,6 +318,32 @@ export class AccountingController {
     return this.svc.getCompteResultat({ fiscalPeriodId: periodId, fiscalYear: year ? parseInt(year, 10) : undefined });
   }
 
+  @Get('reports/bilan/pdf')
+  @Permission('accounting:read')
+  async getBilanPdf(
+    @Res() res: Response,
+    @Query('periodId') periodId?: string,
+    @Query('year')     year?: string,
+  ) {
+    const { buffer, filename } = await this.svc.generateBilanPdf({ fiscalPeriodId: periodId, fiscalYear: year ? parseInt(year, 10) : undefined });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  }
+
+  @Get('reports/compte-resultat/pdf')
+  @Permission('accounting:read')
+  async getCompteResultatPdf(
+    @Res() res: Response,
+    @Query('periodId') periodId?: string,
+    @Query('year')     year?: string,
+  ) {
+    const { buffer, filename } = await this.svc.generateCompteResultatPdf({ fiscalPeriodId: periodId, fiscalYear: year ? parseInt(year, 10) : undefined });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  }
+
   // ── Lettrage ────────────────────────────────────────────────────────────────
 
   @Get('lettering')

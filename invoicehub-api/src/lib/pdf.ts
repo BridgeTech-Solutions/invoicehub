@@ -97,6 +97,55 @@ export function resolveDocumentAssets(settings: {
   };
 }
 
+// ─── États financiers : enveloppe HTML A4 (header/footer BTS + contenu) ────────
+
+/**
+ * Enveloppe générique pour un état financier (Bilan, Compte de résultat…).
+ * Réutilise le header/footer BTS (mêmes classes `.page-header`/`.page-footer`
+ * que les autres documents) ; `bodyHtml` est le contenu (tableaux) injecté.
+ */
+export function buildStatementHtml(params: {
+  title:        string;
+  subtitle?:    string;
+  periodLabel:  string;
+  companyName?: string;
+  headerImg?:   string;
+  footerImg?:   string;
+  bodyHtml:     string;
+}): string {
+  const { title, subtitle, periodLabel, companyName, headerImg, footerImg, bodyHtml } = params;
+  return `<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8"><style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5px; color: #2b2b2b; width: 210mm; }
+  .page-header img { width: 100%; display: block; }
+  .page-footer img { width: 100%; display: block; }
+  .page-content { padding: 6mm 14mm; position: relative; z-index: 1; }
+  thead { display: table-header-group; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+  .stmt-title { text-align: center; margin: 14px 0 2px; font-size: 16px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #0f2d4a; }
+  .stmt-sub   { text-align: center; font-size: 11px; color: #555; margin-bottom: 4px; }
+  .stmt-meta  { text-align: center; font-size: 10.5px; color: #777; margin-bottom: 16px; }
+  h2.sect { font-size: 12px; color: #0f2d4a; margin: 14px 0 6px; padding-bottom: 4px; border-bottom: 2px solid #2D7DD2; text-transform: uppercase; }
+  th { background: #0f2d4a; color: #fff; padding: 6px 8px; font-size: 9px; text-transform: uppercase; letter-spacing: .04em; text-align: left; }
+  td { border-bottom: 1px solid #e6e6e6; padding: 4px 8px; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .code { color: #999; font-size: 8.5px; margin-right: 6px; }
+  .total-row td { background: #eef2f6; font-weight: bold; border-top: 2px solid #bcc7d2; }
+  .solde-row td { background: #f4f6f8; font-weight: bold; }
+</style></head>
+<body>
+  <div class="page-header">${headerImg ? `<img src="${headerImg}" alt="" />` : ''}</div>
+  <div class="page-footer">${footerImg ? `<img src="${footerImg}" alt="" />` : ''}</div>
+  <div class="page-content">
+    <div class="stmt-title">${title}</div>
+    ${subtitle ? `<div class="stmt-sub">${subtitle}</div>` : ''}
+    <div class="stmt-meta">${companyName ?? 'Bridge Technologies Solutions'} — ${periodLabel}</div>
+    ${bodyHtml}
+  </div>
+</body></html>`;
+}
+
 // ─── Génération PDF ───────────────────────────────────────────────────────────
 
 // Singleton Chromium — lancé une seule fois, réutilisé pour toutes les générations.

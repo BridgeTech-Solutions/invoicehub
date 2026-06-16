@@ -339,4 +339,24 @@ export const accountingApi = {
     if (params.year)     q.set('year', String(params.year))
     return apiClient.get<CompteResultat>(`/accounting/reports/compte-resultat${q.toString() ? `?${q}` : ''}`).then(r => r.data)
   },
+
+  downloadStatementPdf: async (kind: 'bilan' | 'compte-resultat', params: { periodId?: string; year?: number }) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('bts_access_token') : ''
+    const base  = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api'
+    const q = new URLSearchParams()
+    if (params.periodId) q.set('periodId', params.periodId)
+    if (params.year)     q.set('year', String(params.year))
+    const res = await fetch(`${base}/accounting/reports/${kind}/pdf${q.toString() ? `?${q}` : ''}`, {
+      headers: { Authorization: `Bearer ${token ?? ''}` },
+    })
+    if (!res.ok) throw new Error('Échec de génération du PDF')
+    const blob = await res.blob()
+    const cd = res.headers.get('Content-Disposition') ?? ''
+    const filename = /filename="([^"]+)"/.exec(cd)?.[1] ?? `${kind}.pdf`
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = filename
+    document.body.appendChild(a); a.click(); a.remove()
+    URL.revokeObjectURL(url)
+  },
 }

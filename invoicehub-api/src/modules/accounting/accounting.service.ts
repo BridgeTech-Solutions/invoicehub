@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { computeBilan, computeCompteResultat } from '../../lib/syscohada-statements';
+import { generatePdf, buildStatementHtml, resolveDocumentAssets } from '../../lib/pdf';
 import {
   CreateChartAccountInput, UpdateChartAccountInput,
   CreateFiscalPeriodInput,
@@ -692,6 +693,82 @@ export class AccountingService {
   /** Compte de résultat SYSCOHADA (SIG) calculé depuis la balance. */
   async getCompteResultat(scope: { fiscalPeriodId?: string; fiscalYear?: number }) {
     return computeCompteResultat(await this.getBalancesMap(scope));
+  }
+
+  // ── Export PDF des états financiers ──────────────────────────────────────────
+
+  private async statementMeta(scope: { fiscalPeriodId?: string; fiscalYear?: number }) {
+    const settings = await this.prisma.companySettings.findFirst({
+      select: { headerImagePath: true, footerImagePath: true, stampPath: true },
+    });
+    const { headerImageB64, footerImageB64 } = resolveDocumentAssets(settings ?? null);
+    let periodLabel = 'Toutes périodes';
+    if (scope.fiscalYear) periodLabel = `Exercice ${scope.fiscalYear}`;
+    else if (scope.fiscalPeriodId) {
+      const p = await this.prisma.fiscalPeriod.findUnique({ where: { id: scope.fiscalPeriodId }, select: { name: true } });
+      if (p?.name) periodLabel = p.name;
+    }
+    return { headerImg: headerImageB64, footerImg: footerImageB64, periodLabel };
+  }
+
+  private static fmtXaf(n: number): string {
+    return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(Math.round(n));
+  }
+
+  async generateBilanPdf(scope: { fiscalPeriodId?: string; fiscalYear?: number }) {
+    const bilan = await this.getBilan(scope);
+    const { headerImg, footerImg, periodLabel } = await this.statementMeta(scope);
+    const f = AccountingService.fmtXaf;
+
+    const actifRows = bilan.actif
+      .filter((l) => Math.abs(l.brut) > 0.5 || Math.abs(l.net) > 0.5)
+      .map((l) => `<tr><td><span class="code">${l.code}</span>${l.label}</td><td class="num">${l.brut > 0 ? f(l.brut) : '—'}</td><td class="num">${l.amortissements > 0 ? f(l.amortissements) : '—'}</td><td class="num">${f(l.net)}</td></tr>`)
+      .join('');
+    const passifRows = bilan.passif
+      .filter((l) => Math.abs(l.net) > 0.5)
+      .map((l) => `<tr${l.code === 'CH' ? ' class="solde-row"' : ''}><td><span class="code">${l.code}</span>${l.label}</td><td class="num">${f(l.net)}</td></tr>`)
+      .join('');
+
+    const warnings =
+      (bilan.equilibre ? '' : `<p style="color:#c0392b;font-size:10px;margin-top:8px;">⚠ Bilan déséquilibré : écart de ${f(Math.abs(bilan.ecart))} XAF.</p>`) +
+      (Math.abs(bilan.comptesNonVentiles) > 0.5 ? `<p style="color:#b45309;font-size:10px;">⚠ Comptes non ventilés : ${f(Math.abs(bilan.comptesNonVentiles))} XAF à reclasser.</p>` : '');
+
+    const bodyHtml = `
+      <h2 class="sect">Actif</h2>
+      <table>
+        <thead><tr><th>Poste</th><th class="num">Brut</th><th class="num">Amort./Dépréc.</th><th class="num">Net</th></tr></thead>
+        <tbody>${actifRows}<tr class="total-row"><td colspan="3">TOTAL ACTIF</td><td class="num">${f(bilan.totalActif)}</td></tr></tbody>
+      </table>
+      <h2 class="sect">Passif</h2>
+      <table>
+        <thead><tr><th>Poste</th><th class="num">Net</th></tr></thead>
+        <tbody>${passifRows}<tr class="total-row"><td>TOTAL PASSIF</td><td class="num">${f(bilan.totalPassif)}</td></tr></tbody>
+      </table>${warnings}`;
+
+    const html = buildStatementHtml({ title: 'Bilan', subtitle: 'SYSCOHADA — Système Normal', periodLabel, headerImg, footerImg, bodyHtml });
+    const buffer = await generatePdf(html);
+    return { buffer, filename: `BTS_Bilan_${periodLabel.replace(/[^\w]+/g, '-')}.pdf` };
+  }
+
+  async generateCompteResultatPdf(scope: { fiscalPeriodId?: string; fiscalYear?: number }) {
+    const cr = await this.getCompteResultat(scope);
+    const { headerImg, footerImg, periodLabel } = await this.statementMeta(scope);
+    const f = AccountingService.fmtXaf;
+
+    const rows = cr.lines
+      .filter((l) => l.kind === 'solde' || Math.abs(l.amount) > 0.5)
+      .map((l) => {
+        const val = l.kind === 'charge' && l.amount > 0 ? `(${f(Math.abs(l.amount))})` : f(Math.abs(l.amount));
+        return `<tr${l.kind === 'solde' ? ' class="solde-row"' : ''}><td><span class="code">${l.code}</span>${l.label}</td><td class="num">${val}</td></tr>`;
+      })
+      .join('');
+
+    const bodyHtml = `<table><tbody>${rows}</tbody></table>
+      <p style="font-size:9px;color:#888;margin-top:6px;">Charges entre parenthèses. Soldes intermédiaires de gestion en gras.</p>`;
+
+    const html = buildStatementHtml({ title: 'Compte de résultat', subtitle: 'SYSCOHADA — Soldes intermédiaires de gestion', periodLabel, headerImg, footerImg, bodyHtml });
+    const buffer = await generatePdf(html);
+    return { buffer, filename: `BTS_Compte-resultat_${periodLabel.replace(/[^\w]+/g, '-')}.pdf` };
   }
 
   // ── Déclarations fiscales ───────────────────────────────────────────────────
