@@ -298,6 +298,26 @@ export class AccountingController {
     return this.svc.getAccountingStats();
   }
 
+  // ── États financiers SYSCOHADA ───────────────────────────────────────────────
+
+  @Get('reports/bilan')
+  @Permission('accounting:read')
+  getBilan(
+    @Query('periodId') periodId?: string,
+    @Query('year')     year?: string,
+  ) {
+    return this.svc.getBilan({ fiscalPeriodId: periodId, fiscalYear: year ? parseInt(year, 10) : undefined });
+  }
+
+  @Get('reports/compte-resultat')
+  @Permission('accounting:read')
+  getCompteResultat(
+    @Query('periodId') periodId?: string,
+    @Query('year')     year?: string,
+  ) {
+    return this.svc.getCompteResultat({ fiscalPeriodId: periodId, fiscalYear: year ? parseInt(year, 10) : undefined });
+  }
+
   // ── Lettrage ────────────────────────────────────────────────────────────────
 
   @Get('lettering')

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
+import { computeBilan, computeCompteResultat } from '../../lib/syscohada-statements';
 import {
   CreateChartAccountInput, UpdateChartAccountInput,
   CreateFiscalPeriodInput,
@@ -657,6 +658,40 @@ export class AccountingService {
         amount: Number(pendingAgg._sum.totalDebit ?? 0),
       },
     };
+  }
+
+  // ── États financiers SYSCOHADA (Bilan & Compte de résultat) ──────────────────
+
+  /**
+   * Soldes par compte (débit − crédit) sur un périmètre, écritures définitives
+   * uniquement (validated/locked) — cohérent avec la balance et les autres états.
+   */
+  private async getBalancesMap(scope: { fiscalPeriodId?: string; fiscalYear?: number }): Promise<Map<string, number>> {
+    const entryWhere: Prisma.JournalEntryWhereInput = { status: { in: ['validated', 'locked'] as never[] } };
+    if (scope.fiscalPeriodId)   entryWhere.fiscalPeriodId = scope.fiscalPeriodId;
+    else if (scope.fiscalYear)  entryWhere.fiscalPeriod   = { fiscalYear: scope.fiscalYear };
+
+    const lines = await this.prisma.journalEntryLine.groupBy({
+      by:    ['accountNumber'],
+      where: { journalEntry: entryWhere },
+      _sum:  { debit: true, credit: true },
+    });
+
+    const map = new Map<string, number>();
+    for (const l of lines) {
+      map.set(l.accountNumber, Number(l._sum?.debit ?? 0) - Number(l._sum?.credit ?? 0));
+    }
+    return map;
+  }
+
+  /** Bilan SYSCOHADA (Système Normal) calculé depuis la balance. */
+  async getBilan(scope: { fiscalPeriodId?: string; fiscalYear?: number }) {
+    return computeBilan(await this.getBalancesMap(scope));
+  }
+
+  /** Compte de résultat SYSCOHADA (SIG) calculé depuis la balance. */
+  async getCompteResultat(scope: { fiscalPeriodId?: string; fiscalYear?: number }) {
+    return computeCompteResultat(await this.getBalancesMap(scope));
   }
 
   // ── Déclarations fiscales ───────────────────────────────────────────────────
