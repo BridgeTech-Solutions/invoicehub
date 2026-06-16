@@ -25,6 +25,16 @@ const logErr = (fn: string, err: unknown, ctx?: { sourceType?: string; sourceId?
   catch { /* la notification ne doit jamais casser le flux */ }
 };
 
+// Abandon non-erreur : aucune écriture créée parce qu'une config comptable manque
+// (paramètres entreprise absents, compte de stock non renseigné…). Ce n'est pas une
+// exception, donc on prévient explicitement via le même canal pour ne rien laisser
+// passer en silence.
+const logSkip = (fn: string, reason: string, ctx?: { sourceType?: string; sourceId?: string }) => {
+  console.warn(`[accountingEngine.${fn}] écriture ignorée : ${reason}`);
+  try { _onFailure?.({ fn, error: reason, sourceType: ctx?.sourceType, sourceId: ctx?.sourceId }); }
+  catch { /* la notification ne doit jamais casser le flux */ }
+};
+
 type Tx = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
 
 async function getDefaultJournal(tx: Tx, type: JournalType) {
@@ -234,7 +244,11 @@ export async function onInvoiceIssued(invoiceId: string, tx: Tx): Promise<void> 
       }),
       getCompanyAccounts(tx),
     ]);
-    if (!invoice || !accounts) return;
+    if (!invoice) return;
+    if (!accounts) {
+      logSkip('onInvoiceIssued', 'paramètres comptables entreprise non configurés', { sourceType: 'invoice', sourceId: invoiceId });
+      return;
+    }
 
     const clientAccount = (invoice.client as any)?.accountingAccount ?? accounts.defaultClientAccount;
     const linesWithTax  = (invoice.lines as any).map((l: any) => ({
@@ -294,7 +308,11 @@ export async function onPaymentReceived(paymentId: string, tx: Tx): Promise<void
       }),
       getCompanyAccounts(tx),
     ]);
-    if (!payment || !accounts) return;
+    if (!payment) return;
+    if (!accounts) {
+      logSkip('onPaymentReceived', 'paramètres comptables entreprise non configurés', { sourceType: 'payment', sourceId: paymentId });
+      return;
+    }
 
     const bankAccountNum = (payment.bankAccount as any)?.accountingAccount ?? accounts.defaultBankAccount;
     const bankLabel      = (payment.bankAccount as any)?.name ?? 'Banque';
@@ -671,7 +689,11 @@ export async function onInvoiceCancelled(invoiceId: string, tx: Tx): Promise<voi
       }),
       getCompanyAccounts(tx),
     ]);
-    if (!invoice || !accounts) return;
+    if (!invoice) return;
+    if (!accounts) {
+      logSkip('onInvoiceCancelled', 'paramètres comptables entreprise non configurés', { sourceType: 'invoice_reversal', sourceId: invoiceId });
+      return;
+    }
 
     const clientAccount = (invoice.client as any)?.accountingAccount ?? accounts.defaultClientAccount;
     const linesWithTax  = (invoice.lines as any).map((l: any) => ({
@@ -743,7 +765,11 @@ export async function onExpensePaid(expenseId: string, tx: Tx): Promise<void> {
       }),
       getCompanyAccounts(tx),
     ]);
-    if (!expense || !accounts) return;
+    if (!expense) return;
+    if (!accounts) {
+      logSkip('onExpensePaid', 'paramètres comptables entreprise non configurés', { sourceType: 'expense', sourceId: expenseId });
+      return;
+    }
 
     // Compte bancaire réellement utilisé pour la dépense (et non l'id de la
     // dépense — bug corrigé) : sinon repli sur la banque par défaut.
@@ -872,8 +898,16 @@ export async function onStockMovement(params: {
     }
 
     // Comptes non configurés → on enregistre le mouvement physique sans écriture
-    // comptable plutôt que de provoquer une violation de clé étrangère.
-    if (!debitAccount || !creditAccount) return;
+    // comptable (plutôt qu'une violation de clé étrangère), mais on prévient pour
+    // que la DAF configure les comptes de stock du produit/catégorie.
+    if (!debitAccount || !creditAccount) {
+      logSkip(
+        'onStockMovement',
+        `compte de stock non configuré pour le mouvement « ${movementType} » du produit ${productName}`,
+        { sourceType: 'stock_movement', sourceId: params.movementId },
+      );
+      return;
+    }
 
     await tx.journalEntry.create({
       data: {
@@ -925,7 +959,10 @@ export async function onEscompteAccorde(params: {
       getOpenPeriod(tx, paymentDate),
       getCompanyAccounts(tx),
     ]);
-    if (!accounts) return;
+    if (!accounts) {
+      logSkip('onEscompteAccorde', 'paramètres comptables entreprise non configurés', { sourceType: 'payment', sourceId: params.paymentId });
+      return;
+    }
     // Repli sur le compte client par défaut configuré (jamais de numéro en dur).
     const resolvedClientAccount = clientAccount ?? accounts.defaultClientAccount;
     const entryNumber = await nextEntryNumber(tx, journal.code, paymentDate);

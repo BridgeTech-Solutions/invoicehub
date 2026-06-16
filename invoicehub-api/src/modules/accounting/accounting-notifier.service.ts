@@ -26,6 +26,12 @@ const OP_LABELS: Record<string, string> = {
  */
 @Injectable()
 export class AccountingNotifierService implements OnModuleInit, OnModuleDestroy {
+  // Anti-spam : on ne renvoie pas la même cause (fonction + motif) plus d'une
+  // fois par fenêtre, sinon un paramètre manquant inonderait la DAF (une notif
+  // par facture/paiement). On regroupe par problème, pas par pièce.
+  private readonly recent = new Map<string, number>();
+  private static readonly DEDUP_MS = 10 * 60 * 1000;
+
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue('notification') private readonly notifQueue: Queue<NotificationJobData>,
@@ -41,6 +47,17 @@ export class AccountingNotifierService implements OnModuleInit, OnModuleDestroy 
 
   private async notify(f: AccountingFailure): Promise<void> {
     try {
+      const now = Date.now();
+      const key = `${f.fn}|${f.error}`;
+      const last = this.recent.get(key);
+      if (last && now - last < AccountingNotifierService.DEDUP_MS) return;
+      this.recent.set(key, now);
+      if (this.recent.size > 200) {
+        for (const [k, t] of this.recent) {
+          if (now - t > AccountingNotifierService.DEDUP_MS) this.recent.delete(k);
+        }
+      }
+
       const op = OP_LABELS[f.fn] ?? f.fn;
       await broadcastNotification(
         this.prisma as never,
