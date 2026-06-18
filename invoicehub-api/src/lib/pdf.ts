@@ -99,6 +99,13 @@ export function resolveDocumentAssets(settings: {
 
 // ─── États financiers : enveloppe HTML A4 (header/footer BTS + contenu) ────────
 
+/** Échappe le HTML pour empêcher toute injection (et SSRF via un tag injecté). */
+export function escapeHtml(s: string): string {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string),
+  );
+}
+
 /**
  * Enveloppe générique pour un état financier (Bilan, Compte de résultat…).
  * Réutilise le header/footer BTS (mêmes classes `.page-header`/`.page-footer`
@@ -138,9 +145,9 @@ export function buildStatementHtml(params: {
   <div class="page-header">${headerImg ? `<img src="${headerImg}" alt="" />` : ''}</div>
   <div class="page-footer">${footerImg ? `<img src="${footerImg}" alt="" />` : ''}</div>
   <div class="page-content">
-    <div class="stmt-title">${title}</div>
-    ${subtitle ? `<div class="stmt-sub">${subtitle}</div>` : ''}
-    <div class="stmt-meta">${companyName ?? 'Bridge Technologies Solutions'} — ${periodLabel}</div>
+    <div class="stmt-title">${escapeHtml(title)}</div>
+    ${subtitle ? `<div class="stmt-sub">${escapeHtml(subtitle)}</div>` : ''}
+    <div class="stmt-meta">${escapeHtml(companyName ?? 'Bridge Technologies Solutions')} — ${escapeHtml(periodLabel)}</div>
     ${bodyHtml}
   </div>
 </body></html>`;
@@ -258,6 +265,16 @@ export async function generatePdf(html: string, footerSafeZonePx?: number, compa
   let page: Awaited<ReturnType<typeof browser.newPage>> | null = null;
   try {
     page = await browser.newPage();
+
+    // Anti-SSRF : tous les assets des documents sont en base64 inline. On bloque
+    // donc tout accès réseau (http/https/file…) pour qu'un contenu éventuellement
+    // injecté (`<img src>`, `<script src>`…) ne puisse atteindre aucune ressource.
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      const u = req.url();
+      if (u.startsWith('data:') || u.startsWith('about:') || u.startsWith('blob:')) req.continue();
+      else req.abort();
+    });
 
     // Viewport calé sur A4 à 96 DPI pour des mesures cohérentes
     await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 1 });

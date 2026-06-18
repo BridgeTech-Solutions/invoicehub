@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { computeBilan, computeCompteResultat } from '../../lib/syscohada-statements';
-import { generatePdf, buildStatementHtml, resolveDocumentAssets } from '../../lib/pdf';
+import { generatePdf, buildStatementHtml, resolveDocumentAssets, escapeHtml } from '../../lib/pdf';
 import {
   CreateChartAccountInput, UpdateChartAccountInput,
   CreateFiscalPeriodInput,
@@ -722,11 +722,11 @@ export class AccountingService {
 
     const actifRows = bilan.actif
       .filter((l) => Math.abs(l.brut) > 0.5 || Math.abs(l.net) > 0.5)
-      .map((l) => `<tr><td><span class="code">${l.code}</span>${l.label}</td><td class="num">${l.brut > 0 ? f(l.brut) : '—'}</td><td class="num">${l.amortissements > 0 ? f(l.amortissements) : '—'}</td><td class="num">${f(l.net)}</td></tr>`)
+      .map((l) => `<tr><td><span class="code">${escapeHtml(l.code)}</span>${escapeHtml(l.label)}</td><td class="num">${l.brut > 0 ? f(l.brut) : '—'}</td><td class="num">${l.amortissements > 0 ? f(l.amortissements) : '—'}</td><td class="num">${f(l.net)}</td></tr>`)
       .join('');
     const passifRows = bilan.passif
       .filter((l) => Math.abs(l.net) > 0.5)
-      .map((l) => `<tr${l.code === 'CH' ? ' class="solde-row"' : ''}><td><span class="code">${l.code}</span>${l.label}</td><td class="num">${f(l.net)}</td></tr>`)
+      .map((l) => `<tr${l.code === 'CH' ? ' class="solde-row"' : ''}><td><span class="code">${escapeHtml(l.code)}</span>${escapeHtml(l.label)}</td><td class="num">${f(l.net)}</td></tr>`)
       .join('');
 
     const warnings =
@@ -759,7 +759,7 @@ export class AccountingService {
       .filter((l) => l.kind === 'solde' || Math.abs(l.amount) > 0.5)
       .map((l) => {
         const val = l.kind === 'charge' && l.amount > 0 ? `(${f(Math.abs(l.amount))})` : f(Math.abs(l.amount));
-        return `<tr${l.kind === 'solde' ? ' class="solde-row"' : ''}><td><span class="code">${l.code}</span>${l.label}</td><td class="num">${val}</td></tr>`;
+        return `<tr${l.kind === 'solde' ? ' class="solde-row"' : ''}><td><span class="code">${escapeHtml(l.code)}</span>${escapeHtml(l.label)}</td><td class="num">${val}</td></tr>`;
       })
       .join('');
 
