@@ -718,7 +718,62 @@ const BORDER   = '#d4d4d4';
  * @param params - Données du document (voir `DocumentHtmlParams`)
  * @returns HTML complet prêt à être passé à `generatePdf()`
  */
+/**
+ * Assainit la rich text (colonne « description », produite par l'éditeur du
+ * frontend). On conserve la mise en forme (gras, listes…) mais on retire les
+ * constructions dangereuses : scripts, styles, iframes, gestionnaires
+ * d'événements (on*), URLs javascript:. Le blocage réseau de generatePdf
+ * neutralise en complément toute ressource distante injectée.
+ */
+function sanitizeRichText(html: string): string {
+  return String(html)
+    .replace(/<\s*(script|style|iframe|object|embed|link|meta)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
+    .replace(/<\s*(script|style|iframe|object|embed|link|meta)\b[^>]*\/?>/gi, '')
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/\s(href|src)\s*=\s*("\s*javascript:[^"]*"|'\s*javascript:[^']*'|javascript:[^\s>]+)/gi, ' $1="#"');
+}
+
 export function buildDocumentHtml(params: DocumentHtmlParams): string {
+  // ── Durcissement injection HTML : échappe tous les champs texte ; assainit la
+  // rich text. Les images base64 et les nombres ne sont pas touchés.
+  const e = (v?: string): string | undefined => (v == null ? v : escapeHtml(v));
+  params = {
+    ...params,
+    number:          escapeHtml(params.number),
+    issueDate:       escapeHtml(params.issueDate),
+    dueDate:         e(params.dueDate),
+    validUntil:      e(params.validUntil),
+    clientName:      escapeHtml(params.clientName),
+    clientStreet:    e(params.clientStreet),
+    clientBP:        e(params.clientBP),
+    clientPhone:     e(params.clientPhone),
+    clientEmail:     e(params.clientEmail),
+    clientTaxNumber: e(params.clientTaxNumber),
+    clientRccm:      e(params.clientRccm),
+    btsBankName:     e(params.btsBankName),
+    btsBankAccount:  e(params.btsBankAccount),
+    btsBankIban:     e(params.btsBankIban),
+    btsBankSwift:    e(params.btsBankSwift),
+    contactPerson:   e(params.contactPerson),
+    subject:         e(params.subject),
+    currency:        escapeHtml(params.currency),
+    globalDiscountLabel: e(params.globalDiscountLabel),
+    deliveryDelay:   e(params.deliveryDelay),
+    warranty:        e(params.warranty),
+    paymentConditions: e(params.paymentConditions),
+    notes:           e(params.notes),
+    escompteDeadline: e(params.escompteDeadline),
+    lines: params.lines.map((l) => ({
+      ...l,
+      reference:   e(l.reference),
+      designation: escapeHtml(l.designation),
+      description: l.description != null ? sanitizeRichText(l.description) : l.description,
+      unit:        escapeHtml(l.unit),
+      unitLabel:   e(l.unitLabel),
+      discountLabel: e(l.discountLabel),
+    })),
+  };
+
   const headerImg = params.headerImageB64 ?? getStaticHeader();
   const footerImg = params.footerImageB64 ?? getStaticFooter();
   const isBonCommande = params.type === 'Bon de Commande';
@@ -1156,6 +1211,23 @@ export interface ReceiptParams {
  * @returns HTML complet prêt à être passé à `generatePdf()`
  */
 export function buildReceiptHtml(params: ReceiptParams): string {
+  // Durcissement injection HTML : échappe tous les champs texte (les nombres et
+  // images base64 ne sont pas touchés).
+  const e = (v?: string): string | undefined => (v == null ? v : escapeHtml(v));
+  params = {
+    ...params,
+    receiptRef:    escapeHtml(params.receiptRef),
+    paymentDate:   escapeHtml(params.paymentDate),
+    method:        escapeHtml(params.method),
+    reference:     e(params.reference),
+    invoiceNumber: escapeHtml(params.invoiceNumber),
+    clientName:    escapeHtml(params.clientName),
+    clientPhone:   e(params.clientPhone),
+    clientEmail:   e(params.clientEmail),
+    currency:      escapeHtml(params.currency),
+    notes:         e(params.notes),
+  };
+
   const headerImg = params.headerImageB64 ?? getStaticHeader();
   const footerImg = params.footerImageB64 ?? getStaticFooter();
   const sealImg   = params.sealImageB64   ?? getStaticSeal();
