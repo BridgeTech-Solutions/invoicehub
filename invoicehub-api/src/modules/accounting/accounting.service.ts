@@ -685,9 +685,12 @@ export class AccountingService {
     return map;
   }
 
-  /** Bilan SYSCOHADA (Système Normal) calculé depuis la balance. */
+  /** Bilan SYSCOHADA (Système Normal) calculé depuis la balance, avec colonne N-1. */
   async getBilan(scope: { fiscalPeriodId?: string; fiscalYear?: number }) {
-    return computeBilan(await this.getBalancesMap(scope));
+    const b = await this.getBalancesMap(scope);
+    // Exercice précédent (colonne Net N-1) — uniquement si un exercice est ciblé.
+    const bN1 = scope.fiscalYear ? await this.getBalancesMap({ fiscalYear: scope.fiscalYear - 1 }) : undefined;
+    return computeBilan(b, bN1);
   }
 
   /** Compte de résultat SYSCOHADA (SIG) calculé depuis la balance. */
@@ -699,16 +702,30 @@ export class AccountingService {
 
   private async statementMeta(scope: { fiscalPeriodId?: string; fiscalYear?: number }) {
     const settings = await this.prisma.companySettings.findFirst({
-      select: { headerImagePath: true, footerImagePath: true, stampPath: true },
+      select: {
+        headerImagePath: true, footerImagePath: true, stampPath: true,
+        companyName: true, taxNumber: true, rccm: true, address: true, city: true, defaultCurrency: true,
+      },
     });
     const { headerImageB64, footerImageB64 } = resolveDocumentAssets(settings ?? null);
     let periodLabel = 'Toutes périodes';
-    if (scope.fiscalYear) periodLabel = `Exercice ${scope.fiscalYear}`;
-    else if (scope.fiscalPeriodId) {
-      const p = await this.prisma.fiscalPeriod.findUnique({ where: { id: scope.fiscalPeriodId }, select: { name: true } });
+    let closingDate: string | undefined;
+    if (scope.fiscalYear) {
+      periodLabel = `Exercice ${scope.fiscalYear}`;
+      closingDate = `31/12/${scope.fiscalYear}`;
+    } else if (scope.fiscalPeriodId) {
+      const p = await this.prisma.fiscalPeriod.findUnique({ where: { id: scope.fiscalPeriodId }, select: { name: true, endDate: true } });
       if (p?.name) periodLabel = p.name;
+      if (p?.endDate) closingDate = new Date(p.endDate).toLocaleDateString('fr-FR');
     }
-    return { headerImg: headerImageB64, footerImg: footerImageB64, periodLabel };
+    return {
+      headerImg: headerImageB64, footerImg: footerImageB64, periodLabel, closingDate,
+      companyName: settings?.companyName ?? 'Bridge Technologies Solutions',
+      niu:      settings?.taxNumber ?? undefined,
+      rccm:     settings?.rccm ?? undefined,
+      address:  [settings?.address, settings?.city].filter(Boolean).join(', ') || undefined,
+      currency: settings?.defaultCurrency ?? 'XAF',
+    };
   }
 
   private static fmtXaf(n: number): string {
@@ -717,42 +734,64 @@ export class AccountingService {
 
   async generateBilanPdf(scope: { fiscalPeriodId?: string; fiscalYear?: number }) {
     const bilan = await this.getBilan(scope);
-    const { headerImg, footerImg, periodLabel } = await this.statementMeta(scope);
+    const meta = await this.statementMeta(scope);
     const f = AccountingService.fmtXaf;
+    const n = (v: number) => (Math.abs(v) > 0.5 ? f(v) : '—');
 
-    const actifRows = bilan.actif
-      .filter((l) => Math.abs(l.brut) > 0.5 || Math.abs(l.net) > 0.5)
-      .map((l) => `<tr><td><span class="code">${escapeHtml(l.code)}</span>${escapeHtml(l.label)}</td><td class="num">${l.brut > 0 ? f(l.brut) : '—'}</td><td class="num">${l.amortissements > 0 ? f(l.amortissements) : '—'}</td><td class="num">${f(l.net)}</td></tr>`)
-      .join('');
-    const passifRows = bilan.passif
-      .filter((l) => Math.abs(l.net) > 0.5)
-      .map((l) => `<tr${l.code === 'CH' ? ' class="solde-row"' : ''}><td><span class="code">${escapeHtml(l.code)}</span>${escapeHtml(l.label)}</td><td class="num">${f(l.net)}</td></tr>`)
-      .join('');
+    // Actif : 5 colonnes (Poste / Brut / Amort. / Net N / Net N-1), groupé par masse.
+    const actifBody = bilan.actifMasses.map((m) => {
+      const visible = m.lines.filter((l) => Math.abs(l.brut) > 0.5 || Math.abs(l.net) > 0.5 || Math.abs(l.netN1) > 0.5);
+      if (visible.length === 0) return '';
+      const rows = visible.map((l) =>
+        `<tr><td><span class="code">${escapeHtml(l.code)}</span>${escapeHtml(l.label)}</td><td class="num">${n(l.brut)}</td><td class="num">${n(l.amortissements)}</td><td class="num">${f(l.net)}</td><td class="num">${n(l.netN1)}</td></tr>`,
+      ).join('');
+      if (m.lines.length === 1) return rows; // écart de conversion : ligne seule
+      return `<tr class="masse-row"><td colspan="5">${escapeHtml(m.label)}</td></tr>${rows}` +
+        `<tr class="total-row"><td><span class="code">${m.code}</span>Total ${escapeHtml(m.label.toLowerCase())}</td><td></td><td></td><td class="num">${f(m.totalNet)}</td><td class="num">${n(m.totalNetN1)}</td></tr>`;
+    }).join('');
 
+    // Passif : 3 colonnes (Poste / Net N / Net N-1), groupé par masse.
+    const passifBody = bilan.passifMasses.map((m) => {
+      const visible = m.lines.filter((l) => Math.abs(l.net) > 0.5 || Math.abs(l.netN1) > 0.5);
+      if (visible.length === 0) return '';
+      const rows = visible.map((l) =>
+        `<tr${l.code === 'CH' ? ' class="solde-row"' : ''}><td><span class="code">${escapeHtml(l.code)}</span>${escapeHtml(l.label)}</td><td class="num">${f(l.net)}</td><td class="num">${n(l.netN1)}</td></tr>`,
+      ).join('');
+      if (m.lines.length === 1) return rows;
+      return `<tr class="masse-row"><td colspan="3">${escapeHtml(m.label)}</td></tr>${rows}` +
+        `<tr class="total-row"><td><span class="code">${m.code}</span>Total ${escapeHtml(m.label.toLowerCase())}</td><td class="num">${f(m.totalNet)}</td><td class="num">${n(m.totalNetN1)}</td></tr>`;
+    }).join('');
+
+    const cur = escapeHtml(meta.currency);
     const warnings =
-      (bilan.equilibre ? '' : `<p style="color:#c0392b;font-size:10px;margin-top:8px;">⚠ Bilan déséquilibré : écart de ${f(Math.abs(bilan.ecart))} XAF.</p>`) +
-      (Math.abs(bilan.comptesNonVentiles) > 0.5 ? `<p style="color:#b45309;font-size:10px;">⚠ Comptes non ventilés : ${f(Math.abs(bilan.comptesNonVentiles))} XAF à reclasser.</p>` : '');
+      (bilan.equilibre ? '' : `<p style="color:#c0392b;font-size:10px;margin-top:8px;">⚠ Bilan déséquilibré : écart de ${f(Math.abs(bilan.ecart))} ${cur}.</p>`) +
+      (Math.abs(bilan.comptesNonVentiles) > 0.5 ? `<p style="color:#b45309;font-size:10px;">⚠ Comptes non ventilés : ${f(Math.abs(bilan.comptesNonVentiles))} ${cur} à reclasser.</p>` : '');
 
     const bodyHtml = `
       <h2 class="sect">Actif</h2>
       <table>
-        <thead><tr><th>Poste</th><th class="num">Brut</th><th class="num">Amort./Dépréc.</th><th class="num">Net</th></tr></thead>
-        <tbody>${actifRows}<tr class="total-row"><td colspan="3">TOTAL ACTIF</td><td class="num">${f(bilan.totalActif)}</td></tr></tbody>
+        <thead><tr><th>Poste</th><th class="num">Brut</th><th class="num">Amort./Dépréc.</th><th class="num">Net N</th><th class="num">Net N-1</th></tr></thead>
+        <tbody>${actifBody}<tr class="total-row total-general"><td><span class="code">BZ</span>TOTAL GÉNÉRAL ACTIF</td><td></td><td></td><td class="num">${f(bilan.totalActif)}</td><td class="num">${n(bilan.totalActifN1)}</td></tr></tbody>
       </table>
       <h2 class="sect">Passif</h2>
       <table>
-        <thead><tr><th>Poste</th><th class="num">Net</th></tr></thead>
-        <tbody>${passifRows}<tr class="total-row"><td>TOTAL PASSIF</td><td class="num">${f(bilan.totalPassif)}</td></tr></tbody>
+        <thead><tr><th>Poste</th><th class="num">Net N</th><th class="num">Net N-1</th></tr></thead>
+        <tbody>${passifBody}<tr class="total-row total-general"><td><span class="code">DZ</span>TOTAL GÉNÉRAL PASSIF</td><td class="num">${f(bilan.totalPassif)}</td><td class="num">${n(bilan.totalPassifN1)}</td></tr></tbody>
       </table>${warnings}`;
 
-    const html = buildStatementHtml({ title: 'Bilan', subtitle: 'SYSCOHADA — Système Normal', periodLabel, headerImg, footerImg, bodyHtml });
+    const html = buildStatementHtml({
+      title: 'Bilan', subtitle: 'SYSCOHADA — Système Normal',
+      periodLabel: meta.periodLabel, closingDate: meta.closingDate,
+      companyName: meta.companyName, niu: meta.niu, rccm: meta.rccm, address: meta.address, currency: meta.currency,
+      headerImg: meta.headerImg, footerImg: meta.footerImg, bodyHtml,
+    });
     const buffer = await generatePdf(html);
-    return { buffer, filename: `BTS_Bilan_${periodLabel.replace(/[^\w]+/g, '-')}.pdf` };
+    return { buffer, filename: `BTS_Bilan_${meta.periodLabel.replace(/[^\w]+/g, '-')}.pdf` };
   }
 
   async generateCompteResultatPdf(scope: { fiscalPeriodId?: string; fiscalYear?: number }) {
     const cr = await this.getCompteResultat(scope);
-    const { headerImg, footerImg, periodLabel } = await this.statementMeta(scope);
+    const meta = await this.statementMeta(scope);
     const f = AccountingService.fmtXaf;
 
     const rows = cr.lines
@@ -766,9 +805,14 @@ export class AccountingService {
     const bodyHtml = `<table><tbody>${rows}</tbody></table>
       <p style="font-size:9px;color:#888;margin-top:6px;">Charges entre parenthèses. Soldes intermédiaires de gestion en gras.</p>`;
 
-    const html = buildStatementHtml({ title: 'Compte de résultat', subtitle: 'SYSCOHADA — Soldes intermédiaires de gestion', periodLabel, headerImg, footerImg, bodyHtml });
+    const html = buildStatementHtml({
+      title: 'Compte de résultat', subtitle: 'SYSCOHADA — Soldes intermédiaires de gestion',
+      periodLabel: meta.periodLabel, closingDate: meta.closingDate,
+      companyName: meta.companyName, niu: meta.niu, rccm: meta.rccm, address: meta.address, currency: meta.currency,
+      headerImg: meta.headerImg, footerImg: meta.footerImg, bodyHtml,
+    });
     const buffer = await generatePdf(html);
-    return { buffer, filename: `BTS_Compte-resultat_${periodLabel.replace(/[^\w]+/g, '-')}.pdf` };
+    return { buffer, filename: `BTS_Compte-resultat_${meta.periodLabel.replace(/[^\w]+/g, '-')}.pdf` };
   }
 
   // ── Déclarations fiscales ───────────────────────────────────────────────────

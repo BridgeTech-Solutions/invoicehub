@@ -93,21 +93,47 @@ const PASSIF_DETTES_FIN: PassifMonoDef[] = [
   { code: 'DB', label: 'Provisions pour risques & charges',      accounts: ['19'] },
 ];
 
+// ── Masses du bilan (regroupements normalisés + codes de sous-total) ────────────
+
+interface MasseDef { key: string; code: string; label: string; }
+
+const ACTIF_MASSES: MasseDef[] = [
+  { key: 'immobilise', code: 'AZ', label: 'ACTIF IMMOBILISÉ' },
+  { key: 'circulant',  code: 'BK', label: 'ACTIF CIRCULANT' },
+  { key: 'tresorerie', code: 'BT', label: 'TRÉSORERIE-ACTIF' },
+  { key: 'ecart',      code: 'BU', label: 'ÉCART DE CONVERSION-ACTIF' },
+];
+const PASSIF_MASSES: MasseDef[] = [
+  { key: 'cp',    code: 'CP', label: 'CAPITAUX PROPRES' },
+  { key: 'dd',    code: 'DD', label: 'DETTES FINANCIÈRES' },
+  { key: 'dp',    code: 'DP', label: 'PASSIF CIRCULANT' },
+  { key: 'dt',    code: 'DT', label: 'TRÉSORERIE-PASSIF' },
+  { key: 'ecart', code: 'BX', label: 'ÉCART DE CONVERSION-PASSIF' },
+];
+
 // ── Types de sortie ────────────────────────────────────────────────────────────
 
-export interface BilanActifLine  { code: string; label: string; brut: number; amortissements: number; net: number; }
-export interface BilanPassifLine { code: string; label: string; net: number; }
+export interface BilanActifLine  { code: string; label: string; brut: number; amortissements: number; net: number; netN1: number; }
+export interface BilanPassifLine { code: string; label: string; net: number; netN1: number; }
+
+export interface BilanActifMasse {
+  code: string; label: string; lines: BilanActifLine[];
+  totalBrut: number; totalAmort: number; totalNet: number; totalNetN1: number;
+}
+export interface BilanPassifMasse {
+  code: string; label: string; lines: BilanPassifLine[];
+  totalNet: number; totalNetN1: number;
+}
 
 export interface Bilan {
-  actif: BilanActifLine[];
-  passif: BilanPassifLine[];
-  totalActif: number;
-  totalPassif: number;
+  actifMasses:  BilanActifMasse[];
+  passifMasses: BilanPassifMasse[];
+  totalActif: number;   totalActifN1: number;
+  totalPassif: number;  totalPassifN1: number;
   resultatNet: number;
   equilibre: boolean;
   ecart: number;
-  /** Montant des comptes de classes 1-5 non rattachés à un poste (doit être 0).
-   *  Diagnostic de complétude : si ≠ 0, un compte orphelin n'est pas présenté. */
+  /** Comptes classes 1-5 non rattachés à un poste (doit être 0) — diagnostic. */
   comptesNonVentiles: number;
 }
 
@@ -118,81 +144,119 @@ export function computeResultatNet(b: AccountBalances): number {
   return produits - charges;
 }
 
-export function computeBilan(b: AccountBalances): Bilan {
-  const actif: BilanActifLine[]  = [];
-  const passif: BilanPassifLine[] = [];
-
-  // 0) Capital souscrit non appelé (109, débiteur) — en tête d'actif (poste AA)
-  const capitalNonAppele = debitAmount(b, ['109']);
-  actif.push({ code: 'AA', label: 'Capital souscrit non appelé', brut: capitalNonAppele, amortissements: 0, net: capitalNonAppele });
-
-  // 1) ACTIF immobilisé + stocks (monofonctionnels brut/amort)
-  for (const p of [...ACTIF_IMMOBILISE, ACTIF_STOCKS]) {
+// Lignes d'actif (à plat, étiquetées par masse) pour un jeu de soldes donné.
+interface ActifRaw { masse: string; code: string; label: string; brut: number; amortissements: number; net: number; }
+function actifLinesFor(b: AccountBalances): ActifRaw[] {
+  const out: ActifRaw[] = [];
+  const cna = debitAmount(b, ['109']);
+  out.push({ masse: 'immobilise', code: 'AA', label: 'Capital souscrit non appelé', brut: cna, amortissements: 0, net: cna });
+  for (const p of ACTIF_IMMOBILISE) {
     const brut = debitAmount(b, p.brut);
     const amort = p.amort ? creditAmount(b, p.amort) : 0;
-    actif.push({ code: p.code, label: p.label, brut, amortissements: amort, net: brut - amort });
+    out.push({ masse: 'immobilise', code: p.code, label: p.label, brut, amortissements: amort, net: brut - amort });
   }
-
-  // 2) TIERS bifonctionnels — classés au signe (fix erreurs comptes mixtes)
-  const clients = splitBySign(b, ['41']);                       // 41
-  const fourn   = splitBySign(b, ['40']);                       // 40 (409 avances = débit)
-  const fisc    = splitBySign(b, ['42', '43', '44'], ['478', '479']); // personnel/social/État
-  const autres  = splitBySign(b, ['45', '46', '47'], ['476', '477', '478', '479']); // débiteurs/créditeurs divers
-  const hao     = splitBySign(b, ['48']);                       // créances/dettes HAO (481, 485, 488…)
-  const ecartActif  = debitAmount(b, ['478']);                  // écarts de conversion-Actif
-  const ecartPassif = creditAmount(b, ['479']);                 // écarts de conversion-Passif
-  const chargesCAvance  = debitAmount(b, ['476']);              // charges constatées d'avance (Actif)
-  const produitsCAvance = creditAmount(b, ['477']);            // produits constatés d'avance (Passif)
-  const deprecClients = creditAmount(b, ['491']);
-  const deprecAutres  = creditAmount(b, ['492', '493', '494', '495', '496', '497']);
-
-  actif.push({ code: 'BH', label: 'Fournisseurs, avances versées', brut: fourn.debit, amortissements: 0, net: fourn.debit });
-  actif.push({ code: 'BI', label: 'Clients', brut: clients.debit, amortissements: deprecClients, net: clients.debit - deprecClients });
-  const autresCreancesBrut = fisc.debit + autres.debit;
-  actif.push({ code: 'BJ', label: 'Autres créances', brut: autresCreancesBrut, amortissements: deprecAutres, net: autresCreancesBrut - deprecAutres });
-  actif.push({ code: 'BG', label: 'Créances HAO', brut: hao.debit, amortissements: 0, net: hao.debit });
-  actif.push({ code: 'BR', label: "Charges constatées d'avance", brut: chargesCAvance, amortissements: 0, net: chargesCAvance });
-
-  // 3) TRÉSORERIE-ACTIF bifonctionnelle (banques 52 etc. au signe)
+  // Stocks → actif circulant
+  {
+    const brut = debitAmount(b, ACTIF_STOCKS.brut);
+    const amort = ACTIF_STOCKS.amort ? creditAmount(b, ACTIF_STOCKS.amort) : 0;
+    out.push({ masse: 'circulant', code: ACTIF_STOCKS.code, label: ACTIF_STOCKS.label, brut, amortissements: amort, net: brut - amort });
+  }
+  const clients = splitBySign(b, ['41']);
+  const fourn   = splitBySign(b, ['40']);
+  const fisc    = splitBySign(b, ['42', '43', '44'], ['478', '479']);
+  const autres  = splitBySign(b, ['45', '46', '47'], ['476', '477', '478', '479']);
+  const hao     = splitBySign(b, ['48']);
+  const deprecClients  = creditAmount(b, ['491']);
+  const deprecAutres   = creditAmount(b, ['492', '493', '494', '495', '496', '497']);
+  const chargesCAvance = debitAmount(b, ['476']);
+  // Ordre liasse : actif circulant HAO avant exploitation
+  out.push({ masse: 'circulant', code: 'BG', label: 'Créances HAO', brut: hao.debit, amortissements: 0, net: hao.debit });
+  out.push({ masse: 'circulant', code: 'BH', label: 'Fournisseurs, avances versées', brut: fourn.debit, amortissements: 0, net: fourn.debit });
+  out.push({ masse: 'circulant', code: 'BI', label: 'Clients', brut: clients.debit, amortissements: deprecClients, net: clients.debit - deprecClients });
+  const acb = fisc.debit + autres.debit;
+  out.push({ masse: 'circulant', code: 'BJ', label: 'Autres créances', brut: acb, amortissements: deprecAutres, net: acb - deprecAutres });
+  out.push({ masse: 'circulant', code: 'BR', label: "Charges constatées d'avance", brut: chargesCAvance, amortissements: 0, net: chargesCAvance });
   const treso = splitBySign(b, ['50', '51', '52', '53', '54', '55', '57', '58'], ['590', '591', '592', '593', '594']);
   const deprecTreso = creditAmount(b, ['59']);
-  actif.push({ code: 'BS', label: 'Trésorerie-Actif (banques, caisse)', brut: treso.debit, amortissements: deprecTreso, net: treso.debit - deprecTreso });
+  out.push({ masse: 'tresorerie', code: 'BS', label: 'Trésorerie-Actif (banques, caisse)', brut: treso.debit, amortissements: deprecTreso, net: treso.debit - deprecTreso });
+  const ecA = debitAmount(b, ['478']);
+  out.push({ masse: 'ecart', code: 'BU', label: 'Écart de conversion-Actif', brut: ecA, amortissements: 0, net: ecA });
+  return out;
+}
 
-  // 4) ÉCART DE CONVERSION-ACTIF (isolé, exigé par la DSF)
-  actif.push({ code: 'BU', label: 'Écart de conversion-Actif', brut: ecartActif, amortissements: 0, net: ecartActif });
-
-  // ── PASSIF ──────────────────────────────────────────────────────────────────
-  // Capitaux propres
-  for (const p of PASSIF_CAPITAUX) passif.push({ code: p.code, label: p.label, net: creditAmount(b, p.accounts) });
-  const resultatNet = computeResultatNet(b);
-  passif.push({ code: 'CH', label: "Résultat net de l'exercice", net: resultatNet });
-  // Dettes financières
-  for (const p of PASSIF_DETTES_FIN) passif.push({ code: p.code, label: p.label, net: creditAmount(b, p.accounts) });
-  // Passif circulant (tiers créditeurs)
-  passif.push({ code: 'DI', label: "Fournisseurs d'exploitation", net: fourn.credit });
-  passif.push({ code: 'DH', label: 'Clients, avances reçues', net: clients.credit });
-  passif.push({ code: 'DJ', label: 'Dettes fiscales & sociales', net: fisc.credit });
-  passif.push({ code: 'DM', label: 'Autres dettes', net: autres.credit });
-  passif.push({ code: 'DG', label: 'Dettes circulantes HAO', net: hao.credit });
-  passif.push({ code: 'DV', label: "Produits constatés d'avance", net: produitsCAvance });
-  passif.push({ code: 'BX', label: 'Écart de conversion-Passif', net: ecartPassif });
-  // Trésorerie-Passif : découverts (52 créditeur) + crédits de trésorerie (56)
+interface PassifRaw { masse: string; code: string; label: string; net: number; }
+function passifLinesFor(b: AccountBalances): PassifRaw[] {
+  const out: PassifRaw[] = [];
+  for (const p of PASSIF_CAPITAUX) out.push({ masse: 'cp', code: p.code, label: p.label, net: creditAmount(b, p.accounts) });
+  out.push({ masse: 'cp', code: 'CH', label: "Résultat net de l'exercice", net: computeResultatNet(b) });
+  for (const p of PASSIF_DETTES_FIN) out.push({ masse: 'dd', code: p.code, label: p.label, net: creditAmount(b, p.accounts) });
+  const clients = splitBySign(b, ['41']);
+  const fourn   = splitBySign(b, ['40']);
+  const fisc    = splitBySign(b, ['42', '43', '44'], ['478', '479']);
+  const autres  = splitBySign(b, ['45', '46', '47'], ['476', '477', '478', '479']);
+  const hao     = splitBySign(b, ['48']);
+  out.push({ masse: 'dp', code: 'DG', label: 'Dettes circulantes HAO', net: hao.credit });
+  out.push({ masse: 'dp', code: 'DI', label: "Fournisseurs d'exploitation", net: fourn.credit });
+  out.push({ masse: 'dp', code: 'DH', label: 'Clients, avances reçues', net: clients.credit });
+  out.push({ masse: 'dp', code: 'DJ', label: 'Dettes fiscales & sociales', net: fisc.credit });
+  out.push({ masse: 'dp', code: 'DM', label: 'Autres dettes', net: autres.credit });
+  out.push({ masse: 'dp', code: 'DV', label: "Produits constatés d'avance", net: creditAmount(b, ['477']) });
+  const treso = splitBySign(b, ['50', '51', '52', '53', '54', '55', '57', '58'], ['590', '591', '592', '593', '594']);
   const creditsTreso = creditAmount(b, ['561', '564', '565', '566']);
-  passif.push({ code: 'DR', label: 'Banques, découverts & crédits de trésorerie', net: treso.credit + creditsTreso });
+  out.push({ masse: 'dt', code: 'DR', label: 'Banques, découverts & crédits de trésorerie', net: treso.credit + creditsTreso });
+  out.push({ masse: 'ecart', code: 'BX', label: 'Écart de conversion-Passif', net: creditAmount(b, ['479']) });
+  return out;
+}
 
-  const totalActif  = actif.reduce((s, l) => s + l.net, 0);
-  const totalPassif = passif.reduce((s, l) => s + l.net, 0);
+/**
+ * Bilan SYSCOHADA SN regroupé par grandes masses (sous-totaux codés AZ/BK/BT/BZ,
+ * CP/DD/DP/DT/DZ) et colonne N-1 si `bN1` (soldes de l'exercice précédent) fourni.
+ */
+export function computeBilan(b: AccountBalances, bN1?: AccountBalances): Bilan {
+  const actifAll  = actifLinesFor(b);
+  const passifAll = passifLinesFor(b);
+  const aN1 = new Map((bN1 ? actifLinesFor(bN1)  : []).map((l) => [l.code, l.net]));
+  const pN1 = new Map((bN1 ? passifLinesFor(bN1) : []).map((l) => [l.code, l.net]));
+
+  const actifMasses: BilanActifMasse[] = ACTIF_MASSES.map((m) => {
+    const lines: BilanActifLine[] = actifAll.filter((l) => l.masse === m.key).map((l) => ({
+      code: l.code, label: l.label, brut: l.brut, amortissements: l.amortissements, net: l.net, netN1: aN1.get(l.code) ?? 0,
+    }));
+    return {
+      code: m.code, label: m.label, lines,
+      totalBrut:  lines.reduce((s, l) => s + l.brut, 0),
+      totalAmort: lines.reduce((s, l) => s + l.amortissements, 0),
+      totalNet:   lines.reduce((s, l) => s + l.net, 0),
+      totalNetN1: lines.reduce((s, l) => s + l.netN1, 0),
+    };
+  }).filter((m) => m.lines.length > 0);
+
+  const passifMasses: BilanPassifMasse[] = PASSIF_MASSES.map((m) => {
+    const lines: BilanPassifLine[] = passifAll.filter((l) => l.masse === m.key).map((l) => ({
+      code: l.code, label: l.label, net: l.net, netN1: pN1.get(l.code) ?? 0,
+    }));
+    return {
+      code: m.code, label: m.label, lines,
+      totalNet:   lines.reduce((s, l) => s + l.net, 0),
+      totalNetN1: lines.reduce((s, l) => s + l.netN1, 0),
+    };
+  }).filter((m) => m.lines.length > 0);
+
+  const totalActif    = actifMasses.reduce((s, m) => s + m.totalNet, 0);
+  const totalActifN1  = actifMasses.reduce((s, m) => s + m.totalNetN1, 0);
+  const totalPassif   = passifMasses.reduce((s, m) => s + m.totalNet, 0);
+  const totalPassifN1 = passifMasses.reduce((s, m) => s + m.totalNetN1, 0);
+  const resultatNet   = computeResultatNet(b);
   const ecart = totalActif - totalPassif;
 
-  // Contrôle de complétude : le net réel de toute la balance classe 1-5 doit être
-  // égal au net effectivement ventilé dans les postes. Tout écart = compte orphelin
-  // (108, 13, 18 débiteur, dépréciation non rattachée…) non présenté → à reclasser.
+  // Contrôle de complétude : net réel des classes 1-5 = net ventilé dans les postes.
   const ventileNet = totalActif - (totalPassif - resultatNet);
   const comptesNonVentiles = netSum(b, ['1', '2', '3', '4', '5']) - ventileNet;
 
   return {
-    actif, passif, totalActif, totalPassif, resultatNet,
-    equilibre: Math.abs(ecart) < 1, ecart, comptesNonVentiles,
+    actifMasses, passifMasses,
+    totalActif, totalActifN1, totalPassif, totalPassifN1,
+    resultatNet, equilibre: Math.abs(ecart) < 1, ecart, comptesNonVentiles,
   };
 }
 

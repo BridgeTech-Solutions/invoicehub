@@ -251,6 +251,8 @@ export default function ReportsPage() {
 
   const { data: fiscalYears = [] } = useFiscalYears()
   const allPeriods = fiscalYears.flatMap(y => y.periods ?? [])
+  // Exercice déduit de la période sélectionnée (pour le bilan / compte de résultat)
+  const selectedYear = periodId ? allPeriods.find(p => p.id === periodId)?.year : undefined
 
   function handleAccountSelect(account: AccountListItem) {
     setLedgerAccount(account)
@@ -306,8 +308,9 @@ export default function ReportsPage() {
       <div className="card" style={{ padding: '20px 24px' }}>
         {tab === 'balance'         && <BalanceTab periodId={periodId} onAccountSelect={handleAccountSelect} />}
         {tab === 'ledger'          && <LedgerTab periodId={periodId} initialAccountId={ledgerAccount?.id} />}
-        {tab === 'bilan'           && <BilanReport periodId={periodId} />}
-        {tab === 'compte-resultat' && <CompteResultatReport periodId={periodId} />}
+        {/* Bilan & compte de résultat : périmètre = exercice (année), nécessaire pour le N-1 */}
+        {tab === 'bilan'           && <BilanReport year={selectedYear} />}
+        {tab === 'compte-resultat' && <CompteResultatReport year={selectedYear} />}
       </div>
     </div>
   )

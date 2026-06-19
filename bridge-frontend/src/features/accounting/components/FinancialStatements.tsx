@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { CheckCircle2, AlertTriangle, Scale, FileSpreadsheet, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { useBilan, useCompteResultat } from '../hooks'
@@ -63,6 +63,13 @@ const numCell: React.CSSProperties = {
 //  BILAN
 // ════════════════════════════════════════════════════════════════════════════
 
+const masseHeadCell: React.CSSProperties = {
+  padding: '6px 10px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#0f2d4a',
+  textTransform: 'uppercase', letterSpacing: '0.03em', fontFamily: 'var(--font-display)',
+}
+const subtotalRow: React.CSSProperties = { background: 'var(--surface-2)', borderTop: '1px solid var(--border-strong)' }
+const grandTotalRow: React.CSSProperties = { background: '#0c234012', borderTop: '2px solid var(--border-strong)' }
+
 export function BilanReport({ periodId, year }: { periodId?: string; year?: number }) {
   const { format } = useCurrency()
   const { data, isLoading } = useBilan({ periodId, year })
@@ -70,11 +77,13 @@ export function BilanReport({ periodId, year }: { periodId?: string; year?: numb
   if (isLoading) return <TableSkeleton rows={12} />
   if (!data) return null
 
-  const actif  = data.actif.filter(l => Math.abs(l.brut) > 0.5 || Math.abs(l.net) > 0.5)
-  const passif = data.passif.filter(l => Math.abs(l.net) > 0.5)
-  const empty  = actif.length === 0 && passif.length === 0
+  const n = (v: number) => (Math.abs(v) > 0.5 ? format(v) : '—')
+  const visA = (lines: BilanActifLine[]) => lines.filter(l => Math.abs(l.brut) > 0.5 || Math.abs(l.net) > 0.5 || Math.abs(l.netN1) > 0.5)
+  const visP = (lines: BilanPassifLine[]) => lines.filter(l => Math.abs(l.net) > 0.5 || Math.abs(l.netN1) > 0.5)
+  const hasData =
+    data.actifMasses.some(m => visA(m.lines).length > 0) || data.passifMasses.some(m => visP(m.lines).length > 0)
 
-  if (empty) {
+  if (!hasData) {
     return (
       <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-3)' }}>
         <Scale size={36} style={{ margin: '0 auto 10px' }} />
@@ -100,7 +109,7 @@ export function BilanReport({ periodId, year }: { periodId?: string; year?: numb
       </div>
 
       {/* Actif | Passif */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))', gap: 20 }}>
         {/* ACTIF */}
         <div>
           <h3 style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 8px', paddingBottom: 6, borderBottom: '2px solid var(--primary)' }}>Actif</h3>
@@ -110,24 +119,48 @@ export function BilanReport({ periodId, year }: { periodId?: string; year?: numb
                 <tr style={{ background: 'var(--surface-2)' }}>
                   <th style={{ ...thStyle, textAlign: 'left' }}>Poste</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Brut</th>
-                  <th style={{ ...thStyle, textAlign: 'right' }}>Amort./Dépréc.</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>Amort./Dépr.</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Net</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>Net N-1</th>
                 </tr>
               </thead>
               <tbody>
-                {actif.map((l: BilanActifLine, i) => (
-                  <tr key={l.code} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 1 ? 'var(--surface-2)' : 'transparent' }}>
-                    <td style={{ padding: '6px 10px', fontSize: 12.5, color: 'var(--text-1)' }}>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--text-3)', marginRight: 6 }}>{l.code}</span>{l.label}
-                    </td>
-                    <td style={{ ...numCell, color: l.brut > 0 ? 'var(--text-2)' : 'var(--text-3)' }}>{l.brut > 0 ? format(l.brut) : '—'}</td>
-                    <td style={{ ...numCell, color: l.amortissements > 0 ? '#b45309' : 'var(--text-3)' }}>{l.amortissements > 0 ? format(l.amortissements) : '—'}</td>
-                    <td style={{ ...numCell, fontWeight: 700, color: 'var(--text-1)' }}>{format(l.net)}</td>
-                  </tr>
-                ))}
-                <tr style={{ background: '#0c234012', borderTop: '2px solid var(--border-strong)' }}>
-                  <td colSpan={3} style={{ padding: '9px 10px', fontSize: 12.5, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'var(--font-display)' }}>TOTAL ACTIF</td>
-                  <td style={{ ...numCell, fontSize: 13.5, fontWeight: 800, color: 'var(--primary)' }}>{format(data.totalActif)}</td>
+                {data.actifMasses.map(m => {
+                  const vis = visA(m.lines)
+                  if (vis.length === 0) return null
+                  const single = m.lines.length === 1
+                  return (
+                    <Fragment key={m.code}>
+                      {!single && <tr><td colSpan={5} style={masseHeadCell}>{m.label}</td></tr>}
+                      {vis.map((l, i) => (
+                        <tr key={l.code} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 1 ? 'var(--surface-2)' : 'transparent' }}>
+                          <td style={{ padding: '6px 10px', fontSize: 12.5, color: 'var(--text-1)' }}>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--text-3)', marginRight: 6 }}>{l.code}</span>{l.label}
+                          </td>
+                          <td style={{ ...numCell, color: l.brut > 0 ? 'var(--text-2)' : 'var(--text-3)' }}>{n(l.brut)}</td>
+                          <td style={{ ...numCell, color: l.amortissements > 0 ? '#b45309' : 'var(--text-3)' }}>{n(l.amortissements)}</td>
+                          <td style={{ ...numCell, fontWeight: 700, color: 'var(--text-1)' }}>{format(l.net)}</td>
+                          <td style={{ ...numCell, color: 'var(--text-3)' }}>{n(l.netN1)}</td>
+                        </tr>
+                      ))}
+                      {!single && (
+                        <tr style={subtotalRow}>
+                          <td style={{ padding: '7px 10px', fontSize: 12, fontWeight: 700, color: 'var(--text-1)' }}>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-3)', marginRight: 6 }}>{m.code}</span>Total {m.label.toLowerCase()}
+                          </td>
+                          <td /><td />
+                          <td style={{ ...numCell, fontWeight: 800 }}>{format(m.totalNet)}</td>
+                          <td style={{ ...numCell, color: 'var(--text-3)' }}>{n(m.totalNetN1)}</td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
+                <tr style={grandTotalRow}>
+                  <td style={{ padding: '9px 10px', fontSize: 12.5, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'var(--font-display)' }}>TOTAL GÉNÉRAL ACTIF</td>
+                  <td /><td />
+                  <td style={{ ...numCell, fontSize: 13, fontWeight: 800, color: 'var(--primary)' }}>{format(data.totalActif)}</td>
+                  <td style={{ ...numCell, color: 'var(--text-3)' }}>{n(data.totalActifN1)}</td>
                 </tr>
               </tbody>
             </table>
@@ -143,23 +176,45 @@ export function BilanReport({ periodId, year }: { periodId?: string; year?: numb
                 <tr style={{ background: 'var(--surface-2)' }}>
                   <th style={{ ...thStyle, textAlign: 'left' }}>Poste</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Net</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>Net N-1</th>
                 </tr>
               </thead>
               <tbody>
-                {passif.map((l: BilanPassifLine, i) => {
-                  const isResult = l.code === 'CH'
+                {data.passifMasses.map(m => {
+                  const vis = visP(m.lines)
+                  if (vis.length === 0) return null
+                  const single = m.lines.length === 1
                   return (
-                    <tr key={l.code} style={{ borderBottom: '1px solid var(--border)', background: isResult ? 'rgba(22,163,74,0.06)' : i % 2 === 1 ? 'var(--surface-2)' : 'transparent' }}>
-                      <td style={{ padding: '6px 10px', fontSize: 12.5, color: 'var(--text-1)', fontWeight: isResult ? 700 : 400 }}>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--text-3)', marginRight: 6 }}>{l.code}</span>{l.label}
-                      </td>
-                      <td style={{ ...numCell, fontWeight: 700, color: isResult ? (l.net >= 0 ? '#16a34a' : '#dc2626') : 'var(--text-1)' }}>{format(l.net)}</td>
-                    </tr>
+                    <Fragment key={m.code}>
+                      {!single && <tr><td colSpan={3} style={masseHeadCell}>{m.label}</td></tr>}
+                      {vis.map((l, i) => {
+                        const isResult = l.code === 'CH'
+                        return (
+                          <tr key={l.code} style={{ borderBottom: '1px solid var(--border)', background: isResult ? 'rgba(22,163,74,0.06)' : i % 2 === 1 ? 'var(--surface-2)' : 'transparent' }}>
+                            <td style={{ padding: '6px 10px', fontSize: 12.5, color: 'var(--text-1)', fontWeight: isResult ? 700 : 400 }}>
+                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--text-3)', marginRight: 6 }}>{l.code}</span>{l.label}
+                            </td>
+                            <td style={{ ...numCell, fontWeight: 700, color: isResult ? (l.net >= 0 ? '#16a34a' : '#dc2626') : 'var(--text-1)' }}>{format(l.net)}</td>
+                            <td style={{ ...numCell, color: 'var(--text-3)' }}>{n(l.netN1)}</td>
+                          </tr>
+                        )
+                      })}
+                      {!single && (
+                        <tr style={subtotalRow}>
+                          <td style={{ padding: '7px 10px', fontSize: 12, fontWeight: 700, color: 'var(--text-1)' }}>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-3)', marginRight: 6 }}>{m.code}</span>Total {m.label.toLowerCase()}
+                          </td>
+                          <td style={{ ...numCell, fontWeight: 800 }}>{format(m.totalNet)}</td>
+                          <td style={{ ...numCell, color: 'var(--text-3)' }}>{n(m.totalNetN1)}</td>
+                        </tr>
+                      )}
+                    </Fragment>
                   )
                 })}
-                <tr style={{ background: '#0c234012', borderTop: '2px solid var(--border-strong)' }}>
-                  <td style={{ padding: '9px 10px', fontSize: 12.5, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'var(--font-display)' }}>TOTAL PASSIF</td>
-                  <td style={{ ...numCell, fontSize: 13.5, fontWeight: 800, color: '#7c3aed' }}>{format(data.totalPassif)}</td>
+                <tr style={grandTotalRow}>
+                  <td style={{ padding: '9px 10px', fontSize: 12.5, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'var(--font-display)' }}>TOTAL GÉNÉRAL PASSIF</td>
+                  <td style={{ ...numCell, fontSize: 13, fontWeight: 800, color: '#7c3aed' }}>{format(data.totalPassif)}</td>
+                  <td style={{ ...numCell, color: 'var(--text-3)' }}>{n(data.totalPassifN1)}</td>
                 </tr>
               </tbody>
             </table>

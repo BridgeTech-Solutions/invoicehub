@@ -116,11 +116,22 @@ export function buildStatementHtml(params: {
   subtitle?:    string;
   periodLabel:  string;
   companyName?: string;
+  niu?:         string;
+  rccm?:        string;
+  address?:     string;
+  closingDate?: string;
+  currency?:    string;
   headerImg?:   string;
   footerImg?:   string;
   bodyHtml:     string;
 }): string {
-  const { title, subtitle, periodLabel, companyName, headerImg, footerImg, bodyHtml } = params;
+  const { title, subtitle, periodLabel, companyName, niu, rccm, address, closingDate, currency, headerImg, footerImg, bodyHtml } = params;
+  const ident =
+    `<span class="ident-name">${escapeHtml(companyName ?? 'Bridge Technologies Solutions')}</span>` +
+    (niu ? ` &nbsp;·&nbsp; NIU : ${escapeHtml(niu)}` : '') +
+    (rccm ? ` &nbsp;·&nbsp; RCCM : ${escapeHtml(rccm)}` : '') +
+    (address ? `<br>${escapeHtml(address)}` : '');
+  const periodLine = closingDate ? `Exercice clos le ${escapeHtml(closingDate)}` : escapeHtml(periodLabel);
   return `<!DOCTYPE html>
 <html lang="fr"><head><meta charset="UTF-8"><style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -131,14 +142,18 @@ export function buildStatementHtml(params: {
   thead { display: table-header-group; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
   .stmt-title { text-align: center; margin: 14px 0 2px; font-size: 16px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #0f2d4a; }
-  .stmt-sub   { text-align: center; font-size: 11px; color: #555; margin-bottom: 4px; }
-  .stmt-meta  { text-align: center; font-size: 10.5px; color: #777; margin-bottom: 16px; }
+  .stmt-sub   { text-align: center; font-size: 11px; color: #555; margin-bottom: 6px; }
+  .stmt-identity { text-align: center; font-size: 10px; color: #333; margin-bottom: 3px; line-height: 1.5; }
+  .stmt-identity .ident-name { font-weight: bold; color: #0f2d4a; font-size: 12px; }
+  .stmt-meta  { text-align: center; font-size: 10px; color: #777; margin-bottom: 16px; }
   h2.sect { font-size: 12px; color: #0f2d4a; margin: 14px 0 6px; padding-bottom: 4px; border-bottom: 2px solid #2D7DD2; text-transform: uppercase; }
   th { background: #0f2d4a; color: #fff; padding: 6px 8px; font-size: 9px; text-transform: uppercase; letter-spacing: .04em; text-align: left; }
   td { border-bottom: 1px solid #e6e6e6; padding: 4px 8px; }
   .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .code { color: #999; font-size: 8.5px; margin-right: 6px; }
-  .total-row td { background: #eef2f6; font-weight: bold; border-top: 2px solid #bcc7d2; }
+  .masse-row td { background: #0f2d4a; color: #fff; font-weight: bold; font-size: 9.5px; text-transform: uppercase; letter-spacing: .03em; padding: 5px 8px; }
+  .total-row td { background: #eef2f6; font-weight: bold; border-top: 1px solid #bcc7d2; }
+  .total-general td { background: #dde6ef; border-top: 2px solid #0f2d4a; font-size: 11px; }
   .solde-row td { background: #f4f6f8; font-weight: bold; }
 </style></head>
 <body>
@@ -147,7 +162,8 @@ export function buildStatementHtml(params: {
   <div class="page-content">
     <div class="stmt-title">${escapeHtml(title)}</div>
     ${subtitle ? `<div class="stmt-sub">${escapeHtml(subtitle)}</div>` : ''}
-    <div class="stmt-meta">${escapeHtml(companyName ?? 'Bridge Technologies Solutions')} — ${escapeHtml(periodLabel)}</div>
+    <div class="stmt-identity">${ident}</div>
+    <div class="stmt-meta">${periodLine} &nbsp;·&nbsp; Montants en ${escapeHtml(currency ?? 'XAF')}</div>
     ${bodyHtml}
   </div>
 </body></html>`;
