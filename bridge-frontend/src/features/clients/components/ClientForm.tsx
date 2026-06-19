@@ -64,6 +64,7 @@ export function ClientForm({ client, onClose, wide = false }: ClientFormProps) {
   const { can } = usePermission()
   const isMobile = useIsMobile()
   const canSeeInternalNotes      = can('client', 'update')
+  const canSeeAccountingAccount  = can('accounting', 'read')
   const canEditAccountingAccount = can('accounting', 'update')
 
   // ─── Unique IDs for label/input association ──────────────────
@@ -244,8 +245,9 @@ export function ClientForm({ client, onClose, wide = false }: ClientFormProps) {
     </div>
   )
 
-  // ─── Accounting account field (read-only si pas de droit accounting:update) ──
-  const accountingAccountField = (
+  // ─── Compte comptable : masqué si pas de droit accounting:read, lecture seule
+  //     si accounting:read sans accounting:update ──────────────────────────────
+  const accountingAccountField = !canSeeAccountingAccount ? null : (
     <Field label="Compte comptable (SYSCOHADA)" htmlFor={idAccountingAccount}>
       {canEditAccountingAccount ? (
         inp('accountingAccount', { id: idAccountingAccount, placeholder: '4111' })
@@ -275,12 +277,12 @@ export function ClientForm({ client, onClose, wide = false }: ClientFormProps) {
       </div>
       {accountingAccountField}
     </div>
-  ) : (
+  ) : canSeeAccountingAccount ? (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <SectionTitle>Comptabilité</SectionTitle>
       {accountingAccountField}
     </div>
-  )
+  ) : null
 
   // ─── Conditions section ──────────────────────────────────────
   const sectionConditions = (

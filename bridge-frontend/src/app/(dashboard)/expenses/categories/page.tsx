@@ -24,12 +24,13 @@ interface CategoryFormData {
 }
 
 function CategoryModal({
-  initial, onSave, onClose, isPending,
+  initial, onSave, onClose, isPending, canSeeAccounting,
 }: {
   initial?: CategoryFormData
   onSave:    (data: CategoryFormData) => void
   onClose:   () => void
   isPending: boolean
+  canSeeAccounting: boolean
 }) {
   const [form, setForm] = useState<CategoryFormData>(initial ?? { name: '', description: '', color: PRESET_COLORS[0], icon: '', accountingAccount: '' })
   const inp: React.CSSProperties = { width: '100%', padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13.5, color: 'var(--text-1)', outline: 'none' }
@@ -70,11 +71,13 @@ function CategoryModal({
                 style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0, background: 'none' }} />
             </div>
           </div>
-          <div>
-            <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--text-2)', marginBottom: 5, fontFamily: 'var(--font-display)' }}>Compte SYSCOHADA</label>
-            <input value={form.accountingAccount} onChange={e => setForm(f => ({ ...f, accountingAccount: e.target.value }))} placeholder="624000" style={inp}
-              onFocus={e => (e.target.style.borderColor = 'var(--primary)')} onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
-          </div>
+          {canSeeAccounting && (
+            <div>
+              <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--text-2)', marginBottom: 5, fontFamily: 'var(--font-display)' }}>Compte SYSCOHADA</label>
+              <input value={form.accountingAccount} onChange={e => setForm(f => ({ ...f, accountingAccount: e.target.value }))} placeholder="624000" style={inp}
+                onFocus={e => (e.target.style.borderColor = 'var(--primary)')} onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 4 }}>
             <button type="button" onClick={onClose} style={{ padding: '8px 18px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>Annuler</button>
             <button type="submit" disabled={isPending || !form.name.trim()}
@@ -91,6 +94,7 @@ function CategoryModal({
 
 export default function ExpenseCategoriesPage() {
   const { can } = usePermission()
+  const canSeeAccounting = can('accounting', 'read')
   const { data: categories, isLoading } = useExpenseCategories()
   const createMutation = useCreateExpenseCategory()
   const updateMutation = useUpdateExpenseCategory()
@@ -128,7 +132,7 @@ export default function ExpenseCategoriesPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 800, animation: 'page-in 0.2s ease' }}>
       {showCreate && (
-        <CategoryModal isPending={createMutation.isPending} onClose={() => setShowCreate(false)} onSave={handleCreate} />
+        <CategoryModal isPending={createMutation.isPending} onClose={() => setShowCreate(false)} onSave={handleCreate} canSeeAccounting={canSeeAccounting} />
       )}
       {editing && (
         <CategoryModal
@@ -136,6 +140,7 @@ export default function ExpenseCategoriesPage() {
           isPending={updateMutation.isPending}
           onClose={() => setEditing(null)}
           onSave={handleUpdate}
+          canSeeAccounting={canSeeAccounting}
         />
       )}
 
@@ -161,7 +166,7 @@ export default function ExpenseCategoriesPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ background: 'var(--surface-2)' }}>
-              {['Catégorie', 'Compte SYSCOHADA', 'Dépenses', 'Actions'].map(h => (
+              {['Catégorie', ...(canSeeAccounting ? ['Compte SYSCOHADA'] : []), 'Dépenses', 'Actions'].map(h => (
                 <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
@@ -179,7 +184,7 @@ export default function ExpenseCategoriesPage() {
               ))
               : (categories ?? []).length === 0
                 ? (
-                  <tr><td colSpan={4} style={{ padding: '40px 14px', textAlign: 'center', color: 'var(--text-3)', fontSize: 14 }}>
+                  <tr><td colSpan={canSeeAccounting ? 4 : 3} style={{ padding: '40px 14px', textAlign: 'center', color: 'var(--text-3)', fontSize: 14 }}>
                     Aucune catégorie — cliquez sur &ldquo;Nouvelle catégorie&rdquo; pour commencer
                   </td></tr>
                 )
@@ -196,9 +201,11 @@ export default function ExpenseCategoriesPage() {
                         </div>
                       </div>
                     </td>
-                    <td style={{ padding: '12px 14px', fontFamily: 'var(--font-mono)', color: 'var(--text-2)', fontSize: 12.5 }}>
-                      {cat.accountingAccount ?? '—'}
-                    </td>
+                    {canSeeAccounting && (
+                      <td style={{ padding: '12px 14px', fontFamily: 'var(--font-mono)', color: 'var(--text-2)', fontSize: 12.5 }}>
+                        {cat.accountingAccount ?? '—'}
+                      </td>
+                    )}
                     <td style={{ padding: '12px 14px', color: 'var(--text-2)' }}>
                       {cat._count?.expenses ?? 0} dépense{(cat._count?.expenses ?? 0) !== 1 ? 's' : ''}
                     </td>

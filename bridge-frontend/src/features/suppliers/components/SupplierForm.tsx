@@ -82,7 +82,8 @@ export function SupplierForm({ supplier, onClose, wide = false }: SupplierFormPr
   const isEdit  = !!supplier
   const { can } = usePermission()
   const isMobile = useIsMobile()
-  const canSeeInternalNotes = can('client', 'update')
+  const canSeeInternalNotes     = can('client', 'update')
+  const canSeeAccountingAccount = can('accounting', 'read')
 
   // ─── Unique IDs ──────────────────────────────────────────────
   const idName              = useId()
@@ -289,11 +290,13 @@ export function SupplierForm({ supplier, onClose, wide = false }: SupplierFormPr
             {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </Field>
-        <Field label="Compte SYSCOHADA" htmlFor={idAccountingAccount}>
-          <input id={idAccountingAccount} name="accountingAccount" value={form.accountingAccount}
-            onChange={e => set('accountingAccount', e.target.value)}
-            placeholder="4011" style={inputStyle} {...focus} />
-        </Field>
+        {canSeeAccountingAccount && (
+          <Field label="Compte SYSCOHADA" htmlFor={idAccountingAccount}>
+            <input id={idAccountingAccount} name="accountingAccount" value={form.accountingAccount}
+              onChange={e => set('accountingAccount', e.target.value)}
+              placeholder="4011" style={inputStyle} {...focus} />
+          </Field>
+        )}
       </div>
     </div>
   )

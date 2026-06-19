@@ -8,6 +8,7 @@ import { useExpenseCategories } from '../hooks'
 import { useBankAccounts } from '@/features/invoices/hooks'
 import { ROUTES, TAX_RATE_DEFAULT } from '@/lib/constants'
 import { useCurrency } from '@/hooks/useCurrency'
+import { usePermission } from '@/hooks/usePermission'
 import type { Expense, ExpensePaymentMethod } from '../types'
 
 // ─── Constants ─────────────────────────────────────────────────
@@ -65,6 +66,8 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
 
   const { data: cats }              = useExpenseCategories()
   const { data: bankAccounts = [] } = useBankAccounts()
+  const { can } = usePermission()
+  const canSeeAccountingAccount = can('accounting', 'read')
 
   // ── Form state ──
 
@@ -443,19 +446,21 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <FL label="Compte SYSCOHADA" htmlFor="exp-account" />
-                  <input
-                    id="exp-account"
-                    type="text"
-                    value={accountingAccount}
-                    onChange={e => { setAccountingAccount(e.target.value); setAccountOverridden(true) }}
-                    placeholder={cats?.find(c => c.id === categoryId)?.accountingAccount ? 'Rempli depuis la catégorie' : '624000'}
-                    style={{ ...inputCss, background: !accountOverridden && accountingAccount ? 'rgba(45,125,210,0.04)' : 'var(--bg)' }}
-                    onFocus={focusOn} onBlur={focusOff}
-                  />
-                </div>
+              <div style={{ display: 'grid', gridTemplateColumns: canSeeAccountingAccount ? '1fr 1fr' : '1fr', gap: 10 }}>
+                {canSeeAccountingAccount && (
+                  <div>
+                    <FL label="Compte SYSCOHADA" htmlFor="exp-account" />
+                    <input
+                      id="exp-account"
+                      type="text"
+                      value={accountingAccount}
+                      onChange={e => { setAccountingAccount(e.target.value); setAccountOverridden(true) }}
+                      placeholder={cats?.find(c => c.id === categoryId)?.accountingAccount ? 'Rempli depuis la catégorie' : '624000'}
+                      style={{ ...inputCss, background: !accountOverridden && accountingAccount ? 'rgba(45,125,210,0.04)' : 'var(--bg)' }}
+                      onFocus={focusOn} onBlur={focusOff}
+                    />
+                  </div>
+                )}
                 <div>
                   <FL label="Axe analytique" htmlFor="exp-axis" />
                   <input

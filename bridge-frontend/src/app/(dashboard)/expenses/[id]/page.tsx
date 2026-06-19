@@ -192,7 +192,7 @@ export default function ExpenseDetailPage({ params }: { params: Promise<{ id: st
               <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--text-1)' }}>Total TTC</span>
               <span style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>{format(exp.amountTtc)}</span>
             </div>
-            {exp.accountingAccount && (
+            {exp.accountingAccount && can('accounting', 'read') && (
               <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--text-3)' }}>
                 Compte SYSCOHADA : <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-2)' }}>{exp.accountingAccount}</span>
               </div>

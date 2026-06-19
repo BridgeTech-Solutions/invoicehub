@@ -440,7 +440,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                   <span style={{ fontSize: 12.5, color: 'var(--text-2)', fontFamily: 'var(--font-mono)', fontWeight: 500 }}>{supplier.rccm}</span>
                 </div>
               )}
-              {supplier.accountingAccount && (
+              {supplier.accountingAccount && can('accounting', 'read') && (
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-3)' }}><Banknote size={13} /> SYSCOHADA</span>
                   <span style={{ fontSize: 12.5, color: 'var(--text-2)', fontFamily: 'var(--font-mono)', fontWeight: 500 }}>{supplier.accountingAccount}</span>
