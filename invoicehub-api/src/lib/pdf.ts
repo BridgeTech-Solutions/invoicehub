@@ -14,6 +14,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { default as puppeteer } from 'puppeteer';
 import { PDFDocument } from 'pdf-lib';
+import sanitizeHtml from 'sanitize-html';
 const logger = { info: console.log, warn: console.warn, error: console.error, debug: console.debug };
 
 // ─── Assets ──────────────────────────────────────────────────────────────────
@@ -736,17 +737,43 @@ const BORDER   = '#d4d4d4';
  */
 /**
  * Assainit la rich text (colonne « description », produite par l'éditeur du
- * frontend). On conserve la mise en forme (gras, listes…) mais on retire les
- * constructions dangereuses : scripts, styles, iframes, gestionnaires
- * d'événements (on*), URLs javascript:. Le blocage réseau de generatePdf
- * neutralise en complément toute ressource distante injectée.
+ * frontend) via une allow-list robuste (sanitize-html). On conserve la mise en
+ * forme (gras, italique, listes, couleurs, alignement…) et les images en
+ * base64 (data:) ; on retire tout le reste (scripts, iframes, handlers, URLs
+ * dangereuses, images distantes). Le blocage réseau de generatePdf est une
+ * défense supplémentaire.
  */
 function sanitizeRichText(html: string): string {
-  return String(html)
-    .replace(/<\s*(script|style|iframe|object|embed|link|meta)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
-    .replace(/<\s*(script|style|iframe|object|embed|link|meta)\b[^>]*\/?>/gi, '')
-    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-    .replace(/\s(href|src)\s*=\s*("\s*javascript:[^"]*"|'\s*javascript:[^']*'|javascript:[^\s>]+)/gi, ' $1="#"');
+  return sanitizeHtml(String(html), {
+    allowedTags: [
+      'b', 'strong', 'i', 'em', 'u', 's', 'strike', 'del', 'mark', 'small', 'sub', 'sup',
+      'br', 'p', 'div', 'span', 'blockquote', 'pre', 'code',
+      'ul', 'ol', 'li', 'a', 'img',
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      'table', 'thead', 'tbody', 'tr', 'td', 'th',
+    ],
+    allowedAttributes: {
+      '*': ['style'],
+      a:   ['href', 'title', 'target', 'rel'],
+      img: ['src', 'alt', 'width', 'height'],
+      td:  ['colspan', 'rowspan'],
+      th:  ['colspan', 'rowspan'],
+    },
+    allowedStyles: {
+      '*': {
+        'color':            [/.*/],
+        'background-color': [/.*/],
+        'font-weight':      [/.*/],
+        'font-style':       [/.*/],
+        'font-size':        [/.*/],
+        'text-align':       [/.*/],
+        'text-decoration':  [/.*/],
+      },
+    },
+    allowedSchemes:       ['http', 'https', 'mailto', 'tel'],
+    allowedSchemesByTag:  { img: ['data'] }, // images uniquement en base64 (pas de fetch distant)
+    disallowedTagsMode:   'discard',
+  });
 }
 
 export function buildDocumentHtml(params: DocumentHtmlParams): string {
