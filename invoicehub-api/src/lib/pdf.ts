@@ -14,7 +14,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { default as puppeteer } from 'puppeteer';
 import { PDFDocument } from 'pdf-lib';
-import sanitizeHtml from 'sanitize-html';
+import sanitizeHtml = require('sanitize-html');
 const logger = { info: console.log, warn: console.warn, error: console.error, debug: console.debug };
 
 // ─── Assets ──────────────────────────────────────────────────────────────────
