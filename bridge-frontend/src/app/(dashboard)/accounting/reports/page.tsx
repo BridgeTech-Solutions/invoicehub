@@ -255,11 +255,18 @@ export default function ReportsPage() {
   const [tab, setTab]    = useState<ReportTab>((searchParams.get('tab') as ReportTab) ?? 'balance')
   const [ledgerAccount, setLedgerAccount] = useState<AccountListItem | null>(null)
   const [periodId, setPeriodId]           = useState<string | undefined>(undefined)
+  // Bilan & compte de résultat : périmètre = exercice (année). 'all' = tous les
+  // exercices ; undefined = pas encore choisi -> on prend le plus récent par défaut.
+  const [yearSel, setYearSel]             = useState<number | 'all' | undefined>(undefined)
 
   const { data: fiscalYears = [] } = useFiscalYears()
   const allPeriods = fiscalYears.flatMap(y => y.periods ?? [])
-  // Exercice déduit de la période sélectionnée (pour le bilan / compte de résultat)
-  const selectedYear = periodId ? allPeriods.find(p => p.id === periodId)?.year : undefined
+  const years = useMemo(() => fiscalYears.map(y => y.year).sort((a, b) => b - a), [fiscalYears])
+  // Défaut = exercice courant s'il existe (là où sont les écritures), sinon le plus récent.
+  const currentYear = new Date().getFullYear()
+  const defaultYear = years.includes(currentYear) ? currentYear : years[0]
+  const effectiveYear = yearSel === undefined ? defaultYear : yearSel === 'all' ? undefined : yearSel
+  const isStatement = tab === 'bilan' || tab === 'compte-resultat'
 
   function handleAccountSelect(account: AccountListItem) {
     setLedgerAccount(account)
@@ -282,13 +289,26 @@ export default function ReportsPage() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <select value={periodId ?? ''} onChange={e => setPeriodId(e.target.value || undefined)}
-            style={{ height: 36, padding: '0 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border-strong)', background: 'var(--surface)', fontSize: 13, color: 'var(--text-1)', cursor: 'pointer', outline: 'none' }}>
-            <option value="">Toutes les périodes</option>
-            {allPeriods.map(p => (
-              <option key={p.id} value={p.id}>{p.month < 10 ? `0${p.month}` : p.month}/{p.year}</option>
-            ))}
-          </select>
+          {isStatement ? (
+            // Bilan / Compte de résultat : filtre par EXERCICE (annuel, + colonne N-1)
+            <select value={yearSel === 'all' ? 'all' : String(effectiveYear ?? '')}
+              onChange={e => setYearSel(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+              aria-label="Exercice"
+              style={{ height: 36, padding: '0 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border-strong)', background: 'var(--surface)', fontSize: 13, color: 'var(--text-1)', cursor: 'pointer', outline: 'none' }}>
+              {years.map(y => <option key={y} value={y}>Exercice {y}</option>)}
+              <option value="all">Tous les exercices</option>
+            </select>
+          ) : (
+            // Balance / Grand livre : filtre par PÉRIODE (mois)
+            <select value={periodId ?? ''} onChange={e => setPeriodId(e.target.value || undefined)}
+              aria-label="Période"
+              style={{ height: 36, padding: '0 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border-strong)', background: 'var(--surface)', fontSize: 13, color: 'var(--text-1)', cursor: 'pointer', outline: 'none' }}>
+              <option value="">Toutes les périodes</option>
+              {allPeriods.map(p => (
+                <option key={p.id} value={p.id}>{p.month < 10 ? `0${p.month}` : p.month}/{p.year}</option>
+              ))}
+            </select>
+          )}
           <Link href={`${ROUTES.ACCOUNTING_REPORTS}/sage`}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 36, padding: '0 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border-strong)', background: 'transparent', color: 'var(--text-2)', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>
             <Download size={14} /> Export Sage
@@ -316,8 +336,8 @@ export default function ReportsPage() {
         {tab === 'balance'         && <BalanceTab periodId={periodId} onAccountSelect={handleAccountSelect} />}
         {tab === 'ledger'          && <LedgerTab periodId={periodId} initialAccountId={ledgerAccount?.id} />}
         {/* Bilan & compte de résultat : périmètre = exercice (année), nécessaire pour le N-1 */}
-        {tab === 'bilan'           && <BilanReport year={selectedYear} />}
-        {tab === 'compte-resultat' && <CompteResultatReport year={selectedYear} />}
+        {tab === 'bilan'           && <BilanReport year={effectiveYear} />}
+        {tab === 'compte-resultat' && <CompteResultatReport year={effectiveYear} />}
       </div>
     </div>
   )
