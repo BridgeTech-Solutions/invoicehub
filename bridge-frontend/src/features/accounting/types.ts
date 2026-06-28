@@ -88,6 +88,7 @@ export interface FiscalPeriod {
   startDate:  string
   endDate:    string
   status:     PeriodStatus
+  entryCount: number
   createdAt:  string
 }
 

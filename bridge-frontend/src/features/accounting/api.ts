@@ -127,6 +127,7 @@ export const accountingApi = {
         startDate:  typeof p.startDate === 'string' ? p.startDate.split('T')[0] : new Date(p.startDate).toISOString().split('T')[0],
         endDate:    typeof p.endDate   === 'string' ? p.endDate.split('T')[0]   : new Date(p.endDate).toISOString().split('T')[0],
         status:     p.status,
+        entryCount: p._count?.journalEntries ?? 0,
         createdAt:  typeof p.createdAt === 'string' ? p.createdAt : new Date(p.createdAt).toISOString(),
       }
       yearMap.get(yr)!.push(period)

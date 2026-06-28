@@ -254,19 +254,35 @@ export default function ReportsPage() {
   const router           = useRouter()
   const [tab, setTab]    = useState<ReportTab>((searchParams.get('tab') as ReportTab) ?? 'balance')
   const [ledgerAccount, setLedgerAccount] = useState<AccountListItem | null>(null)
-  const [periodId, setPeriodId]           = useState<string | undefined>(undefined)
-  // Bilan & compte de résultat : périmètre = exercice (année). 'all' = tous les
-  // exercices ; undefined = pas encore choisi -> on prend le plus récent par défaut.
+  // Balance & Grand livre : filtre par période (mois). Bilan & CR : par exercice.
+  // Sentinelle 'all' = explicitement tout ; undefined = pas encore choisi -> défaut intelligent.
+  const [periodSel, setPeriodSel]         = useState<string | 'all' | undefined>(undefined)
   const [yearSel, setYearSel]             = useState<number | 'all' | undefined>(undefined)
 
   const { data: fiscalYears = [] } = useFiscalYears()
   const allPeriods = fiscalYears.flatMap(y => y.periods ?? [])
   const years = useMemo(() => fiscalYears.map(y => y.year).sort((a, b) => b - a), [fiscalYears])
-  // Défaut = exercice courant s'il existe (là où sont les écritures), sinon le plus récent.
-  const currentYear = new Date().getFullYear()
+  const currentYear  = new Date().getFullYear()
+  const currentMonth = new Date().getMonth() + 1
+  const isStatement  = tab === 'bilan' || tab === 'compte-resultat'
+
+  // Exercice (bilan/CR) : défaut = exercice courant s'il existe, sinon le plus récent.
   const defaultYear = years.includes(currentYear) ? currentYear : years[0]
   const effectiveYear = yearSel === undefined ? defaultYear : yearSel === 'all' ? undefined : yearSel
-  const isStatement = tab === 'bilan' || tab === 'compte-resultat'
+
+  // Périodes pertinentes (balance/grand livre) : avec écritures OU exercice courant,
+  // triées du plus récent au plus ancien (on masque les mois vides des autres exercices).
+  const relevantPeriods = useMemo(
+    () => allPeriods
+      .filter(p => p.entryCount > 0 || p.year === currentYear)
+      .sort((a, b) => (a.startDate < b.startDate ? 1 : -1)),
+    [allPeriods, currentYear],
+  )
+  // Défaut = période courante si elle existe, sinon la plus récente contenant des écritures.
+  const currentPeriod  = allPeriods.find(p => p.year === currentYear && p.month === currentMonth)
+  const latestWithData = relevantPeriods.find(p => p.entryCount > 0)
+  const defaultPeriodId   = currentPeriod?.id ?? latestWithData?.id
+  const effectivePeriodId = periodSel === undefined ? defaultPeriodId : periodSel === 'all' ? undefined : periodSel
 
   function handleAccountSelect(account: AccountListItem) {
     setLedgerAccount(account)
@@ -299,14 +315,17 @@ export default function ReportsPage() {
               <option value="all">Tous les exercices</option>
             </select>
           ) : (
-            // Balance / Grand livre : filtre par PÉRIODE (mois)
-            <select value={periodId ?? ''} onChange={e => setPeriodId(e.target.value || undefined)}
+            // Balance / Grand livre : filtre par PÉRIODE (mois). « • » = contient des écritures.
+            <select value={periodSel === 'all' ? 'all' : (effectivePeriodId ?? 'all')}
+              onChange={e => setPeriodSel(e.target.value)}
               aria-label="Période"
               style={{ height: 36, padding: '0 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border-strong)', background: 'var(--surface)', fontSize: 13, color: 'var(--text-1)', cursor: 'pointer', outline: 'none' }}>
-              <option value="">Toutes les périodes</option>
-              {allPeriods.map(p => (
-                <option key={p.id} value={p.id}>{p.month < 10 ? `0${p.month}` : p.month}/{p.year}</option>
+              {relevantPeriods.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.month < 10 ? `0${p.month}` : p.month}/{p.year}{p.entryCount > 0 ? ' •' : ''}
+                </option>
               ))}
+              <option value="all">Toutes les périodes</option>
             </select>
           )}
           <Link href={`${ROUTES.ACCOUNTING_REPORTS}/sage`}
@@ -333,8 +352,8 @@ export default function ReportsPage() {
 
       {/* Tab content */}
       <div className="card" style={{ padding: '20px 24px' }}>
-        {tab === 'balance'         && <BalanceTab periodId={periodId} onAccountSelect={handleAccountSelect} />}
-        {tab === 'ledger'          && <LedgerTab periodId={periodId} initialAccountId={ledgerAccount?.id} />}
+        {tab === 'balance'         && <BalanceTab periodId={effectivePeriodId} onAccountSelect={handleAccountSelect} />}
+        {tab === 'ledger'          && <LedgerTab periodId={effectivePeriodId} initialAccountId={ledgerAccount?.id} />}
         {/* Bilan & compte de résultat : périmètre = exercice (année), nécessaire pour le N-1 */}
         {tab === 'bilan'           && <BilanReport year={effectiveYear} />}
         {tab === 'compte-resultat' && <CompteResultatReport year={effectiveYear} />}

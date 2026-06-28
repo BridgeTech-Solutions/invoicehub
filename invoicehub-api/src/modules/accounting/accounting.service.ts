@@ -101,6 +101,7 @@ export class AccountingService {
   async listFiscalPeriods() {
     return this.prisma.fiscalPeriod.findMany({
       orderBy: [{ fiscalYear: 'desc' }, { startDate: 'asc' }],
+      include: { _count: { select: { journalEntries: true } } },
     });
   }
 
