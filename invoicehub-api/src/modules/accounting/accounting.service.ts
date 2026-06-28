@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { computeBilan, computeCompteResultat, attachBilanAccounts } from '../../lib/syscohada-statements';
+import { computeBilanFromRubriques, type RubriqueDef, type RubriqueSource } from '../../lib/statement-rubriques';
 import { generatePdf, buildStatementHtml, resolveDocumentAssets, escapeHtml } from '../../lib/pdf';
 import {
   CreateChartAccountInput, UpdateChartAccountInput,
@@ -698,10 +699,31 @@ export class AccountingService {
    * `detailed` = attache à chaque poste le détail des comptes qui le composent
    * (vue « bilan détaillé » pour la DAF).
    */
+  /** Charge le modèle de rubriques du bilan depuis la base (modèle éditable). */
+  private async loadBilanRubriques(): Promise<RubriqueDef[]> {
+    const rows = await this.prisma.statementRubrique.findMany({
+      orderBy: [{ masseOrder: 'asc' }, { lineOrder: 'asc' }],
+    });
+    return rows.map((r) => ({
+      side:       r.side as 'actif' | 'passif',
+      masseCode:  r.masseCode, masseLabel: r.masseLabel, masseOrder: r.masseOrder,
+      code:       r.code, label: r.label, lineOrder: r.lineOrder,
+      isResult:   r.isResult,
+      sources:    (r.sources as unknown) as RubriqueSource[],
+    }));
+  }
+
   async getBilan(scope: { fiscalPeriodId?: string; fiscalYear?: number }, detailed = false) {
     const b = await this.getBalancesMap(scope);
     // Exercice précédent (colonne Net N-1) — uniquement si un exercice est ciblé.
     const bN1 = scope.fiscalYear ? await this.getBalancesMap({ fiscalYear: scope.fiscalYear - 1 }) : undefined;
+
+    // Modèle paramétrable (rubriques) si présent ; sinon repli sur le calcul en dur.
+    const rubriques = await this.loadBilanRubriques();
+    if (rubriques.length) {
+      const names = detailed ? await this.getAccountNames() : undefined;
+      return computeBilanFromRubriques(rubriques, b, bN1, names);
+    }
     const bilan = computeBilan(b, bN1);
     if (detailed) attachBilanAccounts(bilan, b, await this.getAccountNames());
     return bilan;

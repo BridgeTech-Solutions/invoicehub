@@ -1968,6 +1968,26 @@ model ChartOfAccount {
   @@map("chart_of_accounts")
 }
 
+/// Modèle paramétrable des états financiers (« façon Sage ») : chaque poste
+/// (rubrique) du bilan est défini par des sources = fourchettes de comptes +
+/// règle de signe (sources en JSONB). Éditable par la DAF.
+model StatementRubrique {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  side       String   @db.VarChar(10)            // 'actif' | 'passif'
+  masseCode  String   @map("masse_code") @db.VarChar(10)
+  masseLabel String   @map("masse_label") @db.VarChar(150)
+  masseOrder Int      @map("masse_order")
+  code       String   @unique @db.VarChar(10)    // code de poste SYSCOHADA (BA, BI…)
+  label      String   @db.VarChar(255)
+  lineOrder  Int      @map("line_order")
+  isResult   Boolean  @default(false) @map("is_result")
+  sources    Json     @default("[]")             // RubriqueSource[]
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@map("statement_rubriques")
+}
+
 model FiscalPeriod {
   id           String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   name         String              @db.VarChar(100)
