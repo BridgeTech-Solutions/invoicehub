@@ -70,6 +70,8 @@ async function bootstrap() {
     next();
   };
   app.use(`${apiPrefix}/uploads/avatars`, setCrossOriginSameSite, express.static(path.join(process.cwd(), 'uploads/avatars')));
+  // Vidéos du guide (servies comme les avatars, sous /api pour passer par Nginx en prod)
+  app.use(`${apiPrefix}/uploads/videos`, setCrossOriginSameSite, express.static(path.join(process.cwd(), 'uploads/videos')));
   // Les assets settings (logos, cachets, signatures) sont servis uniquement via le contrôleur NestJS authentifié
 
   const reflector = app.get(Reflector);

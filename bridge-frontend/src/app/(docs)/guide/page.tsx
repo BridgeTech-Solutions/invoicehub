@@ -6,7 +6,9 @@ import { ROUTES } from '@/lib/constants'
 import { useGuideVideos, useUploadGuideVideo, useDeleteGuideVideo } from '@/features/guide/hooks'
 import { usePermission } from '@/hooks/usePermission'
 
-const BASE_MEDIA_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api').replace('/api', '')
+// On garde le préfixe /api : les vidéos sont servies sous {API}/uploads/videos
+// (même convention que les avatars), seul chemin routé vers le backend par Nginx en prod.
+const BASE_MEDIA_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api').replace(/\/$/, '')
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
