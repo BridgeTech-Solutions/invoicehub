@@ -1999,6 +1999,7 @@ model AccountingJournal {
   id              String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   code            String      @unique @db.VarChar(20)
   name            String      @db.VarChar(100)
+  description     String?     @db.Text
   type            JournalType
   bankAccountId   String?     @map("bank_account_id") @db.Uuid
   bankAccount     BankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
