@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
-import { computeBilan, computeCompteResultat } from '../../lib/syscohada-statements';
+import { computeBilan, computeCompteResultat, attachBilanAccounts } from '../../lib/syscohada-statements';
 import { generatePdf, buildStatementHtml, resolveDocumentAssets, escapeHtml } from '../../lib/pdf';
 import {
   CreateChartAccountInput, UpdateChartAccountInput,
@@ -687,12 +687,24 @@ export class AccountingService {
     return map;
   }
 
-  /** Bilan SYSCOHADA (Système Normal) calculé depuis la balance, avec colonne N-1. */
-  async getBilan(scope: { fiscalPeriodId?: string; fiscalYear?: number }) {
+  /** Map<numéroCompte, intitulé> pour enrichir le détail des postes. */
+  private async getAccountNames(): Promise<Map<string, string>> {
+    const accounts = await this.prisma.chartOfAccount.findMany({ select: { accountNumber: true, name: true } });
+    return new Map(accounts.map((a) => [a.accountNumber, a.name]));
+  }
+
+  /**
+   * Bilan SYSCOHADA (Système Normal) calculé depuis la balance, avec colonne N-1.
+   * `detailed` = attache à chaque poste le détail des comptes qui le composent
+   * (vue « bilan détaillé » pour la DAF).
+   */
+  async getBilan(scope: { fiscalPeriodId?: string; fiscalYear?: number }, detailed = false) {
     const b = await this.getBalancesMap(scope);
     // Exercice précédent (colonne Net N-1) — uniquement si un exercice est ciblé.
     const bN1 = scope.fiscalYear ? await this.getBalancesMap({ fiscalYear: scope.fiscalYear - 1 }) : undefined;
-    return computeBilan(b, bN1);
+    const bilan = computeBilan(b, bN1);
+    if (detailed) attachBilanAccounts(bilan, b, await this.getAccountNames());
+    return bilan;
   }
 
   /** Compte de résultat SYSCOHADA (SIG) calculé depuis la balance. */

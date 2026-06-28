@@ -339,10 +339,11 @@ export const accountingApi = {
 
   // ─── États financiers SYSCOHADA ──────────────────────────────
 
-  getBilan: (params: { periodId?: string; year?: number }) => {
+  getBilan: (params: { periodId?: string; year?: number; detailed?: boolean }) => {
     const q = new URLSearchParams()
     if (params.periodId) q.set('periodId', params.periodId)
     if (params.year)     q.set('year', String(params.year))
+    if (params.detailed) q.set('detailed', 'true')
     return apiClient.get<Bilan>(`/accounting/reports/bilan${q.toString() ? `?${q}` : ''}`).then(r => r.data)
   },
 

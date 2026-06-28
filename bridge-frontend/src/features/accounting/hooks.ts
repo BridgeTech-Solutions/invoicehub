@@ -331,7 +331,7 @@ export function useAccountingStats() {
 
 // ─── États financiers (Bilan & Compte de résultat) ───────────
 
-export function useBilan(params: { periodId?: string; year?: number } = {}) {
+export function useBilan(params: { periodId?: string; year?: number; detailed?: boolean } = {}) {
   return useQuery({
     queryKey: ['accounting-bilan', params],
     queryFn:  () => accountingApi.getBilan(params),

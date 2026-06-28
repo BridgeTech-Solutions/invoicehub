@@ -305,8 +305,12 @@ export class AccountingController {
   getBilan(
     @Query('periodId') periodId?: string,
     @Query('year')     year?: string,
+    @Query('detailed') detailed?: string,
   ) {
-    return this.svc.getBilan({ fiscalPeriodId: periodId, fiscalYear: year ? parseInt(year, 10) : undefined });
+    return this.svc.getBilan(
+      { fiscalPeriodId: periodId, fiscalYear: year ? parseInt(year, 10) : undefined },
+      detailed === 'true',
+    );
   }
 
   @Get('reports/compte-resultat')

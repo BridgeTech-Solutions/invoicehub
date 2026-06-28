@@ -72,7 +72,8 @@ const grandTotalRow: React.CSSProperties = { background: '#0c234012', borderTop:
 
 export function BilanReport({ periodId, year }: { periodId?: string; year?: number }) {
   const { format } = useCurrency()
-  const { data, isLoading } = useBilan({ periodId, year })
+  const [detailed, setDetailed] = useState(false)
+  const { data, isLoading } = useBilan({ periodId, year, detailed })
 
   if (isLoading) return <TableSkeleton rows={12} />
   if (!data) return null
@@ -105,7 +106,13 @@ export function BilanReport({ periodId, year }: { periodId?: string; year?: numb
             </span>
           )}
         </div>
-        <ExportPdfButton kind="bilan" periodId={periodId} year={year} />
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-2)', cursor: 'pointer', userSelect: 'none' }}>
+            <input type="checkbox" checked={detailed} onChange={e => setDetailed(e.target.checked)} style={{ accentColor: 'var(--primary)', width: 14, height: 14, cursor: 'pointer' }} />
+            Détaillé (comptes par poste)
+          </label>
+          <ExportPdfButton kind="bilan" periodId={periodId} year={year} />
+        </div>
       </div>
 
       {/* Actif | Passif */}
@@ -133,15 +140,27 @@ export function BilanReport({ periodId, year }: { periodId?: string; year?: numb
                     <Fragment key={m.code}>
                       {!single && <tr><td colSpan={5} style={masseHeadCell}>{m.label}</td></tr>}
                       {vis.map((l, i) => (
-                        <tr key={l.code} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 1 ? 'var(--surface-2)' : 'transparent' }}>
-                          <td style={{ padding: '6px 10px', fontSize: 12.5, color: 'var(--text-1)' }}>
-                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--text-3)', marginRight: 6 }}>{l.code}</span>{l.label}
-                          </td>
-                          <td style={{ ...numCell, color: l.brut > 0 ? 'var(--text-2)' : 'var(--text-3)' }}>{n(l.brut)}</td>
-                          <td style={{ ...numCell, color: l.amortissements > 0 ? '#b45309' : 'var(--text-3)' }}>{n(l.amortissements)}</td>
-                          <td style={{ ...numCell, fontWeight: 700, color: 'var(--text-1)' }}>{format(l.net)}</td>
-                          <td style={{ ...numCell, color: 'var(--text-3)' }}>{n(l.netN1)}</td>
-                        </tr>
+                        <Fragment key={l.code}>
+                          <tr style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 1 ? 'var(--surface-2)' : 'transparent' }}>
+                            <td style={{ padding: '6px 10px', fontSize: 12.5, color: 'var(--text-1)' }}>
+                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--text-3)', marginRight: 6 }}>{l.code}</span>{l.label}
+                            </td>
+                            <td style={{ ...numCell, color: l.brut > 0 ? 'var(--text-2)' : 'var(--text-3)' }}>{n(l.brut)}</td>
+                            <td style={{ ...numCell, color: l.amortissements > 0 ? '#b45309' : 'var(--text-3)' }}>{n(l.amortissements)}</td>
+                            <td style={{ ...numCell, fontWeight: 700, color: 'var(--text-1)' }}>{format(l.net)}</td>
+                            <td style={{ ...numCell, color: 'var(--text-3)' }}>{n(l.netN1)}</td>
+                          </tr>
+                          {detailed && (l.accounts ?? []).map(a => (
+                            <tr key={l.code + a.accountNumber} style={{ background: 'var(--surface-1)' }}>
+                              <td style={{ padding: '3px 10px 3px 26px', fontSize: 11.5, color: 'var(--text-3)' }}>
+                                <span style={{ fontFamily: 'var(--font-mono)', marginRight: 6 }}>{a.accountNumber}</span>{a.label}
+                              </td>
+                              <td /><td />
+                              <td style={{ ...numCell, fontSize: 11.5, color: a.amount < 0 ? '#b45309' : 'var(--text-2)' }}>{format(a.amount)}</td>
+                              <td />
+                            </tr>
+                          ))}
+                        </Fragment>
                       ))}
                       {!single && (
                         <tr style={subtotalRow}>
@@ -193,13 +212,24 @@ export function BilanReport({ periodId, year }: { periodId?: string; year?: numb
                       {vis.map((l, i) => {
                         const isResult = l.code === 'CH'
                         return (
-                          <tr key={l.code} style={{ borderBottom: '1px solid var(--border)', background: isResult ? 'rgba(22,163,74,0.06)' : i % 2 === 1 ? 'var(--surface-2)' : 'transparent' }}>
-                            <td style={{ padding: '6px 10px', fontSize: 12.5, color: 'var(--text-1)', fontWeight: isResult ? 700 : 400 }}>
-                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--text-3)', marginRight: 6 }}>{l.code}</span>{l.label}
-                            </td>
-                            <td style={{ ...numCell, fontWeight: 700, color: isResult ? (l.net >= 0 ? '#16a34a' : '#dc2626') : 'var(--text-1)' }}>{format(l.net)}</td>
-                            <td style={{ ...numCell, color: 'var(--text-3)' }}>{n(l.netN1)}</td>
-                          </tr>
+                          <Fragment key={l.code}>
+                            <tr style={{ borderBottom: '1px solid var(--border)', background: isResult ? 'rgba(22,163,74,0.06)' : i % 2 === 1 ? 'var(--surface-2)' : 'transparent' }}>
+                              <td style={{ padding: '6px 10px', fontSize: 12.5, color: 'var(--text-1)', fontWeight: isResult ? 700 : 400 }}>
+                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--text-3)', marginRight: 6 }}>{l.code}</span>{l.label}
+                              </td>
+                              <td style={{ ...numCell, fontWeight: 700, color: isResult ? (l.net >= 0 ? '#16a34a' : '#dc2626') : 'var(--text-1)' }}>{format(l.net)}</td>
+                              <td style={{ ...numCell, color: 'var(--text-3)' }}>{n(l.netN1)}</td>
+                            </tr>
+                            {detailed && (l.accounts ?? []).map(a => (
+                              <tr key={l.code + a.accountNumber} style={{ background: 'var(--surface-1)' }}>
+                                <td style={{ padding: '3px 10px 3px 26px', fontSize: 11.5, color: 'var(--text-3)' }}>
+                                  <span style={{ fontFamily: 'var(--font-mono)', marginRight: 6 }}>{a.accountNumber}</span>{a.label}
+                                </td>
+                                <td style={{ ...numCell, fontSize: 11.5, color: a.amount < 0 ? '#b45309' : 'var(--text-2)' }}>{format(a.amount)}</td>
+                                <td />
+                              </tr>
+                            ))}
+                          </Fragment>
                         )
                       })}
                       {!single && (

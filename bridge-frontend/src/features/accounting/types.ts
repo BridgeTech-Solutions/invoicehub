@@ -313,8 +313,9 @@ export interface AccountingStats {
 
 // ─── États financiers SYSCOHADA (Bilan & Compte de résultat) ──
 
-export interface BilanActifLine  { code: string; label: string; brut: number; amortissements: number; net: number; netN1: number }
-export interface BilanPassifLine { code: string; label: string; net: number; netN1: number }
+export interface BilanLineAccount { accountNumber: string; label: string; amount: number }
+export interface BilanActifLine  { code: string; label: string; brut: number; amortissements: number; net: number; netN1: number; accounts?: BilanLineAccount[] }
+export interface BilanPassifLine { code: string; label: string; net: number; netN1: number; accounts?: BilanLineAccount[] }
 
 export interface BilanActifMasse {
   code: string; label: string; lines: BilanActifLine[]

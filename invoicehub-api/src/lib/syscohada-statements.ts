@@ -113,8 +113,11 @@ const PASSIF_MASSES: MasseDef[] = [
 
 // ── Types de sortie ────────────────────────────────────────────────────────────
 
-export interface BilanActifLine  { code: string; label: string; brut: number; amortissements: number; net: number; netN1: number; }
-export interface BilanPassifLine { code: string; label: string; net: number; netN1: number; }
+/** Détail d'un compte contribuant à une ligne de poste (vue « bilan détaillé »). */
+export interface BilanLineAccount { accountNumber: string; label: string; amount: number; }
+
+export interface BilanActifLine  { code: string; label: string; brut: number; amortissements: number; net: number; netN1: number; accounts?: BilanLineAccount[]; }
+export interface BilanPassifLine { code: string; label: string; net: number; netN1: number; accounts?: BilanLineAccount[]; }
 
 export interface BilanActifMasse {
   code: string; label: string; lines: BilanActifLine[];
@@ -258,6 +261,97 @@ export function computeBilan(b: AccountBalances, bN1?: AccountBalances): Bilan {
     totalActif, totalActifN1, totalPassif, totalPassifN1,
     resultatNet, equilibre: Math.abs(ecart) < 1, ecart, comptesNonVentiles,
   };
+}
+
+// ── Détail par compte des lignes du bilan (Phase 1 — visibilité poste→comptes) ──
+// Source unique « code de poste → comptes ». Sert aussi de base au futur modèle
+// éditable (Phase 2). Modes d'agrégation, choisis pour que Σ(comptes) = net du poste :
+//   raw    = solde brut (débit−crédit) ; pour mono actif (brut+amort) et écarts
+//   neg    = −solde ; pour postes monofonctionnels créditeurs (capitaux, dettes…)
+//   debit  = solde si débiteur (comptes bifonctionnels, côté Actif)
+//   credit = −solde si créditeur (comptes bifonctionnels, côté Passif)
+type SrcMode = 'raw' | 'neg' | 'debit' | 'credit';
+interface SrcPart { prefixes: string[]; mode: SrcMode; exclude?: string[]; }
+
+const TRESO_PREFIXES = ['50', '51', '52', '53', '54', '55', '57', '58'];
+const TRESO_EXCLUDE  = ['590', '591', '592', '593', '594'];
+
+const BILAN_LINE_SOURCES: Record<string, SrcPart[]> = {
+  // ── ACTIF ──
+  AA: [{ prefixes: ['109'], mode: 'raw' }],
+  AX: [{ prefixes: ['20', '280'], mode: 'raw' }],
+  AD: [{ prefixes: ['21', '281', '291'], mode: 'raw' }],
+  AF: [{ prefixes: ['22', '23', '24', '282', '283', '284', '292', '293', '294', '295'], mode: 'raw' }],
+  AG: [{ prefixes: ['25'], mode: 'raw' }],
+  AH: [{ prefixes: ['26', '27', '296', '297'], mode: 'raw' }],
+  BA: [{ prefixes: ['31', '32', '33', '34', '35', '36', '37', '38', '39'], mode: 'raw' }],
+  BG: [{ prefixes: ['48'], mode: 'debit' }],
+  BH: [{ prefixes: ['40'], mode: 'debit' }],
+  BI: [{ prefixes: ['41'], mode: 'debit' }, { prefixes: ['491'], mode: 'raw' }],
+  BJ: [
+    { prefixes: ['42', '43', '44'], mode: 'debit', exclude: ['478', '479'] },
+    { prefixes: ['45', '46', '47'], mode: 'debit', exclude: ['476', '477', '478', '479'] },
+    { prefixes: ['492', '493', '494', '495', '496', '497'], mode: 'raw' },
+  ],
+  BR: [{ prefixes: ['476'], mode: 'raw' }],
+  BS: [{ prefixes: TRESO_PREFIXES, mode: 'debit', exclude: TRESO_EXCLUDE }, { prefixes: ['59'], mode: 'raw' }],
+  BU: [{ prefixes: ['478'], mode: 'raw' }],
+  // ── PASSIF ──
+  CA: [{ prefixes: ['101', '102', '103', '104'], mode: 'neg' }],
+  CD: [{ prefixes: ['105', '106'], mode: 'neg' }],
+  CF: [{ prefixes: ['11'], mode: 'neg' }],
+  CG: [{ prefixes: ['12'], mode: 'neg' }],
+  CL: [{ prefixes: ['14'], mode: 'neg' }],
+  CM: [{ prefixes: ['15'], mode: 'neg' }],
+  DA: [{ prefixes: ['16', '17', '18'], mode: 'neg' }],
+  DB: [{ prefixes: ['19'], mode: 'neg' }],
+  DG: [{ prefixes: ['48'], mode: 'credit' }],
+  DI: [{ prefixes: ['40'], mode: 'credit' }],
+  DH: [{ prefixes: ['41'], mode: 'credit' }],
+  DJ: [{ prefixes: ['42', '43', '44'], mode: 'credit', exclude: ['478', '479'] }],
+  DM: [{ prefixes: ['45', '46', '47'], mode: 'credit', exclude: ['476', '477', '478', '479'] }],
+  DV: [{ prefixes: ['477'], mode: 'neg' }],
+  DR: [{ prefixes: TRESO_PREFIXES, mode: 'credit', exclude: TRESO_EXCLUDE }, { prefixes: ['561', '564', '565', '566'], mode: 'neg' }],
+  BX: [{ prefixes: ['479'], mode: 'neg' }],
+};
+
+function applyMode(bal: number, mode: SrcMode): number {
+  switch (mode) {
+    case 'raw':    return bal;
+    case 'neg':    return -bal;
+    case 'debit':  return bal > 0 ? bal : 0;
+    case 'credit': return bal < 0 ? -bal : 0;
+  }
+}
+
+/**
+ * Détail par compte de chaque ligne de poste du bilan, à partir de la même source
+ * que le calcul. `names` = Map<numéroCompte, intitulé>. Retourne Map<codePoste, comptes[]>.
+ */
+export function bilanLineAccounts(b: AccountBalances, names: Map<string, string>): Map<string, BilanLineAccount[]> {
+  const result = new Map<string, BilanLineAccount[]>();
+  for (const [code, parts] of Object.entries(BILAN_LINE_SOURCES)) {
+    const accs: BilanLineAccount[] = [];
+    for (const part of parts) {
+      for (const [account, bal] of b) {
+        if (!startsWithAny(account, part.prefixes)) continue;
+        if (part.exclude && startsWithAny(account, part.exclude)) continue;
+        const amount = applyMode(bal, part.mode);
+        if (Math.abs(amount) < 0.5) continue;
+        accs.push({ accountNumber: account, label: names.get(account) ?? account, amount });
+      }
+    }
+    if (accs.length) result.set(code, accs.sort((x, y) => x.accountNumber.localeCompare(y.accountNumber)));
+  }
+  return result;
+}
+
+/** Attache à chaque ligne du bilan le détail des comptes (mutation en place). */
+export function attachBilanAccounts(bilan: Bilan, b: AccountBalances, names: Map<string, string>): Bilan {
+  const detail = bilanLineAccounts(b, names);
+  for (const m of bilan.actifMasses)  for (const l of m.lines) l.accounts = detail.get(l.code) ?? [];
+  for (const m of bilan.passifMasses) for (const l of m.lines) l.accounts = detail.get(l.code) ?? [];
+  return bilan;
 }
 
 // ── COMPTE DE RÉSULTAT — Soldes Intermédiaires de Gestion ──────────────────────
