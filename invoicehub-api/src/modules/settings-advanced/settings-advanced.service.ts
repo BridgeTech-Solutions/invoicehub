@@ -67,7 +67,7 @@ export class SettingsAdvancedService {
   async createApiKey(data: CreateApiKeyInput, userId: string) {
     const rawKey   = `bts_${randomBytes(32).toString('hex')}`;
     const keyHash  = createHash('sha256').update(rawKey).digest('hex');
-    const keyPrefix = rawKey.slice(0, 12);
+    const keyPrefix = rawKey.slice(0, 10); // colonne key_prefix = VarChar(10)
 
     const apiKey = await this.prisma.apiKey.create({
       data: { name: data.name, permissions: data.permissions, expiresAt: data.expiresAt, keyHash, keyPrefix, createdById: userId, isActive: true },

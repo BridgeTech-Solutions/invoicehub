@@ -1,13 +1,14 @@
 import { z } from 'zod';
 
 export const createWebhookSchema = z.object({
-  name:       z.string().min(2).max(200),
-  url:        z.string().url(),
-  events:     z.array(z.string().min(1)).min(1),
-  secret:     z.string().min(8).max(255).optional().nullable(),
-  headers:    z.record(z.string()).optional().default({}),
-  isActive:   z.boolean().default(true),
-  retryCount: z.number().int().min(0).max(5).default(3),
+  name:     z.string().min(2).max(200),
+  url:      z.string().url(),
+  events:   z.array(z.string().min(1)).min(1),
+  secret:   z.string().min(8).max(255).optional().nullable(),
+  headers:  z.record(z.string()).optional().default({}),
+  isActive: z.boolean().default(true),
+  // NB : pas de `retryCount` — la table webhooks n'a pas cette colonne (elle a
+  // failureCount). L'accepter ici cassait la création (Unknown argument).
 });
 
 export const updateWebhookSchema = createWebhookSchema.partial();
