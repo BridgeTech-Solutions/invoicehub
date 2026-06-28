@@ -4,7 +4,7 @@ import { createZodDto } from 'nestjs-zod';
 export const createClientSchema = z.object({
   type: z.enum(['company', 'individual']).default('company'),
   name: z.string().min(1).max(255),
-  email: z.string().email().optional(),
+  email: z.string().email().max(255).optional(),
   phone: z.string().max(50).optional(),
   phone2: z.string().max(50).optional(),
   address: z.string().optional(),

@@ -4,7 +4,7 @@ import { createZodDto } from 'nestjs-zod';
 export const createSupplierSchema = z.object({
   name:           z.string().min(2).max(255),
   type:           z.enum(['individual', 'company', 'government', 'ngo', 'other']).default('company'),
-  email:          z.string().email().optional().nullable(),
+  email:          z.string().email().max(255).optional().nullable(),
   phone:          z.string().max(50).optional().nullable(),
   address:        z.string().max(500).optional().nullable(),
   city:           z.string().max(100).optional().nullable(),
@@ -30,7 +30,7 @@ export const createContactSchema = z.object({
   firstName: z.string().min(1).max(100),
   lastName:  z.string().max(100).optional().nullable(),
   position:  z.string().max(200).optional().nullable(),
-  email:     z.string().email().optional().nullable(),
+  email:     z.string().email().max(255).optional().nullable(),
   phone:     z.string().max(50).optional().nullable(),
   isPrimary: z.boolean().default(false),
 });

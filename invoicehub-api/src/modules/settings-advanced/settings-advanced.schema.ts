@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const createWebhookSchema = z.object({
   name:     z.string().min(2).max(200),
-  url:      z.string().url(),
+  url:      z.string().url().max(500),
   events:   z.array(z.string().min(1)).min(1),
   secret:   z.string().min(8).max(255).optional().nullable(),
   headers:  z.record(z.string()).optional().default({}),

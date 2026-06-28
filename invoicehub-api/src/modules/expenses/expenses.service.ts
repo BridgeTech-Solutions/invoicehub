@@ -83,11 +83,11 @@ export class ExpensesService {
 
   // Maps input frontend field names → DB field names for create/update
   private mapInputToDb(data: Record<string, unknown>): Record<string, unknown> {
-    // `currency`, `notes`, `parentId`, `period` sont acceptés par le schéma mais
-    // n'existent pas sur le modèle Expense -> on les retire pour ne pas casser Prisma.
-    // (NB : le commentaire libre va dans `description`, pas `notes`.)
-    const { designation, supplierName, analyticalAxis, parentId, period, paymentMethod, currency, notes, ...rest } = data as any;
-    void currency; void notes;
+    // `currency`, `notes`, `supplierInvoiceId`, `parentId`, `period` sont acceptés
+    // par le schéma mais n'existent pas sur le modèle Expense -> on les retire pour
+    // ne pas casser Prisma. (NB : le commentaire libre va dans `description`, pas `notes`.)
+    const { designation, supplierName, analyticalAxis, parentId, period, paymentMethod, currency, notes, supplierInvoiceId, ...rest } = data as any;
+    void currency; void notes; void supplierInvoiceId;
     const mapped: Record<string, unknown> = { ...rest };
     if (designation    !== undefined) mapped['title']           = designation;
     if (supplierName   !== undefined) mapped['beneficiaryName'] = supplierName;

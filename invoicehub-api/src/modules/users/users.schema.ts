@@ -4,7 +4,7 @@ import { createZodDto } from 'nestjs-zod';
 export const createUserSchema = z.object({
   firstName: z.string().min(1).max(100),
   lastName:  z.string().min(1).max(100),
-  email:     z.string().email(),
+  email:     z.string().email().max(255),
   phone:     z.string().max(50).optional(),
   role:      z.enum(['admin', 'commercial', 'employee']).default('employee'),
   password:  z
@@ -22,7 +22,7 @@ export const updateUserSchema = z.object({
   role:      z.enum(['admin', 'commercial', 'employee']).optional(),
   status:    z.enum(['active', 'suspended', 'pending_activation']).optional(),
   language:  z.enum(['fr', 'en']).optional(),
-  timezone:  z.string().optional(),
+  timezone:  z.string().max(50).optional(),
   theme:     z.enum(['light', 'dark', 'system']).optional(),
   emailNotifications:   z.boolean().optional(),
   invoiceNotifications: z.boolean().optional(),
@@ -33,7 +33,7 @@ export const updateMeSchema = z.object({
   lastName:  z.string().min(1).max(100).optional(),
   phone:     z.string().max(50).optional().nullable(),
   language:  z.enum(['fr', 'en']).optional(),
-  timezone:  z.string().optional(),
+  timezone:  z.string().max(50).optional(),
   theme:     z.enum(['light', 'dark', 'system']).optional(),
   emailNotifications:   z.boolean().optional(),
   invoiceNotifications: z.boolean().optional(),
