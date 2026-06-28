@@ -245,12 +245,25 @@ export const accountingApi = {
     accountId: string,
     params: { periodId?: string; dateFrom?: string; dateTo?: string } = {}
   ): Promise<GeneralLedgerLine[]> => {
-    const q = new URLSearchParams({ accountNumber: accountId })
-    if (params.periodId) q.set('periodId', params.periodId)
-    if (params.dateFrom) q.set('dateFrom', params.dateFrom)
-    if (params.dateTo)   q.set('dateTo',   params.dateTo)
-    const raw = await apiClient.get<any>(`/accounting/reports/ledger?${q}`).then(r => r.data)
-    const lines: any[] = raw.lines ?? raw ?? []
+    // Le backend pagine le grand livre (limit par défaut 50). On récupère TOUTES
+    // les pages : sinon un compte à plus de 50 mouvements aurait un grand livre
+    // tronqué et un solde progressif/total faux.
+    const PAGE = 500
+    const buildQ = (page: number) => {
+      const q = new URLSearchParams({ accountNumber: accountId, page: String(page), limit: String(PAGE) })
+      if (params.periodId) q.set('periodId', params.periodId)
+      if (params.dateFrom) q.set('dateFrom', params.dateFrom)
+      if (params.dateTo)   q.set('dateTo',   params.dateTo)
+      return q
+    }
+    const first = await apiClient.get<any>(`/accounting/reports/ledger?${buildQ(1)}`).then(r => r.data)
+    const lines: any[] = first.lines ?? first ?? []
+    const total: number = Number(first.total ?? lines.length)
+    const pages = Math.max(1, Math.ceil(total / PAGE))
+    for (let p = 2; p <= pages; p++) {
+      const more = await apiClient.get<any>(`/accounting/reports/ledger?${buildQ(p)}`).then(r => r.data)
+      lines.push(...(more.lines ?? []))
+    }
     let running = 0
     return lines.map((l: any) => {
       running += Number(l.debit) - Number(l.credit)

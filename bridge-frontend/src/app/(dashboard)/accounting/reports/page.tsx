@@ -116,8 +116,15 @@ function BalanceTab({ periodId, onAccountSelect }: { periodId?: string; onAccoun
                       </tr>
                       {/* Account rows */}
                       {items.map((b, i) => {
-                        const typCfg = ACCOUNT_TYPE_CFG[b.account.type]
                         const solde  = b.debitTotal - b.creditTotal
+                        // Comptes bifonctionnels SYSCOHADA (tiers cl.4, trésorerie cl.5) :
+                        // leur nature Actif/Passif dépend du SENS du solde, pas de la classe.
+                        // Ex. 411 Clients débiteur = créance (Actif) ; banque créditrice = découvert (Passif).
+                        const accCls   = parseInt(String(b.account.number).charAt(0), 10)
+                        const dispType = (accCls === 4 || accCls === 5)
+                          ? (solde >= 0 ? 'asset' : 'liability')
+                          : b.account.type
+                        const typCfg = ACCOUNT_TYPE_CFG[dispType]
                         return (
                           <tr key={b.accountId} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.01)', cursor: 'pointer', transition: 'background 0.1s' }}
                             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(45,125,210,0.04)'}

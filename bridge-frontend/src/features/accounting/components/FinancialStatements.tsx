@@ -111,10 +111,10 @@ export function BilanReport({ periodId, year }: { periodId?: string; year?: numb
       {/* Actif | Passif */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))', gap: 20 }}>
         {/* ACTIF */}
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 8px', paddingBottom: 6, borderBottom: '2px solid var(--primary)' }}>Actif</h3>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ overflowX: 'auto', flex: 1 }}>
+            <table style={{ width: '100%', height: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'var(--surface-2)' }}>
                   <th style={{ ...thStyle, textAlign: 'left' }}>Poste</th>
@@ -156,6 +156,9 @@ export function BilanReport({ periodId, year }: { periodId?: string; year?: numb
                     </Fragment>
                   )
                 })}
+                {/* Ligne de remplissage : absorbe la hauteur restante pour aligner
+                    le TOTAL GÉNÉRAL en bas, au même niveau que celui du Passif. */}
+                <tr style={{ height: '100%' }}><td colSpan={5} /></tr>
                 <tr style={grandTotalRow}>
                   <td style={{ padding: '9px 10px', fontSize: 12.5, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'var(--font-display)' }}>TOTAL GÉNÉRAL ACTIF</td>
                   <td /><td />
@@ -168,10 +171,10 @@ export function BilanReport({ periodId, year }: { periodId?: string; year?: numb
         </div>
 
         {/* PASSIF */}
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 8px', paddingBottom: 6, borderBottom: '2px solid #7c3aed' }}>Passif</h3>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ overflowX: 'auto', flex: 1 }}>
+            <table style={{ width: '100%', height: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'var(--surface-2)' }}>
                   <th style={{ ...thStyle, textAlign: 'left' }}>Poste</th>
@@ -211,6 +214,8 @@ export function BilanReport({ periodId, year }: { periodId?: string; year?: numb
                     </Fragment>
                   )
                 })}
+                {/* Ligne de remplissage : aligne le TOTAL GÉNÉRAL en bas (cf. Actif). */}
+                <tr style={{ height: '100%' }}><td colSpan={3} /></tr>
                 <tr style={grandTotalRow}>
                   <td style={{ padding: '9px 10px', fontSize: 12.5, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'var(--font-display)' }}>TOTAL GÉNÉRAL PASSIF</td>
                   <td style={{ ...numCell, fontSize: 13, fontWeight: 800, color: '#7c3aed' }}>{format(data.totalPassif)}</td>
