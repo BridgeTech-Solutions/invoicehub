@@ -752,7 +752,7 @@ const EMAIL_TEMPLATES: {
     name:     'Facture émise [interne BTS]',
     subject:  '[{{companyName}}] Facture émise — {{invoiceNumber}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Facture émise : {{invoiceNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -793,7 +793,7 @@ const EMAIL_TEMPLATES: {
     name:     'Facture en retard [interne BTS]',
     subject:  '[{{companyName}}] ALERTE — Facture {{invoiceNumber}} en retard ({{daysOverdue}} j)',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#dc2626;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+  <div style="background:#dc2626;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Facture en retard : {{invoiceNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -834,7 +834,7 @@ const EMAIL_TEMPLATES: {
     name:     'Paiement enregistré [interne BTS]',
     subject:  '[{{companyName}}] Paiement reçu — {{invoiceNumber}} — {{amountPaid}} XAF',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#16a34a;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+  <div style="background:#16a34a;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Paiement enregistré : {{invoiceNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -879,7 +879,7 @@ const EMAIL_TEMPLATES: {
     name:     'Proforma envoyée [interne BTS]',
     subject:  '[{{companyName}}] Proforma envoyée — {{proformaNumber}} — {{clientName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Proforma envoyée : {{proformaNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -920,7 +920,7 @@ const EMAIL_TEMPLATES: {
     name:     'Réinitialisation de mot de passe',
     subject:  '[{{companyName}}] Réinitialisation de votre mot de passe',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Réinitialisation du mot de passe</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -946,7 +946,7 @@ const EMAIL_TEMPLATES: {
     name:     'Bienvenue (nouvel utilisateur)',
     subject:  '[{{companyName}}] Bienvenue {{firstName}} — Votre accès InvoiceHub',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Bienvenue sur InvoiceHub !</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -979,7 +979,7 @@ const EMAIL_TEMPLATES: {
     name:     'Relance interne [interne BTS]',
     subject:  '[{{companyName}}] Relance niveau {{reminderLevel}} — {{invoiceNumber}} — {{clientName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#d97706;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+  <div style="background:#d97706;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Relance niveau {{reminderLevel}} — {{invoiceNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1024,7 +1024,7 @@ const EMAIL_TEMPLATES: {
     name:     'Facture soldée [interne BTS]',
     subject:  '[{{companyName}}] Facture {{invoiceNumber}} intégralement soldée — {{clientName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#16a34a;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+  <div style="background:#16a34a;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Facture soldée : {{invoiceNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1065,7 +1065,7 @@ const EMAIL_TEMPLATES: {
     name:     'Paiement partiel reçu [interne BTS]',
     subject:  '[{{companyName}}] Paiement partiel — {{invoiceNumber}} — Solde restant {{balanceDue}} XAF',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+  <div style="background:#2D7DD2;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Paiement partiel : {{invoiceNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1110,7 +1110,7 @@ const EMAIL_TEMPLATES: {
     name:     'Proforma acceptée [interne BTS]',
     subject:  '[{{companyName}}] Proforma {{proformaNumber}} acceptée par {{clientName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#16a34a;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+  <div style="background:#16a34a;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Proforma acceptée : {{proformaNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1147,7 +1147,7 @@ const EMAIL_TEMPLATES: {
     name:     'Proforma rejetée [interne BTS]',
     subject:  '[{{companyName}}] Proforma {{proformaNumber}} refusée — {{clientName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#dc2626;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+  <div style="background:#dc2626;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Proforma refusée : {{proformaNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1188,7 +1188,7 @@ const EMAIL_TEMPLATES: {
     name:     'Proforma expirée [interne BTS]',
     subject:  '[{{companyName}}] Proforma {{proformaNumber}} expirée — {{clientName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#d97706;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+  <div style="background:#d97706;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Proforma expirée : {{proformaNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1229,7 +1229,7 @@ const EMAIL_TEMPLATES: {
     name:     "Demande d'approbation [interne BTS]",
     subject:  '[{{companyName}}] ACTION REQUISE — Approbation demandée : {{documentType}} {{documentNumber}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#7c3aed;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+  <div style="background:#7c3aed;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Approbation requise : {{documentType}} {{documentNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1270,7 +1270,7 @@ const EMAIL_TEMPLATES: {
     name:     'Approbation validée [interne BTS]',
     subject:  '[{{companyName}}] Étape approuvée ({{currentStep}}/{{totalSteps}}) — {{documentType}} {{documentNumber}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#16a34a;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+  <div style="background:#16a34a;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Étape approuvée : {{documentType}} {{documentNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1311,7 +1311,7 @@ const EMAIL_TEMPLATES: {
     name:     'Approbation rejetée [interne BTS]',
     subject:  '[{{companyName}}] Demande rejetée — {{documentType}} {{documentNumber}} par {{deciderName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#dc2626;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+  <div style="background:#dc2626;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Demande rejetée : {{documentType}} {{documentNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1348,7 +1348,7 @@ const EMAIL_TEMPLATES: {
     name:     "Demande d'approbation expirée [interne BTS]",
     subject:  '[{{companyName}}] Demande expirée — {{documentType}} {{documentNumber}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#7c3aed;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+  <div style="background:#7c3aed;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Demande expirée : {{documentType}} {{documentNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1381,7 +1381,7 @@ const EMAIL_TEMPLATES: {
     name:     'Approbation déléguée [interne BTS]',
     subject:  '[{{companyName}}] Délégation — {{documentType}} {{documentNumber}} transmis à {{delegateName}}',
     bodyHtml: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#7c3aed;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
+  <div style="background:#7c3aed;padding:20px 28px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">
     <h2 style="color:#fff;margin:0;font-size:18px;">Demande déléguée : {{documentType}} {{documentNumber}}</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:28px;border-radius:0 0 8px 8px;background:#fff;">
@@ -1428,9 +1428,12 @@ async function seedFiscalPeriods() {
 
   for (const year of years) {
     for (let month = 0; month < 12; month++) {
-      const start = new Date(year, month, 1);
-      const end   = new Date(year, month + 1, 0); // dernier jour du mois
-      const name  = `${start.toLocaleString('fr-FR', { month: 'long' })} ${year}`;
+      // Dates construites en UTC : une colonne @db.Date tronque à la date UTC.
+      // Avec le constructeur local (new Date(year, month, 1)) sur un serveur UTC+1
+      // (Cameroun), minuit local devient 23h UTC la veille -> date décalée d'un jour.
+      const start = new Date(Date.UTC(year, month, 1));
+      const end   = new Date(Date.UTC(year, month + 1, 0)); // dernier jour du mois
+      const name  = `${start.toLocaleString('fr-FR', { month: 'long', timeZone: 'UTC' })} ${year}`;
 
       const existing = await prisma.fiscalPeriod.findFirst({
         where: { fiscalYear: year, periodType: 'month', startDate: start },
