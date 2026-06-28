@@ -166,11 +166,15 @@ export class AccountingService {
   async updateJournal(id: string, data: UpdateJournalInput) {
     const journal = await this.prisma.accountingJournal.findUnique({ where: { id } });
     if (!journal) throw AppError.notFound('Journal introuvable');
-    const { type, ...rest } = data;
-    return this.prisma.accountingJournal.update({
-      where: { id },
-      data:  { ...rest, ...(type ? { type: type as never } : {}) },
-    });
+    // Allow-list des champs réellement persistés sur le modèle AccountingJournal.
+    // NB : `description` est accepté par le schéma Zod mais n'a pas de colonne en BD
+    // (cohérent avec createJournal qui l'ignore) — on ne le transmet donc pas à Prisma
+    // pour éviter une erreur « Unknown argument `description` ».
+    const updateData: Prisma.AccountingJournalUpdateInput = {};
+    if (data.name     !== undefined) updateData.name     = data.name;
+    if (data.type     !== undefined) updateData.type     = data.type as never;
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    return this.prisma.accountingJournal.update({ where: { id }, data: updateData });
   }
 
   async deleteJournal(id: string) {
