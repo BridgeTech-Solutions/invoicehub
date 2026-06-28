@@ -177,6 +177,9 @@ export function buildStatementHtml(params: {
 import type { Browser } from 'puppeteer';
 
 let _browser: Browser | null = null;
+// Promesse du lancement en cours : évite qu'on lance deux Chromium si plusieurs
+// requêtes PDF arrivent quasi-simultanément (toutes voient _browser === null).
+let _launching: Promise<Browser> | null = null;
 
 const LAUNCH_ARGS = [
   '--no-sandbox',
@@ -257,18 +260,30 @@ async function getBrowser(): Promise<Browser> {
       _browser = null;
     }
   }
-  const executablePath = resolveChromePath();
-  // chrome-headless-shell correspond au mode 'shell' de Puppeteer ; les autres
-  // binaires (Edge, Chrome) utilisent le headless standard.
-  const headless: true | 'shell' =
-    executablePath?.includes('chrome-headless-shell') ? 'shell' : true;
-  logger.info(`[pdf] Chromium: ${executablePath ?? '(résolution auto Puppeteer)'} [headless=${headless}]`);
-  _browser = await puppeteer.launch({
-    headless,
-    executablePath,
-    args: LAUNCH_ARGS,
-  });
-  return _browser;
+  // Un lancement est déjà en cours : on attend le même au lieu d'en démarrer un 2e.
+  if (_launching) return _launching;
+
+  _launching = (async () => {
+    const executablePath = resolveChromePath();
+    // chrome-headless-shell correspond au mode 'shell' de Puppeteer ; les autres
+    // binaires (Edge, Chrome) utilisent le headless standard.
+    const headless: true | 'shell' =
+      executablePath?.includes('chrome-headless-shell') ? 'shell' : true;
+    logger.info(`[pdf] Chromium: ${executablePath ?? '(résolution auto Puppeteer)'} [headless=${headless}]`);
+    const browser = await puppeteer.launch({
+      headless,
+      executablePath,
+      args: LAUNCH_ARGS,
+    });
+    _browser = browser;
+    return browser;
+  })();
+
+  try {
+    return await _launching;
+  } finally {
+    _launching = null;
+  }
 }
 
 /**
