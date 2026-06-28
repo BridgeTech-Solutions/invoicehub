@@ -769,17 +769,32 @@ export class AccountingService {
       (bilan.equilibre ? '' : `<p style="color:#c0392b;font-size:10px;margin-top:8px;">⚠ Bilan déséquilibré : écart de ${f(Math.abs(bilan.ecart))} ${cur}.</p>`) +
       (Math.abs(bilan.comptesNonVentiles) > 0.5 ? `<p style="color:#b45309;font-size:10px;">⚠ Comptes non ventilés : ${f(Math.abs(bilan.comptesNonVentiles))} ${cur} à reclasser.</p>` : '');
 
+    // Colgroups partagés corps + total (table-layout:fixed) pour aligner les colonnes.
+    const actifCols  = '<colgroup><col style="width:34%"><col style="width:16.5%"><col style="width:16.5%"><col style="width:16.5%"><col style="width:16.5%"></colgroup>';
+    const passifCols = '<colgroup><col style="width:52%"><col style="width:24%"><col style="width:24%"></colgroup>';
     const bodyHtml = `
-      <h2 class="sect">Actif</h2>
-      <table>
-        <thead><tr><th>Poste</th><th class="num">Brut</th><th class="num">Amort./Dépréc.</th><th class="num">Net N</th><th class="num">Net N-1</th></tr></thead>
-        <tbody>${actifBody}<tr class="total-row total-general"><td><span class="code">BZ</span>TOTAL GÉNÉRAL ACTIF</td><td></td><td></td><td class="num">${f(bilan.totalActif)}</td><td class="num">${n(bilan.totalActifN1)}</td></tr></tbody>
-      </table>
-      <h2 class="sect">Passif</h2>
-      <table>
-        <thead><tr><th>Poste</th><th class="num">Net N</th><th class="num">Net N-1</th></tr></thead>
-        <tbody>${passifBody}<tr class="total-row total-general"><td><span class="code">DZ</span>TOTAL GÉNÉRAL PASSIF</td><td class="num">${f(bilan.totalPassif)}</td><td class="num">${n(bilan.totalPassifN1)}</td></tr></tbody>
-      </table>${warnings}`;
+      <div class="bilan-cols">
+        <div class="bilan-col">
+          <h2 class="sect">Actif</h2>
+          <table class="bil">${actifCols}
+            <thead><tr><th>Poste</th><th class="num">Brut</th><th class="num">Amort.</th><th class="num">Net N</th><th class="num">Net N-1</th></tr></thead>
+            <tbody>${actifBody}</tbody>
+          </table>
+          <table class="bil bil-foot">${actifCols}
+            <tbody><tr class="total-row total-general"><td colspan="3"><span class="code">BZ</span>TOTAL GÉNÉRAL ACTIF</td><td class="num">${f(bilan.totalActif)}</td><td class="num">${n(bilan.totalActifN1)}</td></tr></tbody>
+          </table>
+        </div>
+        <div class="bilan-col">
+          <h2 class="sect">Passif</h2>
+          <table class="bil">${passifCols}
+            <thead><tr><th>Poste</th><th class="num">Net N</th><th class="num">Net N-1</th></tr></thead>
+            <tbody>${passifBody}</tbody>
+          </table>
+          <table class="bil bil-foot">${passifCols}
+            <tbody><tr class="total-row total-general"><td><span class="code">DZ</span>TOTAL GÉNÉRAL PASSIF</td><td class="num">${f(bilan.totalPassif)}</td><td class="num">${n(bilan.totalPassifN1)}</td></tr></tbody>
+          </table>
+        </div>
+      </div>${warnings}`;
 
     const html = buildStatementHtml({
       title: 'Bilan', subtitle: 'SYSCOHADA — Système Normal',

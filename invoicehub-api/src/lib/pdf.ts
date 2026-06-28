@@ -156,6 +156,15 @@ export function buildStatementHtml(params: {
   .total-row td { background: #eef2f6; font-weight: bold; border-top: 1px solid #bcc7d2; }
   .total-general td { background: #dde6ef; border-top: 2px solid #0f2d4a; font-size: 11px; }
   .solde-row td { background: #f4f6f8; font-weight: bold; }
+  /* Bilan : Actif à gauche / Passif à droite, totaux alignés en bas */
+  .bilan-cols { display: flex; gap: 7mm; align-items: stretch; }
+  .bilan-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+  .bilan-col table.bil { table-layout: fixed; font-size: 8.5px; margin-bottom: 0; }
+  .bilan-col table.bil th { padding: 5px 5px; font-size: 8px; }
+  .bilan-col table.bil td { padding: 3px 5px; word-break: break-word; }
+  .bilan-col table.bil .masse-row td { font-size: 8.5px; padding: 4px 5px; }
+  .bilan-col .bil-foot { margin-top: auto; }
+  .bilan-col .bil-foot td { font-size: 9.5px; }
 </style></head>
 <body>
   <div class="page-header">${headerImg ? `<img src="${headerImg}" alt="" />` : ''}</div>
