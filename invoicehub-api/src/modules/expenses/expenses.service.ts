@@ -83,7 +83,11 @@ export class ExpensesService {
 
   // Maps input frontend field names → DB field names for create/update
   private mapInputToDb(data: Record<string, unknown>): Record<string, unknown> {
-    const { designation, supplierName, analyticalAxis, parentId, period, paymentMethod, ...rest } = data as any;
+    // `currency`, `notes`, `parentId`, `period` sont acceptés par le schéma mais
+    // n'existent pas sur le modèle Expense -> on les retire pour ne pas casser Prisma.
+    // (NB : le commentaire libre va dans `description`, pas `notes`.)
+    const { designation, supplierName, analyticalAxis, parentId, period, paymentMethod, currency, notes, ...rest } = data as any;
+    void currency; void notes;
     const mapped: Record<string, unknown> = { ...rest };
     if (designation    !== undefined) mapped['title']           = designation;
     if (supplierName   !== undefined) mapped['beneficiaryName'] = supplierName;
@@ -302,8 +306,10 @@ export class ExpensesService {
     )?.id;
     if (!officeIdResolved) throw AppError.badRequest('Aucun bureau disponible');
 
+    // Signature : fn_next_document_number(office uuid, type document_type).
+    // L'ordre des arguments et le cast du type sont obligatoires (cf. documentNumber.ts).
     const [result] = await this.prisma.$queryRaw<[{ fn_next_document_number: string }]>`
-      SELECT fn_next_document_number('expense', ${officeIdResolved}::uuid)
+      SELECT fn_next_document_number(${officeIdResolved}::uuid, 'expense'::"document_type")
     `;
 
     return this.prisma.$transaction(async (tx) => {

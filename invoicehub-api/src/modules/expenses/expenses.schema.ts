@@ -24,7 +24,9 @@ export const createExpenseSchema = z.object({
   //   analyticalAxis → reference
   designation:       z.string().min(2).max(500),
   description:       z.string().optional().nullable(),
-  categoryId:        z.string().uuid().optional().nullable(),
+  // Requis : la table expenses impose category_id NOT NULL (classification +
+  // compte comptable de la charge). Sans catégorie, la dépense est inclassable.
+  categoryId:        z.string().uuid(),
   officeId:          z.string().uuid().optional().nullable(),
   supplierId:        z.string().uuid().optional().nullable(),
   supplierName:      z.string().max(255).optional().nullable(),
