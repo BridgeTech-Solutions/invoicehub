@@ -59,6 +59,7 @@ export const ROUTES = {
   ACCOUNTING_REPORTS:         '/accounting/reports',
   ACCOUNTING_TAX:             '/accounting/tax-declarations',
   ACCOUNTING_LETTERING:       '/accounting/lettering',
+  ACCOUNTING_STATEMENT_CONFIG: '/accounting/statement-config',
 
   // ── Administration ──────────────────────────────────────────────
   ROLES:               '/roles',

@@ -14,6 +14,7 @@ import {
   createJournalEntrySchema, updateJournalEntrySchema,
   createTaxDeclarationSchema,
   manualLetteringSchema, deleteLetteringSchema,
+  updateRubriqueSchema,
 } from './accounting.schema';
 import type { JwtPayload } from '../../common/types/jwt-payload.type';
 
@@ -390,6 +391,30 @@ export class AccountingController {
     @Query('accountNumber') accountNumber?: string,
   ) {
     return this.svc.deleteLettering(code, accountNumber ?? '');
+  }
+
+  // ── Paramétrage des rubriques (états financiers, « façon Sage ») ─────────────
+
+  @Get('statement-rubriques')
+  @Permission('accounting:read')
+  listRubriques() {
+    return this.svc.listStatementRubriques();
+  }
+
+  @Put('statement-rubriques/:code')
+  @Permission('accounting:write')
+  updateRubrique(
+    @Param('code') code: string,
+    @Body(new ZodValidationPipe(updateRubriqueSchema)) body: any,
+  ) {
+    return this.svc.updateStatementRubrique(code, body);
+  }
+
+  @Post('statement-rubriques/reset')
+  @Permission('accounting:write')
+  @HttpCode(HttpStatus.OK)
+  resetRubriques() {
+    return this.svc.resetStatementRubriques();
   }
 
   // ── Déclarations fiscales ───────────────────────────────────────────────────

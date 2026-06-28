@@ -102,6 +102,20 @@ export const deleteLetteringSchema = z.object({
   accountNumber: z.string().min(3, 'Numéro de compte requis'),
 });
 
+// ── Rubriques des états financiers (paramétrage « façon Sage ») ────────────────
+export const rubriqueSourceSchema = z.object({
+  column:   z.enum(['brut', 'amort']),
+  prefixes: z.array(z.string().trim().min(1).max(10)).min(1, 'Au moins un compte/préfixe'),
+  mode:     z.enum(['debitRaw', 'creditRaw', 'debitSign', 'creditSign']),
+  exclude:  z.array(z.string().trim().min(1).max(10)).optional(),
+});
+
+export const updateRubriqueSchema = z.object({
+  label:   z.string().trim().min(2).max(255).optional(),
+  sources: z.array(rubriqueSourceSchema).optional(),
+});
+export type UpdateRubriqueInput = z.infer<typeof updateRubriqueSchema>;
+
 export const unletteredLinesSchema = z.object({
   accountNumber: z.string().min(3),
   dateFrom:      z.string().optional(),

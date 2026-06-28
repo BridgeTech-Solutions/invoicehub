@@ -10,7 +10,7 @@ import type {
   LetterableEntryLine, LetteredGroup,
   TaxDeclaration, TaxDeclarationDetail, CreateTaxDeclPayload,
   AccountingStats, ExportConfig, AccountClass,
-  Bilan, CompteResultat,
+  Bilan, CompteResultat, StatementRubrique, RubriqueSource,
 } from './types'
 
 // ── Normalizers ──────────────────────────────────────────────────
@@ -346,6 +346,16 @@ export const accountingApi = {
     if (params.detailed) q.set('detailed', 'true')
     return apiClient.get<Bilan>(`/accounting/reports/bilan${q.toString() ? `?${q}` : ''}`).then(r => r.data)
   },
+
+  // ── Paramétrage des rubriques (états financiers) ──
+  listStatementRubriques: () =>
+    apiClient.get<StatementRubrique[]>('/accounting/statement-rubriques').then(r => r.data),
+
+  updateStatementRubrique: (code: string, data: { label?: string; sources?: RubriqueSource[] }) =>
+    apiClient.put<StatementRubrique>(`/accounting/statement-rubriques/${code}`, data).then(r => r.data),
+
+  resetStatementRubriques: () =>
+    apiClient.post<{ reset: number }>('/accounting/statement-rubriques/reset').then(r => r.data),
 
   getCompteResultat: (params: { periodId?: string; year?: number }) => {
     const q = new URLSearchParams()

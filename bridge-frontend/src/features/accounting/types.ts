@@ -339,6 +339,16 @@ export interface Bilan {
   comptesNonVentiles: number
 }
 
+// ─── Rubriques des états financiers (paramétrage « façon Sage ») ──
+export type RubriqueMode = 'debitRaw' | 'creditRaw' | 'debitSign' | 'creditSign'
+export interface RubriqueSource { column: 'brut' | 'amort'; prefixes: string[]; mode: RubriqueMode; exclude?: string[] }
+export interface StatementRubrique {
+  id: string; side: 'actif' | 'passif'
+  masseCode: string; masseLabel: string; masseOrder: number
+  code: string; label: string; lineOrder: number
+  isResult: boolean; sources: RubriqueSource[]
+}
+
 export interface SIGLine { code: string; label: string; amount: number; kind: 'produit' | 'charge' | 'solde' }
 
 export interface CompteResultat {

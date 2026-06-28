@@ -339,6 +339,37 @@ export function useBilan(params: { periodId?: string; year?: number; detailed?: 
   })
 }
 
+export function useStatementRubriques() {
+  return useQuery({
+    queryKey: ['accounting-rubriques'],
+    queryFn:  () => accountingApi.listStatementRubriques(),
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export function useUpdateRubrique() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ code, data }: { code: string; data: { label?: string; sources?: import('./types').RubriqueSource[] } }) =>
+      accountingApi.updateStatementRubrique(code, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['accounting-rubriques'] })
+      qc.invalidateQueries({ queryKey: ['accounting-bilan'] })
+    },
+  })
+}
+
+export function useResetRubriques() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => accountingApi.resetStatementRubriques(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['accounting-rubriques'] })
+      qc.invalidateQueries({ queryKey: ['accounting-bilan'] })
+    },
+  })
+}
+
 export function useCompteResultat(params: { periodId?: string; year?: number } = {}) {
   return useQuery({
     queryKey: ['accounting-compte-resultat', params],

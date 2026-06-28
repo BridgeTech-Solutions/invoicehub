@@ -134,6 +134,7 @@ export const OVERLAY_PANELS: Record<string, OverlayPanel> = {
         items: [
           { label: 'Balance & Grand livre', href: ROUTES.ACCOUNTING_REPORTS,           icon: BarChart3 },
           { label: 'Export Sage',           href: `${ROUTES.ACCOUNTING_REPORTS}/sage`, icon: Download },
+          { label: 'Paramétrage du bilan',  href: ROUTES.ACCOUNTING_STATEMENT_CONFIG,  icon: Sliders, permission: { resource: 'accounting', action: 'update' } },
         ],
       },
       {

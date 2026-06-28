@@ -4,6 +4,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
 import { computeBilan, computeCompteResultat, attachBilanAccounts } from '../../lib/syscohada-statements';
 import { computeBilanFromRubriques, type RubriqueDef, type RubriqueSource } from '../../lib/statement-rubriques';
+import { BILAN_RUBRIQUES } from '../../lib/statement-rubriques.seed';
+import type { UpdateRubriqueInput } from './accounting.schema';
 import { generatePdf, buildStatementHtml, resolveDocumentAssets, escapeHtml } from '../../lib/pdf';
 import {
   CreateChartAccountInput, UpdateChartAccountInput,
@@ -711,6 +713,45 @@ export class AccountingService {
       isResult:   r.isResult,
       sources:    (r.sources as unknown) as RubriqueSource[],
     }));
+  }
+
+  // ── Paramétrage des rubriques (modèle éditable « façon Sage ») ───────────────
+
+  /** Liste les rubriques du bilan, regroupées et ordonnées (pour l'écran de paramétrage). */
+  async listStatementRubriques() {
+    return this.prisma.statementRubrique.findMany({
+      orderBy: [{ side: 'asc' }, { masseOrder: 'asc' }, { lineOrder: 'asc' }],
+    });
+  }
+
+  /** Met à jour le libellé et/ou les sources d'une rubrique (par code de poste). */
+  async updateStatementRubrique(code: string, data: UpdateRubriqueInput) {
+    const rubrique = await this.prisma.statementRubrique.findUnique({ where: { code } });
+    if (!rubrique) throw AppError.notFound(`Rubrique ${code} introuvable`);
+    if (rubrique.isResult && data.sources?.length)
+      throw AppError.badRequest('Le résultat net est calculé automatiquement : ses comptes ne sont pas modifiables.');
+    return this.prisma.statementRubrique.update({
+      where: { code },
+      data: {
+        ...(data.label   !== undefined ? { label: data.label } : {}),
+        ...(data.sources !== undefined ? { sources: data.sources as never } : {}),
+      },
+    });
+  }
+
+  /** Réinitialise toutes les rubriques au modèle SYSCOHADA d'origine (seed). */
+  async resetStatementRubriques() {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.statementRubrique.deleteMany({});
+      await tx.statementRubrique.createMany({
+        data: BILAN_RUBRIQUES.map((r) => ({
+          side: r.side, masseCode: r.masseCode, masseLabel: r.masseLabel, masseOrder: r.masseOrder,
+          code: r.code, label: r.label, lineOrder: r.lineOrder, isResult: r.isResult ?? false,
+          sources: r.sources as never,
+        })),
+      });
+    });
+    return { reset: BILAN_RUBRIQUES.length };
   }
 
   async getBilan(scope: { fiscalPeriodId?: string; fiscalYear?: number }, detailed = false) {
