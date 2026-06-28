@@ -83,15 +83,22 @@ export type DetectFormatInput       = z.infer<typeof detectFormatSchema>;
 // ── Import profiles ───────────────────────────────────────────────────────────
 
 export const createImportProfileSchema = z.object({
-  name:          z.string().min(1).max(255),
-  bankName:      z.string().max(255).optional().nullable(),
-  fileFormat:    z.string().max(50).optional().nullable(),
-  encoding:      z.string().max(20).optional().nullable(),
-  delimiter:     z.string().max(5).optional().nullable(),
-  dateFormat:    z.string().max(50).optional().nullable(),
-  numberFormat:  z.record(z.any()).optional(),
-  columnMapping: z.record(z.any()).optional(),
-  country:       z.string().max(100).optional().nullable(),
+  name:               z.string().min(1).max(255),
+  bankName:           z.string().max(255).optional().nullable(),
+  country:            z.string().max(100).optional().nullable(),
+  fileFormat:         z.string().max(50).optional().nullable(),
+  encoding:           z.string().max(20).optional().nullable(),
+  delimiter:          z.string().max(5).optional().nullable(),
+  dateFormat:         z.string().max(50).optional().nullable(),
+  // Requis en base (NOT NULL) — un profil sans mapping/format n'a pas de sens.
+  numberFormat:       z.record(z.any()),
+  columnMapping:      z.record(z.any()),
+  directionValues:    z.record(z.any()).optional().nullable(),
+  amountSign:         z.string().max(50).optional().nullable(),
+  skipRowsContaining: z.array(z.string()).optional().nullable(),
+  skipFirstRows:      z.number().int().optional().nullable(),
+  isPublic:           z.boolean().optional(),
+  notes:              z.string().optional().nullable(),
 });
 
 export const updateImportProfileSchema = createImportProfileSchema.partial();
@@ -102,18 +109,19 @@ export type UpdateImportProfileInput = z.infer<typeof updateImportProfileSchema>
 // ── Matching rules ────────────────────────────────────────────────────────────
 
 export const createMatchingRuleSchema = z.object({
-  name:            z.string().min(1).max(255),
-  labelContains:   z.string().max(255).optional().nullable(),
-  amountMin:       z.number().optional().nullable(),
-  amountMax:       z.number().optional().nullable(),
-  transactionType: z.enum(['debit', 'credit']).optional().nullable(),
-  entityType:      z.string().max(100).optional().nullable(),
-  entityId:        z.string().uuid().optional().nullable(),
-  priority:        z.number().int().optional().nullable(),
-  isActive:        z.boolean().optional(),
+  bankAccountId: z.string().uuid().optional().nullable(),
+  labelContains: z.string().min(1).max(255),
+  entityType:    z.enum(['payment', 'supplier_payment', 'expense']),
+  entityId:      z.string().uuid().optional().nullable(),
+  category:      z.string().max(100).optional().nullable(),
+  amountMin:     z.number().optional().nullable(),
+  amountMax:     z.number().optional().nullable(),
+  autoApply:     z.boolean().optional(),
 });
 
-export const updateMatchingRuleSchema = createMatchingRuleSchema.partial();
+export const updateMatchingRuleSchema = createMatchingRuleSchema.partial().extend({
+  isActive: z.boolean().optional(),
+});
 
 export type CreateMatchingRuleInput = z.infer<typeof createMatchingRuleSchema>;
 export type UpdateMatchingRuleInput = z.infer<typeof updateMatchingRuleSchema>;

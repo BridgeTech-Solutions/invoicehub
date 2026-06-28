@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { AppError } from '../../common/errors/app-error';
 import { BANK_IMPORT_QUEUE } from '../../jobs/constants';
 import {
@@ -1216,8 +1217,8 @@ export class BankService {
   }
 
   async createMatchingRule(data: {
-    bankAccountId?: string; labelContains: string; entityType: string;
-    entityId?: string; category?: string; amountMin?: number; amountMax?: number; isAutoApply?: boolean;
+    bankAccountId?: string | null; labelContains: string; entityType: string;
+    entityId?: string | null; category?: string | null; amountMin?: number | null; amountMax?: number | null; autoApply?: boolean;
   }, userId: string) {
     return this.prisma.bankMatchingRule.create({
       data: {
@@ -1228,17 +1229,29 @@ export class BankService {
         category:      data.category   ?? undefined,
         amountMin:     data.amountMin  ?? undefined,
         amountMax:     data.amountMax  ?? undefined,
-        isAutoApply:   data.isAutoApply ?? false,
+        isAutoApply:   data.autoApply  ?? false,
         confidence:    1, createdById: userId,
       },
     });
   }
 
   async updateMatchingRule(id: string, data: {
-    labelContains?: string; isActive?: boolean; isAutoApply?: boolean;
-    amountMin?: number; amountMax?: number;
+    bankAccountId?: string | null; labelContains?: string; entityType?: string;
+    entityId?: string | null; category?: string | null; amountMin?: number | null; amountMax?: number | null;
+    autoApply?: boolean; isActive?: boolean;
   }) {
-    return this.prisma.bankMatchingRule.update({ where: { id }, data });
+    // Allow-list : `autoApply` (API) -> `isAutoApply` (colonne). On ne passe à
+    // Prisma que des champs réellement présents sur le modèle.
+    const d: Prisma.BankMatchingRuleUpdateInput = {};
+    if (data.labelContains !== undefined) d.labelContains = data.labelContains;
+    if (data.entityType    !== undefined) d.entityType    = data.entityType;
+    if (data.entityId      !== undefined) d.entityId      = data.entityId ?? null;
+    if (data.category      !== undefined) d.category      = data.category ?? null;
+    if (data.amountMin     !== undefined) d.amountMin     = data.amountMin ?? null;
+    if (data.amountMax     !== undefined) d.amountMax     = data.amountMax ?? null;
+    if (data.autoApply     !== undefined) d.isAutoApply   = data.autoApply;
+    if (data.isActive      !== undefined) d.isActive      = data.isActive;
+    return this.prisma.bankMatchingRule.update({ where: { id }, data: d });
   }
 
   async deleteMatchingRule(id: string) {
