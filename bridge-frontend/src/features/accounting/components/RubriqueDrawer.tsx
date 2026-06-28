@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Sliders, Plus, Trash2, Info } from 'lucide-react'
 import { toast } from 'sonner'
 import { useUpdateRubrique } from '../hooks'
@@ -98,7 +99,7 @@ export function RubriqueDrawer({ open, onClose, rubrique }: Props) {
 
   if (!open && !visible) return null
 
-  return (
+  return createPortal((
     <>
       <div onClick={handleClose} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(10,20,35,0.45)', backdropFilter: 'blur(2px)', opacity: visible ? 1 : 0, transition: 'opacity 0.28s' }} />
       <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 301, width: 560, maxWidth: '100vw', background: 'var(--surface)', boxShadow: '-8px 0 40px rgba(10,20,35,0.18)', transform: visible ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.30s cubic-bezier(0.4,0,0.2,1)', display: 'flex', flexDirection: 'column' }}>
@@ -209,7 +210,7 @@ export function RubriqueDrawer({ open, onClose, rubrique }: Props) {
         </div>
       </div>
     </>
-  )
+  ), document.body)
 }
 
 const sectionTitle: React.CSSProperties = { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)', fontFamily: 'var(--font-display)', margin: 0 }
