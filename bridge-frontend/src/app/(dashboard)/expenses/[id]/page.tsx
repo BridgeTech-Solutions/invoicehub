@@ -83,7 +83,7 @@ export default function ExpenseDetailPage({ params }: { params: Promise<{ id: st
   if (!can('expense', 'read')) return <AccessDenied message="Vous n'avez pas accès à cette dépense." />
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 860, animation: 'page-in 0.2s ease' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, animation: 'page-in 0.2s ease' }}>
       {showReject && (
         <RejectModal isPending={rejectMutation.isPending}
           onClose={() => setShowReject(false)}
