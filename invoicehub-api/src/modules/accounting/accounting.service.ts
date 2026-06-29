@@ -241,7 +241,7 @@ export class AccountingService {
       include: {
         journal:      true,
         fiscalPeriod: true,
-        lines:        { orderBy: { sortOrder: 'asc' } },
+        lines:        { orderBy: { sortOrder: 'asc' }, include: { account: { select: { accountNumber: true, name: true } } } },
         createdBy:    { select: { id: true, firstName: true, lastName: true } },
       },
     });

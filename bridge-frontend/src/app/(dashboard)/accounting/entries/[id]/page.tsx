@@ -39,8 +39,8 @@ export default function EntryDetailPage() {
     if (!entry) return
     setLabel(entry.label)
     setDate(entry.date)
-    setLines(entry.lines.map(l => ({
-      accountId: l.account.number, accountNum: l.account.number, accountName: l.account.name,
+    setLines(entry.lines.map((l: any) => ({
+      accountId: l.accountNumber ?? l.account?.accountNumber ?? '', accountNum: l.accountNumber ?? l.account?.accountNumber ?? '', accountName: l.account?.name ?? '',
       label: l.label, debit: Number(l.debit), credit: Number(l.credit),
     })))
   }, [entry])
