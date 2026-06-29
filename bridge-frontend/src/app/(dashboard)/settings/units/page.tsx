@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { Plus, Pencil, PowerOff, Power, Check, X, Loader2 } from 'lucide-react'
 import { useAllUnits, useCreateUnit, useUpdateUnit, useRemoveUnit } from '@/features/units/hooks'
+import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import type { Unit } from '@/features/units/api'
 
 const inputCss: React.CSSProperties = {
@@ -103,6 +105,8 @@ export default function UnitsSettingsPage() {
   const createM = useCreateUnit()
   const updateM = useUpdateUnit()
   const removeM = useRemoveUnit()
+  const { can } = usePermission()
+  const canEdit = can('settings', 'update')
 
   const [showCreate, setShowCreate] = useState(false)
   const [editId,     setEditId]     = useState<string | null>(null)
@@ -126,6 +130,8 @@ export default function UnitsSettingsPage() {
     borderBottom: '1px solid var(--border)', verticalAlign: 'middle',
   }
 
+  if (!can('settings', 'read')) return <AccessDenied message="Vous n'avez pas accès aux paramètres." />
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
@@ -139,7 +145,7 @@ export default function UnitsSettingsPage() {
             Configurez les unités disponibles dans les lignes de documents et les produits.
           </p>
         </div>
-        {!showCreate && (
+        {!showCreate && canEdit && (
           <button type="button" onClick={() => setShowCreate(true)}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--primary)', color: '#fff', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, boxShadow: '0 2px 8px rgba(45,125,210,0.2)', flexShrink: 0 }}>
             <Plus size={14} /> Nouvelle unité
@@ -223,6 +229,7 @@ export default function UnitsSettingsPage() {
                     <StatusBadge active={unit.isActive} />
                   </td>
                   <td style={{ ...tdCss, textAlign: 'right' }}>
+                    {canEdit ? (
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
                       <button type="button" onClick={() => setEditId(unit.id)} title="Modifier"
                         style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 500 }}>
@@ -235,6 +242,7 @@ export default function UnitsSettingsPage() {
                         {unit.isActive ? <><PowerOff size={12} /> Désactiver</> : <><Power size={12} /> Réactiver</>}
                       </button>
                     </div>
+                    ) : <span style={{ color: 'var(--text-3)' }}>—</span>}
                   </td>
                 </tr>
               )
