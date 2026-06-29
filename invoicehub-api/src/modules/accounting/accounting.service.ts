@@ -163,7 +163,7 @@ export class AccountingService {
     const existing = await this.prisma.accountingJournal.findFirst({ where: { code: data.code } });
     if (existing) throw AppError.conflict(`Le journal ${data.code} existe déjà`);
     return this.prisma.accountingJournal.create({
-      data: { code: data.code, name: data.name, description: data.description ?? undefined, type: data.type as never, isActive: true, createdById: userId },
+      data: { code: data.code, name: data.name, description: data.description ?? undefined, defaultAccountId: data.defaultAccountId ?? undefined, type: data.type as never, isActive: true, createdById: userId },
     });
   }
 
@@ -172,10 +172,11 @@ export class AccountingService {
     if (!journal) throw AppError.notFound('Journal introuvable');
     // Allow-list des champs réellement persistés sur le modèle AccountingJournal.
     const updateData: Prisma.AccountingJournalUpdateInput = {};
-    if (data.name        !== undefined) updateData.name        = data.name;
-    if (data.description !== undefined) updateData.description = data.description ?? null;
-    if (data.type        !== undefined) updateData.type        = data.type as never;
-    if (data.isActive    !== undefined) updateData.isActive    = data.isActive;
+    if (data.name             !== undefined) updateData.name             = data.name;
+    if (data.description      !== undefined) updateData.description      = data.description ?? null;
+    if (data.defaultAccountId !== undefined) updateData.defaultAccountId = data.defaultAccountId ?? null;
+    if (data.type             !== undefined) updateData.type             = data.type as never;
+    if (data.isActive         !== undefined) updateData.isActive         = data.isActive;
     return this.prisma.accountingJournal.update({ where: { id }, data: updateData });
   }
 

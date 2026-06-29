@@ -2021,6 +2021,9 @@ model AccountingJournal {
   name            String      @db.VarChar(100)
   description     String?     @db.Text
   type            JournalType
+  /// Compte de contrepartie par défaut (numéro de compte SYSCOHADA, ex. 521, 401)
+  /// pré-rempli d'un côté de chaque écriture saisie dans ce journal.
+  defaultAccountId String?    @map("default_account_id") @db.VarChar(20)
   bankAccountId   String?     @map("bank_account_id") @db.Uuid
   bankAccount     BankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
   isDefault       Boolean     @default(false) @map("is_default")

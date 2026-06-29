@@ -33,17 +33,19 @@ export const createFiscalPeriodSchema = z.object({
 });
 
 export const createJournalSchema = z.object({
-  code:        z.string().min(2).max(20).toUpperCase(),
-  name:        z.string().min(2).max(100),
-  type:        z.enum(['sales', 'purchases', 'bank', 'cash', 'operations', 'misc', 'opening', 'closing']),
-  description: z.string().optional().nullable(),
+  code:             z.string().min(2).max(20).toUpperCase(),
+  name:             z.string().min(2).max(100),
+  type:             z.enum(['sales', 'purchases', 'bank', 'cash', 'operations', 'misc', 'opening', 'closing']),
+  description:      z.string().optional().nullable(),
+  defaultAccountId: z.string().max(20).optional().nullable(), // numéro du compte de contrepartie par défaut
 });
 
 export const updateJournalSchema = z.object({
-  name:        z.string().min(2).max(100).optional(),
-  type:        z.enum(['sales', 'purchases', 'bank', 'cash', 'operations', 'misc', 'opening', 'closing']).optional(),
-  description: z.string().optional().nullable(),
-  isActive:    z.boolean().optional(),
+  name:             z.string().min(2).max(100).optional(),
+  type:             z.enum(['sales', 'purchases', 'bank', 'cash', 'operations', 'misc', 'opening', 'closing']).optional(),
+  description:      z.string().optional().nullable(),
+  defaultAccountId: z.string().max(20).optional().nullable(),
+  isActive:         z.boolean().optional(),
 });
 
 const entryLineSchema = z.object({
