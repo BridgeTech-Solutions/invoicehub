@@ -163,7 +163,7 @@ export class AccountingService {
     const existing = await this.prisma.accountingJournal.findFirst({ where: { code: data.code } });
     if (existing) throw AppError.conflict(`Le journal ${data.code} existe déjà`);
     return this.prisma.accountingJournal.create({
-      data: { code: data.code, name: data.name, description: data.description ?? undefined, defaultAccountId: data.defaultAccountId ?? undefined, type: data.type as never, isActive: true, createdById: userId },
+      data: { code: data.code, name: data.name, description: data.description ?? undefined, defaultAccountId: data.defaultAccountId ?? undefined, bankAccountId: data.bankAccountId ?? undefined, type: data.type as never, isActive: true, createdById: userId },
     });
   }
 
@@ -175,6 +175,7 @@ export class AccountingService {
     if (data.name             !== undefined) updateData.name             = data.name;
     if (data.description      !== undefined) updateData.description      = data.description ?? null;
     if (data.defaultAccountId !== undefined) updateData.defaultAccountId = data.defaultAccountId ?? null;
+    if (data.bankAccountId    !== undefined) updateData.bankAccount      = data.bankAccountId ? { connect: { id: data.bankAccountId } } : { disconnect: true };
     if (data.type             !== undefined) updateData.type             = data.type as never;
     if (data.isActive         !== undefined) updateData.isActive         = data.isActive;
     return this.prisma.accountingJournal.update({ where: { id }, data: updateData });

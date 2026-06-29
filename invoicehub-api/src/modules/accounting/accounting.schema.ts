@@ -38,6 +38,7 @@ export const createJournalSchema = z.object({
   type:             z.enum(['sales', 'purchases', 'bank', 'cash', 'operations', 'misc', 'opening', 'closing']),
   description:      z.string().optional().nullable(),
   defaultAccountId: z.string().max(20).optional().nullable(), // numéro du compte de contrepartie par défaut
+  bankAccountId:    z.string().uuid().optional().nullable(),  // fiche bancaire liée (journaux banque/caisse)
 });
 
 export const updateJournalSchema = z.object({
@@ -45,6 +46,7 @@ export const updateJournalSchema = z.object({
   type:             z.enum(['sales', 'purchases', 'bank', 'cash', 'operations', 'misc', 'opening', 'closing']).optional(),
   description:      z.string().optional().nullable(),
   defaultAccountId: z.string().max(20).optional().nullable(),
+  bankAccountId:    z.string().uuid().optional().nullable(),
   isActive:         z.boolean().optional(),
 });
 

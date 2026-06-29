@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { X, BookOpen } from 'lucide-react'
 import { useCreateJournal, useUpdateJournal } from '../hooks'
+import { useBankAccounts } from '@/features/bank/hooks'
 import { AccountPicker } from './AccountPicker'
 import { toast } from 'sonner'
 import type { AccountingJournal, JournalType, CreateJournalPayload } from '../types'
@@ -27,9 +28,19 @@ export function JournalDrawer({ open, onClose, editing }: Props) {
   const [name, setName]       = useState('')
   const [type, setType]       = useState<JournalType>('purchases')
   const [defaultAccountId, setDefaultAccountId] = useState<string | null>(null)
+  const [bankAccountId, setBankAccountId]       = useState<string | null>(null)
 
   const create = useCreateJournal()
   const update = useUpdateJournal()
+  const { data: bankAccounts = [] } = useBankAccounts()
+  const isTreasury = type === 'bank' || type === 'cash'
+
+  // Sélection d'une banque -> lie la fiche + pré-remplit la contrepartie avec son compte comptable
+  function selectBank(id: string | null) {
+    setBankAccountId(id)
+    const ba = bankAccounts.find(b => b.id === id)
+    if (ba?.accountingAccount) setDefaultAccountId(ba.accountingAccount)
+  }
 
   useEffect(() => {
     if (open) {
@@ -37,8 +48,9 @@ export function JournalDrawer({ open, onClose, editing }: Props) {
       if (editing) {
         setCode(editing.code); setName(editing.name); setType(editing.type)
         setDefaultAccountId(editing.defaultAccountId ?? null)
+        setBankAccountId(editing.bankAccountId ?? null)
       } else {
-        setCode(''); setName(''); setType('purchases'); setDefaultAccountId(null)
+        setCode(''); setName(''); setType('purchases'); setDefaultAccountId(null); setBankAccountId(null)
       }
     }
   }, [open, editing])
@@ -64,6 +76,8 @@ export function JournalDrawer({ open, onClose, editing }: Props) {
     e.preventDefault()
     const payload: CreateJournalPayload = { code: code.toUpperCase(), name, type }
     if (defaultAccountId) payload.defaultAccountId = defaultAccountId
+    // Lien banque seulement pertinent pour les journaux de trésorerie
+    payload.bankAccountId = isTreasury ? bankAccountId : null
     try {
       if (editing) {
         await update.mutateAsync({ id: editing.id, data: payload })
@@ -125,6 +139,24 @@ export function JournalDrawer({ open, onClose, editing }: Props) {
               ))}
             </div>
           </div>
+
+          {isTreasury && (
+            <div>
+              <label style={lbl}>Compte bancaire lié</label>
+              <select value={bankAccountId ?? ''} onChange={e => selectBank(e.target.value || null)}
+                style={{ ...inp, cursor: 'pointer' }}>
+                <option value="">— Aucun —</option>
+                {bankAccounts.map(b => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} · {b.bankName}{b.accountingAccount ? ` (${b.accountingAccount})` : ''}
+                  </option>
+                ))}
+              </select>
+              <p style={{ marginTop: 4, fontSize: 11, color: 'var(--text-3)' }}>
+                Rattache ce journal à une banque et pré-remplit la contrepartie avec son compte comptable.
+              </p>
+            </div>
+          )}
 
           <div>
             <label style={lbl}>Compte de contrepartie par défaut</label>
