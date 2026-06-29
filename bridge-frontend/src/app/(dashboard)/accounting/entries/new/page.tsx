@@ -45,6 +45,19 @@ export default function NewEntryPage() {
     setLines(prev => prev.filter((_, i) => i !== idx))
   }
 
+  // Choix d'un journal : pré-remplit la 1re ligne vide avec son compte de
+  // contrepartie par défaut (ex. journal Banque -> 521), pour gagner du temps.
+  function handleJournalChange(id: string) {
+    setJournalId(id)
+    const acc = journals.find(j => j.id === id)?.defaultAccountId
+    if (!acc) return
+    setLines(prev => {
+      const firstEmpty = prev.findIndex(l => !l.accountNum && l.debit === 0 && l.credit === 0)
+      if (firstEmpty === -1) return prev
+      return prev.map((l, i) => i === firstEmpty ? { ...l, accountId: acc, accountNum: acc } : l)
+    })
+  }
+
   function handleAccountSelect(idx: number, account: AccountListItem | null) {
     if (!account) {
       updateLine(idx, { accountId: '', accountNum: '', accountName: '' })
@@ -103,13 +116,18 @@ export default function NewEntryPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div>
                 <label style={lbl}>Journal <span style={{ color: 'var(--s-overdue)' }}>*</span></label>
-                <select value={journalId} onChange={e => setJournalId(e.target.value)}
+                <select value={journalId} onChange={e => handleJournalChange(e.target.value)}
                   style={{ ...inp, cursor: 'pointer' }}>
                   <option value="">Sélectionner un journal…</option>
                   {journals.filter(j => j.isActive).map(j => (
                     <option key={j.id} value={j.id}>{j.code} — {j.name}</option>
                   ))}
                 </select>
+                {selectedJournal?.defaultAccountId && (
+                  <p style={{ marginTop: 4, fontSize: 11, color: 'var(--primary)' }}>
+                    Contrepartie par défaut <strong>{selectedJournal.defaultAccountId}</strong> pré-remplie.
+                  </p>
+                )}
               </div>
               <div>
                 <label style={lbl}>Date <span style={{ color: 'var(--s-overdue)' }}>*</span></label>
