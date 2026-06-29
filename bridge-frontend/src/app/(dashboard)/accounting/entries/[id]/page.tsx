@@ -38,7 +38,7 @@ export default function EntryDetailPage() {
   useEffect(() => {
     if (!entry) return
     setLabel(entry.label)
-    setDate(entry.date)
+    setDate((((entry as any).entryDate ?? entry.date) ?? '').slice(0, 10))
     setLines(entry.lines.map((l: any) => ({
       accountId: l.accountNumber ?? l.account?.accountNumber ?? '', accountNum: l.accountNumber ?? l.account?.accountNumber ?? '', accountName: l.account?.name ?? '',
       label: l.label, debit: Number(l.debit), credit: Number(l.credit),
@@ -62,7 +62,7 @@ export default function EntryDetailPage() {
   function cancelEdit() {
     if (!entry) return
     setEditing(false)
-    setLabel(entry.label); setDate(entry.date)
+    setLabel(entry.label); setDate((((entry as any).entryDate ?? entry.date) ?? '').slice(0, 10))
     setLines(entry.lines.map(l => ({ accountId: l.account.number, accountNum: l.account.number, accountName: l.account.name, label: l.label, debit: Number(l.debit), credit: Number(l.credit) })))
   }
 
@@ -92,6 +92,8 @@ export default function EntryDetailPage() {
   const cfg      = STATUS_CFG[entry.status] ?? STATUS_CFG.draft
   const isDraft  = entry.status === 'draft'
   const canEdit  = isDraft && can('accounting', 'update')
+  const number   = (entry as any).entryNumber ?? entry.number ?? ''
+  const dateISO  = (((entry as any).entryDate ?? entry.date) ?? '').slice(0, 10)
 
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto' }}>
@@ -103,7 +105,7 @@ export default function EntryDetailPage() {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <h1 style={{ fontSize: 19, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0 }}>
-              Écriture <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>{entry.number}</span>
+              Écriture <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>{number}</span>
             </h1>
             <span style={{ fontSize: 11.5, fontWeight: 700, padding: '2px 10px', borderRadius: 99, background: cfg.bg, color: cfg.color }}>{cfg.label}</span>
           </div>
@@ -131,7 +133,7 @@ export default function EntryDetailPage() {
         <Field label="Journal" value={`${entry.journal.code} — ${entry.journal.name}`} />
         {editing
           ? <div><label style={lbl}>Date</label><input type="date" value={entryDate} onChange={e => setDate(e.target.value)} style={inp} /></div>
-          : <Field label="Date" value={new Date(entry.date).toLocaleDateString('fr-FR')} />}
+          : <Field label="Date" value={dateISO ? new Date(dateISO).toLocaleDateString('fr-FR') : '—'} />}
         <div style={{ gridColumn: '1/-1' }}>
           {editing
             ? <><label style={lbl}>Libellé général</label><input value={label} onChange={e => setLabel(e.target.value)} style={inp} /></>
