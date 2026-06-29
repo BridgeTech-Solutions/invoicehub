@@ -33,7 +33,12 @@ export class GuideService {
     const result: Record<string, string> = {};
     for (const section of VALID_SECTIONS) {
       const file = this.findVideoFile(section);
-      if (file) result[section] = `uploads/videos/${file}`;
+      if (file) {
+        // ?v=mtime : casse le cache navigateur quand on remplace la vidéo
+        // (même nom de fichier -> sinon l'ancienne version reste affichée).
+        const mtime = Math.floor(fs.statSync(path.join(VIDEOS_DIR, file)).mtimeMs);
+        result[section] = `uploads/videos/${file}?v=${mtime}`;
+      }
     }
     return result;
   }
@@ -44,7 +49,7 @@ export class GuideService {
     // Supprimer l'ancienne vidéo de cette section si elle existe
     await this.deleteVideo(section).catch(() => {});
     await fs.promises.writeFile(dest, buffer);
-    return `uploads/videos/${section}${ext}`;
+    return `uploads/videos/${section}${ext}?v=${Date.now()}`;
   }
 
   deleteVideo(section: string): Promise<void> {

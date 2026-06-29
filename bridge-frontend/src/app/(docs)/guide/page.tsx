@@ -332,6 +332,7 @@ function VideoPlaceholder({ section, title, caption }: { section: string; title:
         {/* ── Vidéo disponible ── */}
         {videoSrc ? (
           <video
+            key={videoSrc}
             controls
             preload="metadata"
             style={{ width: '100%', display: 'block', maxHeight: 360 }}
