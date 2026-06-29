@@ -203,6 +203,9 @@ export const accountingApi = {
   createEntry: (data: CreateEntryPayload) =>
     apiClient.post<AccountingEntry>('/accounting/entries', data).then(r => r.data),
 
+  updateEntry: (id: string, data: { label?: string; entryDate?: string; lines?: { accountNumber: string; label: string; debit: number; credit: number }[] }) =>
+    apiClient.put<AccountingEntry>(`/accounting/entries/${id}`, data).then(r => r.data),
+
   validateEntry: (id: string) =>
     apiClient.post<AccountingEntry>(`/accounting/entries/${id}/validate`).then(r => r.data),
 

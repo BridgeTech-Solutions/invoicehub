@@ -173,6 +173,19 @@ export function useCreateEntry() {
   })
 }
 
+export function useUpdateEntry() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { label?: string; entryDate?: string; lines?: { accountNumber: string; label: string; debit: number; credit: number }[] } }) =>
+      accountingApi.updateEntry(id, data),
+    onSuccess: (_res, { id }) => {
+      qc.invalidateQueries({ queryKey: ['accounting-entries'] })
+      qc.invalidateQueries({ queryKey: ['accounting-entry', id] })
+      qc.invalidateQueries({ queryKey: ['accounting-balance'] })
+    },
+  })
+}
+
 function invalidateAccounting(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ['accounting-entries'] })
   qc.invalidateQueries({ queryKey: ['accounting-balance'] })

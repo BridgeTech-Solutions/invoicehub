@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Plus, Search, PenLine, XCircle, RotateCcw, ChevronLeft, ChevronRight, AlertCircle, CheckCircle2, Check, ListChecks, Clock } from 'lucide-react'
+import { Plus, Search, PenLine, XCircle, RotateCcw, ChevronLeft, ChevronRight, AlertCircle, CheckCircle2, Check, ListChecks, Clock, Eye } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useEntries, useCancelEntry, useReverseEntry, useJournals, useFiscalYears, useValidateEntry, useValidateEntriesBulk, useValidateAllDraft, usePendingValidation } from '@/features/accounting/hooks'
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import { formatDate } from '@/lib/utils'
@@ -57,6 +58,7 @@ function KpiCard({ label, value, sub, color }: { label: string; value: string; s
 export default function EntriesPage() {
   const { format } = useCurrency()
   const { can } = usePermission()
+  const router  = useRouter()
   const [params, setParams] = useState<ListEntriesParams>({ page: 1, limit: 25 })
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -314,6 +316,7 @@ export default function EntriesPage() {
                       </td>
                       <td style={{ padding: '8px 6px', textAlign: 'right' }}>
                         <ActionMenu items={[
+                          { label: entry.status === 'draft' ? 'Voir / Modifier' : 'Voir le détail', icon: Eye, onClick: () => router.push(`${ROUTES.ACCOUNTING_ENTRIES}/${entry.id}`) },
                           ...(can('accounting', 'update') && entry.status === 'draft'
                             ? [{ label: 'Valider', icon: Check, onClick: () => handleValidate(entry.id, entry.number) }]
                             : []),
