@@ -1070,7 +1070,7 @@ export class AccountingService {
         orderBy: { createdAt: 'asc' },
         include: {
           journalEntry: {
-            select: { entryNumber: true, entryDate: true, label: true, sourceType: true, sourceId: true },
+            select: { entryNumber: true, entryDate: true, label: true, sourceType: true, sourceId: true, journal: { select: { code: true } } },
           },
         },
       }),
@@ -1080,7 +1080,21 @@ export class AccountingService {
     const totalDebit  = data.reduce((s, l) => s + Number(l.debit),  0);
     const totalCredit = data.reduce((s, l) => s + Number(l.credit), 0);
 
-    return { data, total, page, limit, totalPages: Math.ceil(total / limit), totalDebit, totalCredit, balance: totalDebit - totalCredit };
+    // Aplatissement vers la forme plate attendue par le frontend (mêmes champs
+    // que les groupes lettrés) : date / n° pièce / journal n'apparaissaient pas.
+    const flat = data.map((l: any) => ({
+      id:          l.id,
+      entryId:     l.journalEntryId,
+      entryNumber: l.journalEntry?.entryNumber ?? '',
+      journalCode: l.journalEntry?.journal?.code ?? '',
+      date:        l.journalEntry?.entryDate?.toISOString().split('T')[0] ?? '',
+      label:       l.label,
+      debit:       Number(l.debit),
+      credit:      Number(l.credit),
+      letterCode:  l.letteringCode,
+    }));
+
+    return { data: flat, total, page, limit, totalPages: Math.ceil(total / limit), totalDebit, totalCredit, balance: totalDebit - totalCredit };
   }
 
   async getLeteredGroups(accountNumber: string, dateFrom?: string, dateTo?: string) {
