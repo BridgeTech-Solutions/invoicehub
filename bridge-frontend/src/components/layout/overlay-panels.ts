@@ -39,14 +39,14 @@ export const OVERLAY_PANELS: Record<string, OverlayPanel> = {
       {
         title: 'DÉPENSES',
         items: [
-          { label: 'Notes de frais', href: ROUTES.EXPENSES, icon: ReceiptText },
+          { label: 'Notes de frais', href: ROUTES.EXPENSES, icon: ReceiptText, permission: { resource: 'expense', action: 'read' } },
         ],
       },
       {
         title: 'ORGANISATION',
         items: [
-          { label: 'Catégories', href: ROUTES.EXPENSE_CATEGORIES, icon: Tag },
-          { label: 'Budgets',    href: ROUTES.EXPENSE_BUDGETS,    icon: PieChart },
+          { label: 'Catégories', href: ROUTES.EXPENSE_CATEGORIES, icon: Tag, permission: { resource: 'expense', action: 'read' } },
+          { label: 'Budgets',    href: ROUTES.EXPENSE_BUDGETS,    icon: PieChart, permission: { resource: 'expense', action: 'read' } },
         ],
       },
     ],
@@ -58,17 +58,17 @@ export const OVERLAY_PANELS: Record<string, OverlayPanel> = {
       {
         title: 'CATALOGUE',
         items: [
-          { label: 'Produits',   href: ROUTES.PRODUCTS,           icon: Package },
-          { label: 'Catégories', href: ROUTES.PRODUCT_CATEGORIES, icon: Tag },
+          { label: 'Produits',   href: ROUTES.PRODUCTS,           icon: Package, permission: { resource: 'product', action: 'read' } },
+          { label: 'Catégories', href: ROUTES.PRODUCT_CATEGORIES, icon: Tag, permission: { resource: 'product', action: 'read' } },
         ],
       },
       {
         title: 'STOCK',
         items: [
-          { label: 'Inventaire', href: ROUTES.STOCK,           icon: Warehouse },
-          { label: 'Mouvements', href: ROUTES.STOCK_MOVEMENTS, icon: ArrowLeftRight },
-          { label: 'Niveaux',    href: ROUTES.STOCK_LEVELS,    icon: BarChart2 },
-          { label: 'Alertes',    href: ROUTES.STOCK_ALERTS,    icon: AlertTriangle },
+          { label: 'Inventaire', href: ROUTES.STOCK,           icon: Warehouse, permission: { resource: 'stock', action: 'read' } },
+          { label: 'Mouvements', href: ROUTES.STOCK_MOVEMENTS, icon: ArrowLeftRight, permission: { resource: 'stock', action: 'read' } },
+          { label: 'Niveaux',    href: ROUTES.STOCK_LEVELS,    icon: BarChart2, permission: { resource: 'stock', action: 'read' } },
+          { label: 'Alertes',    href: ROUTES.STOCK_ALERTS,    icon: AlertTriangle, permission: { resource: 'stock', action: 'read' } },
         ],
       },
     ],
@@ -80,27 +80,27 @@ export const OVERLAY_PANELS: Record<string, OverlayPanel> = {
       {
         title: 'COMPTES',
         items: [
-          { label: 'Mes comptes bancaires', href: ROUTES.BANK_ACCOUNTS,        icon: CreditCard },
+          { label: 'Mes comptes bancaires', href: ROUTES.BANK_ACCOUNTS,        icon: CreditCard, permission: { resource: 'bank', action: 'read' } },
         ],
       },
       {
         title: 'IMPORT',
         items: [
-          { label: 'Importer un relevé',  href: ROUTES.BANK_IMPORT,          icon: Upload },
-          { label: 'Profils d\'import',   href: ROUTES.BANK_IMPORT_PROFILES,  icon: BookOpen },
+          { label: 'Importer un relevé',  href: ROUTES.BANK_IMPORT,          icon: Upload, permission: { resource: 'bank', action: 'read' } },
+          { label: 'Profils d\'import',   href: ROUTES.BANK_IMPORT_PROFILES,  icon: BookOpen, permission: { resource: 'bank', action: 'read' } },
         ],
       },
       {
         title: 'TRANSACTIONS',
         items: [
-          { label: 'Transactions',          href: ROUTES.BANK_TRANSACTIONS,    icon: ArrowLeftRight },
+          { label: 'Transactions',          href: ROUTES.BANK_TRANSACTIONS,    icon: ArrowLeftRight, permission: { resource: 'bank', action: 'read' } },
         ],
       },
       {
         title: 'RAPPROCHEMENT',
         items: [
-          { label: 'Rapprochements',     href: ROUTES.BANK_RECONCILIATIONS, icon: GitMerge },
-          { label: 'Règles de matching', href: ROUTES.BANK_MATCHING_RULES,  icon: Zap },
+          { label: 'Rapprochements',     href: ROUTES.BANK_RECONCILIATIONS, icon: GitMerge, permission: { resource: 'bank', action: 'read' } },
+          { label: 'Règles de matching', href: ROUTES.BANK_MATCHING_RULES,  icon: Zap, permission: { resource: 'bank', action: 'read' } },
         ],
       },
     ],
@@ -112,35 +112,35 @@ export const OVERLAY_PANELS: Record<string, OverlayPanel> = {
       {
         title: 'RÉFÉRENTIEL',
         items: [
-          { label: 'Plan comptable',    href: ROUTES.ACCOUNTING_CHART,   icon: List },
-          { label: 'Périodes fiscales', href: ROUTES.ACCOUNTING_PERIODS, icon: Calendar },
+          { label: 'Plan comptable',    href: ROUTES.ACCOUNTING_CHART,   icon: List, permission: { resource: 'accounting', action: 'read' } },
+          { label: 'Périodes fiscales', href: ROUTES.ACCOUNTING_PERIODS, icon: Calendar, permission: { resource: 'accounting', action: 'read' } },
         ],
       },
       {
         title: 'SAISIE',
         items: [
-          { label: 'Journaux',  href: ROUTES.ACCOUNTING_JOURNALS, icon: BookOpen },
-          { label: 'Écritures', href: ROUTES.ACCOUNTING_ENTRIES,  icon: PenLine },
+          { label: 'Journaux',  href: ROUTES.ACCOUNTING_JOURNALS, icon: BookOpen, permission: { resource: 'accounting', action: 'read' } },
+          { label: 'Écritures', href: ROUTES.ACCOUNTING_ENTRIES,  icon: PenLine, permission: { resource: 'accounting', action: 'read' } },
         ],
       },
       {
         title: 'CLÔTURE',
         items: [
-          { label: 'Lettrage', href: ROUTES.ACCOUNTING_LETTERING, icon: Link2 },
+          { label: 'Lettrage', href: ROUTES.ACCOUNTING_LETTERING, icon: Link2, permission: { resource: 'accounting', action: 'read' } },
         ],
       },
       {
         title: 'ÉTATS FINANCIERS',
         items: [
-          { label: 'Balance & Grand livre', href: ROUTES.ACCOUNTING_REPORTS,           icon: BarChart3 },
-          { label: 'Export Sage',           href: `${ROUTES.ACCOUNTING_REPORTS}/sage`, icon: Download },
+          { label: 'Balance & Grand livre', href: ROUTES.ACCOUNTING_REPORTS,           icon: BarChart3, permission: { resource: 'accounting', action: 'read' } },
+          { label: 'Export Sage',           href: `${ROUTES.ACCOUNTING_REPORTS}/sage`, icon: Download, permission: { resource: 'accounting', action: 'read' } },
           { label: 'Paramétrage du bilan',  href: ROUTES.ACCOUNTING_STATEMENT_CONFIG,  icon: Sliders, permission: { resource: 'accounting', action: 'update' } },
         ],
       },
       {
         title: 'FISCAL',
         items: [
-          { label: 'Déclarations TVA', href: ROUTES.ACCOUNTING_TAX, icon: FileCheck },
+          { label: 'Déclarations TVA', href: ROUTES.ACCOUNTING_TAX, icon: FileCheck, permission: { resource: 'accounting', action: 'read' } },
         ],
       },
     ],
