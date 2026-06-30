@@ -542,6 +542,8 @@ model CompanySettings {
   defaultSalesServiceAccount   String   @default("7061") @map("default_sales_service_account") @db.VarChar(20)
   defaultPurchaseAccount       String   @default("6011") @map("default_purchase_account") @db.VarChar(20)
   defaultExpenseAccount        String   @default("6251") @map("default_expense_account") @db.VarChar(20)
+  useAdvanceAccount            Boolean  @default(false) @map("use_advance_account")
+  advanceAccount               String   @default("4191") @map("advance_account") @db.VarChar(20)
   metadata                     Json     @default("{}")
   createdAt                    DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt                    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()

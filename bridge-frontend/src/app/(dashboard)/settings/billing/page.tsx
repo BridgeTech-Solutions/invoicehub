@@ -255,7 +255,7 @@ function AccountingSection() {
     | 'stockAccount' | 'stockVariationAccount' | 'stockLossAccount'
     | 'defaultClientAccount' | 'defaultSupplierAccount' | 'defaultBankAccount'
     | 'defaultSalesGoodsAccount' | 'defaultSalesServiceAccount' | 'defaultPurchaseAccount'
-    | 'defaultExpenseAccount'>>({})
+    | 'defaultExpenseAccount' | 'useAdvanceAccount' | 'advanceAccount'>>({})
   const [dirty, setDirty] = useState(false)
 
   useEffect(() => {
@@ -275,6 +275,8 @@ function AccountingSection() {
       defaultSalesServiceAccount: settings.defaultSalesServiceAccount,
       defaultPurchaseAccount:     settings.defaultPurchaseAccount,
       defaultExpenseAccount:      settings.defaultExpenseAccount,
+      useAdvanceAccount:          settings.useAdvanceAccount,
+      advanceAccount:             settings.advanceAccount,
     })
     setDirty(false)
   }, [settings])
@@ -322,6 +324,27 @@ function AccountingSection() {
                 <AccountField label="Achats de marchandises"  value={form.defaultPurchaseAccount}     onChange={(v) => set('defaultPurchaseAccount', v)} />
                 <AccountField label="Charges / dépenses"      value={form.defaultExpenseAccount}      onChange={(v) => set('defaultExpenseAccount', v)} />
                 <AccountField label="Escomptes accordés"      value={form.escompteAccountingAccount}  onChange={(v) => set('escompteAccountingAccount', v)} />
+              </AccountGroup>
+              <AccountGroup title="Avances et acomptes reçus (4191)">
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '2px 0' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.useAdvanceAccount ?? false}
+                    onChange={(e) => set('useAdvanceAccount', e.target.checked)}
+                    style={{ marginTop: 2, width: 16, height: 16, accentColor: 'var(--primary)', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: 13 }}>
+                    Comptabiliser les acomptes en <strong>avance reçue</strong> (Dr 411 / Cr 4191)
+                    <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-3)', marginTop: 3, lineHeight: 1.5 }}>
+                      Désactivé : l&apos;acompte est une vente immédiate (au prorata). Activé : le produit
+                      et la TVA sont reconnus à la livraison (facture de solde), conforme à la séparation
+                      des exercices SYSCOHADA. ⚠️ À valider avec votre expert-comptable avant activation.
+                    </span>
+                  </span>
+                </label>
+                {(form.useAdvanceAccount ?? false) && (
+                  <AccountField label="Compte avances reçues" value={form.advanceAccount} onChange={(v) => set('advanceAccount', v)} />
+                )}
               </AccountGroup>
             </div>
             {dirty && can('settings', 'update') && (

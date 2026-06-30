@@ -67,6 +67,9 @@ export const updateSettingsSchema = z.object({
   defaultSalesServiceAccount:  z.string().max(20).optional(),
   defaultPurchaseAccount:      z.string().max(20).optional(),
   defaultExpenseAccount:       z.string().max(20).optional(),
+  // Avances et acomptes reçus (option SYSCOHADA — désactivée par défaut)
+  useAdvanceAccount:           z.boolean().optional(),
+  advanceAccount:              z.string().max(20).optional(),
 });
 
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;

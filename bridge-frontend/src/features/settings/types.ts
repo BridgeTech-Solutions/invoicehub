@@ -62,6 +62,9 @@ export interface CompanySettings {
   defaultSalesServiceAccount:   string
   defaultPurchaseAccount:       string
   defaultExpenseAccount:        string
+  // Avances et acomptes reçus (option SYSCOHADA — désactivée par défaut)
+  useAdvanceAccount:            boolean
+  advanceAccount:               string
   createdAt:                    string
   updatedAt:                    string
 }

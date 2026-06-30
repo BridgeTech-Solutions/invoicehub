@@ -179,6 +179,156 @@ function buildSalesBreakdown(
   return { salesLines, taxLines };
 }
 
+const round2 = (n: number): number => Math.round(n * 100) / 100;
+
+// ── Mise au prorata d'une ventilation ventes/TVA vers un TTC cible ─────────────
+// Les lignes d'une facture d'acompte (et la part déjà vendue d'un solde) sont
+// stockées au montant PLEIN de la commande, alors que le document ne porte qu'une
+// fraction. On ramène ventes + TVA au TTC réellement comptabilisé, et on corrige
+// le résidu d'arrondi sur la plus grosse ligne de ventes (la TVA reste au ratio
+// exact) pour que la somme des crédits égale précisément le TTC cible.
+function scaleBreakdownTo(
+  salesLines: JournalLineData[],
+  taxLines:   JournalLineData[],
+  targetTtc:  number,
+): { salesLines: JournalLineData[]; taxLines: JournalLineData[] } {
+  const fullTtc = [...salesLines, ...taxLines].reduce((s, l) => s + l.credit, 0);
+  if (fullTtc <= 0) return { salesLines, taxLines };
+
+  const ratio  = targetTtc / fullTtc;
+  const sLines = salesLines.map(l => ({ ...l, credit: round2(l.credit * ratio) }));
+  const tLines = taxLines.map(l   => ({ ...l, credit: round2(l.credit * ratio) }));
+
+  const sum      = [...sLines, ...tLines].reduce((s, l) => s + l.credit, 0);
+  const residual = round2(targetTtc - sum);
+  if (residual !== 0) {
+    const pool = sLines.length ? sLines : tLines;
+    const idx  = pool.reduce((mi, l, i, arr) => (l.credit > arr[mi]!.credit ? i : mi), 0);
+    pool[idx]!.credit = round2(pool[idx]!.credit + residual);
+  }
+  return { salesLines: sLines, taxLines: tLines };
+}
+
+// ── Montant de vente réellement comptabilisable pour une facture ───────────────
+// - standard / avoir : le TTC plein de la facture (lignes inchangées).
+// - acompte : seulement la part de l'acompte (invoice.totalTtc), lignes mises au
+//   prorata — sinon l'écriture serait déséquilibrée (Dr partiel / Cr plein).
+// - solde : le NET non encore vendu = TTC plein − Σ acomptes déjà ÉMIS (donc déjà
+//   comptabilisés en vente). Évite de compter deux fois le chiffre d'affaires.
+async function resolveBookableSale(
+  invoice:    { type: string; totalTtc: any; parentInvoiceId: string | null },
+  salesLines: JournalLineData[],
+  taxLines:   JournalLineData[],
+  tx:         Tx,
+): Promise<{ saleTtc: number; salesLines: JournalLineData[]; taxLines: JournalLineData[] }> {
+  if (invoice.type === 'acompte') {
+    const target = round2(Number(invoice.totalTtc));
+    const scaled = scaleBreakdownTo(salesLines, taxLines, target);
+    return { saleTtc: target, ...scaled };
+  }
+
+  if (invoice.type === 'solde' && invoice.parentInvoiceId) {
+    const booked = await sumIssuedAcomptes(invoice.parentInvoiceId, tx);
+    const target = round2(Number(invoice.totalTtc) - booked);
+    const scaled = scaleBreakdownTo(salesLines, taxLines, target);
+    return { saleTtc: target, ...scaled };
+  }
+
+  // standard / avoir / autres : aucune mise au prorata
+  return { saleTtc: round2(Number(invoice.totalTtc)), salesLines, taxLines };
+}
+
+// ── Somme des acomptes DÉJÀ ÉMIS d'un groupe (donc déjà comptabilisés) ─────────
+// rootId = facture parente du cycle. Les acomptes ont soit id = rootId, soit
+// parentInvoiceId = rootId (cf. soldePrefill). On exclut draft/cancelled : un
+// acompte non émis n'a aucune écriture, un acompte annulé a été contre-passé.
+async function sumIssuedAcomptes(rootId: string | null, tx: Tx): Promise<number> {
+  if (!rootId) return 0;
+  const acomptes = await tx.invoice.findMany({
+    where: {
+      type:      'acompte',
+      deletedAt: null,
+      status:    { notIn: ['draft', 'cancelled'] },
+      OR:        [{ id: rootId }, { parentInvoiceId: rootId }],
+    },
+    select: { totalTtc: true },
+  });
+  return round2(acomptes.reduce((s, a) => s + Number(a.totalTtc), 0));
+}
+
+// ── Construction des lignes d'écriture d'émission d'une facture ────────────────
+// Source unique de vérité partagée par l'émission ET l'annulation (qui inverse
+// exactement ces lignes). Trois régimes :
+//
+//  • Option 4191 ACTIVÉE (use_advance_account) :
+//      - acompte → AVANCE REÇUE : Dr 411 / Cr 4191 (TTC). Aucun produit ni TVA
+//        reconnu : ils le seront à la livraison. (Variante TVA-sur-acompte à
+//        valider avec l'expert avant activation — voir add_advance_account_4191.sql.)
+//      - solde   → vente PLEINE (Dr 411 / Cr 70+443) + reprise de l'avance
+//        (Dr 4191 / Cr 411) pour solder le 4191 et reconnaître le CA total.
+//
+//  • Option DÉSACTIVÉE (défaut) : vente immédiate au prorata
+//      - acompte → la part de l'acompte ; solde → le net non encore vendu.
+//
+// Renvoie null quand il n'y a rien à comptabiliser (montant nul).
+async function buildInvoiceIssuanceLines(
+  invoice:        { number: string; type: string; totalTtc: any; parentInvoiceId: string | null; client?: { name?: string | null } | null },
+  clientAccount:  string,
+  advanceAccount: string,
+  useAdvance:     boolean,
+  breakdown:      { salesLines: JournalLineData[]; taxLines: JournalLineData[] },
+  tx:             Tx,
+): Promise<{ total: number; lines: JournalLineData[] } | null> {
+  const clientName = invoice.client?.name ?? '';
+
+  // ── Acompte + option 4191 : avance reçue (ni produit ni TVA reconnus) ──
+  if (useAdvance && invoice.type === 'acompte') {
+    const advanceTtc = round2(Number(invoice.totalTtc));
+    if (advanceTtc <= 0.005) return null;
+    return {
+      total: advanceTtc,
+      lines: [
+        { sortOrder: 0, accountNumber: clientAccount,  label: `Client ${clientName}`,                          debit: advanceTtc, credit: 0 },
+        { sortOrder: 1, accountNumber: advanceAccount, label: `Avance reçue — acompte FAC ${invoice.number}`, debit: 0, credit: advanceTtc },
+      ],
+    };
+  }
+
+  // ── Solde + option 4191 : vente pleine + reprise de l'avance ──
+  if (useAdvance && invoice.type === 'solde') {
+    const fullTtc = round2(Number(invoice.totalTtc));
+    if (fullTtc <= 0.005) return null;
+    const lines: JournalLineData[] = [
+      { sortOrder: 0, accountNumber: clientAccount, label: `Client ${clientName}`, debit: fullTtc, credit: 0 },
+      ...breakdown.salesLines,
+      ...breakdown.taxLines,
+    ];
+    let total = fullTtc;
+    const advance = await sumIssuedAcomptes(invoice.parentInvoiceId, tx);
+    if (advance > 0.005) {
+      const so = lines.length;
+      lines.push(
+        { sortOrder: so,     accountNumber: advanceAccount, label: `Reprise avance — FAC ${invoice.number}`,    debit: advance, credit: 0 },
+        { sortOrder: so + 1, accountNumber: clientAccount,  label: `Imputation acompte — FAC ${invoice.number}`, debit: 0, credit: advance },
+      );
+      total = round2(fullTtc + advance);
+    }
+    return { total, lines };
+  }
+
+  // ── Cas général (option désactivée) : vente au prorata ──
+  const { saleTtc, salesLines, taxLines } = await resolveBookableSale(invoice as any, breakdown.salesLines, breakdown.taxLines, tx);
+  if (saleTtc <= 0.005) return null;
+  return {
+    total: saleTtc,
+    lines: [
+      { sortOrder: 0, accountNumber: clientAccount, label: `Client ${clientName}`, debit: saleTtc, credit: 0 },
+      ...salesLines,
+      ...taxLines,
+    ],
+  };
+}
+
 // ── Helper : comptes globaux depuis company_settings ───────────────────────────
 // Toutes les valeurs viennent de company_settings (colonnes non-null avec défauts
 // OHADA en base). Plus aucun numéro de compte codé en dur dans la logique.
@@ -196,6 +346,8 @@ async function getCompanyAccounts(tx: Tx) {
       defaultSalesServiceAccount: true,
       defaultPurchaseAccount:     true,
       defaultExpenseAccount:      true,
+      useAdvanceAccount:          true,
+      advanceAccount:             true,
     },
   });
   // Pas de paramètres entreprise → pas d'imputation possible (les appelants
@@ -213,6 +365,8 @@ async function getCompanyAccounts(tx: Tx) {
     defaultSalesServiceAccount: s.defaultSalesServiceAccount,
     defaultPurchaseAccount:     s.defaultPurchaseAccount,
     defaultExpenseAccount:      s.defaultExpenseAccount,
+    useAdvanceAccount:          s.useAdvanceAccount,
+    advanceAccount:             s.advanceAccount,
   };
 }
 
@@ -255,21 +409,22 @@ export async function onInvoiceIssued(invoiceId: string, tx: Tx): Promise<void> 
       ...l,
       taxRateCollectedAccount: accounts.collectedTaxAccount,
     }));
-    const { salesLines, taxLines } = buildSalesBreakdown(
+    const breakdown = buildSalesBreakdown(
       linesWithTax, accounts.collectedTaxAccount,
       accounts.defaultSalesGoodsAccount, accounts.defaultSalesServiceAccount,
     );
+
+    // Lignes d'écriture selon le régime (prorata par défaut ; avance 4191 si activé).
+    // null → rien à comptabiliser (montant nul, solde couvert par les acomptes…).
+    const built = await buildInvoiceIssuanceLines(
+      invoice as any, clientAccount, accounts.advanceAccount, accounts.useAdvanceAccount, breakdown, tx,
+    );
+    if (!built) return;
 
     const entryDate   = new Date(invoice.issueDate ?? new Date());
     const journal     = await getDefaultJournal(tx, JournalType.sales);
     const period      = await getOpenPeriod(tx, entryDate);
     const entryNumber = await nextEntryNumber(tx, journal.code, entryDate);
-
-    const lineItems: JournalLineData[] = [
-      { sortOrder: 0, accountNumber: clientAccount, label: `Client ${invoice.client?.name ?? ''}`, debit: Number(invoice.totalTtc), credit: 0 },
-      ...salesLines,
-      ...taxLines,
-    ];
 
     await tx.journalEntry.create({
       data: {
@@ -278,13 +433,13 @@ export async function onInvoiceIssued(invoiceId: string, tx: Tx): Promise<void> 
         entryDate,
         accountingDate: entryDate,
         entryNumber,
-        label:       `FAC ${invoice.number} — ${invoice.client?.name ?? ''}`,  
+        label:       `FAC ${invoice.number} — ${invoice.client?.name ?? ''}`,
         sourceType:  'invoice',
         sourceId:    invoice.id,
-        totalDebit:  Number(invoice.totalTtc),
-        totalCredit: Number(invoice.totalTtc),
+        totalDebit:  built.total,
+        totalCredit: built.total,
         status:      'draft',
-        lines: { create: lineItems },
+        lines: { create: built.lines },
       },
     });
   } catch (e) { logErr('onInvoiceIssued', e, { sourceType: 'invoice', sourceId: invoiceId }); }
@@ -710,10 +865,17 @@ export async function onInvoiceCancelled(invoiceId: string, tx: Tx): Promise<voi
     });
     if (existingReversal) return;
 
-    const { salesLines, taxLines } = buildSalesBreakdown(
+    const breakdown = buildSalesBreakdown(
       linesWithTax, accounts.collectedTaxAccount,
       accounts.defaultSalesGoodsAccount, accounts.defaultSalesServiceAccount,
     );
+
+    // On reconstruit les lignes d'émission (même régime : prorata ou avance 4191)
+    // puis on les inverse exactement → contre-passation fidèle quel que soit le type.
+    const built = await buildInvoiceIssuanceLines(
+      invoice as any, clientAccount, accounts.advanceAccount, accounts.useAdvanceAccount, breakdown, tx,
+    );
+    if (!built) return;
 
     const entryDate = new Date();
     let journal = await tx.accountingJournal.findFirst({ where: { type: JournalType.operations, isActive: true } });
@@ -722,12 +884,14 @@ export async function onInvoiceCancelled(invoiceId: string, tx: Tx): Promise<voi
     const period      = await getOpenPeriod(tx, entryDate);
     const entryNumber = await nextEntryNumber(tx, journal.code, entryDate);
 
-    // Contre-passation = inversion exacte de l'écriture d'émission
-    const counterLines: JournalLineData[] = [
-      { sortOrder: 0, accountNumber: clientAccount, label: `Avoir — Annulation FAC ${invoice.number}`, debit: 0, credit: Number(invoice.totalTtc) },
-      ...salesLines.map((l: any, i: number) => ({ ...l, sortOrder: i + 1, debit: l.credit, credit: 0 })),
-      ...taxLines.map((l: any, i: number) => ({ ...l, sortOrder: salesLines.length + i + 1, debit: l.credit, credit: 0 })),
-    ];
+    // Contre-passation = inversion exacte de l'écriture d'émission (débit ↔ crédit)
+    const counterLines: JournalLineData[] = built.lines.map((l, i) => ({
+      sortOrder:     i,
+      accountNumber: l.accountNumber,
+      label:         `Avoir — ${l.label}`,
+      debit:         l.credit,
+      credit:        l.debit,
+    }));
 
     await tx.journalEntry.create({
       data: {
@@ -739,8 +903,8 @@ export async function onInvoiceCancelled(invoiceId: string, tx: Tx): Promise<voi
         label:       `AVOIR sur FAC ${invoice.number} — ${invoice.client?.name ?? ''}`,
         sourceType:  'invoice_reversal',
         sourceId:    invoice.id,
-        totalDebit:  Number(invoice.totalTtc),
-        totalCredit: Number(invoice.totalTtc),
+        totalDebit:  built.total,
+        totalCredit: built.total,
         status:      'draft',
         lines: { create: counterLines },
       },
