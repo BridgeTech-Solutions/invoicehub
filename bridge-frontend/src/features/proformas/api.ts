@@ -36,6 +36,10 @@ export const proformasApi = {
   duplicate: (id: string) =>
     apiClient.post<Proforma>(`/proformas/${id}/duplicate`).then(r => r.data),
 
+  // Réordonnancement des lignes (présentation pure)
+  reorderLines: (id: string, lineIds: string[]) =>
+    apiClient.post<Proforma>(`/proformas/${id}/reorder-lines`, { lineIds }).then(r => r.data),
+
   counts: () =>
     apiClient.get<Record<string, number>>('/proformas/counts').then(r => r.data),
 

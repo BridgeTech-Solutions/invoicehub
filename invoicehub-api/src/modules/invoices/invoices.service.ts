@@ -380,6 +380,37 @@ export class InvoicesService {
     });
   }
 
+  /**
+   * Réordonne les lignes d'une facture — autorisé même après émission.
+   * C'est une modification de PRÉSENTATION uniquement (champ sortOrder) : aucun
+   * montant, aucune ligne ajoutée/supprimée, aucune écriture comptable touchée.
+   * On met seulement à jour sortOrder sur les lignes existantes (pas de
+   * deleteMany/recreate) pour préserver les identifiants de lignes.
+   */
+  async reorderLines(id: string, lineIds: string[], _userId: string) {
+    const invoice = await this.findById(id);
+    if (invoice.status === 'cancelled') {
+      throw AppError.badRequest('Impossible de réordonner les lignes d\'une facture annulée');
+    }
+
+    const existingIds = invoice.lines.map(l => l.id);
+    const sameSet =
+      lineIds.length === existingIds.length &&
+      new Set(lineIds).size === lineIds.length &&
+      lineIds.every(lid => existingIds.includes(lid));
+    if (!sameSet) {
+      throw AppError.badRequest('La liste des lignes ne correspond pas exactement à cette facture');
+    }
+
+    await this.prisma.$transaction(
+      lineIds.map((lid, i) =>
+        this.prisma.invoiceLine.update({ where: { id: lid }, data: { sortOrder: i } }),
+      ),
+    );
+
+    return this.findById(id);
+  }
+
   async issue(id: string, userId: string) {
     const invoice = await this.findById(id);
     if (invoice.status !== 'draft') {

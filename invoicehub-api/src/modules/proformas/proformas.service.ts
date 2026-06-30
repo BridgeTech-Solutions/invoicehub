@@ -229,6 +229,32 @@ export class ProformasService {
     });
   }
 
+  /**
+   * Réordonne les lignes d'une proforma — présentation pure (sortOrder).
+   * Autorisé quel que soit le statut : aucune incidence métier ni comptable.
+   * Met seulement à jour sortOrder sur les lignes existantes.
+   */
+  async reorderLines(id: string, lineIds: string[], _userId: string) {
+    const proforma = await this.findById(id);
+
+    const existingIds = proforma.lines.map(l => l.id);
+    const sameSet =
+      lineIds.length === existingIds.length &&
+      new Set(lineIds).size === lineIds.length &&
+      lineIds.every(lid => existingIds.includes(lid));
+    if (!sameSet) {
+      throw AppError.badRequest('La liste des lignes ne correspond pas exactement à cette proforma');
+    }
+
+    await this.prisma.$transaction(
+      lineIds.map((lid, i) =>
+        this.prisma.proformaLine.update({ where: { id: lid }, data: { sortOrder: i } }),
+      ),
+    );
+
+    return this.findById(id);
+  }
+
   async send(id: string, userId: string) {
     const proforma = await this.findById(id);
     if (!['draft', 'rejected'].includes(proforma.status)) {

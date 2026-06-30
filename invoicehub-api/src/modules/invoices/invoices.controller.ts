@@ -21,6 +21,7 @@ import {
   computeInvoiceSchema,
   cancelInvoiceSchema,
   createAvoirSchema,
+  reorderLinesSchema,
 } from './invoices.schema';
 import { createPaymentSchema } from '../payments/payments.schema';
 
@@ -90,6 +91,15 @@ export class InvoicesController {
   @ApiZodBody(updateInvoiceSchema)
   update(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.svc.update(id, updateInvoiceSchema.parse(body), user.sub);
+  }
+
+  @Post(':id/reorder-lines')
+  @Permission('invoices:update')
+  @Audit('invoice', 'UPDATE')
+  @ApiZodBody(reorderLinesSchema)
+  reorderLines(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
+    const { lineIds } = reorderLinesSchema.parse(body);
+    return this.svc.reorderLines(id, lineIds, user.sub);
   }
 
   @Post(':id/issue')

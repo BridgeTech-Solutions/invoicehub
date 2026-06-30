@@ -19,6 +19,7 @@ import {
   listProformasSchema,
   rejectProformaSchema,
   convertProformaSchema,
+  reorderLinesSchema,
 } from './proformas.schema';
 
 // Documente le corps de requête Zod dans Swagger (validation faite dans le service).
@@ -66,6 +67,15 @@ export class ProformasController {
   @ApiZodBody(updateProformaSchema)
   update(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.svc.update(id, updateProformaSchema.parse(body), user.sub);
+  }
+
+  @Post(':id/reorder-lines')
+  @Permission('proformas:update')
+  @Audit('proforma', 'UPDATE')
+  @ApiZodBody(reorderLinesSchema)
+  reorderLines(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
+    const { lineIds } = reorderLinesSchema.parse(body);
+    return this.svc.reorderLines(id, lineIds, user.sub);
   }
 
   @Delete(':id')

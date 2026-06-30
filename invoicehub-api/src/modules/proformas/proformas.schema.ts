@@ -59,9 +59,16 @@ export const convertProformaSchema = z.object({
   { message: "acomptePercentage est requis pour une facture d'acompte", path: ['acomptePercentage'] },
 );
 
+// Réordonnancement des lignes — présentation pure (champ sortOrder), autorisé
+// quel que soit le statut. lineIds = l'ordre voulu, liste complète.
+export const reorderLinesSchema = z.object({
+  lineIds: z.array(z.string().uuid()).min(1, 'Au moins une ligne est requise'),
+});
+
 export type CreateProformaInput = z.infer<typeof createProformaSchema>;
 export type UpdateProformaInput = z.infer<typeof updateProformaSchema>;
 export type ListProformasInput = z.infer<typeof listProformasSchema>;
 export type ConvertProformaInput = z.infer<typeof convertProformaSchema>;
 export type RejectProformaInput = z.infer<typeof rejectProformaSchema>;
+export type ReorderLinesInput = z.infer<typeof reorderLinesSchema>;
 export type LineInput = z.infer<typeof lineSchema>;

@@ -4,13 +4,14 @@ import { useState, useRef, useEffect, useId } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Send, CheckCircle2, XCircle, ArrowRightLeft, Copy,
-  Trash2, FileDown, Loader2, Pencil, AlertTriangle,
+  Trash2, FileDown, Loader2, Pencil, AlertTriangle, ListRestart,
 } from 'lucide-react'
 import {
   useSendProforma, useAcceptProforma, useRejectProforma,
   useConvertProforma, useDuplicateProforma, useDeleteProforma,
-  useDownloadProformaPdf,
+  useDownloadProformaPdf, useReorderProformaLines,
 } from '../hooks'
+import { LineReorderModal } from '@/components/document/LineReorderModal'
 import type { Proforma } from '../types'
 import { ROUTES } from '@/lib/constants'
 import { ApprovalStatusBadge } from '@/features/approvals/components/ApprovalStatusBadge'
@@ -253,12 +254,14 @@ export function ProformaActionsMenu({ proforma }: ProformaActionsMenuProps) {
   const [showReject,  setShowReject]  = useState(false)
   const [showConvert, setShowConvert] = useState(false)
   const [showDelete,  setShowDelete]  = useState(false)
+  const [showReorder, setShowReorder] = useState(false)
 
   const sendMutation      = useSendProforma()
   const acceptMutation    = useAcceptProforma()
   const duplicateMutation = useDuplicateProforma()
   const deleteMutation    = useDeleteProforma()
   const pdfMutation       = useDownloadProformaPdf()
+  const reorderMutation   = useReorderProformaLines(proforma.id)
 
   const { id, status, number } = proforma
 
@@ -318,6 +321,13 @@ export function ProformaActionsMenu({ proforma }: ProformaActionsMenuProps) {
             onClick={() => router.push(`${ROUTES.PROFORMAS}/${id}?mode=edit`)}
           >
             <Pencil size={14} /> Modifier
+          </button>
+        )}
+
+        {/* Réordonner les lignes — présentation pure, quel que soit le statut */}
+        {proforma.lines.length > 1 && (
+          <button style={btnSecondary} onClick={() => setShowReorder(true)}>
+            <ListRestart size={14} /> Réordonner les lignes
           </button>
         )}
 
@@ -384,6 +394,16 @@ export function ProformaActionsMenu({ proforma }: ProformaActionsMenuProps) {
       {/* Modals */}
       {showReject  && <RejectModal  proformaId={id} onClose={() => setShowReject(false)} />}
       {showConvert && <ConvertModal proforma={proforma} onClose={() => setShowConvert(false)} />}
+      {showReorder && (
+        <LineReorderModal
+          title="Réordonner les lignes"
+          subtitle={`Proforma ${number} — l'ordre s'appliquera au PDF`}
+          lines={[...proforma.lines].sort((a, b) => a.sortOrder - b.sortOrder).map(l => ({ id: l.id, designation: l.designation }))}
+          isPending={reorderMutation.isPending}
+          onSave={(lineIds) => reorderMutation.mutate(lineIds, { onSuccess: () => setShowReorder(false) })}
+          onClose={() => setShowReorder(false)}
+        />
+      )}
       {showDelete  && (
         <ConfirmDeleteModal
           number={number}

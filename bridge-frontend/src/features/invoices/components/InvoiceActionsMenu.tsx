@@ -4,15 +4,17 @@ import { useState, useRef, useEffect, useId } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Zap, XCircle, Copy, Trash2, FileDown, Loader2, Pencil,
-  CreditCard, FileX, AlertTriangle,
+  CreditCard, FileX, AlertTriangle, ListRestart,
 } from 'lucide-react'
 import {
   useIssueInvoice, useCancelInvoice, useDuplicateInvoice,
   useDownloadInvoicePdf, useCreateAvoir, useDeleteInvoice,
+  useReorderInvoiceLines,
 } from '../hooks'
 import { PaymentDrawer } from './PaymentDrawer'
 import { CancelModal }   from './CancelModal'
 import { AvoirModal }    from './AvoirModal'
+import { LineReorderModal } from '@/components/document/LineReorderModal'
 import type { Invoice }  from '../types'
 import { ROUTES }        from '@/lib/constants'
 import { ApprovalStatusBadge } from '@/features/approvals/components/ApprovalStatusBadge'
@@ -77,11 +79,13 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
   const [showCancel,  setShowCancel]  = useState(false)
   const [showAvoir,   setShowAvoir]   = useState(false)
   const [showDelete,  setShowDelete]  = useState(false)
+  const [showReorder, setShowReorder] = useState(false)
 
   const issueMutation     = useIssueInvoice()
   const duplicateMutation = useDuplicateInvoice()
   const deleteMutation    = useDeleteInvoice()
   const pdfMutation       = useDownloadInvoicePdf()
+  const reorderMutation   = useReorderInvoiceLines(invoice.id)
 
   const { id, status, type, number } = invoice
 
@@ -132,6 +136,8 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
   const isPendingApproval = invoice.approvalRequest?.status === 'pending'
   // Avoir : tous les statuts acceptés par le backend (hors draft/cancelled/avoir)
   const canAvoir  = ['issued', 'partially_paid', 'paid', 'overdue'].includes(status)
+  // Réordonner : présentation pure, autorisé sauf si annulée et s'il y a ≥ 2 lignes
+  const canReorder = status !== 'cancelled' && invoice.lines.length > 1
 
   return (
     <>
@@ -163,6 +169,13 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
             onClick={() => router.push(`${ROUTES.INVOICES}/${id}?mode=edit`)}
           >
             <Pencil size={14} /> Modifier
+          </button>
+        )}
+
+        {/* Réordonner les lignes — autorisé même après émission (présentation pure) */}
+        {canReorder && (
+          <button style={btnSecondary} onClick={() => setShowReorder(true)}>
+            <ListRestart size={14} /> Réordonner les lignes
           </button>
         )}
 
@@ -239,6 +252,16 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
       {showPayment && <PaymentDrawer invoice={invoice}        onClose={() => setShowPayment(false)} />}
       {showCancel  && <CancelModal   invoiceId={id} invoiceNumber={number} onClose={() => setShowCancel(false)} />}
       {showAvoir   && <AvoirModal    invoice={invoice}        onClose={() => setShowAvoir(false)} />}
+      {showReorder && (
+        <LineReorderModal
+          title="Réordonner les lignes"
+          subtitle={`Facture ${number} — l'ordre s'appliquera au PDF`}
+          lines={[...invoice.lines].sort((a, b) => a.sortOrder - b.sortOrder).map(l => ({ id: l.id, designation: l.designation }))}
+          isPending={reorderMutation.isPending}
+          onSave={(lineIds) => reorderMutation.mutate(lineIds, { onSuccess: () => setShowReorder(false) })}
+          onClose={() => setShowReorder(false)}
+        />
+      )}
       {showDelete  && (
         <ConfirmDeleteModal
           number={number}

@@ -155,6 +155,19 @@ export function useDuplicateProforma() {
   })
 }
 
+export function useReorderProformaLines(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (lineIds: string[]) => proformasApi.reorderLines(id, lineIds),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: PROFORMA_KEYS.detail(id) })
+      qc.invalidateQueries({ queryKey: PROFORMA_KEYS.all })
+      toast.success('Ordre des lignes enregistré')
+    },
+    onError: () => toast.error('Erreur lors du réordonnancement'),
+  })
+}
+
 export function useDownloadProformaPdf() {
   return useMutation({
     mutationFn: ({ id, filename }: { id: string; filename: string }) =>

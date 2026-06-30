@@ -139,6 +139,19 @@ export function useDuplicateInvoice() {
   })
 }
 
+export function useReorderInvoiceLines(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (lineIds: string[]) => invoicesApi.reorderLines(id, lineIds),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: INVOICE_KEYS.detail(id) })
+      qc.invalidateQueries({ queryKey: INVOICE_KEYS.all })
+      toast.success('Ordre des lignes enregistré')
+    },
+    onError: () => toast.error('Erreur lors du réordonnancement'),
+  })
+}
+
 export function useDeleteInvoice() {
   const qc     = useQueryClient()
   const router = useRouter()

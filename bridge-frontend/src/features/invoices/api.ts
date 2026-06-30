@@ -42,6 +42,10 @@ export const invoicesApi = {
   duplicate: (id: string) =>
     apiClient.post<Invoice>(`/invoices/${id}/duplicate`).then(r => r.data),
 
+  // Réordonnancement des lignes (présentation pure — autorisé même après émission)
+  reorderLines: (id: string, lineIds: string[]) =>
+    apiClient.post<Invoice>(`/invoices/${id}/reorder-lines`, { lineIds }).then(r => r.data),
+
   delete: (id: string) =>
     apiClient.delete(`/invoices/${id}`),
 

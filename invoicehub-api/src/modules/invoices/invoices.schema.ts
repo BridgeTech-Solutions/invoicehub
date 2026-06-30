@@ -89,8 +89,15 @@ export const createAvoirSchema = z.object({
   dueDate: z.coerce.date().optional(),
 });
 
+// Réordonnancement des lignes — autorisé même après émission (présentation pure,
+// aucun montant ni écriture comptable modifié). lineIds = l'ordre voulu, complet.
+export const reorderLinesSchema = z.object({
+  lineIds: z.array(z.string().uuid()).min(1, 'Au moins une ligne est requise'),
+});
+
 export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
 export type UpdateInvoiceInput = z.infer<typeof updateInvoiceSchema>;
 export type ListInvoicesInput = z.infer<typeof listInvoicesSchema>;
 export type LineInput = z.infer<typeof lineSchema>;
 export type CreateAvoirInput = z.infer<typeof createAvoirSchema>;
+export type ReorderLinesInput = z.infer<typeof reorderLinesSchema>;
