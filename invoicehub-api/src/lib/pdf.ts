@@ -1142,7 +1142,11 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
     }
   } else {
     // Bandeau escompte de règlement (factures uniquement)
-    if (params.escompteRate != null && params.escompteDeadline && params.escompteAmount != null && params.escompteAmount > 0) {
+    // MASQUÉ sur les PDF à la demande du client (2026-06-30). L'escompte reste
+    // géré côté facture/paiement/compta ; seul l'affichage PDF est retiré.
+    // Pour le réafficher : repasser SHOW_ESCOMPTE_BANNER à true.
+    const SHOW_ESCOMPTE_BANNER = false;
+    if (SHOW_ESCOMPTE_BANNER && params.escompteRate != null && params.escompteDeadline && params.escompteAmount != null && params.escompteAmount > 0) {
       const netAvecEscompte = params.totalTtc - params.escompteAmount;
       bottomSection += `
         <div style="background:#fffbeb;border:1px solid #d97706;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:11px;">
