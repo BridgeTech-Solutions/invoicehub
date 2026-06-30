@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useId } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Zap, XCircle, Copy, Trash2, FileDown, Loader2, Pencil,
-  CreditCard, FileX, AlertTriangle, ListRestart,
+  CreditCard, FileX, AlertTriangle, ListRestart, BadgePercent,
 } from 'lucide-react'
 import {
   useIssueInvoice, useCancelInvoice, useDuplicateInvoice,
@@ -14,6 +14,7 @@ import {
 import { PaymentDrawer } from './PaymentDrawer'
 import { CancelModal }   from './CancelModal'
 import { AvoirModal }    from './AvoirModal'
+import { DiscountAvoirModal } from './DiscountAvoirModal'
 import { LineReorderModal } from '@/components/document/LineReorderModal'
 import type { Invoice }  from '../types'
 import { ROUTES }        from '@/lib/constants'
@@ -80,6 +81,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
   const [showAvoir,   setShowAvoir]   = useState(false)
   const [showDelete,  setShowDelete]  = useState(false)
   const [showReorder, setShowReorder] = useState(false)
+  const [showDiscount, setShowDiscount] = useState(false)
 
   const issueMutation     = useIssueInvoice()
   const duplicateMutation = useDuplicateInvoice()
@@ -211,6 +213,13 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
           </button>
         )}
 
+        {/* Remise après émission — génère un avoir partiel */}
+        {canAvoir && type !== 'avoir' && (
+          <button style={btnPurple} onClick={() => setShowDiscount(true)}>
+            <BadgePercent size={14} /> Remise après émission
+          </button>
+        )}
+
         {/* Create avoir — paid invoices (manual avoir) */}
         {canAvoir && type !== 'avoir' && (
           <button style={btnPurple} onClick={() => setShowAvoir(true)}>
@@ -252,6 +261,7 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
       {showPayment && <PaymentDrawer invoice={invoice}        onClose={() => setShowPayment(false)} />}
       {showCancel  && <CancelModal   invoiceId={id} invoiceNumber={number} onClose={() => setShowCancel(false)} />}
       {showAvoir   && <AvoirModal    invoice={invoice}        onClose={() => setShowAvoir(false)} />}
+      {showDiscount && <DiscountAvoirModal invoice={invoice}  onClose={() => setShowDiscount(false)} />}
       {showReorder && (
         <LineReorderModal
           title="Réordonner les lignes"
