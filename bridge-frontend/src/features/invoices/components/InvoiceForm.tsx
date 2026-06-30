@@ -385,12 +385,14 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
         globalDiscountType:  form.globalDiscountType,
         globalDiscountValue: form.globalDiscountValue,
         clientReference:     form.clientReference || undefined,
+        // En édition, exclure la facture elle-même des contrôles de doublon.
+        excludeInvoiceId:    isEdit ? invoice?.id : undefined,
       }, {
         onSuccess: (result) => setWarnings(result.warnings),
         onError:   () => {},
       })
     }, 800)
-  }, [form.clientId, form.lines, form.globalDiscountType, form.globalDiscountValue, form.clientReference]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form.clientId, form.lines, form.globalDiscountType, form.globalDiscountValue, form.clientReference, isEdit, invoice?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     triggerCompute()

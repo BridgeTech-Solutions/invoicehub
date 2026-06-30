@@ -229,6 +229,8 @@ export interface ComputeInvoicePayload {
   globalDiscountType: DiscountType
   globalDiscountValue: number
   clientReference?: string
+  /** Facture en cours d'édition : exclue des contrôles de doublon */
+  excludeInvoiceId?: string
 }
 
 export type ComputeWarningType =

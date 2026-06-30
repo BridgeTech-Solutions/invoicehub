@@ -75,6 +75,9 @@ export const computeInvoiceSchema = z.object({
   globalDiscountType:  z.enum(['none', 'percentage', 'fixed']).default('none'),
   globalDiscountValue: z.coerce.number().min(0).default(0),
   clientReference:     z.string().optional(),
+  // Facture en cours d'édition : à exclure des contrôles de doublon
+  // (sinon une facture se signale elle-même comme doublon lors d'une modification).
+  excludeInvoiceId:    z.string().uuid().optional(),
 });
 
 export type ComputeInvoiceInput = z.infer<typeof computeInvoiceSchema>;

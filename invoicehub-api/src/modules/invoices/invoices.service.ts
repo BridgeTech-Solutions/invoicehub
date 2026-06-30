@@ -880,10 +880,13 @@ export class InvoicesService {
   }
 
   async compute(input: ComputeInvoiceInput) {
-    const { clientId, lines, globalDiscountType, globalDiscountValue, clientReference } = input;
+    const { clientId, lines, globalDiscountType, globalDiscountValue, clientReference, excludeInvoiceId } = input;
 
     const computedLines = lines.map(l => ({ ...l, ...computeLine(l as any) }));
     const totals = computeTotals(computedLines, globalDiscountType, globalDiscountValue);
+
+    // En édition, on exclut la facture elle-même des contrôles de doublon.
+    const notSelf = excludeInvoiceId ? { id: { not: excludeInvoiceId } } : {};
 
     const [unpaidAgg, avgAgg, similarInvoice, duplicateRef] = await Promise.all([
       this.prisma.invoice.aggregate({
@@ -907,6 +910,7 @@ export class InvoicesService {
       this.prisma.invoice.findFirst({
         where: {
           clientId, deletedAt: null,
+          ...notSelf,
           status: { notIn: ['cancelled'] as any[] },
           createdAt: { gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000) },
           totalTtc: {
@@ -919,7 +923,7 @@ export class InvoicesService {
 
       clientReference
         ? this.prisma.invoice.findFirst({
-            where: { clientId, deletedAt: null, clientReference },
+            where: { clientId, deletedAt: null, ...notSelf, clientReference },
             select: { id: true, number: true },
           })
         : Promise.resolve(null),
