@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useId } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Package, Wrench, Plus, Save, ChevronRight } from 'lucide-react'
 import { ProductForm } from './ProductForm'
 import type { Product } from '../types'
@@ -58,7 +59,12 @@ export function ProductDrawer({ product, onClose, initialName, onCreated }: Prod
 
   const typeLabel = formType === 'product' ? 'Produit physique' : 'Prestation / Service'
 
-  return (
+  // Portalisé sur <body> : un drawer position:fixed rendu en place casse dès
+  // qu'un ancêtre porte une transform/filter (il devient relatif à cet ancêtre
+  // et défile avec la page). Le portal le rattache au viewport en toutes
+  // circonstances.
+  if (typeof window === 'undefined') return null
+  return createPortal(
     <>
       {/* ── Backdrop ─────────────────────────────────────────── */}
       <div
@@ -283,6 +289,7 @@ export function ProductDrawer({ product, onClose, initialName, onCreated }: Prod
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </>
+    </>,
+    document.body,
   )
 }

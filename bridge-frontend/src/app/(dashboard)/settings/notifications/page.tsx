@@ -12,6 +12,7 @@ import {
 import { useSettings, useUpdateSettings } from '@/features/settings/hooks'
 import { usePermission } from '@/hooks/usePermission'
 import { AccessDenied } from '@/components/ui/AccessDenied'
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
 import { TEMPLATE_VARIABLES, DEFAULT_EMAIL_TEMPLATES, SAMPLE_PREVIEW_VALUES } from '@/features/email-templates/types'
 import type { EmailTemplateVersion } from '@/features/email-templates/types'
 import { TipTapEditor } from '@/features/email-templates/TipTapEditor'
@@ -574,6 +575,7 @@ function PreviewModal({ subject, html, onClose }: { subject: string; html: strin
   }, [onClose])
 
   return (
+    <OverlayPortal>
     <div
       role="dialog" aria-modal="true" aria-label="Prévisualisation du template"
       style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
@@ -614,6 +616,7 @@ function PreviewModal({ subject, html, onClose }: { subject: string; html: strin
         </div>
       </div>
     </div>
+    </OverlayPortal>
   )
 }
 
