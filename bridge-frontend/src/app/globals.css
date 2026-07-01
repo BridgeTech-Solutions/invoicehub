@@ -162,12 +162,16 @@
 /* ─── Keyframes (global — not subject to cascade layers) ────── */
 @keyframes page-in {
   from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
+  /* transform: none (et non translateY(0)) au repos : une transform résiduelle
+     sur le <main> (via animation-fill-mode: both) crée un bloc conteneur qui
+     casse position:fixed → les drawers/modales « calent en haut » et défilent
+     avec la page. `none` supprime ce bloc une fois l'animation terminée. */
+  to   { opacity: 1; transform: none; }
 }
 
 @keyframes item-in {
   from { opacity: 0; transform: translateX(-8px); }
-  to   { opacity: 1; transform: translateX(0); }
+  to   { opacity: 1; transform: none; }
 }
 
 @keyframes pulse-ring {
