@@ -1,5 +1,7 @@
 'use client'
 
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
+
 import { useState, useEffect, useCallback, useRef, useId } from 'react'
 import { X, Loader2, Shield, ChevronDown, ChevronRight } from 'lucide-react'
 import { useCreateRole, useUpdateRole } from '../hooks'
@@ -157,6 +159,7 @@ export function RoleDrawer({ onClose, editRole }: Props) {
   }
 
   return (
+    <OverlayPortal>
     <>
       {/* Backdrop */}
       <div
@@ -483,5 +486,6 @@ export function RoleDrawer({ onClose, editRole }: Props) {
         </div>
       </div>
     </>
+    </OverlayPortal>
   )
 }

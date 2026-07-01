@@ -1,5 +1,7 @@
 'use client'
 
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
+
 /**
  * ImportClientsModal — import en masse de clients depuis un fichier Excel.
  *
@@ -185,6 +187,7 @@ export function ImportClientsModal({ open, onClose }: ImportClientsModalProps) {
   if (!open) return null
 
   return (
+    <OverlayPortal>
     <div
       role="dialog" aria-modal="true" aria-label="Import de clients"
       style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)', padding: 16 }}
@@ -394,5 +397,6 @@ export function ImportClientsModal({ open, onClose }: ImportClientsModalProps) {
         </div>
       </div>
     </div>
+    </OverlayPortal>
   )
 }

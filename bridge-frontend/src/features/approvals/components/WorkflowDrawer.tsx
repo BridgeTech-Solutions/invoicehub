@@ -1,5 +1,7 @@
 'use client'
 
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
+
 import { useState, useEffect, useCallback, useId } from 'react'
 import { X, Plus, Trash2, Settings2, ChevronUp, ChevronDown } from 'lucide-react'
 import { useCreateApprovalWorkflow, useUpdateApprovalWorkflow } from '../hooks'
@@ -204,6 +206,7 @@ export function WorkflowDrawer({ workflow, onClose }: WorkflowDrawerProps) {
   const errStyle: React.CSSProperties = { fontSize: 11.5, color: '#ef4444', marginTop: 3 }
 
   return (
+    <OverlayPortal>
     <>
       <div onClick={handleClose} aria-hidden="true"
         style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(10,20,35,0.45)', backdropFilter: 'blur(2px)', opacity: isVisible ? 1 : 0, transition: 'opacity 0.28s ease' }} />
@@ -423,5 +426,6 @@ export function WorkflowDrawer({ workflow, onClose }: WorkflowDrawerProps) {
         </div>
       </div>
     </>
+    </OverlayPortal>
   )
 }

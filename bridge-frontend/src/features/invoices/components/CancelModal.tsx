@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Loader2, AlertTriangle, X } from 'lucide-react'
 import { useCancelInvoice } from '../hooks'
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
 
 interface CancelModalProps {
   invoiceId: string
@@ -15,6 +16,7 @@ export function CancelModal({ invoiceId, invoiceNumber, onClose }: CancelModalPr
   const mutation = useCancelInvoice()
 
   return (
+    <OverlayPortal>
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div className="card" style={{ width: '100%', maxWidth: 440, padding: '24px' }}>
         {/* Header */}
@@ -83,5 +85,6 @@ export function CancelModal({ invoiceId, invoiceNumber, onClose }: CancelModalPr
         </div>
       </div>
     </div>
+    </OverlayPortal>
   )
 }

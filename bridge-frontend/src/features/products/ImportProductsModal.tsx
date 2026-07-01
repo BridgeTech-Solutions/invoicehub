@@ -1,5 +1,7 @@
 'use client'
 
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
+
 /**
  * ImportProductsModal — import en masse de produits/services depuis un fichier Excel.
  *
@@ -255,6 +257,7 @@ export function ImportProductsModal({ open, onClose, categories }: ImportProduct
   }
 
   return (
+    <OverlayPortal>
     <div role="dialog" aria-modal="true" aria-label="Importer des produits" style={overlayStyle} onClick={(e) => { if (e.target === e.currentTarget) handleClose() }}>
       <div style={panelStyle} onClick={(e) => e.stopPropagation()}>
 
@@ -498,5 +501,6 @@ export function ImportProductsModal({ open, onClose, categories }: ImportProduct
         </div>
       </div>
     </div>
+    </OverlayPortal>
   )
 }

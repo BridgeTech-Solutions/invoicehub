@@ -1,5 +1,7 @@
 'use client'
 
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
+
 import { useState, useEffect, useCallback, useId } from 'react'
 import { X, Zap, Plus, Trash2, Save } from 'lucide-react'
 import { useCreateWorkflowRule } from '../hooks'
@@ -206,6 +208,7 @@ export function WorkflowRuleDrawer({ onClose }: WorkflowRuleDrawerProps) {
   }
 
   return (
+    <OverlayPortal>
     <>
       {/* Backdrop */}
       <div
@@ -443,5 +446,6 @@ export function WorkflowRuleDrawer({ onClose }: WorkflowRuleDrawerProps) {
         </div>
       </div>
     </>
+    </OverlayPortal>
   )
 }

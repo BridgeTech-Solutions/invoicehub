@@ -1,5 +1,7 @@
 'use client'
 
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
+
 import { useState, useEffect, useCallback, useId } from 'react'
 import { X, Building2, Loader2 } from 'lucide-react'
 import { useCreateBankAccount, useUpdateBankAccount } from '../hooks'
@@ -158,6 +160,7 @@ export function BankAccountDrawer({ account, onClose, onSuccess }: BankAccountDr
   }
 
   return (
+    <OverlayPortal>
     <>
       <div onClick={handleClose} aria-hidden style={{
         position: 'fixed', inset: 0, zIndex: 300,
@@ -401,5 +404,6 @@ export function BankAccountDrawer({ account, onClose, onSuccess }: BankAccountDr
         </div>
       </div>
     </>
+    </OverlayPortal>
   )
 }

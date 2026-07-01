@@ -1,5 +1,7 @@
 'use client'
 
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
+
 import { useState, useEffect } from 'react'
 import { X, FileCheck, AlertCircle } from 'lucide-react'
 import { useFiscalYears, useCreateTaxDeclaration } from '@/features/accounting/hooks'
@@ -62,6 +64,7 @@ export default function TaxDeclarationDrawer({ open, onClose }: Props) {
   if (!open && !visible) return null
 
   return (
+    <OverlayPortal>
     <>
       <div
         onClick={handleClose}
@@ -210,5 +213,6 @@ export default function TaxDeclarationDrawer({ open, onClose }: Props) {
         </div>
       </div>
     </>
+    </OverlayPortal>
   )
 }

@@ -1,5 +1,7 @@
 'use client'
 
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
+
 import { useState, useEffect, useCallback, useId, useMemo } from 'react'
 import { Loader2, PackageCheck, X, Check, ListChecks } from 'lucide-react'
 import { format } from 'date-fns'
@@ -120,6 +122,7 @@ export function ReceiveDrawer({ po, isPending, onClose, onConfirm }: ReceiveDraw
   }
 
   return (
+    <OverlayPortal>
     <>
       {/* ── Backdrop ─────────────────────────────────────────── */}
       <div
@@ -332,6 +335,7 @@ export function ReceiveDrawer({ po, isPending, onClose, onConfirm }: ReceiveDraw
         </div>
       </div>
     </>
+    </OverlayPortal>
   )
 }
 

@@ -1,5 +1,7 @@
 'use client'
 
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
+
 import { useState, useEffect, useRef, useCallback, useId } from 'react'
 import {
   X, CreditCard, Banknote, FileText, Smartphone, MoreHorizontal,
@@ -216,6 +218,7 @@ export function PaymentDrawer({ invoice, onClose }: PaymentDrawerProps) {
   }
 
   return (
+    <OverlayPortal>
     <>
       {/* ── Backdrop ──────────────────────────────────────────── */}
       <div
@@ -749,5 +752,6 @@ export function PaymentDrawer({ invoice, onClose }: PaymentDrawerProps) {
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
     </>
+    </OverlayPortal>
   )
 }

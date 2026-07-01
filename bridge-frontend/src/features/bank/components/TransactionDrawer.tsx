@@ -1,5 +1,7 @@
 'use client'
 
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
+
 import { useState, useEffect, useCallback, useId } from 'react'
 import { X, ArrowLeftRight, Loader2 } from 'lucide-react'
 import { useCreateTransaction } from '../hooks'
@@ -101,6 +103,7 @@ export function TransactionDrawer({ onClose, accounts, accountId: defaultAccount
   }
 
   return (
+    <OverlayPortal>
     <>
       <div onClick={handleClose} aria-hidden style={{
         position: 'fixed', inset: 0, zIndex: 300,
@@ -218,5 +221,6 @@ export function TransactionDrawer({ onClose, accounts, accountId: defaultAccount
         </div>
       </div>
     </>
+    </OverlayPortal>
   )
 }

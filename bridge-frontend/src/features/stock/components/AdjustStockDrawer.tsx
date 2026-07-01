@@ -1,5 +1,7 @@
 'use client'
 
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
+
 import { useState, useEffect, useCallback, useRef, useId } from 'react'
 import { X, Package, AlertCircle, Loader2 } from 'lucide-react'
 import { useAdjustStock } from '../hooks'
@@ -142,6 +144,7 @@ export function AdjustStockDrawer({ productId, productName, currentQty, stockUni
   }
 
   return (
+    <OverlayPortal>
     <>
       {/* Backdrop */}
       <div
@@ -329,5 +332,6 @@ export function AdjustStockDrawer({ productId, productName, currentQty, stockUni
         </form>
       </div>
     </>
+    </OverlayPortal>
   )
 }

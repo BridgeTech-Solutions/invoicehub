@@ -1,5 +1,7 @@
 'use client'
 
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
+
 import { useState, useEffect, useCallback, useId } from 'react'
 import {
   X, Banknote, FileText, Smartphone, MoreHorizontal,
@@ -98,6 +100,7 @@ export function PayExpenseDrawer({ expense, onClose }: PayExpenseDrawerProps) {
   }
 
   return (
+    <OverlayPortal>
     <>
       <div onClick={handleClose} aria-hidden="true"
         style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(10, 20, 35, 0.45)', opacity: isVisible ? 1 : 0, transition: 'opacity 0.28s ease', backdropFilter: 'blur(2px)' }} />
@@ -210,5 +213,6 @@ export function PayExpenseDrawer({ expense, onClose }: PayExpenseDrawerProps) {
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </>
+    </OverlayPortal>
   )
 }

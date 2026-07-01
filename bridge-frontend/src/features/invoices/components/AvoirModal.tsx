@@ -1,5 +1,7 @@
 'use client'
 
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
+
 import { useState, useEffect, useCallback, useId } from 'react'
 import { Loader2, FileX, X, ListRestart } from 'lucide-react'
 import { format } from 'date-fns'
@@ -100,6 +102,7 @@ export function AvoirModal({ invoice, onClose }: AvoirModalProps) {
   const canSubmit = reason.trim() !== '' && !mutation.isPending && (!customLines || lines.length > 0)
 
   return (
+    <OverlayPortal>
     <>
       {/* ── Backdrop ─────────────────────────────────────────── */}
       <div
@@ -285,5 +288,6 @@ export function AvoirModal({ invoice, onClose }: AvoirModalProps) {
         </div>
       </div>
     </>
+    </OverlayPortal>
   )
 }

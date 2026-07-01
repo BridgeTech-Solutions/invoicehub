@@ -7,6 +7,7 @@ import { useCreatePayment } from '../hooks'
 import type { Invoice } from '../types'
 import { useCurrency } from '@/hooks/useCurrency'
 import { PAYMENT_METHODS } from '@/lib/constants'
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
 
 interface PaymentModalProps {
   invoice: Invoice
@@ -54,6 +55,7 @@ export function PaymentModal({ invoice, onClose }: PaymentModalProps) {
   }
 
   return (
+    <OverlayPortal>
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div className="card" style={{ width: '100%', maxWidth: 480, padding: '24px' }}>
         {/* Header */}
@@ -198,5 +200,6 @@ export function PaymentModal({ invoice, onClose }: PaymentModalProps) {
         </div>
       </div>
     </div>
+    </OverlayPortal>
   )
 }

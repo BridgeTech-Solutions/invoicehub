@@ -1,5 +1,7 @@
 'use client'
 
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
+
 import { useState, useEffect, useCallback, useId } from 'react'
 import { X, CheckCircle2, XCircle, UserCheck, ExternalLink, Clock } from 'lucide-react'
 import { useApprove, useReject, useDelegate } from '../hooks'
@@ -94,6 +96,7 @@ export function ApprovalDecisionDrawer({ request, onClose }: ApprovalDecisionDra
   }
 
   return (
+    <OverlayPortal>
     <>
       {/* Backdrop */}
       <div
@@ -351,5 +354,6 @@ export function ApprovalDecisionDrawer({ request, onClose }: ApprovalDecisionDra
         )}
       </div>
     </>
+    </OverlayPortal>
   )
 }

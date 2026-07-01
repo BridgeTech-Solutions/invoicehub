@@ -1,5 +1,7 @@
 'use client'
 
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
+
 import { useState, useEffect, useCallback } from 'react'
 import { X, BookOpen, Info } from 'lucide-react'
 import { useCreateAccount, useUpdateAccount } from '../hooks'
@@ -141,6 +143,7 @@ export function AccountDrawer({ open, onClose, editing, parentId }: Props) {
   const isPending = create.isPending || update.isPending
 
   return (
+    <OverlayPortal>
     <>
       <div onClick={handleClose} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(10,20,35,0.45)', backdropFilter: 'blur(2px)', opacity: visible ? 1 : 0, transition: 'opacity 0.28s' }} />
       <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 301, width: 520, background: 'var(--surface)', boxShadow: '-8px 0 40px rgba(10,20,35,0.18)', transform: visible ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.30s cubic-bezier(0.4,0,0.2,1)', display: 'flex', flexDirection: 'column' }}>
@@ -285,6 +288,7 @@ export function AccountDrawer({ open, onClose, editing, parentId }: Props) {
         </div>
       </div>
     </>
+    </OverlayPortal>
   )
 }
 
