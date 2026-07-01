@@ -117,6 +117,8 @@ export class InvoicesService {
       },
     });
     if (!invoice) throw AppError.notFound('Facture introuvable');
+    // Statut d'approbation (workflow) pour affichage — l'API ne le portait pas.
+    (invoice as any).approvalRequest = await this.approvals.getLatestForDocument('invoice', id);
     return invoice;
   }
 

@@ -294,7 +294,9 @@ export class ExpensesService {
       },
     });
     if (!expense) throw AppError.notFound('Dépense introuvable');
-    return this.formatExpense(expense);
+    const formatted = this.formatExpense(expense) as any;
+    formatted.approvalRequest = await this.approvalsService.getLatestForDocument('expense', id);
+    return formatted;
   }
 
   async createExpense(data: CreateExpenseInput, userId: string) {

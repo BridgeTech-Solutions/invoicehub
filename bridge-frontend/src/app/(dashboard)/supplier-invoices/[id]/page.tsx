@@ -15,6 +15,7 @@ import {
   useUploadSupplierInvoiceAttachment, useDownloadSupplierInvoiceAttachment, useDeleteSupplierInvoiceAttachment,
 } from '@/features/supplier-invoices/hooks'
 import { SupplierPaymentDrawer } from '@/features/supplier-invoices/components/SupplierPaymentDrawer'
+import { ApprovalBanner } from '@/features/approvals/components/ApprovalBanner'
 import { formatDate, getInitials } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES, PAYMENT_METHODS } from '@/lib/constants'
@@ -211,6 +212,9 @@ export default function SupplierInvoiceDetailPage({ params }: { params: Promise<
         onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-3)')}>
         <ChevronLeft size={14} /> Factures fournisseurs
       </Link>
+
+      {/* Statut d'approbation (workflow) */}
+      <ApprovalBanner request={inv.approvalRequest ?? null} />
 
       {/* Header card */}
       <div className="card" style={{ padding: '20px 24px' }}>

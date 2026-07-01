@@ -129,6 +129,7 @@ export class PurchaseOrdersService {
       },
     });
     if (!po) throw AppError.notFound('Bon de commande introuvable');
+    (po as any).approvalRequest = await this.approvalsService.getLatestForDocument('purchase_order', id);
     return po;
   }
 

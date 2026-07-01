@@ -11,6 +11,7 @@ import {
   useRejectExpense,
 } from '@/features/expenses/hooks'
 import { PayExpenseDrawer } from '@/features/expenses/components/PayExpenseDrawer'
+import { ApprovalBanner } from '@/features/approvals/components/ApprovalBanner'
 import { formatDate } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
@@ -135,6 +136,9 @@ export default function ExpenseDetailPage({ params }: { params: Promise<{ id: st
           }
         />
       </div>
+
+      {/* Statut d'approbation (workflow) */}
+      <ApprovalBanner request={exp.approvalRequest ?? null} />
 
       {/* Status cards */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>

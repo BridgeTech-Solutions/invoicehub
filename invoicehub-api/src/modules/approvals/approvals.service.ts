@@ -460,6 +460,19 @@ export class ApprovalsService {
     })
   }
 
+  /**
+   * Dernière demande d'approbation d'un document (tous statuts), au format léger
+   * pour afficher le statut « en attente / approuvé / rejeté » sur les pages
+   * détail et liste. Renvoie null si le document n'a jamais été soumis.
+   */
+  async getLatestForDocument(documentType: ApprovalDocumentType, documentId: string) {
+    return this.prisma.approvalRequest.findFirst({
+      where:   { documentId, documentType },
+      orderBy: { requestedAt: 'desc' },
+      select:  { id: true, status: true, currentStep: true, totalSteps: true },
+    })
+  }
+
   async pendingCount(userId: string): Promise<number> {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, include: { role: true } })
     const roleName = user?.role?.name

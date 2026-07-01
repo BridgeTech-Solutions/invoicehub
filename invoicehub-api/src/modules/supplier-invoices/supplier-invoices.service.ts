@@ -117,6 +117,7 @@ export class SupplierInvoicesService {
       },
     });
     if (!inv) throw AppError.notFound('Facture fournisseur introuvable');
+    (inv as any).approvalRequest = await this.approvalsService.getLatestForDocument('supplier_invoice', id);
     return inv;
   }
 
