@@ -70,6 +70,9 @@ export const updateSettingsSchema = z.object({
   // Avances et acomptes reçus (option SYSCOHADA — désactivée par défaut)
   useAdvanceAccount:           z.boolean().optional(),
   advanceAccount:              z.string().max(20).optional(),
+  // Retenue à la source subie (acompte IR / précompte) — compte 4492, taux 2,2 %
+  withholdingAccount:          z.string().max(20).optional(),
+  withholdingRate:             z.coerce.number().min(0).max(100).optional(),
 });
 
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;

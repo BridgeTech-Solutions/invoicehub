@@ -65,6 +65,9 @@ export interface CompanySettings {
   // Avances et acomptes reçus (option SYSCOHADA — désactivée par défaut)
   useAdvanceAccount:            boolean
   advanceAccount:               string
+  // Retenue à la source subie (acompte IR / précompte) — compte 4492, taux 2,2 %
+  withholdingAccount:           string
+  withholdingRate:              number
   createdAt:                    string
   updatedAt:                    string
 }

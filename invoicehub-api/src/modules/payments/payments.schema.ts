@@ -9,6 +9,9 @@ export const createPaymentSchema = z.object({
   bankAccountId:  z.string().uuid().optional(),
   attachmentPath: z.string().max(500).optional(),
   applyEscompte:  z.boolean().optional(),
+  // Retenue à la source subie (acompte IR / précompte) prélevée par le client.
+  // Montant déjà calculé côté client (taux configurable × base), modifiable.
+  withholdingAmount: z.coerce.number().min(0).optional(),
 });
 
 export const listPaymentsSchema = z.object({

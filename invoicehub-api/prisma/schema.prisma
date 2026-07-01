@@ -544,6 +544,10 @@ model CompanySettings {
   defaultExpenseAccount        String   @default("6251") @map("default_expense_account") @db.VarChar(20)
   useAdvanceAccount            Boolean  @default(false) @map("use_advance_account")
   advanceAccount               String   @default("4191") @map("advance_account") @db.VarChar(20)
+  // Retenue à la source subie (acompte IR / précompte prélevé par le client) —
+  // compte 4492 « État, avances et acomptes versés sur impôts », taux 2,2 % par défaut.
+  withholdingAccount           String   @default("4492") @map("withholding_account") @db.VarChar(20)
+  withholdingRate              Decimal  @default(2.2) @map("withholding_rate") @db.Decimal(5, 2)
   metadata                     Json     @default("{}")
   createdAt                    DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt                    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
@@ -1124,6 +1128,9 @@ model Payment {
   reconciledBy      User?         @relation("PaymentReconciledBy", fields: [reconciledById], references: [id], onDelete: SetNull)
   escompteApplied   Boolean       @map("escompte_applied") @default(false)
   escompteAmount    Decimal       @map("escompte_amount")  @db.Decimal(15, 2) @default(0)
+  // Retenue à la source subie sur ce règlement (reversée à l'État par le client)
+  withholdingApplied Boolean      @map("withholding_applied") @default(false)
+  withholdingAmount  Decimal      @map("withholding_amount")  @db.Decimal(15, 2) @default(0)
   createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt         DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
   deletedAt         DateTime?     @map("deleted_at") @db.Timestamptz()

@@ -6,12 +6,13 @@ import { useState, useEffect, useRef, useCallback, useId } from 'react'
 import {
   X, CreditCard, Banknote, FileText, Smartphone, MoreHorizontal,
   ArrowLeftRight, Building2, Paperclip, ChevronRight, CheckCircle2,
-  AlertCircle, Tag,
+  AlertCircle, Tag, Landmark,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { useCreatePayment, useBankAccounts } from '../hooks'
 import type { Invoice } from '../types'
 import { useCurrency } from '@/hooks/useCurrency'
+import { useSettings } from '@/features/settings/hooks'
 import { PAYMENT_METHODS, STATUS_LABELS } from '@/lib/constants'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -98,6 +99,11 @@ export function PaymentDrawer({ invoice, onClose }: PaymentDrawerProps) {
   const [isDragging,     setIsDragging]     = useState(false)
   const [applyEscompte,  setApplyEscompte]  = useState(false)
 
+  // ── Retenue à la source subie (acompte IR / précompte) ──────
+  const [applyWithholding, setApplyWithholding] = useState(false)
+  const [withholdingRate,  setWithholdingRate]  = useState(2.2)
+  const [withholdingAmt,   setWithholdingAmt]   = useState(0)
+
   // ── Animation state ─────────────────────────────────────────
   const [isVisible, setIsVisible] = useState(false)
   const amountRef   = useRef<HTMLInputElement>(null)
@@ -126,7 +132,16 @@ export function PaymentDrawer({ invoice, onClose }: PaymentDrawerProps) {
 
   // ── Data ──────────────────────────────────────────────────────
   const { data: bankAccounts = [] } = useBankAccounts()
+  const { data: settings } = useSettings()
   const mutation = useCreatePayment(invoice.id)
+
+  // Taux de retenue par défaut depuis les paramètres (tant que l'utilisateur n'a
+  // pas activé/modifié la retenue sur cet écran).
+  useEffect(() => {
+    if (!applyWithholding && settings?.withholdingRate != null) {
+      setWithholdingRate(Number(settings.withholdingRate))
+    }
+  }, [settings?.withholdingRate, applyWithholding])
 
   // ── Escompte eligibility ──────────────────────────────────────
   const escompteRate    = invoice.escompteRate != null ? Number(invoice.escompteRate) : null
@@ -139,12 +154,17 @@ export function PaymentDrawer({ invoice, onClose }: PaymentDrawerProps) {
     date <= invoice.escompteDeadline.slice(0, 10) &&
     !escompteAlreadyApplied
 
+  // ── Retenue à la source : base = HT de la facture (pré-calcul, modifiable) ──
+  const baseHt = Number(invoice.totalHt)
+  const computeWithholding = (rate: number) => Math.min(balanceDue, Math.round((baseHt * rate) / 100))
+
   // ── Computed ──────────────────────────────────────────────────
-  const escompteCovers  = applyEscompte && escompteEligible ? escompteAmount : 0
-  const totalCovered    = amount + escompteCovers
-  const isValid         = amount > 0 && totalCovered <= balanceDue + 0.01 && !!date
-  const newAmountPaid   = amountPaid + totalCovered
-  const newBalance      = Math.max(0, balanceDue - totalCovered)
+  const escompteCovers    = applyEscompte && escompteEligible ? escompteAmount : 0
+  const withholdingCovers = applyWithholding ? Math.min(Math.max(0, withholdingAmt), balanceDue) : 0
+  const totalCovered      = amount + escompteCovers + withholdingCovers
+  const isValid           = amount > 0 && totalCovered <= balanceDue + 0.01 && !!date
+  const newAmountPaid     = amountPaid + totalCovered
+  const newBalance        = Math.max(0, balanceDue - totalCovered)
   const willBePaid      = newBalance <= 0.01
   const pctBefore       = totalTtc > 0 ? (amountPaid / totalTtc) * 100 : 0
   const pctAfter        = totalTtc > 0 ? (newAmountPaid / totalTtc) * 100 : 0
@@ -158,7 +178,7 @@ export function PaymentDrawer({ invoice, onClose }: PaymentDrawerProps) {
 
   const handleAmount = (raw: string) => {
     const v = parseFloat(raw) || 0
-    const max = applyEscompte && escompteEligible ? balanceDue - escompteAmount : balanceDue
+    const max = balanceDue - escompteCovers - withholdingCovers
     setAmount(Math.min(max + 0.01, Math.max(0, v)))
   }
 
@@ -175,11 +195,32 @@ export function PaymentDrawer({ invoice, onClose }: PaymentDrawerProps) {
 
   const handleToggleEscompte = (checked: boolean) => {
     setApplyEscompte(checked)
-    if (checked && escompteEligible) {
-      setAmount(Math.max(0, balanceDue - escompteAmount))
-    } else {
-      setAmount(balanceDue)
+    const esc = checked && escompteEligible ? escompteAmount : 0
+    setAmount(Math.max(0, balanceDue - esc - withholdingCovers))
+  }
+
+  // ── Retenue à la source handlers ─────────────────────────────
+  const handleToggleWithholding = (checked: boolean) => {
+    setApplyWithholding(checked)
+    const wh = checked ? computeWithholding(withholdingRate) : 0
+    setWithholdingAmt(wh)
+    setAmount(Math.max(0, balanceDue - escompteCovers - wh))
+  }
+
+  const handleWithholdingRate = (raw: string) => {
+    const r = Math.max(0, Math.min(100, parseFloat(raw) || 0))
+    setWithholdingRate(r)
+    if (applyWithholding) {
+      const wh = computeWithholding(r)
+      setWithholdingAmt(wh)
+      setAmount(Math.max(0, balanceDue - escompteCovers - wh))
     }
+  }
+
+  const handleWithholdingAmount = (raw: string) => {
+    const wh = Math.max(0, Math.min(balanceDue, parseFloat(raw) || 0))
+    setWithholdingAmt(wh)
+    setAmount(Math.max(0, balanceDue - escompteCovers - wh))
   }
 
   const handleSubmit = () => {
@@ -192,6 +233,7 @@ export function PaymentDrawer({ invoice, onClose }: PaymentDrawerProps) {
       notes:         notes || undefined,
       bankAccountId: bankAccountId || undefined,
       ...(applyEscompte && escompteEligible && { applyEscompte: true }),
+      ...(applyWithholding && withholdingCovers > 0 && { withholdingAmount: withholdingCovers }),
     }, { onSuccess: handleClose })
   }
 
@@ -437,6 +479,65 @@ export function PaymentDrawer({ invoice, onClose }: PaymentDrawerProps) {
             </div>
           )}
 
+          {/* Retenue à la source subie */}
+          <div style={{
+            border: `1.5px solid ${applyWithholding ? 'var(--primary)' : 'var(--border)'}`,
+            borderRadius: 'var(--radius-md)', padding: '12px 14px', marginBottom: 18,
+            background: applyWithholding ? 'var(--primary-light)' : 'var(--surface-2)',
+            transition: 'border-color 0.15s, background 0.15s',
+          }}>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={applyWithholding}
+                onChange={e => handleToggleWithholding(e.target.checked)}
+                style={{ marginTop: 2, width: 15, height: 15, accentColor: 'var(--primary)', cursor: 'pointer', flexShrink: 0 }}
+              />
+              <span style={{ flex: 1 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--text-1)' }}>
+                  <Landmark size={14} style={{ color: 'var(--primary)' }} />
+                  Le client a prélevé une retenue à la source
+                </span>
+                <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-3)', marginTop: 3, lineHeight: 1.5 }}>
+                  Acompte IR / précompte reversé à l&apos;État pour votre compte (créance d&apos;impôt, pas un impayé).
+                  La facture est soldée par : encaissé + retenue.
+                </span>
+              </span>
+            </label>
+
+            {applyWithholding && (
+              <div style={{ marginTop: 12, paddingLeft: 25 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: 10 }}>
+                  <div>
+                    <FieldLabel>Taux (%)</FieldLabel>
+                    <input
+                      type="number" min="0" max="100" step="0.1"
+                      value={withholdingRate || ''}
+                      onChange={e => handleWithholdingRate(e.target.value)}
+                      style={{ ...inputStyle, fontFamily: 'var(--font-mono)', textAlign: 'center' }}
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel>Montant retenu (XAF)</FieldLabel>
+                    <input
+                      type="number" min="0" max={balanceDue} step="1"
+                      value={withholdingAmt || ''}
+                      onChange={e => handleWithholdingAmount(e.target.value)}
+                      style={{ ...inputStyle, fontFamily: 'var(--font-mono)', fontWeight: 700 }}
+                    />
+                  </div>
+                </div>
+                <p style={{ fontSize: 11.5, color: 'var(--text-2)', margin: '8px 0 0', lineHeight: 1.5 }}>
+                  Base HT {format(baseHt)} × {withholdingRate}% ={' '}
+                  <strong style={{ fontFamily: 'var(--font-mono)' }}>{format(withholdingCovers)}</strong>.
+                  Le client encaisse{' '}
+                  <strong style={{ fontFamily: 'var(--font-mono)' }}>{format(Math.max(0, balanceDue - escompteCovers - withholdingCovers))}</strong>.
+                  Écriture : Dr {settings?.withholdingAccount || '4492'} / Cr 411.
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Amount */}
           <div style={{ marginBottom: 18 }}>
             <FieldLabel>Montant reçu (XAF)</FieldLabel>
@@ -473,7 +574,7 @@ export function PaymentDrawer({ invoice, onClose }: PaymentDrawerProps) {
               </div>
               <button
                 type="button"
-                onClick={() => setAmount(applyEscompte && escompteEligible ? Math.max(0, balanceDue - escompteAmount) : balanceDue)}
+                onClick={() => setAmount(Math.max(0, balanceDue - escompteCovers - withholdingCovers))}
                 style={{
                   flexShrink: 0, padding: '8px 12px',
                   borderRadius: 'var(--radius-md)',

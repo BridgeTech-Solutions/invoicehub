@@ -255,7 +255,8 @@ function AccountingSection() {
     | 'stockAccount' | 'stockVariationAccount' | 'stockLossAccount'
     | 'defaultClientAccount' | 'defaultSupplierAccount' | 'defaultBankAccount'
     | 'defaultSalesGoodsAccount' | 'defaultSalesServiceAccount' | 'defaultPurchaseAccount'
-    | 'defaultExpenseAccount' | 'useAdvanceAccount' | 'advanceAccount'>>({})
+    | 'defaultExpenseAccount' | 'useAdvanceAccount' | 'advanceAccount'
+    | 'withholdingAccount' | 'withholdingRate'>>({})
   const [dirty, setDirty] = useState(false)
 
   useEffect(() => {
@@ -277,6 +278,8 @@ function AccountingSection() {
       defaultExpenseAccount:      settings.defaultExpenseAccount,
       useAdvanceAccount:          settings.useAdvanceAccount,
       advanceAccount:             settings.advanceAccount,
+      withholdingAccount:         settings.withholdingAccount,
+      withholdingRate:            settings.withholdingRate,
     })
     setDirty(false)
   }, [settings])
@@ -345,6 +348,26 @@ function AccountingSection() {
                 {(form.useAdvanceAccount ?? false) && (
                   <AccountField label="Compte avances reçues" value={form.advanceAccount} onChange={(v) => set('advanceAccount', v)} />
                 )}
+              </AccountGroup>
+              <AccountGroup title="Retenue à la source subie (acompte IR / précompte)">
+                <AccountField label="Compte de la retenue" value={form.withholdingAccount} onChange={(v) => set('withholdingAccount', v)} />
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                    Taux par défaut (%)
+                  </label>
+                  <input
+                    type="number" min={0} max={100} step={0.1}
+                    value={form.withholdingRate ?? ''}
+                    onChange={(e) => set('withholdingRate', e.target.value === '' ? undefined : Number(e.target.value))}
+                    style={inputCss}
+                  />
+                  <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: '6px 0 0', lineHeight: 1.5, gridColumn: '1 / -1' }}>
+                    Prélevée par certains clients (État, grandes entreprises) puis reversée à l&apos;État pour votre
+                    compte. Comptabilisée en créance d&apos;impôt (Dr {form.withholdingAccount || '4492'} / Cr 411), pas en
+                    impayé. Saisie au moment du paiement, pré-remplie à ce taux et modifiable. Défaut : 2,2 %
+                    (acompte IR 2 % + 10 % CAC).
+                  </p>
+                </div>
               </AccountGroup>
             </div>
             {dirty && can('settings', 'update') && (

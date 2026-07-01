@@ -79,6 +79,8 @@ export interface Payment {
   reconciledBy: InvoiceUser | null
   escompteApplied: boolean
   escompteAmount: number
+  withholdingApplied: boolean
+  withholdingAmount: number
   createdById: string
   createdBy: InvoiceUser
   invoice?: {
@@ -288,6 +290,8 @@ export interface CreatePaymentPayload {
   bankAccountId?: string
   attachmentPath?: string
   applyEscompte?: boolean
+  /** Montant de la retenue à la source subie (acompte IR / précompte) prélevée par le client */
+  withholdingAmount?: number
 }
 
 export interface BankAccountOption {

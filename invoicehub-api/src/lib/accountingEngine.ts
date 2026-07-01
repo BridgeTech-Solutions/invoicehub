@@ -348,6 +348,7 @@ async function getCompanyAccounts(tx: Tx) {
       defaultExpenseAccount:      true,
       useAdvanceAccount:          true,
       advanceAccount:             true,
+      withholdingAccount:         true,
     },
   });
   // Pas de paramètres entreprise → pas d'imputation possible (les appelants
@@ -367,6 +368,7 @@ async function getCompanyAccounts(tx: Tx) {
     defaultExpenseAccount:      s.defaultExpenseAccount,
     useAdvanceAccount:          s.useAdvanceAccount,
     advanceAccount:             s.advanceAccount,
+    withholdingAccount:         s.withholdingAccount,
   };
 }
 
@@ -558,46 +560,52 @@ export async function onPaymentReceived(paymentId: string, tx: Tx): Promise<void
  */
 export async function onPaymentDeleted(paymentId: string, tx: Tx): Promise<void> {
   try {
-    const original = await tx.journalEntry.findFirst({
-      where:   { sourceType: 'payment', sourceId: paymentId },
+    // Un paiement peut avoir plusieurs écritures (règlement principal, escompte
+    // accordé, retenue à la source) — toutes en sourceType 'payment'. On les
+    // contre-passe TOUTES, sinon le compte 411 client resterait déséquilibré.
+    const originals = await tx.journalEntry.findMany({
+      where:   { sourceType: 'payment', sourceId: paymentId, status: { not: 'cancelled' } },
       include: { lines: true },
     });
-    if (!original) return;
+    if (originals.length === 0) return;
 
-    const entryDate   = new Date();
-    const journal     = await getDefaultJournal(tx, JournalType.bank);
-    const period      = await getOpenPeriod(tx, entryDate);
-    const entryNumber = await nextEntryNumber(tx, journal.code, entryDate);
+    const journal = await getDefaultJournal(tx, JournalType.bank);
 
-    await tx.journalEntry.create({
-      data: {
-        journalId:      journal.id,
-        fiscalPeriodId: period.id,
-        entryDate,
-        accountingDate: entryDate,
-        entryNumber,
-        label:       `Extourne — ${original.label}`,
-        sourceType:  'payment_reversal',
-        sourceId:    paymentId,
-        totalDebit:  original.totalCredit,
-        totalCredit: original.totalDebit,
-        status:      'draft',
-        lines: {
-          create: original.lines.map((l, i) => ({
-            sortOrder:     i,
-            accountNumber: l.accountNumber,
-            label:         `Extourne — ${l.label}`,
-            debit:         Number(l.credit),
-            credit:        Number(l.debit),
-          })),
+    for (const original of originals) {
+      const entryDate   = new Date();
+      const period      = await getOpenPeriod(tx, entryDate);
+      const entryNumber = await nextEntryNumber(tx, journal.code, entryDate);
+
+      await tx.journalEntry.create({
+        data: {
+          journalId:      journal.id,
+          fiscalPeriodId: period.id,
+          entryDate,
+          accountingDate: entryDate,
+          entryNumber,
+          label:       `Extourne — ${original.label}`,
+          sourceType:  'payment_reversal',
+          sourceId:    paymentId,
+          totalDebit:  original.totalCredit,
+          totalCredit: original.totalDebit,
+          status:      'draft',
+          lines: {
+            create: original.lines.map((l, i) => ({
+              sortOrder:     i,
+              accountNumber: l.accountNumber,
+              label:         `Extourne — ${l.label}`,
+              debit:         Number(l.credit),
+              credit:        Number(l.debit),
+            })),
+          },
         },
-      },
-    });
+      });
 
-    await tx.journalEntry.update({
-      where: { id: original.id },
-      data:  { status: 'cancelled' },
-    });
+      await tx.journalEntry.update({
+        where: { id: original.id },
+        data:  { status: 'cancelled' },
+      });
+    }
   } catch (e) { logErr('onPaymentDeleted', e, { sourceType: 'payment_reversal', sourceId: paymentId }); }
 }
 
@@ -1165,5 +1173,78 @@ export async function onEscompteAccorde(params: {
       },
     });
   } catch (e) { logErr('onEscompteAccorde', e, { sourceType: 'payment', sourceId: params.paymentId }); }
+}
+
+// ── onRetenueSource — retenue à la source subie (acompte IR / précompte 2,2 %) ──
+
+/**
+ * Écriture comptable lors d'une retenue à la source prélevée par le client
+ * (acompte IR / précompte). Le client verse le net et reverse la retenue à
+ * l'État pour le compte de l'entreprise → c'est une créance d'impôt récupérable,
+ * pas une charge ni un impayé.
+ *
+ * Dr 4492 (État, avances et acomptes versés sur impôts — configurable)
+ * Cr 411xxx Client auxiliaire
+ */
+export async function onRetenueSource(params: {
+  paymentId:         string;
+  clientAccount:     string | null;
+  withholdingAmount: number;
+  invoiceNumber:     string;
+  clientName:        string;
+  paymentDate:       Date;
+}, tx: Tx): Promise<void> {
+  try {
+    const { paymentId, clientAccount, withholdingAmount, invoiceNumber, clientName, paymentDate } = params;
+    if (withholdingAmount <= 0.005) return;
+
+    const [journal, period, accounts] = await Promise.all([
+      getDefaultJournal(tx, JournalType.operations),
+      getOpenPeriod(tx, paymentDate),
+      getCompanyAccounts(tx),
+    ]);
+    if (!accounts) {
+      logSkip('onRetenueSource', 'paramètres comptables entreprise non configurés', { sourceType: 'payment', sourceId: paymentId });
+      return;
+    }
+    // Repli sur les comptes par défaut configurés (jamais de numéro en dur).
+    const resolvedClientAccount = clientAccount ?? accounts.defaultClientAccount;
+    const withholdingAccount    = accounts.withholdingAccount;
+    const entryNumber = await nextEntryNumber(tx, journal.code, paymentDate);
+
+    await tx.journalEntry.create({
+      data: {
+        journalId:      journal.id,
+        fiscalPeriodId: period.id,
+        entryDate:      paymentDate,
+        accountingDate: paymentDate,
+        entryNumber,
+        label:       `Retenue à la source FAC ${invoiceNumber} — ${clientName}`,
+        sourceType:  'payment',
+        sourceId:    paymentId,
+        totalDebit:  withholdingAmount,
+        totalCredit: withholdingAmount,
+        status:      'draft',
+        lines: {
+          create: [
+            {
+              sortOrder:     0,
+              accountNumber: withholdingAccount,
+              label:         `Retenue à la source (acompte IR) FAC ${invoiceNumber}`,
+              debit:         withholdingAmount,
+              credit:        0,
+            },
+            {
+              sortOrder:     1,
+              accountNumber: resolvedClientAccount,
+              label:         `Client ${clientName} — retenue FAC ${invoiceNumber}`,
+              debit:         0,
+              credit:        withholdingAmount,
+            },
+          ],
+        },
+      },
+    });
+  } catch (e) { logErr('onRetenueSource', e, { sourceType: 'payment', sourceId: params.paymentId }); }
 }
 

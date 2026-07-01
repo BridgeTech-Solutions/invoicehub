@@ -14,7 +14,7 @@ const ACCOUNT_FIELDS = [
   'stockAccount', 'stockVariationAccount', 'stockLossAccount',
   'defaultClientAccount', 'defaultSupplierAccount', 'defaultBankAccount',
   'defaultSalesGoodsAccount', 'defaultSalesServiceAccount', 'defaultPurchaseAccount', 'defaultExpenseAccount',
-  'advanceAccount',
+  'advanceAccount', 'withholdingAccount',
 ] as const;
 
 function toRelativePath(absPath: string | null): string | null {
@@ -120,6 +120,8 @@ export class SettingsService {
           ...(input.defaultExpenseAccount        !== undefined && { defaultExpenseAccount:        input.defaultExpenseAccount }),
           ...(input.useAdvanceAccount            !== undefined && { useAdvanceAccount:            input.useAdvanceAccount }),
           ...(input.advanceAccount               !== undefined && { advanceAccount:               input.advanceAccount }),
+          ...(input.withholdingAccount           !== undefined && { withholdingAccount:           input.withholdingAccount }),
+          ...(input.withholdingRate              !== undefined && { withholdingRate:              input.withholdingRate }),
         },
       });
       return formatSettings(updated as unknown as Record<string, unknown>);

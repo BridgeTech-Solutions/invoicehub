@@ -58,6 +58,21 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-07-01 — Retenue à la source subie (acompte IR / précompte 2,2 %)
+Gestion de la retenue à la source prélevée par certains clients (État, grandes entreprises) :
+saisie **au moment du paiement** (rien sur la facture), la facture est soldée par
+*encaissé + retenue*. Nouveaux comptes/colonnes : `withholding_account` (défaut `4492`) et
+`withholding_rate` (défaut `2.2`) sur `company_settings` ; `withholding_applied` /
+`withholding_amount` sur `payments`. Écriture comptable Dr 4492 / Cr 411.
+
+```bash
+cd invoicehub-api
+# Ajoute les colonnes retenue à la source (idempotent)
+npx prisma db execute --file prisma/add_withholding_source.sql --schema prisma/schema.prisma
+pnpm db:generate    # régénère le client Prisma avec les nouveaux champs
+```
+> Compte et taux configurables dans Paramètres → Facturation → Comptes comptables SYSCOHADA.
+
 ### 2026-07-01 — Filigrane BROUILLON / ANNULÉE sur les PDF
 Filigrane diagonal en arrière-plan des documents brouillon (« BROUILLON ») et annulés (« ANNULÉE »)
 sur factures, proformas et bons de commande. **Pur changement de code** (aucune migration ni script).

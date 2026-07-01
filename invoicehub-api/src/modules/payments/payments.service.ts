@@ -102,12 +102,21 @@ export class PaymentsService {
       escompteAmount  = Number((invoice as any).escompteAmount);
     }
 
-    // Avec escompte, le montant reçu peut être inférieur au solde dû
-    // (le solde est couvert par paiement + escompte)
-    const totalCovered = input.amount + escompteAmount;
+    // ── Retenue à la source subie (acompte IR / précompte) ────────────────────
+    // Le client prélève une retenue et la reverse à l'État pour notre compte : ce
+    // n'est ni un impayé ni une charge, mais une créance d'impôt. Elle solde donc
+    // une partie de la facture au même titre que l'encaissement.
+    const withholdingAmount = Math.max(0, Number(input.withholdingAmount ?? 0));
+    const withholdingApplied = withholdingAmount > 0;
+
+    // Le solde dû est couvert par : encaissement + escompte + retenue à la source
+    const totalCovered = input.amount + escompteAmount + withholdingAmount;
     if (totalCovered > balanceDue + 0.01) {
       throw AppError.badRequest(
-        `Le paiement (${input.amount.toLocaleString('fr-FR')} XAF) dépasse le solde dû (${balanceDue.toLocaleString('fr-FR')} XAF)`,
+        `Le règlement (encaissé ${input.amount.toLocaleString('fr-FR')}` +
+        `${withholdingAmount > 0 ? ` + retenue ${withholdingAmount.toLocaleString('fr-FR')}` : ''}` +
+        `${escompteAmount > 0 ? ` + escompte ${escompteAmount.toLocaleString('fr-FR')}` : ''} XAF) ` +
+        `dépasse le solde dû (${balanceDue.toLocaleString('fr-FR')} XAF)`,
       );
     }
 
@@ -124,12 +133,14 @@ export class PaymentsService {
           attachmentPath:  input.attachmentPath,
           escompteApplied: escompteApplied as any,
           escompteAmount:  escompteAmount as any,
+          withholdingApplied: withholdingApplied as any,
+          withholdingAmount:  withholdingAmount as any,
           createdById,
         },
       } as any);
 
-      // amountPaid = paiements précédents + montant reçu + escompte accordé
-      const newAmountPaid = Number(invoice.amountPaid) + input.amount + escompteAmount;
+      // amountPaid = paiements précédents + montant reçu + escompte + retenue à la source
+      const newAmountPaid = Number(invoice.amountPaid) + input.amount + escompteAmount + withholdingAmount;
       const newBalanceDue = Number(invoice.amountDue) - newAmountPaid;
       const isPaid        = newBalanceDue <= 0.01;
 
@@ -173,14 +184,30 @@ export class PaymentsService {
         }, tx);
       }
 
+      // Écriture comptable retenue à la source subie (Dr 4492 / Cr 411)
+      if (withholdingApplied && withholdingAmount > 0) {
+        const clientAccount = (invoice.client as any)?.accountingAccount ?? null;
+        await accountingEngine.onRetenueSource({
+          paymentId:         payment.id,
+          clientAccount,
+          withholdingAmount,
+          invoiceNumber:     invoice.number,
+          clientName:        (invoice.client as any)?.name ?? '',
+          paymentDate,
+        }, tx);
+      }
+
       return payment;
     }).then(async (payment) => {
-      const paidSoFar = Number(invoice.amountPaid) + input.amount + escompteAmount;
+      const paidSoFar = Number(invoice.amountPaid) + input.amount + escompteAmount + withholdingAmount;
       const remaining = Number(invoice.amountDue) - paidSoFar;
       const fullyPaid = remaining <= 0.01;
 
       const escompteMsg = escompteApplied
         ? ` (escompte de ${escompteAmount.toLocaleString('fr-FR')} XAF accordé)`
+        : '';
+      const withholdingMsg = withholdingApplied
+        ? ` (retenue à la source de ${withholdingAmount.toLocaleString('fr-FR')} XAF)`
         : '';
 
       const appUrl = process.env.APP_URL ?? 'http://localhost:3001';
@@ -188,8 +215,8 @@ export class PaymentsService {
         type:    fullyPaid ? 'invoice_paid' : 'payment_registered',
         title:   fullyPaid ? `Facture payée : ${invoice.number}` : `Paiement reçu : ${invoice.number}`,
         message: fullyPaid
-          ? `La facture ${invoice.number} est entièrement réglée${escompteMsg}.`
-          : `Un paiement de ${input.amount.toLocaleString('fr-FR')} XAF a été enregistré sur la facture ${invoice.number}${escompteMsg}.`,
+          ? `La facture ${invoice.number} est entièrement réglée${escompteMsg}${withholdingMsg}.`
+          : `Un paiement de ${input.amount.toLocaleString('fr-FR')} XAF a été enregistré sur la facture ${invoice.number}${escompteMsg}${withholdingMsg}.`,
         // Variables des templates invoice_paid / payment_registered (superset).
         data:    {
           invoiceId:     invoice.id,
@@ -228,10 +255,14 @@ export class PaymentsService {
 
       const remainingPayments = await tx.payment.aggregate({
         where: { invoiceId: payment.invoiceId, deletedAt: null },
-        _sum: { amount: true },
+        _sum: { amount: true, escompteAmount: true, withholdingAmount: true },
       });
 
-      const newAmountPaid = Number(remainingPayments._sum.amount ?? 0);
+      // Le montant réglé inclut l'encaissement + l'escompte accordé + la retenue
+      // à la source subie (composantes non-cash qui soldent aussi la facture).
+      const newAmountPaid = Number(remainingPayments._sum.amount ?? 0)
+        + Number(remainingPayments._sum.escompteAmount ?? 0)
+        + Number((remainingPayments._sum as any).withholdingAmount ?? 0);
       const newBalanceDue = Number(payment.invoice.amountDue) - newAmountPaid;
 
       let newStatus = payment.invoice.status;
