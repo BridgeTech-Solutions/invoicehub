@@ -351,6 +351,7 @@ export class PaymentsService {
       receiptRef,
       paymentDate: new Date(payment.paymentDate).toLocaleDateString('fr-FR'),
       amount: Number(payment.amount),
+      withholdingAmount: Number((payment as any).withholdingAmount ?? 0),
       method: payment.method,
       reference: payment.reference ?? undefined,
       invoiceNumber: payment.invoice.number,

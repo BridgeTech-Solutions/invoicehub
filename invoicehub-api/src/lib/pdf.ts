@@ -1284,6 +1284,8 @@ export interface ReceiptParams {
   paymentDate: string;
   /** Montant encaissé */
   amount: number;
+  /** Retenue à la source subie sur ce règlement (acompte IR / précompte), 0 si aucune */
+  withholdingAmount?: number;
   /** Méthode de paiement (cash, bank_transfer, check, mobile_money, other) */
   method: string;
   /** Référence bancaire / chèque (optionnel) */
@@ -1356,7 +1358,15 @@ export function buildReceiptHtml(params: ReceiptParams): string {
   };
   const methodLabel = methodLabels[params.method] ?? params.method;
 
-  const amountStr = `${fmt(params.amount)} ${params.currency}`;
+  const withholding  = params.withholdingAmount ?? 0;
+  const totalSettled = params.amount + withholding;
+  const amountStr    = `${fmt(totalSettled)} ${params.currency}`;
+
+  // Ligne retenue à la source + total réglé (uniquement si une retenue s'applique)
+  const withholdingRows = withholding > 0
+    ? `<tr><td style="${labelTd_r}">Retenue à la source</td><td style="${td_r}">${fmt(withholding)} ${params.currency} <span style="color:#666;font-size:10px;">(acompte IR reversé à l'État — compte 4492)</span></td></tr>
+      <tr><td style="${labelTd_r}">Total réglé</td><td style="${td_r}font-weight:bold;font-size:13px;">${fmt(totalSettled)} ${params.currency} <span style="color:#666;font-weight:normal;font-size:10px;">(encaissé + retenue)</span></td></tr>`
+    : '';
 
   return `<!DOCTYPE html>
 <html lang="fr">
@@ -1390,6 +1400,7 @@ export function buildReceiptHtml(params: ReceiptParams): string {
     <table style="width:100%;border-collapse:collapse;margin-bottom:18px;font-size:11px;">
       <tr><td style="${labelTd_r}">Facture N°</td><td style="${td_r}">${params.invoiceNumber}</td></tr>
       <tr><td style="${labelTd_r}">Montant encaissé</td><td style="${td_r}font-weight:bold;font-size:13px;">${fmt(params.amount)} ${params.currency}</td></tr>
+      ${withholdingRows}
       <tr><td style="${labelTd_r}">Mode de règlement</td><td style="${td_r}">${methodLabel}</td></tr>
       ${params.reference ? `<tr><td style="${labelTd_r}">Référence</td><td style="${td_r}">${params.reference}</td></tr>` : ''}
       <tr><td colspan="2" style="${totalTd_r}text-align:center;">Total facture : ${fmt(params.invoiceTotalTtc)} ${params.currency} &nbsp;|&nbsp; Déjà encaissé : ${fmt(params.amountPaid)} ${params.currency} &nbsp;|&nbsp; Solde restant : ${fmt(params.balanceDue)} ${params.currency}</td></tr>
