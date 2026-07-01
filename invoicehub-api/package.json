@@ -22,7 +22,8 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:baseline": "prisma migrate resolve --applied 20260522000000_baseline",
     "db:status": "prisma migrate status",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "db:sync-emails": "ts-node prisma/sync-email-templates.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1039.0",
