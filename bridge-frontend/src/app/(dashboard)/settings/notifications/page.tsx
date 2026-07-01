@@ -932,27 +932,14 @@ function TemplateEditor({ template }: { template: EmailTemplate }) {
 
 // ─── Email templates section ───────────────────────────────────
 function EmailTemplatesSection() {
-  const [locale, setLocale] = useState<string>('fr')
-  const { data: templates = [], isLoading } = useEmailTemplates(locale)
+  const { data: templates = [], isLoading } = useEmailTemplates('fr')
 
   return (
     <div className="card">
       <div style={{ marginBottom: 16, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div aria-hidden="true" style={{ color: 'var(--primary)' }}><Mail size={15} /></div>
-            <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0 }}>Templates d&apos;emails</h2>
-          </div>
-          {/* Locale selector */}
-          <div style={{ display: 'flex', gap: 2, background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', padding: 2 }}>
-            {[{ value: 'fr', label: 'FR' }, { value: 'en', label: 'EN' }].map((l) => (
-              <button key={l.value} type="button"
-                onClick={() => setLocale(l.value)}
-                style={{ padding: '3px 10px', borderRadius: 'var(--radius-sm)', border: 'none', cursor: 'pointer', fontSize: 11.5, fontFamily: 'var(--font-display)', fontWeight: 700, background: locale === l.value ? 'var(--primary)' : 'transparent', color: locale === l.value ? '#fff' : 'var(--text-3)', transition: 'all 0.15s' }}>
-                {l.label}
-              </button>
-            ))}
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div aria-hidden="true" style={{ color: 'var(--primary)' }}><Mail size={15} /></div>
+          <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0 }}>Templates d&apos;emails</h2>
         </div>
         <p style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '4px 0 0 23px' }}>Personnalisez les emails envoyés automatiquement. Utilisez les variables entre {'{{'} et {'}}'}.</p>
       </div>
