@@ -572,7 +572,10 @@ export class PurchaseOrdersService {
       headerImageB64, footerImageB64, sealImageB64,
     });
 
-    const buffer = await generatePdf(html);
+    const watermark =
+      po.status === 'draft'     ? 'BROUILLON' :
+      po.status === 'cancelled' ? 'ANNULÉE'   : undefined;
+    const buffer = await generatePdf(html, undefined, undefined, watermark);
     return { buffer, filename: `${po.number.replace(/\//g, '-')}.pdf` };
   }
 }

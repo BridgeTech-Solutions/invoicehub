@@ -512,7 +512,8 @@ export class ProformasService {
     });
 
     const footerSafeZonePx = settings?.footerSafeZonePx || undefined;
-    const pdfBuffer = await generatePdf(html, footerSafeZonePx);
+    const watermark = proforma.status === 'draft' ? 'BROUILLON' : undefined;
+    const pdfBuffer = await generatePdf(html, footerSafeZonePx, undefined, watermark);
 
     await this.prisma.proforma.update({
       where: { id },

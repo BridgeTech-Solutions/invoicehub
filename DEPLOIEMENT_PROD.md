@@ -58,6 +58,14 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-07-01 — Filigrane BROUILLON / ANNULÉE sur les PDF
+Filigrane diagonal en arrière-plan des documents brouillon (« BROUILLON ») et annulés (« ANNULÉE »)
+sur factures, proformas et bons de commande. **Pur changement de code** (aucune migration ni script).
+
+```bash
+# Rien de spécial : la procédure standard (git pull → build → restart) suffit.
+```
+
 ### 2026-07-01 — Couverture emails + identification InvoiceHub + sécurité
 Commit `7ede4c9`. Nouveaux templates email (bon de commande, facture fournisseur, budget, compta),
 objet préfixé `[InvoiceHub]`, échappement HTML.

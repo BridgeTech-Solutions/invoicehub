@@ -905,7 +905,10 @@ export class InvoicesService {
     });
 
     const footerSafeZonePx = settings?.footerSafeZonePx || undefined;
-    const pdfBuffer = await generatePdf(html, footerSafeZonePx, settings);
+    const watermark =
+      invoice.status === 'draft'     ? 'BROUILLON' :
+      invoice.status === 'cancelled' ? 'ANNULÉE'   : undefined;
+    const pdfBuffer = await generatePdf(html, footerSafeZonePx, settings, watermark);
 
     await this.prisma.invoice.update({ where: { id }, data: { pdfGeneratedAt: new Date() } });
 

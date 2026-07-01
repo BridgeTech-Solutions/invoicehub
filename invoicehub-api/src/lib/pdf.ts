@@ -13,7 +13,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { default as puppeteer } from 'puppeteer';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, degrees, rgb, StandardFonts } from 'pdf-lib';
 import sanitizeHtml = require('sanitize-html');
 const logger = { info: console.log, warn: console.warn, error: console.error, debug: console.debug };
 
@@ -300,8 +300,11 @@ async function getBrowser(): Promise<Browser> {
  *
  * @param html              - HTML complet (images en base64)
  * @param footerSafeZonePx  - Hauteur en px de la zone protégée en bas du footer
+ * @param companySettings   - Réglages société (réservé)
+ * @param watermark         - Texte de filigrane diagonal répété sur chaque page
+ *                            (ex : "BROUILLON", "ANNULÉE"). Rouge pour "ANNUL…", gris sinon.
  */
-export async function generatePdf(html: string, footerSafeZonePx?: number, companySettings?: any): Promise<Buffer> {
+export async function generatePdf(html: string, footerSafeZonePx?: number, companySettings?: any, watermark?: string): Promise<Buffer> {
   const browser = await getBrowser();
   let page: Awaited<ReturnType<typeof browser.newPage>> | null = null;
   try {
@@ -492,21 +495,24 @@ export async function generatePdf(html: string, footerSafeZonePx?: number, compa
     // ── Post-traitement pdf-lib : footer en fond de chaque page ──────────────
     // On insère l'image footer AVANT le contenu de chaque page via pdf-lib,
     // de sorte qu'elle s'affiche derrière (couche inférieure).
-    if (!footerSrc) {
+    // Si ni footer ni filigrane, on renvoie le PDF brut sans re-sérialiser.
+    if (!footerSrc && !watermark) {
       return Buffer.from(pdf);
     }
 
-    // Décoder le data URI base64 en Buffer
-    const footerB64 = footerSrc.replace(/^data:image\/\w+;base64,/, '');
-    const footerBuf = Buffer.from(footerB64, 'base64');
+    const pdfDoc = await PDFDocument.load(pdf);
 
-    const pdfDoc    = await PDFDocument.load(pdf);
-    const footerImg = footerSrc.startsWith('data:image/png')
-      ? await pdfDoc.embedPng(footerBuf)
-      : await pdfDoc.embedJpg(footerBuf);
+    if (footerSrc) {
+      // Décoder le data URI base64 en Buffer
+      const footerB64 = footerSrc.replace(/^data:image\/\w+;base64,/, '');
+      const footerBuf = Buffer.from(footerB64, 'base64');
 
-    const pages = pdfDoc.getPages();
-    for (const pdfPage of pages) {
+      const footerImg = footerSrc.startsWith('data:image/png')
+        ? await pdfDoc.embedPng(footerBuf)
+        : await pdfDoc.embedJpg(footerBuf);
+
+      const pages = pdfDoc.getPages();
+      for (const pdfPage of pages) {
       const { width, height } = pdfPage.getSize();
 
       // Hauteur de l'image proportionnelle à la largeur de la page
@@ -556,10 +562,37 @@ export async function generatePdf(html: string, footerSafeZonePx?: number, compa
         }
       }
       pdfPage.node.set(PDFName.of('Contents'), combined);
+      }
+    }
+
+    // ── Filigrane diagonal (BROUILLON / ANNULÉE) ─────────────────────────────
+    // Dessiné PAR-DESSUS le contenu, en gros caractères translucides, répété
+    // sur chaque page. Rouge pour un document annulé, gris pour un brouillon.
+    if (watermark) {
+      const text = watermark.toUpperCase();
+      const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+      const isCancel = /ANNUL/.test(text);
+      const color = isCancel ? rgb(0.78, 0.12, 0.12) : rgb(0.45, 0.45, 0.45);
+      const angleDeg = 45;
+      const rad = (angleDeg * Math.PI) / 180;
+
+      for (const pdfPage of pdfDoc.getPages()) {
+        const { width, height } = pdfPage.getSize();
+        // Taille adaptée pour couvrir ~85 % de la diagonale de la page
+        let size = 120;
+        while (font.widthOfTextAtSize(text, size) > width * 1.1 && size > 24) size -= 4;
+        const textWidth = font.widthOfTextAtSize(text, size);
+        // Centrer le texte pivoté autour du centre de la page
+        const cx = width / 2;
+        const cy = height / 2;
+        const x = cx - (textWidth / 2) * Math.cos(rad);
+        const y = cy - (textWidth / 2) * Math.sin(rad);
+        pdfPage.drawText(text, { x, y, size, font, color, opacity: 0.12, rotate: degrees(angleDeg) });
+      }
     }
 
     const finalPdf = await pdfDoc.save();
-    logger.debug('PDF final (with footer background)', { size: finalPdf.length });
+    logger.debug('PDF final (pdf-lib post-processing)', { size: finalPdf.length, hasFooter: !!footerSrc, watermark: watermark ?? null });
     return Buffer.from(finalPdf);
   } finally {
     // On ferme uniquement la page, pas le browser singleton
