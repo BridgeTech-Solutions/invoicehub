@@ -68,10 +68,14 @@ export class EmailTemplatesService {
     const template = await this.findById(id);
     let subject = template.subject;
     let html    = template.bodyHtml;
+    const escapeHtml = (v: string) =>
+      String(v).replace(/[&<>"']/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string),
+      );
     for (const [key, value] of Object.entries(vars)) {
       const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
       subject = subject.replace(regex, value);
-      html    = html.replace(regex, value);
+      html    = html.replace(regex, escapeHtml(value));
     }
     return { subject, html };
   }

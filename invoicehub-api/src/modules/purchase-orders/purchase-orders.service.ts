@@ -203,7 +203,7 @@ export class PurchaseOrdersService {
       void broadcastNotification(this.prisma as any, this.notifQueue, {
         type: 'purchase_order_created', title: `Nouveau bon de commande : ${po.number}`,
         message: `Le BC ${po.number} a été créé.`,
-        data: { purchaseOrderId: po.id, purchaseOrderNumber: po.number, documentLink: `/purchase-orders/${po.id}` },
+        data: { purchaseOrderId: po.id, purchaseOrderNumber: po.number, amountTtc: String(po.totalTtc), documentLink: `/purchase-orders/${po.id}` },
       }, { excludeUserId: userId, permission: 'purchases:read' });
       return po;
     });
@@ -299,7 +299,7 @@ export class PurchaseOrdersService {
     void broadcastNotification(this.prisma as any, this.notifQueue, {
       type: 'purchase_order_approved', title: `BC envoyé au fournisseur : ${po?.number ?? id}`,
       message: `Le bon de commande ${po?.number ?? id} a été envoyé au fournisseur.`,
-      data: { purchaseOrderId: id, documentLink: `/purchase-orders/${id}` },
+      data: { purchaseOrderId: id, purchaseOrderNumber: po?.number ?? id, amountTtc: String(po?.totalTtc ?? ''), documentLink: `/purchase-orders/${id}` },
     }, { excludeUserId: userId, permission: 'purchases:read' });
     return result;
   }

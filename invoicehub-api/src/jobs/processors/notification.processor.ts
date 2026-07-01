@@ -58,6 +58,8 @@ export class NotificationProcessor extends WorkerHost {
       userName:     user.firstName,
       userFullName: `${user.firstName} ${user.lastName ?? ''}`.trim(),
       companyName:  'Bridge Technologies Solutions',
+      // Base absolue pour rendre cliquables les liens relatifs (data.documentLink)
+      appUrl:       process.env.APP_URL ?? 'http://localhost:3001',
       ...Object.fromEntries(Object.entries(data ?? {}).map(([k, v]) => [k, String(v)])),
     };
 
@@ -67,10 +69,27 @@ export class NotificationProcessor extends WorkerHost {
     // bascule sur le rendu générique (titre + message).
     const rendered = type === 'system' ? null : await renderEmailTemplate(type, variables);
 
+    // Rendu de secours (type sans template, ex. 'system' : proforma créée,
+    // brouillon, annulation…). Si la notification concerne un document, on ajoute
+    // toujours un lien cliquable vers celui-ci — jamais un email sans contexte.
+    const esc = (s: string) =>
+      String(s).replace(/[&<>"']/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string),
+      );
+    const docLink = (data as any)?.documentLink
+      ? `${variables.appUrl}${(data as any).documentLink}`
+      : null;
+    const fallbackHtml =
+      `<p>Bonjour ${esc(user.firstName)},</p><p>${esc(message)}</p>` +
+      (docLink
+        ? `<p><a href="${esc(docLink)}" style="color:#2D7DD2;font-weight:600;">Voir le document</a></p>`
+        : '');
+
     await this.emailQueue.add('email', {
       to:      user.email,
-      subject: rendered?.subject ?? title,
-      html:    rendered?.html ?? `<p>Bonjour ${user.firstName},</p><p>${message}</p>`,
+      // Toujours identifier l'origine InvoiceHub dans l'objet, même en fallback.
+      subject: rendered?.subject ?? `[InvoiceHub] ${title}`,
+      html:    rendered?.html ?? fallbackHtml,
     });
   }
 }

@@ -67,7 +67,7 @@ export const EMAIL_TEMPLATES: EmailTemplateSeed[] = [
   {
     type: 'invoice_issued',
     name: 'Facture émise [interne BTS]',
-    subject: '[{{companyName}}] Facture émise — {{invoiceNumber}}',
+    subject: '[InvoiceHub] Facture émise — {{invoiceNumber}}',
     bodyHtml: renderEmailShell({
       title: 'Facture émise — {{invoiceNumber}}',
       intro: `Bonjour <strong>{{userName}}</strong>, la facture <strong>{{invoiceNumber}}</strong> vient d'être émise pour le client <strong>{{clientName}}</strong>.`,
@@ -80,7 +80,7 @@ export const EMAIL_TEMPLATES: EmailTemplateSeed[] = [
   {
     type: 'invoice_overdue',
     name: 'Facture en retard [interne BTS]',
-    subject: '[{{companyName}}] Facture {{invoiceNumber}} en retard ({{daysOverdue}} j)',
+    subject: '[InvoiceHub] Facture {{invoiceNumber}} en retard ({{daysOverdue}} j)',
     bodyHtml: renderEmailShell({
       title: 'Facture en retard — {{invoiceNumber}}',
       intro: `Bonjour <strong>{{userName}}</strong>, la facture <strong>{{invoiceNumber}}</strong> du client <strong>{{clientName}}</strong> est en retard de paiement depuis <strong>{{daysOverdue}} jour(s)</strong>.`,
@@ -93,7 +93,7 @@ export const EMAIL_TEMPLATES: EmailTemplateSeed[] = [
   {
     type: 'payment_registered',
     name: 'Paiement enregistré [interne BTS]',
-    subject: '[{{companyName}}] Paiement reçu — {{invoiceNumber}} — {{amountPaid}} XAF',
+    subject: '[InvoiceHub] Paiement reçu — {{invoiceNumber}} — {{amountPaid}} XAF',
     bodyHtml: renderEmailShell({
       title: 'Paiement reçu — {{invoiceNumber}}',
       intro: `Bonjour <strong>{{userName}}</strong>, un paiement de <strong>{{amountPaid}} XAF</strong> a été enregistré pour la facture <strong>{{invoiceNumber}}</strong> du client <strong>{{clientName}}</strong>.`,
@@ -106,7 +106,7 @@ export const EMAIL_TEMPLATES: EmailTemplateSeed[] = [
   {
     type: 'proforma_sent',
     name: 'Proforma envoyée [interne BTS]',
-    subject: '[{{companyName}}] Proforma envoyée — {{proformaNumber}} — {{clientName}}',
+    subject: '[InvoiceHub] Proforma envoyée — {{proformaNumber}} — {{clientName}}',
     bodyHtml: renderEmailShell({
       title: 'Proforma envoyée — {{proformaNumber}}',
       intro: `Bonjour <strong>{{userName}}</strong>, la proforma <strong>{{proformaNumber}}</strong> a été envoyée au client <strong>{{clientName}}</strong>.`,
@@ -119,7 +119,7 @@ export const EMAIL_TEMPLATES: EmailTemplateSeed[] = [
   {
     type: 'system',
     name: 'Réinitialisation de mot de passe',
-    subject: '[{{companyName}}] Réinitialisation de votre mot de passe',
+    subject: '[InvoiceHub] Réinitialisation de votre mot de passe',
     bodyHtml: renderEmailShell({
       title: 'Réinitialisation du mot de passe',
       intro: `Bonjour <strong>{{firstName}}</strong>, vous avez demandé la réinitialisation de votre mot de passe. Cliquez sur le bouton ci-dessous pour en définir un nouveau.`,
@@ -131,7 +131,7 @@ export const EMAIL_TEMPLATES: EmailTemplateSeed[] = [
   {
     type: 'user_created',
     name: 'Bienvenue (nouvel utilisateur)',
-    subject: '[{{companyName}}] Bienvenue {{firstName}} — Votre accès InvoiceHub',
+    subject: '[InvoiceHub] Bienvenue {{firstName}} — Votre accès InvoiceHub',
     bodyHtml: renderEmailShell({
       title: 'Bienvenue sur InvoiceHub',
       intro: `Bonjour <strong>{{firstName}}</strong>, votre compte a été créé avec succès. Vous pouvez dès à présent vous connecter avec vos identifiants.`,
@@ -143,7 +143,7 @@ export const EMAIL_TEMPLATES: EmailTemplateSeed[] = [
   {
     type: 'reminder_sent',
     name: 'Relance interne [interne BTS]',
-    subject: '[{{companyName}}] Relance niveau {{reminderLevel}} — {{invoiceNumber}} — {{clientName}}',
+    subject: '[InvoiceHub] Relance niveau {{reminderLevel}} — {{invoiceNumber}} — {{clientName}}',
     bodyHtml: renderEmailShell({
       title: 'Relance niveau {{reminderLevel}} — {{invoiceNumber}}',
       intro: `Bonjour <strong>{{userName}}</strong>, la facture <strong>{{invoiceNumber}}</strong> du client <strong>{{clientName}}</strong> reste impayée. Une action de votre part est recommandée.`,
@@ -156,7 +156,7 @@ export const EMAIL_TEMPLATES: EmailTemplateSeed[] = [
   {
     type: 'invoice_paid',
     name: 'Facture soldée [interne BTS]',
-    subject: '[{{companyName}}] Facture {{invoiceNumber}} intégralement soldée — {{clientName}}',
+    subject: '[InvoiceHub] Facture {{invoiceNumber}} intégralement soldée — {{clientName}}',
     bodyHtml: renderEmailShell({
       title: 'Facture soldée — {{invoiceNumber}}',
       intro: `Bonjour <strong>{{userName}}</strong>, la facture <strong>{{invoiceNumber}}</strong> du client <strong>{{clientName}}</strong> est intégralement réglée.`,
@@ -169,7 +169,7 @@ export const EMAIL_TEMPLATES: EmailTemplateSeed[] = [
   {
     type: 'invoice_partially_paid',
     name: 'Paiement partiel reçu [interne BTS]',
-    subject: '[{{companyName}}] Paiement partiel — {{invoiceNumber}} — Solde restant {{balanceDue}} XAF',
+    subject: '[InvoiceHub] Paiement partiel — {{invoiceNumber}} — Solde restant {{balanceDue}} XAF',
     bodyHtml: renderEmailShell({
       title: 'Paiement partiel — {{invoiceNumber}}',
       intro: `Bonjour <strong>{{userName}}</strong>, un paiement partiel de <strong>{{amountPaid}} XAF</strong> a été enregistré pour la facture <strong>{{invoiceNumber}}</strong> du client <strong>{{clientName}}</strong>. Il reste <strong>{{balanceDue}} XAF</strong> à percevoir.`,
@@ -182,7 +182,7 @@ export const EMAIL_TEMPLATES: EmailTemplateSeed[] = [
   {
     type: 'proforma_accepted',
     name: 'Proforma acceptée [interne BTS]',
-    subject: '[{{companyName}}] Proforma {{proformaNumber}} acceptée par {{clientName}}',
+    subject: '[InvoiceHub] Proforma {{proformaNumber}} acceptée par {{clientName}}',
     bodyHtml: renderEmailShell({
       title: 'Proforma acceptée — {{proformaNumber}}',
       intro: `Bonjour <strong>{{userName}}</strong>, la proforma <strong>{{proformaNumber}}</strong> a été acceptée par le client <strong>{{clientName}}</strong>. Vous pouvez maintenant la convertir en facture.`,
@@ -195,7 +195,7 @@ export const EMAIL_TEMPLATES: EmailTemplateSeed[] = [
   {
     type: 'proforma_rejected',
     name: 'Proforma rejetée [interne BTS]',
-    subject: '[{{companyName}}] Proforma {{proformaNumber}} refusée — {{clientName}}',
+    subject: '[InvoiceHub] Proforma {{proformaNumber}} refusée — {{clientName}}',
     bodyHtml: renderEmailShell({
       title: 'Proforma refusée — {{proformaNumber}}',
       intro: `Bonjour <strong>{{userName}}</strong>, le client <strong>{{clientName}}</strong> a refusé la proforma <strong>{{proformaNumber}}</strong>.`,
@@ -208,7 +208,7 @@ export const EMAIL_TEMPLATES: EmailTemplateSeed[] = [
   {
     type: 'proforma_expired',
     name: 'Proforma expirée [interne BTS]',
-    subject: '[{{companyName}}] Proforma {{proformaNumber}} expirée — {{clientName}}',
+    subject: '[InvoiceHub] Proforma {{proformaNumber}} expirée — {{clientName}}',
     bodyHtml: renderEmailShell({
       title: 'Proforma expirée — {{proformaNumber}}',
       intro: `Bonjour <strong>{{userName}}</strong>, la proforma <strong>{{proformaNumber}}</strong> envoyée au client <strong>{{clientName}}</strong> a expiré sans réponse le <strong>{{validUntil}}</strong>.`,
@@ -221,7 +221,7 @@ export const EMAIL_TEMPLATES: EmailTemplateSeed[] = [
   {
     type: 'approval_requested',
     name: "Demande d'approbation [interne BTS]",
-    subject: '[{{companyName}}] Action requise — Approbation : {{documentType}} {{documentNumber}}',
+    subject: '[InvoiceHub] Action requise — Approbation : {{documentType}} {{documentNumber}}',
     bodyHtml: renderEmailShell({
       title: 'Approbation requise — {{documentType}} {{documentNumber}}',
       intro: `Bonjour <strong>{{approverName}}</strong>, <strong>{{requesterName}}</strong> vous demande d'approuver le document suivant.`,
@@ -234,7 +234,7 @@ export const EMAIL_TEMPLATES: EmailTemplateSeed[] = [
   {
     type: 'approval_approved',
     name: 'Approbation validée [interne BTS]',
-    subject: '[{{companyName}}] Étape approuvée ({{currentStep}}/{{totalSteps}}) — {{documentType}} {{documentNumber}}',
+    subject: '[InvoiceHub] Étape approuvée ({{currentStep}}/{{totalSteps}}) — {{documentType}} {{documentNumber}}',
     bodyHtml: renderEmailShell({
       title: 'Étape approuvée — {{documentType}} {{documentNumber}}',
       intro: `Bonjour <strong>{{requesterName}}</strong>, l'étape <strong>{{stepName}}</strong> de votre demande pour <strong>{{documentType}} {{documentNumber}}</strong> a été approuvée par <strong>{{deciderName}}</strong>.`,
@@ -247,7 +247,7 @@ export const EMAIL_TEMPLATES: EmailTemplateSeed[] = [
   {
     type: 'approval_rejected',
     name: 'Approbation rejetée [interne BTS]',
-    subject: '[{{companyName}}] Demande rejetée — {{documentType}} {{documentNumber}} par {{deciderName}}',
+    subject: '[InvoiceHub] Demande rejetée — {{documentType}} {{documentNumber}} par {{deciderName}}',
     bodyHtml: renderEmailShell({
       title: 'Demande rejetée — {{documentType}} {{documentNumber}}',
       intro: `Bonjour <strong>{{requesterName}}</strong>, votre demande d'approbation pour <strong>{{documentType}} {{documentNumber}}</strong> a été rejetée par <strong>{{deciderName}}</strong>. Le document a été remis en brouillon.`,
@@ -260,7 +260,7 @@ export const EMAIL_TEMPLATES: EmailTemplateSeed[] = [
   {
     type: 'approval_expired',
     name: "Demande d'approbation expirée [interne BTS]",
-    subject: '[{{companyName}}] Demande expirée — {{documentType}} {{documentNumber}}',
+    subject: '[InvoiceHub] Demande expirée — {{documentType}} {{documentNumber}}',
     bodyHtml: renderEmailShell({
       title: 'Demande expirée — {{documentType}} {{documentNumber}}',
       intro: `Bonjour <strong>{{requesterName}}</strong>, la demande d'approbation pour <strong>{{documentType}} {{documentNumber}}</strong> a expiré sans réponse de l'approbateur désigné. Veuillez la soumettre à nouveau ou contacter votre responsable.`,
@@ -273,7 +273,7 @@ export const EMAIL_TEMPLATES: EmailTemplateSeed[] = [
   {
     type: 'approval_delegated',
     name: 'Approbation déléguée [interne BTS]',
-    subject: '[{{companyName}}] Délégation — {{documentType}} {{documentNumber}} transmis à {{delegateName}}',
+    subject: '[InvoiceHub] Délégation — {{documentType}} {{documentNumber}} transmis à {{delegateName}}',
     bodyHtml: renderEmailShell({
       title: 'Demande déléguée — {{documentType}} {{documentNumber}}',
       intro: `Bonjour <strong>{{requesterName}}</strong>, l'étape <strong>{{stepName}}</strong> de votre demande pour <strong>{{documentType}} {{documentNumber}}</strong> a été déléguée par <strong>{{deciderName}}</strong> à <strong>{{delegateName}}</strong>.`,
@@ -282,5 +282,68 @@ export const EMAIL_TEMPLATES: EmailTemplateSeed[] = [
       note: INTERNAL_NOTE,
     }),
     variables: ['{{requesterName}}', '{{documentType}}', '{{documentNumber}}', '{{stepName}}', '{{deciderName}}', '{{delegateName}}', '{{requestId}}', '{{appUrl}}', '{{companyName}}'],
+  },
+  {
+    type: 'purchase_order_created',
+    name: 'Bon de commande créé [interne BTS]',
+    subject: '[InvoiceHub] Nouveau bon de commande — {{purchaseOrderNumber}}',
+    bodyHtml: renderEmailShell({
+      title: 'Nouveau bon de commande — {{purchaseOrderNumber}}',
+      intro: `Bonjour <strong>{{userName}}</strong>, le bon de commande <strong>{{purchaseOrderNumber}}</strong> vient d'être créé.`,
+      rows: [['N° bon de commande', '{{purchaseOrderNumber}}'], ['Montant TTC', '<strong>{{amountTtc}} XAF</strong>']],
+      cta: { label: 'Voir le bon de commande', url: '{{appUrl}}{{documentLink}}' },
+      note: INTERNAL_NOTE,
+    }),
+    variables: ['{{userName}}', '{{purchaseOrderNumber}}', '{{amountTtc}}', '{{documentLink}}', '{{appUrl}}', '{{companyName}}'],
+  },
+  {
+    type: 'purchase_order_approved',
+    name: 'Bon de commande envoyé au fournisseur [interne BTS]',
+    subject: '[InvoiceHub] Bon de commande envoyé — {{purchaseOrderNumber}}',
+    bodyHtml: renderEmailShell({
+      title: 'Bon de commande envoyé — {{purchaseOrderNumber}}',
+      intro: `Bonjour <strong>{{userName}}</strong>, le bon de commande <strong>{{purchaseOrderNumber}}</strong> a été approuvé et envoyé au fournisseur.`,
+      rows: [['N° bon de commande', '{{purchaseOrderNumber}}'], ['Montant TTC', '<strong>{{amountTtc}} XAF</strong>']],
+      cta: { label: 'Voir le bon de commande', url: '{{appUrl}}{{documentLink}}' },
+      note: INTERNAL_NOTE,
+    }),
+    variables: ['{{userName}}', '{{purchaseOrderNumber}}', '{{amountTtc}}', '{{documentLink}}', '{{appUrl}}', '{{companyName}}'],
+  },
+  {
+    type: 'supplier_invoice_received',
+    name: 'Facture fournisseur reçue [interne BTS]',
+    subject: '[InvoiceHub] Facture fournisseur reçue — {{supplierInvoiceNumber}}',
+    bodyHtml: renderEmailShell({
+      title: 'Facture fournisseur reçue — {{supplierInvoiceNumber}}',
+      intro: `Bonjour <strong>{{userName}}</strong>, la facture fournisseur <strong>{{supplierInvoiceNumber}}</strong> a été enregistrée dans le système.`,
+      rows: [['N° facture fournisseur', '{{supplierInvoiceNumber}}'], ['Montant TTC', '<strong>{{amountTtc}} XAF</strong>']],
+      cta: { label: 'Voir la facture fournisseur', url: '{{appUrl}}{{documentLink}}' },
+      note: INTERNAL_NOTE,
+    }),
+    variables: ['{{userName}}', '{{supplierInvoiceNumber}}', '{{amountTtc}}', '{{documentLink}}', '{{appUrl}}', '{{companyName}}'],
+  },
+  {
+    type: 'budget_exceeded',
+    name: 'Alerte budget [interne BTS]',
+    subject: '[InvoiceHub] Alerte budget — {{categoryName}} ({{percentUsed}} %)',
+    bodyHtml: renderEmailShell({
+      title: 'Alerte budget — {{categoryName}}',
+      intro: `Bonjour <strong>{{userName}}</strong>, le budget de la catégorie <strong>{{categoryName}}</strong> ({{periodLabel}}) a atteint <strong>{{percentUsed}} %</strong> d'utilisation (seuil d'alerte : {{threshold}} %).`,
+      rows: [['Catégorie', '{{categoryName}}'], ['Période', '{{periodLabel}}'], ['Utilisation', '<strong>{{percentUsed}} %</strong>'], ['Seuil d\'alerte', '{{threshold}} %']],
+      note: INTERNAL_NOTE,
+    }),
+    variables: ['{{userName}}', '{{categoryName}}', '{{periodLabel}}', '{{percentUsed}}', '{{threshold}}', '{{companyName}}'],
+  },
+  {
+    type: 'accounting_entry_failed',
+    name: 'Écriture comptable non générée [interne BTS]',
+    subject: '[InvoiceHub] Écriture comptable non générée — {{operation}}',
+    bodyHtml: renderEmailShell({
+      title: 'Écriture comptable non générée',
+      intro: `Bonjour <strong>{{userName}}</strong>, l'écriture comptable pour l'opération <strong>{{operation}}</strong> n'a pas pu être générée automatiquement. L'opération a bien été enregistrée, mais l'écriture doit être saisie ou régénérée manuellement.`,
+      rows: [['Opération', '{{operation}}'], ['Type de source', '{{sourceType}}'], ['Référence', '{{sourceId}}'], ['Erreur', '<em>{{error}}</em>']],
+      note: INTERNAL_NOTE,
+    }),
+    variables: ['{{userName}}', '{{operation}}', '{{sourceType}}', '{{sourceId}}', '{{error}}', '{{companyName}}'],
   },
 ];

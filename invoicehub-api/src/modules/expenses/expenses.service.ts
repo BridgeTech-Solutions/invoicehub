@@ -165,7 +165,7 @@ export class ExpensesService {
             type:    'budget_exceeded',
             title:   notif.title,
             message: notif.message,
-            data:    { budgetId: budget.id, categoryId, threshold: notif.threshold, percentUsed: Math.round(newPct) },
+            data:    { budgetId: budget.id, categoryId, categoryName: catName, periodLabel, threshold: notif.threshold, percentUsed: Math.round(newPct) },
           }),
         ));
       }

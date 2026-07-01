@@ -190,7 +190,7 @@ export class SupplierInvoicesService {
       void broadcastNotification(this.prisma as any, this.notifQueue, {
         type: 'supplier_invoice_received', title: `Facture fournisseur reçue : ${inv.number}`,
         message: `La facture fournisseur ${inv.number} a été enregistrée.`,
-        data: { supplierInvoiceId: inv.id, supplierInvoiceNumber: inv.number, documentLink: `/supplier-invoices/${inv.id}` },
+        data: { supplierInvoiceId: inv.id, supplierInvoiceNumber: inv.number, amountTtc: String(inv.totalTtc), documentLink: `/supplier-invoices/${inv.id}` },
       }, { excludeUserId: userId, permission: 'purchases:read' });
       return inv;
     });

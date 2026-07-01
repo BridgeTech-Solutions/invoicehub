@@ -1,6 +1,13 @@
 import * as nodemailer from 'nodemailer';
 import { PrismaClient } from '@prisma/client';
 
+/** Échappe une valeur destinée à être injectée dans du HTML (anti-injection). */
+function escapeHtml(value: string): string {
+  return String(value).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string),
+  );
+}
+
 let transporter: nodemailer.Transporter | null = null;
 
 function getTransporter(): nodemailer.Transporter {
@@ -69,8 +76,11 @@ export async function renderEmailTemplate(
   let html    = template.bodyHtml;
   for (const [key, value] of Object.entries(variables)) {
     const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g');
+    // Le sujet est du texte brut (pas de contexte HTML) → valeur telle quelle.
+    // Le corps est du HTML → on échappe la valeur pour empêcher toute injection
+    // de balise ou casse de mise en page (ex. motif de rejet saisi par un user).
     subject = subject.replace(regex, value);
-    html    = html.replace(regex, value);
+    html    = html.replace(regex, escapeHtml(value));
   }
   // Filet de sécurité : on retire tout placeholder non résolu pour ne jamais
   // afficher d'accolades brutes ({{xxx}}) au lecteur, même si un site d'envoi
