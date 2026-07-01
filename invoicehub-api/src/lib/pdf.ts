@@ -572,7 +572,9 @@ export async function generatePdf(html: string, footerSafeZonePx?: number, compa
       const text = watermark.toUpperCase();
       const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
       const isCancel = /ANNUL/.test(text);
-      const color = isCancel ? rgb(0.78, 0.12, 0.12) : rgb(0.45, 0.45, 0.45);
+      const color = isCancel ? rgb(0.78, 0.12, 0.12) : rgb(0.38, 0.38, 0.38);
+      // Le gris passe plus discret que le rouge → on l'affiche un peu plus opaque
+      const opacity = isCancel ? 0.12 : 0.2;
       const angleDeg = 45;
       const rad = (angleDeg * Math.PI) / 180;
 
@@ -587,7 +589,7 @@ export async function generatePdf(html: string, footerSafeZonePx?: number, compa
         const cy = height / 2;
         const x = cx - (textWidth / 2) * Math.cos(rad);
         const y = cy - (textWidth / 2) * Math.sin(rad);
-        pdfPage.drawText(text, { x, y, size, font, color, opacity: 0.12, rotate: degrees(angleDeg) });
+        pdfPage.drawText(text, { x, y, size, font, color, opacity, rotate: degrees(angleDeg) });
       }
     }
 
