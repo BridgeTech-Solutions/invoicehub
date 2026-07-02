@@ -13,6 +13,7 @@ import {
 } from '../hooks'
 import { LineReorderModal } from '@/components/document/LineReorderModal'
 import type { Proforma } from '../types'
+import { submitButtonState } from '@/features/approvals/effectiveStatus'
 import { ROUTES } from '@/lib/constants'
 import { ApprovalStatusBadge } from '@/features/approvals/components/ApprovalStatusBadge'
 
@@ -291,6 +292,16 @@ export function ProformaActionsMenu({ proforma }: ProformaActionsMenuProps) {
   const isLoading = sendMutation.isPending || acceptMutation.isPending ||
     duplicateMutation.isPending || deleteMutation.isPending || pdfMutation.isPending
 
+  // Bouton d'envoi honnête : « Soumettre pour validation » si un workflow s'applique.
+  // NB : « Envoyer » = passer la proforma au statut « Envoyée » + notifier en interne
+  // (aucun e-mail au client n'est envoyé par l'app).
+  const sendBtn = submitButtonState({
+    isPending:   proforma.approvalRequest?.status === 'pending',
+    wasRejected: proforma.approvalRequest?.status === 'rejected',
+    willSubmit:  !!proforma.willRequireApproval,
+    directLabel: 'Marquer comme envoyée',
+  })
+
   return (
     <>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -339,13 +350,13 @@ export function ProformaActionsMenu({ proforma }: ProformaActionsMenuProps) {
         {/* Send — draft or rejected */}
         {(status === 'draft' || status === 'rejected') && (
           <button
-            style={{ ...btnPrimary, ...(proforma.approvalRequest?.status === 'pending' ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
-            disabled={isLoading || proforma.approvalRequest?.status === 'pending'}
+            style={{ ...btnPrimary, ...(sendBtn.disabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
+            disabled={isLoading || sendBtn.disabled}
             onClick={() => sendMutation.mutate(id)}
-            title={proforma.approvalRequest?.status === 'pending' ? "En attente d'approbation" : undefined}
+            title={sendBtn.disabled ? "En attente d'approbation" : undefined}
           >
             {sendMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-            {proforma.approvalRequest?.status === 'pending' ? "En attente d'approbation..." : 'Envoyer au client'}
+            {sendBtn.label}
           </button>
         )}
 

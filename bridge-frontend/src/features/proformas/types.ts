@@ -87,6 +87,8 @@ export interface Proforma {
   bankAccount?: ProformaBankAccount | null
   requiresApproval: boolean
   approvalRequest?: { status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'expired'; currentStep: number; totalSteps: number } | null
+  /** Calculé (brouillon/rejetée) : true si l'envoi déclenchera une soumission pour validation. */
+  willRequireApproval?: boolean
   createdAt: string
   updatedAt: string
 }

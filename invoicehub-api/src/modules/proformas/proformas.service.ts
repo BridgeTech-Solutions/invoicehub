@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { OnEvent } from '@nestjs/event-emitter';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ApprovalsService } from '../approvals/approvals.service';
+import { APPROVAL_COMPLETED, type ApprovalCompletedEvent, type AutoExecResult } from '../../common/events/approval.events';
 import { AppError } from '../../common/errors/app-error';
 import { generateDocumentNumber, getDefaultOfficeId } from '../../lib/documentNumber';
 import { broadcastNotification } from '../../lib/broadcast';
@@ -16,6 +19,7 @@ import type { CreateProformaInput, UpdateProformaInput, ListProformasInput, Conv
 export class ProformasService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly approvals: ApprovalsService,
     @InjectQueue('notification') private readonly notificationQueue: Queue<NotificationJobData>,
     @InjectQueue('email') private readonly emailQueue: Queue<EmailJobData>,
   ) {}
@@ -85,6 +89,12 @@ export class ProformasService {
       },
     });
     if (!proforma) throw AppError.notFound('Proforma introuvable');
+    // Statut d'approbation (workflow) pour affichage.
+    (proforma as any).approvalRequest = await this.approvals.getLatestForDocument('proforma', id);
+    // Brouillon/rejetée : indique si l'envoi déclenchera une soumission pour validation.
+    (proforma as any).willRequireApproval = ['draft', 'rejected'].includes(proforma.status)
+      ? !!(await this.approvals.evaluateWorkflowForDocument('proforma', proforma as unknown as Record<string, unknown>))
+      : false;
     return proforma;
   }
 
@@ -261,12 +271,35 @@ export class ProformasService {
       throw AppError.badRequest('La proforma doit être en brouillon ou rejetée pour être envoyée');
     }
 
-    // Check for pending approval
-    const pendingRequest = await this.prisma.approvalRequest.findFirst({
-      where: { documentId: id, documentType: 'proforma', status: 'pending' },
-    });
+    // Workflow d'approbation : si une demande est en attente, on bloque ; sinon,
+    // si aucune approbation n'a encore été accordée et qu'un workflow correspond,
+    // on soumet pour validation (l'envoi réel se fera après approbation, via
+    // onApprovalCompleted). Même pattern que facture/BC/facture fournisseur.
+    const pendingRequest = await this.approvals.getDocumentPendingRequest('proforma', id);
     if (pendingRequest) {
-      throw AppError.forbidden(`Cette proforma est en attente d'approbation (étape ${pendingRequest.currentStep}/${pendingRequest.totalSteps})`);
+      throw AppError.badRequest(
+        `Cette proforma est en attente d'approbation (étape ${pendingRequest.currentStep}/${pendingRequest.totalSteps}).`,
+        'APPROVAL_PENDING',
+      );
+    }
+    const approvedRequest = await this.prisma.approvalRequest.findFirst({
+      where: { documentId: id, documentType: 'proforma', status: 'approved' },
+    });
+    if (!approvedRequest) {
+      const request = await this.approvals.requestApproval({
+        documentType:   'proforma',
+        documentId:     id,
+        documentNumber: String(proforma.number ?? `PFM-${id.slice(0, 8)}`),
+        document:       proforma as unknown as Record<string, unknown>,
+        requestedById:  userId,
+      });
+      if (request) {
+        await this.prisma.proforma.update({ where: { id }, data: { requiresApproval: true } });
+        throw AppError.badRequest(
+          'Cette proforma a été soumise pour approbation. Elle sera envoyée après validation.',
+          'APPROVAL_SUBMITTED',
+        );
+      }
     }
 
     const updated = await this.prisma.proforma.update({
@@ -287,7 +320,7 @@ export class ProformasService {
 
     void broadcastNotification(this.prisma as any, this.notificationQueue, {
       type: 'proforma_sent', title: `Proforma envoyée : ${proforma.number}`,
-      message: `La proforma ${proforma.number} pour ${proforma.client.name} a été envoyée au client.`,
+      message: `La proforma ${proforma.number} pour ${proforma.client.name} a été marquée comme envoyée.`,
       data: {
         proformaId:     proforma.id,
         proformaNumber: proforma.number,
@@ -299,6 +332,18 @@ export class ProformasService {
     }, { excludeUserId: userId, permission: 'proformas:read' });
 
     return updated;
+  }
+
+  /** Auto-passage au statut « Envoyée » après approbation finale, au nom du demandeur (maker). */
+  @OnEvent(APPROVAL_COMPLETED)
+  async onApprovalCompleted(payload: ApprovalCompletedEvent): Promise<AutoExecResult | void> {
+    if (payload.documentType !== 'proforma') return;
+    try {
+      await this.send(payload.documentId, payload.requestedById);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, message: e instanceof AppError ? e.message : "Erreur lors de l'envoi automatique" };
+    }
   }
 
   async accept(id: string, userId: string) {

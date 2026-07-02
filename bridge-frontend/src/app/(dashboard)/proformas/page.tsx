@@ -112,7 +112,7 @@ function RowActions({ p }: { p: ProformaListItem }) {
     { label: 'Voir détail',     icon: Eye,      onClick: () => router.push(`${ROUTES.PROFORMAS}/${p.id}`) },
     { label: 'Télécharger PDF', icon: FileDown, onClick: () => pdfM.mutate({ id: p.id, filename: `${p.number.replace(/\//g, '-')}.pdf` }) },
     { label: 'Dupliquer',       icon: Copy,     onClick: () => dupM.mutate(p.id) },
-    ...(canSend   ? [{ label: 'Envoyer au client', icon: Send,   onClick: () => sendM.mutate(p.id), separator: true }] : []),
+    ...(canSend   ? [{ label: 'Marquer comme envoyée', icon: Send,   onClick: () => sendM.mutate(p.id), separator: true }] : []),
     ...(canDelete ? [{ label: 'Supprimer',          icon: Trash2, onClick: () => setDeleteTarget(p), danger: true, separator: !canSend }] : []),
   ]
 
