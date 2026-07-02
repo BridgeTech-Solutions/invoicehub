@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useId } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Zap, XCircle, Copy, Trash2, FileDown, Loader2, Pencil,
-  CreditCard, FileX, AlertTriangle, ListRestart, BadgePercent,
+  CreditCard, FileX, AlertTriangle, ListRestart, BadgePercent, Send,
 } from 'lucide-react'
 import {
   useIssueInvoice, useCancelInvoice, useDuplicateInvoice,
@@ -136,6 +136,10 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
   const canEdit   = status === 'draft'
   const canIssue  = status === 'draft'
   const isPendingApproval = invoice.approvalRequest?.status === 'pending'
+  const wasRejected       = invoice.approvalRequest?.status === 'rejected'
+  // Émettre déclenchera une soumission pour validation si un workflow correspond
+  // (brouillon neuf : willRequireApproval ; brouillon refusé à resoumettre : wasRejected).
+  const willSubmit        = !!invoice.willRequireApproval || wasRejected
   // Avoir : tous les statuts acceptés par le backend (hors draft/cancelled/avoir)
   const canAvoir  = ['issued', 'partially_paid', 'paid', 'overdue'].includes(status)
   // Réordonner : présentation pure, autorisé sauf si annulée et s'il y a ≥ 2 lignes
@@ -194,8 +198,14 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
             onClick={() => issueMutation.mutate(id)}
             title={isPendingApproval ? "En attente d'approbation" : undefined}
           >
-            {issueMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
-            {isPendingApproval ? "En attente d'approbation..." : 'Émettre la facture'}
+            {issueMutation.isPending
+              ? <Loader2 size={14} className="animate-spin" />
+              : willSubmit ? <Send size={14} /> : <Zap size={14} />}
+            {isPendingApproval
+              ? "En attente d'approbation..."
+              : willSubmit
+                ? (wasRejected ? 'Resoumettre pour validation' : 'Soumettre pour validation')
+                : 'Émettre la facture'}
           </button>
         )}
 

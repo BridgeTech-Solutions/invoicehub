@@ -8,7 +8,9 @@ import {
   ChevronLeft, CheckCircle2, XCircle, PackageCheck, Copy,
   Pencil, Download, Calendar, Hash, Clock, Building2,
   History, CheckCircle, PenLine, Shield, AlertTriangle, FileText,
+  Send, Loader2,
 } from 'lucide-react'
+import { submitButtonState } from '@/features/approvals/effectiveStatus'
 import {
   usePurchaseOrder, useSendPurchaseOrder, useConfirmPurchaseOrder,
   useReceivePurchaseOrder, useClosePurchaseOrder, useCancelPurchaseOrder,
@@ -189,6 +191,13 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
   const statusRank = STATUS_ORDER[po.status]
   const canEdit    = ['draft', 'sent'].includes(po.status)
   const canSend    = po.status === 'draft'
+  // Bouton « Envoyer » : honnête sur la soumission pour validation si un workflow s'applique.
+  const sendBtn    = submitButtonState({
+    isPending:   po.approvalRequest?.status === 'pending',
+    wasRejected: po.approvalRequest?.status === 'rejected',
+    willSubmit:  !!po.willRequireApproval,
+    directLabel: 'Envoyer',
+  })
   const canConfirm = po.status === 'sent'
   const canReceive  = ['confirmed', 'partially_received'].includes(po.status)
   const canCreateFF = ['received', 'partially_received'].includes(po.status) && !po.fullyInvoiced
@@ -279,9 +288,10 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
             </Link>
           )}
           {canSend && (
-            <button onClick={() => sendMutation.mutate(id)} disabled={sendMutation.isPending}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-              <CheckCircle2 size={13} /> Envoyer
+            <button onClick={() => sendMutation.mutate(id)} disabled={sendMutation.isPending || sendBtn.disabled}
+              title={sendBtn.disabled ? "En attente d'approbation" : undefined}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', cursor: sendBtn.disabled ? 'not-allowed' : 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: sendBtn.disabled ? 0.5 : 1 }}>
+              {sendMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : sendBtn.variant === 'submit' ? <Send size={13} /> : <CheckCircle2 size={13} />} {sendBtn.label}
             </button>
           )}
           {canConfirm && (

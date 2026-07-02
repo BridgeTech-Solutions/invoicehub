@@ -71,6 +71,8 @@ export interface SupplierInvoice {
   requiresApproval:    boolean
   approvalRequestId:   string | null
   approvalRequest:     { status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'expired'; currentStep: number; totalSteps: number } | null
+  /** Calculé (statut « reçue ») : true si la validation déclenchera une soumission pour approbation. */
+  willRequireApproval?: boolean
   createdAt:           string
   updatedAt:           string
 }

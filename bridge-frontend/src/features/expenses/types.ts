@@ -55,6 +55,8 @@ export interface Expense {
   requiresApproval:  boolean
   approvalRequestId: string | null
   approvalRequest:   { status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'expired'; currentStep: number; totalSteps: number } | null
+  /** Calculé (brouillon) : true si la soumission déclenchera une demande d'approbation. */
+  willRequireApproval?: boolean
   createdAt:         string
   updatedAt:         string
 }

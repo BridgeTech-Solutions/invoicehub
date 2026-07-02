@@ -5,8 +5,9 @@ import Link from 'next/link'
 import {
   ChevronLeft, CheckCircle2, XCircle, Banknote, Building2, Calendar,
   Hash, Loader2, Clock, FileText, History, PenLine, CheckCircle, AlertTriangle,
-  Paperclip, Upload, Download, Trash2,
+  Paperclip, Upload, Download, Trash2, Send,
 } from 'lucide-react'
+import { submitButtonState } from '@/features/approvals/effectiveStatus'
 import { usePermission } from '@/hooks/usePermission'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import {
@@ -187,6 +188,13 @@ export default function SupplierInvoiceDetailPage({ params }: { params: Promise<
   const missingSupplierRef = !inv.supplierInvoiceNumber || inv.supplierInvoiceNumber.trim() === ''
   const missingAttachment  = !inv.attachmentPath
   const validateBlocked    = canValidate && (missingSupplierRef || missingAttachment)
+  // « Valider » honnête : soumission pour validation si un workflow d'approbation s'applique.
+  const validateBtn        = submitButtonState({
+    isPending:   inv.approvalRequest?.status === 'pending',
+    wasRejected: inv.approvalRequest?.status === 'rejected',
+    willSubmit:  !!inv.willRequireApproval,
+    directLabel: 'Valider',
+  })
   const canPay      = ['validated', 'partially_paid'].includes(inv.status)
   const canDispute  = ['received', 'validated'].includes(inv.status)
   const canDelete   = inv.status === 'received'
@@ -268,10 +276,10 @@ export default function SupplierInvoiceDetailPage({ params }: { params: Promise<
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <button
                 onClick={() => validateMutation.mutate(id)}
-                disabled={validateMutation.isPending || validateBlocked}
+                disabled={validateMutation.isPending || validateBlocked || validateBtn.disabled}
                 title={validateBlocked
                   ? `Avant validation : ${[missingSupplierRef && 'numéro du fournisseur', missingAttachment && 'document original'].filter(Boolean).join(' + ')}`
-                  : undefined}
+                  : validateBtn.disabled ? "En attente d'approbation" : undefined}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
                   borderRadius: 'var(--radius-md)',
@@ -282,7 +290,7 @@ export default function SupplierInvoiceDetailPage({ params }: { params: Promise<
                   fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600,
                   opacity: validateMutation.isPending ? 0.7 : 1,
                 }}>
-                {validateMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />} Valider
+                {validateMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : validateBtn.variant === 'submit' ? <Send size={13} /> : <CheckCircle2 size={13} />} {validateBtn.label}
               </button>
               {validateBlocked && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: '#b45309' }}>

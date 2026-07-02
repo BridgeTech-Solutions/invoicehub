@@ -17,7 +17,8 @@ import { lineToFormLine } from '@/lib/document-math'
 import { formatDate, getInitials } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES, STATUS_LABELS, INVOICE_TYPES, PAYMENT_METHODS } from '@/lib/constants'
-import type { InvoiceStatus, InvoiceType, DiscountType } from '@/features/invoices/types'
+import type { Invoice, InvoiceType, DiscountType } from '@/features/invoices/types'
+import { getEffectiveStatus } from '@/features/invoices/effectiveStatus'
 import { usePermission } from '@/hooks/usePermission'
 
 // ─── Status / type badges ────────────────────────────────────────
@@ -29,6 +30,8 @@ const STATUS_STYLE: Record<string, React.CSSProperties> = {
   paid:           { background: 'rgba(16,185,129,0.1)',   color: '#059669' },
   overdue:        { background: 'rgba(249,115,22,0.1)',   color: '#ea580c' },
   cancelled:      { background: 'rgba(239,68,68,0.1)',    color: '#dc2626' },
+  pending_approval:  { background: 'rgba(217,119,6,0.12)', color: '#b45309' },
+  approval_rejected: { background: 'rgba(239,68,68,0.1)',  color: '#dc2626' },
 }
 
 const TYPE_STYLE: Record<string, { bg: string; color: string }> = {
@@ -39,11 +42,12 @@ const TYPE_STYLE: Record<string, { bg: string; color: string }> = {
   recurring: { bg: 'rgba(22,163,74,0.1)',   color: '#16a34a'        },
 }
 
-function StatusBadge({ status }: { status: InvoiceStatus }) {
-  const s = STATUS_STYLE[status] ?? STATUS_STYLE.draft
+function StatusBadge({ invoice }: { invoice: Pick<Invoice, 'status' | 'approvalRequest' | 'requiresApproval'> }) {
+  const eff = getEffectiveStatus(invoice)
+  const s = STATUS_STYLE[eff.key] ?? STATUS_STYLE.draft
   return (
-    <span style={{ ...s, fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 700, letterSpacing: '0.05em', padding: '5px 14px', borderRadius: 20, textTransform: 'uppercase' }}>
-      {STATUS_LABELS[status] ?? status}
+    <span title={eff.fullLabel} style={{ ...s, fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 700, letterSpacing: '0.05em', padding: '5px 14px', borderRadius: 20, textTransform: 'uppercase' }}>
+      {eff.label}
     </span>
   )
 }
@@ -227,7 +231,7 @@ function InvoiceDetailView({ id }: { id: string }) {
                 <span className="doc-number">{invoice.number}</span>
               </h1>
               <TypeBadge type={invoice.type} />
-              <StatusBadge status={invoice.status} />
+              <StatusBadge invoice={invoice} />
             </div>
             {invoice.subject && (
               <p style={{ fontSize: 14, color: 'var(--text-2)', margin: '0 0 8px' }}>{invoice.subject}</p>

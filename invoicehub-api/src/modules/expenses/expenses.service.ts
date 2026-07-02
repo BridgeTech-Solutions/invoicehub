@@ -296,6 +296,10 @@ export class ExpensesService {
     if (!expense) throw AppError.notFound('Dépense introuvable');
     const formatted = this.formatExpense(expense) as any;
     formatted.approvalRequest = await this.approvalsService.getLatestForDocument('expense', id);
+    // Brouillon : indique si la soumission déclenchera une demande d'approbation.
+    formatted.willRequireApproval = expense.status === 'draft'
+      ? !!(await this.approvalsService.evaluateWorkflowForDocument('expense', expense as unknown as Record<string, unknown>))
+      : false;
     return formatted;
   }
 

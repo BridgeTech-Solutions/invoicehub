@@ -119,6 +119,15 @@ export class InvoicesService {
     if (!invoice) throw AppError.notFound('Facture introuvable');
     // Statut d'approbation (workflow) pour affichage — l'API ne le portait pas.
     (invoice as any).approvalRequest = await this.approvals.getLatestForDocument('invoice', id);
+    // Sur un brouillon, indique si l'émission déclenchera une soumission pour
+    // validation (un workflow d'approbation correspond) → le front affiche
+    // « Soumettre pour validation » plutôt que « Émettre la facture ».
+    if (invoice.status === 'draft') {
+      const wf = await this.approvals.evaluateWorkflowForDocument('invoice', invoice as unknown as Record<string, unknown>);
+      (invoice as any).willRequireApproval = !!wf;
+    } else {
+      (invoice as any).willRequireApproval = false;
+    }
     return invoice;
   }
 

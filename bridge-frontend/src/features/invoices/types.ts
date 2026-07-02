@@ -142,6 +142,8 @@ export interface Invoice {
   escompteAmount: number
   reminderEscalationLevel: number
   displayOptions?: InvoiceDisplayOptions | null
+  /** Calculé (brouillon) : true si l'émission déclenchera une soumission pour validation. */
+  willRequireApproval?: boolean
   lines: InvoiceLineBase[]
   payments?: Payment[]
   statusHistory?: InvoiceStatusHistory[]

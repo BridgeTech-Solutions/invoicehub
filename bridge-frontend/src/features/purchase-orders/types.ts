@@ -64,6 +64,8 @@ export interface PurchaseOrder {
   requiresApproval:  boolean
   approvalRequestId: string | null
   approvalRequest:   { status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'expired'; currentStep: number; totalSteps: number } | null
+  /** Calculé (brouillon) : true si l'envoi déclenchera une soumission pour validation. */
+  willRequireApproval?: boolean
   createdAt:        string
   updatedAt:        string
 }

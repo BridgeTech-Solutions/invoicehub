@@ -118,6 +118,10 @@ export class SupplierInvoicesService {
     });
     if (!inv) throw AppError.notFound('Facture fournisseur introuvable');
     (inv as any).approvalRequest = await this.approvalsService.getLatestForDocument('supplier_invoice', id);
+    // Facture reçue : indique si la validation déclenchera une soumission pour approbation.
+    (inv as any).willRequireApproval = inv.status === 'received'
+      ? !!(await this.approvalsService.evaluateWorkflowForDocument('supplier_invoice', inv as unknown as Record<string, unknown>))
+      : false;
     return inv;
   }
 

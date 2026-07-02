@@ -20,19 +20,11 @@ import { invoicesApi } from '@/features/invoices/api'
 import { toast } from 'sonner'
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import { formatDate, buildPageRange } from '@/lib/utils'
-import { ROUTES, STATUS_LABELS, INVOICE_TYPES } from '@/lib/constants'
+import { ROUTES, INVOICE_TYPES } from '@/lib/constants'
 import type { InvoiceType, InvoiceStatus, InvoiceListItem } from '@/features/invoices/types'
+import { getEffectiveStatus } from '@/features/invoices/effectiveStatus'
 
 // ─── Badges ───────────────────────────────────────────────────
-
-const STATUS_BADGE_CLASS: Record<string, string> = {
-  draft:          'badge-draft',
-  issued:         'badge-issued',
-  partially_paid: 'badge-partial',
-  paid:           'badge-paid',
-  overdue:        'badge-overdue',
-  cancelled:      'badge-cancelled',
-}
 
 const TYPE_STYLE: Record<string, { bg: string; color: string }> = {
   standard:  { bg: 'rgba(45,125,210,0.1)',  color: 'var(--primary)' },
@@ -42,11 +34,16 @@ const TYPE_STYLE: Record<string, { bg: string; color: string }> = {
   recurring: { bg: 'rgba(22,163,74,0.1)',   color: '#16a34a'        },
 }
 
-function StatusBadge({ status }: { status: InvoiceStatus }) {
-  const cls = STATUS_BADGE_CLASS[status] ?? 'badge-draft'
+function StatusBadge({ invoice }: { invoice: Pick<InvoiceListItem, 'status' | 'approvalRequest' | 'requiresApproval'> }) {
+  // Statut effectif = statut métier + surcouche approbation (affichage uniquement).
+  const eff = getEffectiveStatus(invoice)
   return (
-    <span className={`badge ${cls}`} style={{ textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', flexShrink: 0 }}>
-      {STATUS_LABELS[status] ?? status}
+    <span
+      className={`badge ${eff.badgeClass}`}
+      title={eff.fullLabel}
+      style={{ textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', flexShrink: 0 }}
+    >
+      {eff.label}
     </span>
   )
 }
@@ -433,7 +430,7 @@ export default function InvoicesPage() {
                     limitLabel="Éch."
                     limitAlert={isOverdue}
                     totalTtc={totalTtc}
-                    statusBadge={<StatusBadge status={inv.status} />}
+                    statusBadge={<StatusBadge invoice={inv} />}
                     typeBadge={<TypeBadge type={inv.type} />}
                     href={`${ROUTES.INVOICES}/${inv.id}`}
                     actions={<RowActions invoice={inv} onDeleteRequest={() => setDeleteTarget(inv)} />}

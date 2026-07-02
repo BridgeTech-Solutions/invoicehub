@@ -130,6 +130,10 @@ export class PurchaseOrdersService {
     });
     if (!po) throw AppError.notFound('Bon de commande introuvable');
     (po as any).approvalRequest = await this.approvalsService.getLatestForDocument('purchase_order', id);
+    // Brouillon : indique si l'envoi déclenchera une soumission pour validation.
+    (po as any).willRequireApproval = po.status === 'draft'
+      ? !!(await this.approvalsService.evaluateWorkflowForDocument('purchase_order', po as unknown as Record<string, unknown>))
+      : false;
     return po;
   }
 

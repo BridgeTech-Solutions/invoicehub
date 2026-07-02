@@ -3,6 +3,7 @@
 import { use, useState } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, CheckCircle2, XCircle, Banknote, Send, Tag, Calendar, User, Loader2 } from 'lucide-react'
+import { submitButtonState } from '@/features/approvals/effectiveStatus'
 import { usePermission } from '@/hooks/usePermission'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -77,6 +78,12 @@ export default function ExpenseDetailPage({ params }: { params: Promise<{ id: st
 
   const cfg        = STATUS_CONFIG[exp.status]
   const canSubmit  = exp.status === 'draft'
+  const submitBtn  = submitButtonState({
+    isPending:   exp.approvalRequest?.status === 'pending',
+    wasRejected: exp.approvalRequest?.status === 'rejected',
+    willSubmit:  !!exp.willRequireApproval,
+    directLabel: 'Soumettre',
+  })
   const canApprove = exp.status === 'submitted'
   const canReject  = exp.status === 'submitted'
   const canMarkPaid = exp.status === 'approved'
@@ -111,7 +118,7 @@ export default function ExpenseDetailPage({ params }: { params: Promise<{ id: st
               {canSubmit && (
                 <button onClick={() => submitMutation.mutate(id)} disabled={submitMutation.isPending}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-                  <Send size={13} /> Soumettre
+                  {submitMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />} {submitBtn.label}
                 </button>
               )}
               {canApprove && (
