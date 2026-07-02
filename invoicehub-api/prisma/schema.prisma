@@ -1046,6 +1046,8 @@ model Invoice {
   qrCodePath            String?       @map("qr_code_path") @db.VarChar(500)
   pdfPath               String?       @map("pdf_path") @db.VarChar(500)
   pdfGeneratedAt        DateTime?     @map("pdf_generated_at") @db.Timestamptz()
+  // Options d'affichage du PDF (par facture) : { hidePtColumn?, hideTotalHt? }
+  displayOptions        Json          @default("{}") @map("display_options")
   metadata              Json          @default("{}")
   createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt             DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()

@@ -36,6 +36,11 @@ export const createInvoiceSchema = z.object({
   bankAccountId: z.string().uuid().optional(),
   escompteRate: z.number().min(0.01).max(100).optional(),
   escompteDeadline: z.coerce.date().optional(),
+  // Options d'affichage du PDF (pur affichage, n'impacte ni calculs ni compta)
+  displayOptions: z.object({
+    hidePtColumn: z.boolean().optional(),
+    hideTotalHt:  z.boolean().optional(),
+  }).optional(),
   lines: z.array(lineSchema).min(1, 'Au moins une ligne est requise'),
 });
 

@@ -28,6 +28,14 @@ export interface InvoiceLineBase {
   hideDetails: boolean
 }
 
+/** Options d'affichage du PDF, par facture (pur affichage, n'impacte pas les calculs) */
+export interface InvoiceDisplayOptions {
+  /** Masquer la colonne PT (montant par ligne d'article) */
+  hidePtColumn?: boolean
+  /** Masquer la/les ligne(s) TOTAL HT du bloc des totaux */
+  hideTotalHt?: boolean
+}
+
 export interface InvoiceClient {
   id: string
   name: string
@@ -133,6 +141,7 @@ export interface Invoice {
   escompteDeadline: string | null
   escompteAmount: number
   reminderEscalationLevel: number
+  displayOptions?: InvoiceDisplayOptions | null
   lines: InvoiceLineBase[]
   payments?: Payment[]
   statusHistory?: InvoiceStatusHistory[]
@@ -199,6 +208,7 @@ export interface CreateInvoicePayload {
   bankAccountId?: string
   escompteRate?: number
   escompteDeadline?: string
+  displayOptions?: InvoiceDisplayOptions
   lines: CreateInvoiceLinePayload[]
 }
 

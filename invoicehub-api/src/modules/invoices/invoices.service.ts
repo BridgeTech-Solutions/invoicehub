@@ -248,6 +248,7 @@ export class InvoicesService {
         escompteAmount: input.escompteRate
           ? Number(((input.type === 'acompte' ? acompteAmount : totals.totalTtc) * input.escompteRate / 100).toFixed(2))
           : 0,
+        ...(input.displayOptions !== undefined && { displayOptions: input.displayOptions as any }),
         lines: {
           create: computedLines.map(l => ({
             ...(l.productId ? { product: { connect: { id: l.productId } } } : {}),
@@ -292,6 +293,7 @@ export class InvoicesService {
       notes: input.notes,
       paymentConditions: input.paymentConditions,
       ...(input.bankAccountId !== undefined && { bankAccountId: input.bankAccountId }),
+      ...(input.displayOptions !== undefined && { displayOptions: input.displayOptions as any }),
       ...(input.escompteRate !== undefined && (() => {
         // Recalcule escompteAmount immédiatement quand le taux change sans
         // modification de lignes (sinon escompteAmount reste à 0 et le bandeau
@@ -899,6 +901,8 @@ export class InvoicesService {
 
       paymentConditions: invoice.paymentConditions ?? undefined,
       notes:             invoice.notes             ?? undefined,
+      hidePtColumn: !!(invoice.displayOptions as any)?.hidePtColumn,
+      hideTotalHt:  !!(invoice.displayOptions as any)?.hideTotalHt,
       headerImageB64,
       footerImageB64,
       sealImageB64,

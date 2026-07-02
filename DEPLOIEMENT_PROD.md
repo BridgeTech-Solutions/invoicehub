@@ -58,6 +58,21 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-07-02 — Options d'affichage du PDF par facture (masquer colonne PT / TOTAL HT)
+Permet, **facture par facture**, de masquer sur le PDF la colonne **PT** (montant par ligne d'article)
+et/ou la/les ligne(s) **TOTAL HT** du bloc des totaux — sans toucher aux calculs ni à la
+comptabilité. Cas d'usage : un client qui, sur une facture solde, ne veut pas voir le détail
+des montants par ligne ni le HT du projet complet. Nouvelle colonne JSON `display_options`
+(défaut `{}`) sur `invoices` : `{ "hidePtColumn": true, "hideTotalHt": true }`.
+
+```bash
+cd invoicehub-api
+# Ajoute la colonne display_options (idempotent)
+npx prisma db execute --file prisma/add_invoice_display_options.sql --schema prisma/schema.prisma
+pnpm db:generate    # régénère le client Prisma avec le nouveau champ
+```
+> Les cases se règlent dans le formulaire de facture, carte « Affichage du PDF ».
+
 ### 2026-07-01 — Retenue à la source subie (acompte IR / précompte 2,2 %)
 Gestion de la retenue à la source prélevée par certains clients (État, grandes entreprises) :
 saisie **au moment du paiement** (rien sur la facture), la facture est soldée par

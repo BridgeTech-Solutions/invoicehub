@@ -766,6 +766,12 @@ export interface DocumentHtmlParams {
    * mais jamais cette zone. Si omis, tout le footer est protégé.
    */
   footerSafeZonePx?: number;
+
+  // ── Options d'affichage (par document) ───────────────────────────────────────
+  /** Masque la colonne PT (montant par ligne). Les totaux (TVA, TTC…) restent. */
+  hidePtColumn?: boolean;
+  /** Masque la/les ligne(s) TOTAL HT du bloc totaux (le HT du projet complet). */
+  hideTotalHt?: boolean;
 }
 
 // ─── Constantes visuelles ─────────────────────────────────────────────────────
@@ -892,13 +898,18 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
   // Colonne Remise ligne : affichée seulement si au moins une ligne a une remise
   const hasLineDiscount = !allService && params.lines.some(l => !!l.discountLabel);
 
+  // ── Options d'affichage (masquage colonne PT / ligne TOTAL HT) ────────────────
+  const showPt = !params.hidePtColumn;
+
   /** Nombre de colonnes dans le tableau de lignes */
   // Mode service tout : 2 cols (Désignation + PT)
   // Mode normal proforma sans remise : 4 cols (Désignation + PU + Qté + PT)
   // Mode normal proforma avec remise : 5 cols (Désignation + PU + Qté + Remise + PT)
   // Mode normal facture sans remise  : 5 cols (Ref + Désignation + PU + Qté + PT)
   // Mode normal facture avec remise  : 6 cols (Ref + Désignation + PU + Qté + Remise + PT)
-  const nbCols = allService ? 2 : (isProforma ? (hasLineDiscount ? 5 : 4) : (hasLineDiscount ? 6 : 5));
+  // Colonne PT masquée → une colonne de moins (les totaux se calent à droite).
+  const baseCols = allService ? 2 : (isProforma ? (hasLineDiscount ? 5 : 4) : (hasLineDiscount ? 6 : 5));
+  const nbCols   = baseCols - (showPt ? 0 : 1);
 
   /** Formateur monétaire SYSCOHADA : 1 500 000 (sans décimale, espace milliers) */
   const fmt = (n: number) =>
@@ -921,22 +932,24 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
   // Mode mixte : les lignes service fusionnent leurs cellules (colspan) avec texte centré.
   const linesRows = params.lines.map(l => {
     const isService = !!l.hideDetails;
+    // Cellule PT (montant de la ligne) — masquée si l'option est active
+    const ptCell = showPt ? `<td style="${td}text-align:right;">${fmt(l.netHt)}</td>` : '';
     if (allService) {
-      // Tableau simplifié : Désignation | PT seulement
+      // Tableau simplifié : Désignation | PT (PT masquable)
       return `
         <tr>
           <td style="${td}">${l.description || l.designation}</td>
-          <td style="${td}text-align:right;">${fmt(l.netHt)}</td>
+          ${ptCell}
         </tr>`;
     }
     if (isService) {
-      // Mode service en tableau mixte : fusionner toutes colonnes sauf PT
-      // Le colspan tient compte de la colonne Remise si elle est active
-      const serviceColspan = nbCols - 1;
+      // Mode service en tableau mixte : fusionner toutes colonnes sauf PT.
+      // Sans colonne PT, la description occupe toute la largeur (nbCols).
+      const serviceColspan = showPt ? nbCols - 1 : nbCols;
       return `
         <tr>
           <td colspan="${serviceColspan}" style="${td}">${l.description || l.designation}</td>
-          <td style="${td}text-align:right;">${fmt(l.netHt)}</td>
+          ${ptCell}
         </tr>`;
     }
     // Cellule Remise : valeur colorée si remise, tiret grisé sinon
@@ -950,34 +963,38 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
         <td style="${td}text-align:right;">${fmt(l.unitPriceHt)}</td>
         <td style="${td}text-align:center;">${String(l.quantity) + (l.unitLabel ? `&nbsp;<span style="font-size:9px;color:#666;">${l.unitLabel}</span>` : (l.unit ? `&nbsp;<span style="font-size:9px;color:#666;">${l.unit}</span>` : ''))}</td>
         ${remiseCell}
-        <td style="${td}text-align:right;">${fmt(l.netHt)}</td>
+        ${ptCell}
       </tr>`;
   }).join('');
 
   // ── Lignes de totaux ─────────────────────────────────────────────────────────
-  const span = nbCols - 1; // colspan pour les labels de total
+  const span = Math.max(1, nbCols - 1); // colspan pour les labels de total
   let totalRows = '';
+
+  // Option : masquer les lignes TOTAL HT (HT du projet complet)
+  const showTotalHt = !params.hideTotalHt;
+  const totalHtRow  = showTotalHt ? `
+      <tr>
+        <td colspan="${span}" style="${totalTd}">TOTAL HT</td>
+        <td style="${totalTdVal}">${fmt(params.subtotalBeforeDiscountHt ?? params.subtotalHt)}</td>
+      </tr>` : '';
 
   // Remise globale : si présente, on affiche la ligne de remise + TOTAL HT APRÈS REMISE
   const hasDiscount     = (params.globalDiscountAmount ?? 0) > 0;
-  const htBrut          = params.subtotalBeforeDiscountHt ?? params.subtotalHt;
   const discountLabel   = params.globalDiscountLabel ?? 'REMISE';
   const discountRows    = hasDiscount ? `
       <tr>
         <td colspan="${span}" style="${totalTd}">${discountLabel}</td>
         <td style="${totalTdVal}">-${fmt(params.globalDiscountAmount!)}</td>
       </tr>
-      <tr>
+      ${showTotalHt ? `<tr>
         <td colspan="${span}" style="${totalTd}">TOTAL HT APRÈS REMISE</td>
         <td style="${totalTdVal}">${fmt(params.subtotalHt)}</td>
-      </tr>` : '';
+      </tr>` : ''}` : '';
 
   if (isAcompte && params.acomptePercentage != null && params.acompteHt != null && params.acompteTax != null) {
     totalRows = `
-      <tr>
-        <td colspan="${span}" style="${totalTd}">TOTAL HT</td>
-        <td style="${totalTdVal}">${fmt(htBrut)}</td>
-      </tr>
+      ${totalHtRow}
       ${discountRows}
       <tr>
         <td colspan="${span}" style="${totalTd}">ACOMPTE HT ${params.acomptePercentage.toFixed(2)}%</td>
@@ -994,10 +1011,7 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
 
   } else if (isSolde && params.soldeHt != null && params.soldeTax != null) {
     totalRows = `
-      <tr>
-        <td colspan="${span}" style="${totalTd}">TOTAL HT</td>
-        <td style="${totalTdVal}">${fmt(htBrut)}</td>
-      </tr>
+      ${totalHtRow}
       ${discountRows}
       <tr>
         <td colspan="${span}" style="${totalTd}">SOLDE HT</td>
@@ -1014,10 +1028,7 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
 
   } else {
     totalRows = `
-      <tr>
-        <td colspan="${span}" style="${totalTd}">TOTAL HT</td>
-        <td style="${totalTdVal}">${fmt(htBrut)}</td>
-      </tr>
+      ${totalHtRow}
       ${discountRows}
       <tr>
         <td colspan="${span}" style="${totalTd}">TVA 19.25%</td>
@@ -1136,7 +1147,7 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
             ${allService ? '' : `<th style="${thStyle}text-align:right;width:${puWidth};">PU</th>`}
             ${allService ? '' : `<th style="${thStyle}text-align:center;width:${qtWidth};">Qté / Unité</th>`}
             ${hasLineDiscount ? `<th style="${thStyle}text-align:center;width:${rmWidth};">Remise</th>` : ''}
-            <th style="${thStyle}text-align:right;width:${ptWidth};">PT</th>
+            ${showPt ? `<th style="${thStyle}text-align:right;width:${ptWidth};">PT</th>` : ''}
           </tr>
         </thead>
         <tbody>

@@ -51,6 +51,8 @@ interface FormState {
   escompteEnabled: boolean
   escompteRate: number
   escompteDeadline: string
+  hidePtColumn: boolean
+  hideTotalHt: boolean
   lines: FormLine[]
 }
 
@@ -80,6 +82,8 @@ function initForm(invoice?: Invoice, opts?: Omit<InvoiceFormProps, 'invoice'>): 
       escompteEnabled:     invoice.escompteRate != null,
       escompteRate:        invoice.escompteRate != null ? Number(invoice.escompteRate) : 2,
       escompteDeadline:    invoice.escompteDeadline ? format(parseISO(invoice.escompteDeadline), 'yyyy-MM-dd') : in30days(),
+      hidePtColumn:        !!invoice.displayOptions?.hidePtColumn,
+      hideTotalHt:         !!invoice.displayOptions?.hideTotalHt,
       lines:               invoice.lines.map(lineToFormLine),
     }
   }
@@ -100,6 +104,8 @@ function initForm(invoice?: Invoice, opts?: Omit<InvoiceFormProps, 'invoice'>): 
     escompteEnabled:     false,
     escompteRate:        2,
     escompteDeadline:    in30days(),
+    hidePtColumn:        false,
+    hideTotalHt:         false,
     lines:               [makeBlankLine(0)],
   }
 }
@@ -420,6 +426,7 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
       escompteRate:     form.escompteRate,
       escompteDeadline: form.escompteDeadline,
     }),
+    displayOptions: { hidePtColumn: form.hidePtColumn, hideTotalHt: form.hideTotalHt },
     lines: form.lines.map((l, i) => ({
       productId:     l.productId,
       sortOrder:     i,
@@ -981,6 +988,46 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Options d'affichage du PDF */}
+          {form.type !== 'avoir' && (
+            <div className="card" style={{ padding: '18px 20px' }}>
+              {sectionTitle('Affichage du PDF')}
+              <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '0 0 12px', lineHeight: 1.5 }}>
+                Masque certains éléments sur le PDF de cette facture. N&apos;affecte ni les calculs ni la comptabilité.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.hidePtColumn}
+                    onChange={(e) => setF('hidePtColumn', e.target.checked)}
+                    style={{ marginTop: 2, width: 15, height: 15, accentColor: 'var(--primary)', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: 13.5, color: 'var(--text-1)' }}>
+                    Masquer la colonne <strong>PT</strong> (montant par ligne)
+                    <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>
+                      Les lignes n&apos;affichent plus leur montant. Les totaux (TVA, TOTAL TTC) restent.
+                    </span>
+                  </span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.hideTotalHt}
+                    onChange={(e) => setF('hideTotalHt', e.target.checked)}
+                    style={{ marginTop: 2, width: 15, height: 15, accentColor: 'var(--primary)', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: 13.5, color: 'var(--text-1)' }}>
+                    Masquer la ligne <strong>TOTAL HT</strong>
+                    <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>
+                      Le HT du projet complet n&apos;est plus affiché. TVA et TOTAL TTC restent (et SOLDE HT sur un solde).
+                    </span>
+                  </span>
+                </label>
+              </div>
             </div>
           )}
 
