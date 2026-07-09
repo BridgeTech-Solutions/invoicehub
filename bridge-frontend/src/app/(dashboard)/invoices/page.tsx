@@ -194,6 +194,11 @@ export default function InvoicesPage() {
   const [exporting,    setExporting]    = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<InvoiceListItem | null>(null)
   const [filtersOpen,  setFiltersOpen]  = useState(false)
+  const [selectedIndex, setSelectedIndex] = useState(-1)
+
+  const router    = useRouter()
+  const searchRef = useRef<HTMLInputElement>(null)
+  const listRef   = useRef<HTMLDivElement>(null)
 
   const deleteMutation = useDeleteInvoice()
   const currentTab     = TABS.find(t => t.key === activeTab)!
@@ -222,6 +227,30 @@ export default function InvoicesPage() {
   const total      = data?.total      ?? 0
   const totalPages = data?.totalPages ?? 1
   const pageRange  = buildPageRange(page, totalPages)
+
+  // ── Navigation clavier (↑/↓ · j/k · Entrée · «/» · Échap) — style Linear/Raycast ──
+  useEffect(() => { setSelectedIndex(-1) }, [activeTab, search, typeFilter, dateFrom, dateTo, page])
+
+  useEffect(() => {
+    if (selectedIndex < 0) return
+    const rows = listRef.current?.querySelectorAll('[data-doc-row]')
+    ;(rows?.[selectedIndex] as HTMLElement | undefined)?.scrollIntoView({ block: 'nearest' })
+  }, [selectedIndex])
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const el = document.activeElement as HTMLElement | null
+      const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)
+      if (e.key === '/' && !typing) { e.preventDefault(); searchRef.current?.focus(); return }
+      if (typing || invoices.length === 0) return
+      if (e.key === 'ArrowDown' || e.key === 'j')      { e.preventDefault(); setSelectedIndex(i => Math.min(invoices.length - 1, i + 1)) }
+      else if (e.key === 'ArrowUp' || e.key === 'k')   { e.preventDefault(); setSelectedIndex(i => (i <= 0 ? 0 : i - 1)) }
+      else if (e.key === 'Enter' && selectedIndex >= 0 && invoices[selectedIndex]) { e.preventDefault(); router.push(`${ROUTES.INVOICES}/${invoices[selectedIndex]!.id}`) }
+      else if (e.key === 'Escape') { setSelectedIndex(-1) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [invoices, selectedIndex, router])
 
   async function handleExport() {
     setExporting(true)
@@ -304,11 +333,17 @@ export default function InvoicesPage() {
             <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 160 }}>
               <Search size={14} aria-hidden="true" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }} />
               <label htmlFor="inv-search" className="sr-only">Rechercher une facture</label>
-              <input id="inv-search" type="search" value={search}
+              <input id="inv-search" ref={searchRef} type="search" value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                 placeholder="N°, client, sujet…"
-                style={{ width: '100%', paddingLeft: 32, paddingRight: 10, height: 44, borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13.5, color: 'var(--text-1)', fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' }}
+                style={{ width: '100%', paddingLeft: 32, paddingRight: 34, height: 44, borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13.5, color: 'var(--text-1)', fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' }}
               />
+              {!search && (
+                <kbd aria-hidden="true"
+                  style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, lineHeight: 1, fontFamily: 'var(--font-mono)', color: 'var(--text-3)', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 6px', pointerEvents: 'none' }}>
+                  /
+                </kbd>
+              )}
             </div>
 
             {/* Toggle filtres avancés */}
@@ -407,13 +442,13 @@ export default function InvoicesPage() {
 
         {/* ── Liste ── */}
         <div className="card" style={{ overflow: 'hidden', padding: 0 }}>
-          <div aria-label="Liste des factures" aria-busy={isLoading}>
+          <div ref={listRef} aria-label="Liste des factures" aria-busy={isLoading}>
             {isLoading ? (
               Array.from({ length: 7 }).map((_, i) => <SkeletonDocItem key={i} />)
             ) : invoices.length === 0 ? (
               <EmptyState search={search} activeTab={activeTab} />
             ) : (
-              invoices.map(inv => {
+              invoices.map((inv, i) => {
                 const isOverdue  = inv.status === 'overdue'
                 const amountPaid = Number(inv.amountPaid)
                 const totalTtc   = Number(inv.totalTtc)
@@ -437,6 +472,7 @@ export default function InvoicesPage() {
                     amountPaid={amountPaid}
                     showPayBar={showPayBar}
                     alertBg={isOverdue}
+                    selected={i === selectedIndex}
                   />
                 )
               })

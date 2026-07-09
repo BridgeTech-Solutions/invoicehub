@@ -96,6 +96,8 @@ export interface DocListItemProps {
   showPayBar?:  boolean
   // Fond teinté (overdue, expired, etc.)
   alertBg?:     boolean
+  // Sélection clavier (navigation ↑/↓ · j/k) — pilotée par la liste parente
+  selected?:    boolean
 }
 
 // ─── Composant principal ──────────────────────────────────────
@@ -106,39 +108,57 @@ export function DocListItem({
   totalTtc, statusBadge, typeBadge,
   href, actions,
   amountPaid = 0, showPayBar = false,
-  alertBg = false,
+  alertBg = false, selected = false,
 }: DocListItemProps) {
 
   const router = useRouter()
+  const [hovered, setHovered] = React.useState(false)
   const handleNav = () => router.push(href)
   const handleKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNav() }
   }
 
-  const bgColor = alertBg ? 'rgba(239,68,68,0.03)' : 'transparent'
+  const baseBg  = alertBg ? 'rgba(239,68,68,0.03)' : 'transparent'
+  const hoverBg = alertBg ? 'rgba(239,68,68,0.06)' : 'var(--surface)'
+  const bgColor = selected ? 'var(--primary-light)' : hovered ? hoverBg : baseBg
+  const active  = selected || hovered
 
   return (
     <div
       role="button"
       tabIndex={0}
+      data-doc-row=""
+      data-selected={selected || undefined}
       aria-label={`${number} — ${clientName}`}
       onClick={handleNav}
       onKeyDown={handleKey}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         display: 'flex', alignItems: 'flex-start', gap: 12,
         padding: '13px 20px',
         borderBottom: '1px solid var(--border)',
         background: bgColor,
         cursor: 'pointer',
-        transition: 'background 0.15s',
+        transition: 'background 0.15s ease',
         outline: 'none',
         position: 'relative',
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = alertBg ? 'rgba(239,68,68,0.06)' : 'var(--surface)' }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = bgColor }}
-      onFocus={(e)      => { e.currentTarget.style.boxShadow = 'inset 0 0 0 2px var(--primary)' }}
-      onBlur={(e)       => { e.currentTarget.style.boxShadow = 'none' }}
+      onFocus={(e) => { e.currentTarget.style.boxShadow = 'inset 0 0 0 2px var(--primary)' }}
+      onBlur={(e)  => { e.currentTarget.style.boxShadow = 'none' }}
     >
+      {/* Accent latéral (survol / sélection clavier) — signature Linear/Raycast */}
+      <span
+        aria-hidden="true"
+        style={{
+          position: 'absolute', left: 0, top: 0, bottom: 0, width: 3,
+          background: 'var(--primary)', borderRadius: '0 2px 2px 0',
+          transform: `scaleY(${active ? 1 : 0})`,
+          opacity: selected ? 1 : hovered ? 0.5 : 0,
+          transformOrigin: 'center',
+          transition: 'transform 0.16s ease, opacity 0.16s ease',
+        }}
+      />
       {/* ── Avatar initiales ── */}
       <div
         aria-hidden="true"
@@ -169,6 +189,7 @@ export function DocListItem({
           <p style={{
             fontSize: 14, fontWeight: 700, color: 'var(--text-1)',
             fontFamily: 'var(--font-mono)', margin: 0, whiteSpace: 'nowrap', flexShrink: 0,
+            fontVariantNumeric: 'tabular-nums',
           }}>
             {new Intl.NumberFormat('fr-FR').format(Math.round(totalTtc))} XAF
           </p>
