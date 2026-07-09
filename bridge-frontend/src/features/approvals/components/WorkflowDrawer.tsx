@@ -5,7 +5,7 @@ import { OverlayPortal } from '@/components/ui/OverlayPortal'
 import { useState, useEffect, useCallback, useId } from 'react'
 import { X, Plus, Trash2, Settings2, ChevronUp, ChevronDown } from 'lucide-react'
 import { useCreateApprovalWorkflow, useUpdateApprovalWorkflow } from '../hooks'
-import { useRoles } from '@/features/users/hooks'
+import { useRoles, useUsers } from '@/features/users/hooks'
 import type { ApprovalWorkflow, CreateWorkflowPayload, ApprovalTriggerOperator, ApprovalDocumentType } from '../types'
 import { DOCUMENT_TYPE_LABELS, OPERATOR_LABELS, TRIGGER_FIELD_LABELS } from '../types'
 
@@ -71,6 +71,8 @@ export function WorkflowDrawer({ workflow, onClose }: WorkflowDrawerProps) {
   const createMut = useCreateApprovalWorkflow()
   const updateMut = useUpdateApprovalWorkflow(workflow?.id ?? '')
   const { data: roles = [] } = useRoles()
+  const { data: usersPage } = useUsers({ limit: 100 })
+  const users = usersPage?.data ?? []
 
   const [isVisible, setIsVisible] = useState(false)
   const [name,        setName]        = useState(workflow?.name ?? '')
@@ -387,8 +389,18 @@ export function WorkflowDrawer({ workflow, onClose }: WorkflowDrawerProps) {
                       {roles.map((r) => <option key={r.name} value={r.name}>{r.displayName}</option>)}
                     </select>
                   ) : (
-                    <input style={{ ...inputStyle, borderColor: errors[`step_${i}_approver`] ? '#ef4444' : 'var(--border)' }}
-                      value={step.approverUserId} onChange={(e) => updateStep(i, 'approverUserId', e.target.value)} placeholder="ID de l'utilisateur (UUID)" />
+                    <select style={{ ...selectStyle, borderColor: errors[`step_${i}_approver`] ? '#ef4444' : 'var(--border)' }}
+                      value={step.approverUserId} onChange={(e) => updateStep(i, 'approverUserId', e.target.value)}>
+                      <option value="">— Choisir un utilisateur —</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.firstName} {u.lastName}{u.status !== 'active' ? ' (inactif)' : ''} — {u.email}
+                        </option>
+                      ))}
+                      {step.approverUserId && !users.some((u) => u.id === step.approverUserId) && (
+                        <option value={step.approverUserId}>Utilisateur {step.approverUserId.slice(0, 8)}…</option>
+                      )}
+                    </select>
                   )}
                   {errors[`step_${i}_approver`] && <p style={errStyle}>{errors[`step_${i}_approver`]}</p>}
                 </div>

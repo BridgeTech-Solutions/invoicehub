@@ -257,7 +257,8 @@ export class ApprovalsService {
     this._assertPending(request)
 
     const step = await this._findCurrentStep(request)
-    await this._assertIsApprover(step, userId)
+    const approver = await this._resolveApproverForRequest(request, step)
+    await this._assertIsApprover(approver, userId)
 
     if (step.requireComment && !input.comment?.trim()) {
       throw AppError.badRequest('Un commentaire est obligatoire pour cette étape')
@@ -319,7 +320,8 @@ export class ApprovalsService {
     this._assertPending(request)
 
     const step = await this._findCurrentStep(request)
-    await this._assertIsApprover(step, userId)
+    const approver = await this._resolveApproverForRequest(request, step)
+    await this._assertIsApprover(approver, userId)
 
     await this.prisma.approvalDecision.create({
       data: {
@@ -367,11 +369,16 @@ export class ApprovalsService {
 
     const step = await this._findCurrentStep(request)
     if (!step.allowDelegate) throw AppError.badRequest('La délégation n\'est pas autorisée pour cette étape')
-    await this._assertIsApprover(step, userId)
+    const approver = await this._resolveApproverForRequest(request, step)
+    await this._assertIsApprover(approver, userId)
 
     const delegatee = await this.prisma.user.findUnique({ where: { id: input.delegatedToId }, select: { id: true, firstName: true } })
     if (!delegatee) throw AppError.notFound('Utilisateur délégué introuvable')
 
+    // La délégation est enregistrée UNIQUEMENT comme décision propre à cette demande.
+    // Le routage effectif (approve/reject, isMyTurn) la relit via _effectiveApproverForStep.
+    // On ne touche PAS au template ApprovalWorkflowStep → aucune contamination des
+    // autres documents partageant ce workflow.
     await this.prisma.approvalDecision.create({
       data: {
         requestId,
@@ -382,11 +389,6 @@ export class ApprovalsService {
         comment:       input.comment,
         delegatedToId: input.delegatedToId,
       },
-    })
-
-    await this.prisma.approvalWorkflowStep.update({
-      where: { id: step.id },
-      data: { approverUserId: input.delegatedToId, approverRole: null },
     })
 
     await this._notifyUser(input.delegatedToId, 'approval_delegated', 'Décision déléguée', `Une demande d'approbation vous a été déléguée pour ${request.documentType} ${request.documentNumber ?? ''}.`, requestId)
@@ -432,10 +434,10 @@ export class ApprovalsService {
       requests.map(async (req: typeof requests[number]) => {
         let isMyTurn = false
         if (req.status === 'pending') {
-          const step = req.workflow.steps.find((s: { order: number }) => s.order === req.currentStep)
-          if (step) {
-            isMyTurn = step.approverUserId === currentUserId ||
-              (!!step.approverRole && step.approverRole === currentRoleName)
+          const eff = this._effectiveApproverForStep(req.workflow.steps, req.decisions, req.currentStep)
+          if (eff) {
+            isMyTurn = eff.approverUserId === currentUserId ||
+              (!!eff.approverRole && eff.approverRole === currentRoleName)
           }
         }
         return { ...req, isMyTurn }
@@ -479,14 +481,17 @@ export class ApprovalsService {
 
     const pending = await this.prisma.approvalRequest.findMany({
       where: { status: 'pending' },
-      include: { workflow: { include: { steps: true } } },
+      include: {
+        workflow:  { include: { steps: true } },
+        decisions: { select: { decision: true, stepOrder: true, delegatedToId: true, decidedAt: true } },
+      },
     })
 
     let count = 0
     for (const req of pending) {
-      const step = req.workflow.steps.find((s: { order: number }) => s.order === req.currentStep)
-      if (!step) continue
-      if (step.approverUserId === userId || (step.approverRole && step.approverRole === roleName)) {
+      const eff = this._effectiveApproverForStep(req.workflow.steps, req.decisions, req.currentStep)
+      if (!eff) continue
+      if (eff.approverUserId === userId || (eff.approverRole && eff.approverRole === roleName)) {
         count++
       }
     }
@@ -542,6 +547,41 @@ export class ApprovalsService {
         throw AppError.forbidden(`Cette étape requiert le rôle "${step.approverRole}"`)
       }
     }
+  }
+
+  /**
+   * Approbateur EFFECTIF du niveau courant. Une délégation — enregistrée comme
+   * `ApprovalDecision` de type `delegated`, PROPRE À CETTE DEMANDE — prend le pas
+   * sur l'approbateur du template partagé. On ne mute jamais le template : sinon la
+   * délégation d'un document réaffecterait le niveau pour TOUS les autres documents
+   * du même workflow. La dernière délégation du niveau gagne (re-délégation possible).
+   */
+  private _effectiveApproverForStep(
+    steps: { order: number; approverUserId: string | null; approverRole: string | null }[],
+    decisions: { decision: string; stepOrder: number; delegatedToId: string | null; decidedAt: Date }[],
+    currentStep: number,
+  ): { approverUserId: string | null; approverRole: string | null } | null {
+    const step = steps.find((s) => s.order === currentStep)
+    if (!step) return null
+    const delegated = decisions
+      .filter((d) => d.decision === 'delegated' && d.stepOrder === currentStep && d.delegatedToId)
+      .sort((a, b) => +new Date(b.decidedAt) - +new Date(a.decidedAt))[0]
+    if (delegated?.delegatedToId) return { approverUserId: delegated.delegatedToId, approverRole: null }
+    return { approverUserId: step.approverUserId, approverRole: step.approverRole }
+  }
+
+  /** Variante DB (pour approve/reject/delegate) : résout l'approbateur effectif d'une demande. */
+  private async _resolveApproverForRequest(
+    request: { id: string; currentStep: number },
+    templateStep: { approverUserId: string | null; approverRole: string | null },
+  ): Promise<{ approverUserId: string | null; approverRole: string | null }> {
+    const delegated = await this.prisma.approvalDecision.findFirst({
+      where:   { requestId: request.id, decision: 'delegated', stepOrder: request.currentStep, delegatedToId: { not: null } },
+      orderBy: { decidedAt: 'desc' },
+      select:  { delegatedToId: true },
+    })
+    if (delegated?.delegatedToId) return { approverUserId: delegated.delegatedToId, approverRole: null }
+    return { approverUserId: templateStep.approverUserId, approverRole: templateStep.approverRole }
   }
 
   private async _notifyApprovers(

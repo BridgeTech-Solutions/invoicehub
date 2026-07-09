@@ -5,6 +5,7 @@ import { OverlayPortal } from '@/components/ui/OverlayPortal'
 import { useState, useEffect, useCallback, useId } from 'react'
 import { X, CheckCircle2, XCircle, UserCheck, ExternalLink, Clock } from 'lucide-react'
 import { useApprove, useReject, useDelegate } from '../hooks'
+import { useUsers } from '@/features/users/hooks'
 import { DOCUMENT_TYPE_LABELS, STATUS_CONFIG } from '../types'
 import type { ApprovalRequest } from '../types'
 
@@ -31,6 +32,8 @@ export function ApprovalDecisionDrawer({ request, onClose }: ApprovalDecisionDra
   const approveMut  = useApprove()
   const rejectMut   = useReject()
   const delegateMut = useDelegate()
+  const { data: usersPage } = useUsers({ limit: 100 })
+  const users = usersPage?.data ?? []
 
   const [isVisible, setIsVisible]   = useState(false)
   const [mode, setMode]             = useState<'approve' | 'reject' | null>(null)
@@ -279,12 +282,18 @@ export function ApprovalDecisionDrawer({ request, onClose }: ApprovalDecisionDra
                   </button>
                   {showDelegate && (
                     <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
-                      <input
+                      <select
                         style={{ ...inputStyle, flex: 1 }}
-                        placeholder="ID de l'utilisateur délégué"
                         value={delegateId}
                         onChange={(e) => setDelegateId(e.target.value)}
-                      />
+                      >
+                        <option value="">— Choisir un utilisateur —</option>
+                        {users.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.firstName} {u.lastName}{u.status !== 'active' ? ' (inactif)' : ''}
+                          </option>
+                        ))}
+                      </select>
                       <button
                         type="button"
                         onClick={handleDelegate}
