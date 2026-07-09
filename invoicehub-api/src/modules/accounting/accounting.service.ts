@@ -317,10 +317,28 @@ export class AccountingService {
     });
   }
 
+  /**
+   * Filet de sécurité SYSCOHADA : au-delà de l'équilibre des totaux d'en-tête
+   * (`total_debit`/`total_credit`), on vérifie que la SOMME RÉELLE DES LIGNES
+   * s'équilibre. Protège contre une écriture dont les en-têtes seraient corrects
+   * mais dont les lignes divergeraient (partie double rompue).
+   */
+  private static assertLinesBalanced(lines: { debit: unknown; credit: unknown }[]): void {
+    const debit  = lines.reduce((s, l) => s + Number(l.debit),  0);
+    const credit = lines.reduce((s, l) => s + Number(l.credit), 0);
+    if (Math.abs(debit - credit) >= 0.01)
+      throw AppError.badRequest(
+        `Écriture non équilibrée (lignes) : débit ${debit.toFixed(2)} ≠ crédit ${credit.toFixed(2)}`,
+      );
+  }
+
   async validateEntry(id: string, userId: string) {
     const entry = await this.prisma.journalEntry.findUnique({
       where:   { id },
-      include: { fiscalPeriod: { select: { status: true } } },
+      include: {
+        fiscalPeriod: { select: { status: true } },
+        lines:        { select: { debit: true, credit: true } },
+      },
     });
     if (!entry) throw AppError.notFound('Écriture introuvable');
     if (entry.status !== 'draft') throw AppError.badRequest('Seuls les brouillons peuvent être validés');
@@ -328,6 +346,7 @@ export class AccountingService {
       throw AppError.forbidden('La période de cette écriture n\'est pas ouverte');
     if (Math.abs(Number(entry.totalDebit) - Number(entry.totalCredit)) >= 0.01)
       throw AppError.badRequest('Écriture non équilibrée : débit ≠ crédit');
+    AccountingService.assertLinesBalanced(entry.lines);
     return this.prisma.journalEntry.update({
       where: { id },
       data:  { status: 'validated', validatedById: userId, validatedAt: new Date() },
@@ -345,7 +364,10 @@ export class AccountingService {
 
     const entries = await this.prisma.journalEntry.findMany({
       where:   { id: { in: ids } },
-      include: { fiscalPeriod: { select: { status: true } } },
+      include: {
+        fiscalPeriod: { select: { status: true } },
+        lines:        { select: { debit: true, credit: true } },
+      },
     });
 
     const found   = new Set(entries.map((e) => e.id));
@@ -359,7 +381,12 @@ export class AccountingService {
       if (e.status !== 'draft') { skipped.push({ id: e.id, reason: `statut « ${e.status} »` }); continue; }
       if (e.fiscalPeriod.status !== 'open') { skipped.push({ id: e.id, reason: 'période non ouverte' }); continue; }
       if (Math.abs(Number(e.totalDebit) - Number(e.totalCredit)) >= 0.01) {
-        skipped.push({ id: e.id, reason: 'non équilibrée' }); continue;
+        skipped.push({ id: e.id, reason: 'non équilibrée (en-tête)' }); continue;
+      }
+      const ld = e.lines.reduce((s, l) => s + Number(l.debit),  0);
+      const lc = e.lines.reduce((s, l) => s + Number(l.credit), 0);
+      if (Math.abs(ld - lc) >= 0.01) {
+        skipped.push({ id: e.id, reason: 'non équilibrée (lignes)' }); continue;
       }
       toValidate.push(e.id);
     }
@@ -397,10 +424,18 @@ export class AccountingService {
 
     const candidates = await this.prisma.journalEntry.findMany({
       where,
-      select: { id: true, totalDebit: true, totalCredit: true },
+      select: {
+        id: true, totalDebit: true, totalCredit: true,
+        lines: { select: { debit: true, credit: true } },
+      },
     });
     const balanced = candidates
-      .filter((e) => Math.abs(Number(e.totalDebit) - Number(e.totalCredit)) < 0.01)
+      .filter((e) => {
+        if (Math.abs(Number(e.totalDebit) - Number(e.totalCredit)) >= 0.01) return false;
+        const ld = e.lines.reduce((s, l) => s + Number(l.debit),  0);
+        const lc = e.lines.reduce((s, l) => s + Number(l.credit), 0);
+        return Math.abs(ld - lc) < 0.01;
+      })
       .map((e) => e.id);
     const skippedUnbalanced = candidates.length - balanced.length;
 

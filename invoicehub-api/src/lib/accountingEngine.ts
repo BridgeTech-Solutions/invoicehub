@@ -960,6 +960,28 @@ export async function onExpensePaid(expenseId: string, tx: Tx): Promise<void> {
     const period        = await getOpenPeriod(tx, entryDate);
     const entryNumber   = await nextEntryNumber(tx, journal.code, entryDate);
 
+    const amountTtc = round2(Number(expense.amountTtc));
+    const amountHt  = round2(Number(expense.amountHt));
+    const taxAmount = round2(Number(expense.taxAmount));
+
+    // SYSCOHADA : la TVA déductible ne doit pas être noyée dans la charge (classe 6).
+    // Quand la dépense porte une TVA récupérable (taxAmount > 0) et qu'un compte de
+    // TVA déductible est configuré, on l'isole sur son compte 445x — exactement comme
+    // pour les factures fournisseurs (onSupplierInvoiceValidated). Sinon la charge
+    // serait surévaluée et le crédit de TVA perdu. À défaut de compte TVA configuré,
+    // repli sur l'imputation du TTC en charge (comportement historique).
+    const splitVat = taxAmount > 0.005 && !!accounts.deductibleTaxAccount;
+    const lines: JournalLineData[] = splitVat
+      ? [
+          { sortOrder: 0, accountNumber: chargeAccount,                  label: expense.title,                          debit: amountHt,  credit: 0 },
+          { sortOrder: 1, accountNumber: accounts.deductibleTaxAccount!, label: `TVA déductible — DEP ${expense.number}`, debit: taxAmount, credit: 0 },
+          { sortOrder: 2, accountNumber: bankAccount,                    label: `Paiement — ${bankLabel}`,              debit: 0, credit: amountTtc },
+        ]
+      : [
+          { sortOrder: 0, accountNumber: chargeAccount, label: expense.title,             debit: amountTtc, credit: 0 },
+          { sortOrder: 1, accountNumber: bankAccount,   label: `Paiement — ${bankLabel}`, debit: 0, credit: amountTtc },
+        ];
+
     await tx.journalEntry.create({
       data: {
         journalId:      journal.id,
@@ -970,15 +992,10 @@ export async function onExpensePaid(expenseId: string, tx: Tx): Promise<void> {
         label:       `DEP ${expense.number} — ${expense.title}`,
         sourceType:  'expense',
         sourceId:    expense.id,
-        totalDebit:  Number(expense.amountTtc),
-        totalCredit: Number(expense.amountTtc),
+        totalDebit:  amountTtc,
+        totalCredit: amountTtc,
         status:      'draft',
-        lines: {
-          create: [
-            { sortOrder: 0, accountNumber: chargeAccount, label: expense.title,           debit: Number(expense.amountTtc), credit: 0 },
-            { sortOrder: 1, accountNumber: bankAccount,   label: `Paiement — ${bankLabel}`, debit: 0, credit: Number(expense.amountTtc) },
-          ],
-        },
+        lines: { create: lines },
       },
     });
   } catch (e) { logErr('onExpensePaid', e, { sourceType: 'expense', sourceId: expenseId }); }
