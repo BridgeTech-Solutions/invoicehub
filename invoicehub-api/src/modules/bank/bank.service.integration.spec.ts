@@ -460,6 +460,34 @@ const queueMock = {
       expect(rec.status).toBe('processing');
     });
 
+    // Régression : un relevé peut légitimement contenir deux lignes identiques
+    // (deux retraits DAB du même montant le même jour). `createMany({ skipDuplicates })`
+    // n'en crée qu'une, mais le delta de solde était calculé sur toutes les lignes
+    // soumises → mouvements fantômes. Constaté à 10 000 XAF de dérive sur 3 lignes.
+    it('ne compte au solde que les lignes réellement créées (doublons internes au fichier)', async () => {
+      const acc = await makeAccount(0);
+
+      const csv = [
+        'Date;Libellé;Débit;Crédit',
+        '10/04/2026;VIREMENT UNIQUE;;100 000',
+        '15/04/2026;RETRAIT DAB IDENTIQUE;5 000;',
+        '15/04/2026;RETRAIT DAB IDENTIQUE;5 000;',
+        '15/04/2026;RETRAIT DAB IDENTIQUE;5 000;',
+      ].join('\n');
+
+      const preview = await service.previewImport(Buffer.from(csv, 'utf-8'), acc.id, 'doublons.csv');
+      createdImportIds.push(preview.importId);
+
+      const confirmed = await service.confirmImport(preview.importId, userId);
+
+      // Les trois retraits partagent la même empreinte : un seul est créé.
+      expect(confirmed.nbImported).toBe(2);
+      expect(await prisma.bankTransaction.count({ where: { importId: preview.importId } })).toBe(2);
+
+      // Le solde suit les lignes créées, pas les lignes soumises.
+      expect(await balanceOf(acc.id)).toBe(95_000); // 100 000 − 5 000, et non − 15 000
+    });
+
     it('rollback d’un import encore en attente supprime simplement le brouillon', async () => {
       const acc = await makeAccount(0);
       const p = await service.previewImport(Buffer.from(CSV, 'utf-8'), acc.id, 'releve.csv');

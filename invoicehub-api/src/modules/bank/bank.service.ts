@@ -814,8 +814,23 @@ export class BankService {
       where:  { bankAccountId: importRecord.bankAccountId, contentHash: { not: null } },
       select: { contentHash: true },
     });
-    const hashSet     = new Set(existingHashes.map(h => h.contentHash!));
-    const transactions = preview.sampleTransactions.filter(t => !hashSet.has(t.contentHash));
+    const hashSet = new Set(existingHashes.map(h => h.contentHash!));
+
+    // Déduplication en DEUX temps :
+    //   1. contre la base (lignes déjà importées) ;
+    //   2. À L'INTÉRIEUR DU FICHIER lui-même.
+    // Le point 2 est indispensable au solde : `createMany({ skipDuplicates: true })`
+    // écarte silencieusement les lignes de même empreinte, si bien que le nombre de
+    // lignes créées est inférieur au nombre de lignes soumises. Calculer le delta de
+    // solde sur les lignes soumises créait des mouvements fantômes — constaté sur un
+    // relevé contenant trois retraits identiques : 1 transaction créée, 3 comptées
+    // au solde, soit 10 000 XAF de dérive.
+    const seenHashes   = new Set<string>();
+    const transactions = preview.sampleTransactions.filter((t) => {
+      if (hashSet.has(t.contentHash) || seenHashes.has(t.contentHash)) return false;
+      seenHashes.add(t.contentHash);
+      return true;
+    });
     const nbDuplicates = preview.duplicateRows;
 
     // `previewData` transite par une colonne JSONB : les Date en reviennent sous

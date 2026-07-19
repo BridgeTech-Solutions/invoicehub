@@ -41,6 +41,11 @@ export class BankImportProcessor extends WorkerHost {
     // réimport d'un relevé qui se chevauche : les doublons sont écartés de la
     // création mais étaient quand même comptés dans le solde.
     let balanceDelta = 0;
+    // Empreintes déjà retenues, TOUS LOTS CONFONDUS : deux lignes identiques peuvent
+    // se trouver de part et d'autre d'une frontière de lot. Sans cette mémoire,
+    // `createMany({ skipDuplicates: true })` en écarterait une tout en la comptant
+    // au solde.
+    const seenHashes = new Set<string>();
 
     try {
       for (let i = 0; i < lines.length; i += BATCH_SIZE) {
@@ -54,7 +59,11 @@ export class BankImportProcessor extends WorkerHost {
         const existingSet = new Set(existing.map(e => e.contentHash!));
 
         const toCreate = batch
-          .filter(l => !existingSet.has(l.contentHash))
+          .filter((l) => {
+            if (existingSet.has(l.contentHash) || seenHashes.has(l.contentHash)) return false;
+            seenHashes.add(l.contentHash);
+            return true;
+          })
           .map(l => ({
             bankAccountId:   l.bankAccountId,
             transactionDate: new Date(l.transactionDate),
