@@ -98,12 +98,26 @@ export class ExpensesService {
   }
 
   // Vérifie si un budget vient de franchir 80 % ou 100 % après paiement d'une dépense
-  private async checkBudgetAlerts(categoryId: string | null, paidAmountTtc: number): Promise<void> {
+  /**
+   * Alerte les administrateurs au FRANCHISSEMENT d'un seuil de budget (80 %, 100 %).
+   *
+   * La période analysée est celle de la DÉPENSE, pas celle du jour. Auparavant elle
+   * était déduite de `new Date()` : payer en juillet une dépense datée de janvier
+   * interrogeait le budget de juillet tout en retranchant un montant absent de cet
+   * agrégat — d'où des alertes sur un mois où rien n'avait bougé, et un dépassement
+   * réel de janvier jamais signalé.
+   */
+  private async checkBudgetAlerts(
+    categoryId: string | null,
+    paidAmountTtc: number,
+    expenseDate?: Date | null,
+  ): Promise<void> {
     if (!categoryId) return;
 
-    const now = new Date();
-    const y   = now.getFullYear();
-    const m   = now.getMonth() + 1; // 1-based
+    // `expenseDate` est une colonne `@db.Date` : on raisonne en UTC de bout en bout.
+    const ref = expenseDate ? new Date(expenseDate) : new Date();
+    const y   = ref.getUTCFullYear();
+    const m   = ref.getUTCMonth() + 1; // 1-based
 
     const budgets = await this.prisma.expenseBudget.findMany({
       where: {
@@ -122,8 +136,15 @@ export class ExpensesService {
     if (admins.length === 0) return;
 
     for (const budget of budgets) {
-      const start = budget.month ? new Date(y, budget.month - 1, 1) : new Date(y, 0, 1);
-      const end   = budget.month ? new Date(y, budget.month, 0, 23, 59, 59) : new Date(y, 11, 31, 23, 59, 59);
+      // Bornes en UTC : `new Date(y, m, d)` vaut minuit LOCAL et décale la fenêtre
+      // sur un serveur à l'est de UTC (Cameroun, UTC+1), faisant sortir de la période
+      // les dépenses du premier ou du dernier jour du mois.
+      const start = budget.month
+        ? new Date(Date.UTC(y, budget.month - 1, 1))
+        : new Date(Date.UTC(y, 0, 1));
+      const end = budget.month
+        ? new Date(Date.UTC(y, budget.month, 0, 23, 59, 59))
+        : new Date(Date.UTC(y, 11, 31, 23, 59, 59));
 
       const agg = await this.prisma.expense.aggregate({
         where: { categoryId, status: 'paid' as any, deletedAt: null, expenseDate: { gte: start, lte: end } },
@@ -404,7 +425,7 @@ export class ExpensesService {
   async payExpense(id: string, userId: string, input: PayExpenseInput = {}) {
     const expense = await this.prisma.expense.findFirst({
       where:  { id, deletedAt: null },
-      select: { categoryId: true, amountTtc: true },
+      select: { categoryId: true, amountTtc: true, expenseDate: true },
     });
 
     // Compte de trésorerie réellement utilisé (banque ou caisse). On le valide et
@@ -428,7 +449,11 @@ export class ExpensesService {
     void this.prisma.$transaction((tx: any) => accountingEngine.onExpensePaid(id, tx));
     this.eventEmitter.emit('expense.paid', { expenseId: id });
     // Alertes budget (fire-and-forget — ne bloque pas la réponse)
-    void this.checkBudgetAlerts(expense?.categoryId ?? null, Number(expense?.amountTtc ?? 0));
+    void this.checkBudgetAlerts(
+      expense?.categoryId ?? null,
+      Number(expense?.amountTtc ?? 0),
+      expense?.expenseDate ?? null,
+    );
     return result;
   }
 
