@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { useEffect, useState } from 'react'
 import { tokenStorage } from '@/lib/api-client'
 import type { AuthUser, AuthState } from './types'
 
@@ -77,3 +78,30 @@ export const useAuthStore = create<AuthStore>()(
     },
   ),
 )
+
+/**
+ * Indique si le store a fini de se réhydrater depuis localStorage.
+ *
+ * `persist` réhydrate de façon ASYNCHRONE : au premier rendu le store vaut encore
+ * son état initial (`user: null, accessToken: null`), même quand une session
+ * parfaitement valide existe en localStorage. Toute garde qui teste
+ * `!accessToken` sans attendre l'hydratation redirige donc vers /login au
+ * chargement dur d'une URL — l'utilisateur est éjecté sur un simple F5 ou en
+ * ouvrant un lien profond, alors que son token est valide.
+ *
+ * Initialisé à `false` plutôt qu'à `persist.hasHydrated()` : la valeur doit être
+ * identique au rendu serveur, sinon React signale une divergence d'hydratation.
+ */
+export function useAuthHydrated(): boolean {
+  const [hydrated, setHydrated] = useState(false)
+
+  useEffect(() => {
+    const unsubscribe = useAuthStore.persist.onFinishHydration(() => setHydrated(true))
+    // Filet : l'hydratation a pu se terminer entre le premier rendu et cet effet,
+    // auquel cas `onFinishHydration` ne se déclenchera plus jamais.
+    if (useAuthStore.persist.hasHydrated()) setHydrated(true)
+    return unsubscribe
+  }, [])
+
+  return hydrated
+}

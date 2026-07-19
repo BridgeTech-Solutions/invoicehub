@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuthStore } from '@/features/auth/store'
+import { useAuthStore, useAuthHydrated } from '@/features/auth/store'
 import { getMe } from '@/features/auth/api'
 import { setPermissionsUpdater } from '@/lib/api-client'
 import { AppShell } from '@/components/layout/AppShell'
@@ -14,6 +14,7 @@ import { ShortcutsModal } from '@/components/ui/ShortcutsModal'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, accessToken, setPermissions, permissionsLoaded } = useAuthStore()
+  const hydrated = useAuthHydrated()
   const router = useRouter()
 
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
@@ -30,11 +31,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => document.removeEventListener('shortcuts:open-help', handler)
   }, [openHelp])
 
+  // Ne juger la session qu'APRÈS réhydratation du store : avant, `accessToken`
+  // vaut toujours null, y compris quand une session valide existe en localStorage.
   useEffect(() => {
-    if (!accessToken || !user) {
+    if (hydrated && (!accessToken || !user)) {
       router.replace('/login')
     }
-  }, [accessToken, user, router])
+  }, [hydrated, accessToken, user, router])
 
   // Enregistre le callback pour que l'intercepteur axios mette à jour les permissions après refresh
   useEffect(() => {
@@ -49,6 +52,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [accessToken, user, setPermissions])
 
+  // Hydratation en cours : on ne sait pas encore s'il y a une session. Ne rien
+  // rendre plutôt qu'un écran vide définitif — la décision arrive au tick suivant.
+  if (!hydrated) return null
   if (!accessToken || !user) return null
 
   // Skeleton pendant le bootstrap des permissions (sessions existantes sans permissions en cache)

@@ -1,6 +1,6 @@
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
-import { useAuthStore } from '@/features/auth/store'
+import { useAuthStore, useAuthHydrated } from '@/features/auth/store'
 import { ROUTES } from '@/lib/constants'
 
 /**
@@ -9,13 +9,17 @@ import { ROUTES } from '@/lib/constants'
  */
 export function useAuth(requireAuth = true) {
   const { user, accessToken, isLoading, clearAuth } = useAuthStore()
+  const hydrated = useAuthHydrated()
   const router = useRouter()
 
+  // `hydrated` est indispensable : `isLoading` vaut false au premier rendu, donc
+  // sans lui la condition passe avant que le store n'ait relu localStorage et
+  // éjecte une session valide vers /login.
   useEffect(() => {
-    if (requireAuth && !isLoading && !accessToken) {
+    if (requireAuth && hydrated && !isLoading && !accessToken) {
       router.push(ROUTES.LOGIN)
     }
-  }, [accessToken, isLoading, requireAuth, router])
+  }, [accessToken, hydrated, isLoading, requireAuth, router])
 
   const logout = () => {
     clearAuth()
@@ -25,7 +29,9 @@ export function useAuth(requireAuth = true) {
   return {
     user,
     isAuthenticated: !!accessToken,
-    isLoading,
+    // Tant que le store n'est pas réhydraté, l'état d'authentification est inconnu :
+    // les appelants doivent attendre plutôt que de conclure « non connecté ».
+    isLoading: isLoading || !hydrated,
     logout,
   }
 }
