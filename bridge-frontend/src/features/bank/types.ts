@@ -333,10 +333,22 @@ export interface OpenReconciliationPayload {
   notes?:         string | null
 }
 
+export interface AutoMatchSuggestion {
+  txId:       string
+  entityType: string
+  entityId:   string
+  score:      number
+}
+
 export interface AutoMatchResult {
+  /** Correspondances ≥ 90 % réellement écrites. */
   applied: number
-  high:    Array<{ txId: string; entityType: string; entityId: string; score: number }>
-  medium:  Array<{ txId: string; entityType: string; entityId: string; score: number }>
+  /** Les ≥ 90 % retenues par l'algorithme (`applied` + `skipped`). */
+  high:    AutoMatchSuggestion[]
+  /** 70–89 % : proposées, JAMAIS appliquées automatiquement. À confirmer à la main. */
+  medium:  AutoMatchSuggestion[]
+  /** ≥ 90 % abandonnées : la contrepartie était déjà rapprochée d'un autre mouvement. */
+  skipped: Array<AutoMatchSuggestion & { reason: string }>
 }
 
 export interface PaginatedReconciliations {

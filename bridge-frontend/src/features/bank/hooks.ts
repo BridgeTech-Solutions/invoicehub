@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useRef } from 'react'
 import { toast } from 'sonner'
+import { getApiErrorMessage } from '@/lib/api-error'
 import {
   bankSummaryApi, bankAccountsApi, bankTransactionsApi,
   bankImportApi, bankReconciliationsApi, bankMatchingRulesApi,
@@ -154,7 +155,10 @@ export function useReconcileTransaction() {
       qc.invalidateQueries({ queryKey: BANK_KEYS.summary })
       toast.success('Transaction rapprochée')
     },
-    onError: () => toast.error('Erreur lors du rapprochement'),
+    // Le serveur refuse désormais une contrepartie déjà rapprochée d'un autre
+    // mouvement (409). C'est un cas courant, pas une anomalie : on remonte sa
+    // raison exacte plutôt qu'un « Erreur » opaque qui laisse sans issue.
+    onError: (e) => toast.error(getApiErrorMessage(e, 'Erreur lors du rapprochement')),
   })
 }
 
@@ -167,7 +171,7 @@ export function useUnmatchTransaction() {
       qc.invalidateQueries({ queryKey: BANK_KEYS.summary })
       toast.success('Rapprochement annulé')
     },
-    onError: () => toast.error('Erreur'),
+    onError: (e) => toast.error(getApiErrorMessage(e, "Erreur lors de l'annulation du rapprochement")),
   })
 }
 
@@ -258,14 +262,23 @@ export function useOpenReconciliation() {
 export function useAutoMatch(reconciliationId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (applyHighConfidence: boolean) =>
-      bankReconciliationsApi.autoMatch(reconciliationId, applyHighConfidence),
+    mutationFn: () => bankReconciliationsApi.autoMatch(reconciliationId),
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ['bank', 'transactions'] })
       qc.invalidateQueries({ queryKey: BANK_KEYS.reconciliation(reconciliationId) })
-      toast.success(`${result.applied} transaction(s) rapprochée(s) automatiquement`)
+      // Ne jamais annoncer un succès muet : s'il reste des suggestions à confirmer,
+      // le travail n'est pas terminé et l'utilisateur doit le savoir.
+      const pending = result.medium?.length ?? 0
+      toast.success(
+        result.applied > 0
+          ? `${result.applied} mouvement${result.applied > 1 ? 's' : ''} rapproché${result.applied > 1 ? 's' : ''}`
+            + (pending > 0 ? ` · ${pending} à confirmer` : '')
+          : pending > 0
+            ? `Aucune correspondance certaine · ${pending} à confirmer`
+            : 'Aucune correspondance trouvée',
+      )
     },
-    onError: () => toast.error("Erreur lors de l'auto-matching"),
+    onError: (e) => toast.error(getApiErrorMessage(e, "Erreur lors de l'auto-matching")),
   })
 }
 

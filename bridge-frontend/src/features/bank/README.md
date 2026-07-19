@@ -619,9 +619,22 @@ Chaque item : checkbox | Date | Référence | Entité | Montant.
 
 **Auto-match :**
 Bouton "Auto-matcher" dans le header → appelle `POST /bank/reconciliations/{id}/auto-match`
-→ modale de confirmation avec le nombre de paires haute confiance détectées
-→ option "Appliquer seulement haute confiance (≥90%)" checkbox
-→ résultat : les paires matchées disparaissent, un toast "87 transactions rapprochées automatiquement".
+(sans paramètre : le serveur décide seul ce qu'il applique).
+
+Le serveur n'applique **que** les correspondances ≥ 90 %. Les 70–89 % sont renvoyées
+comme suggestions et ne sont jamais écrites automatiquement — à 70 points, on a
+typiquement « bon montant + date à ±2 j + vague écho de libellé », ce qui relève du
+tirage au sort dès qu'il y a plusieurs paiements du même montant dans la semaine.
+
+La réponse distingue trois issues, toutes affichées dans la modale :
+| Champ     | Sens |
+|-----------|------|
+| `applied` | ≥ 90 % réellement rapprochées |
+| `medium`  | 70–89 % proposées, **à confirmer à la main** |
+| `skipped` | ≥ 90 % écartées : contrepartie déjà rapprochée d'un autre mouvement |
+
+⚠️ Il n'y a plus de case « haute confiance uniquement » : elle laissait croire qu'on
+pouvait faire appliquer les 70–89 %, ce que le serveur refuse désormais.
 
 **Terminer le rapprochement :**
 Bouton "Terminer" → vérifie que l'écart = 0 avant d'autoriser.

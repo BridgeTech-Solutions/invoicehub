@@ -130,20 +130,62 @@ function BalanceBar({
 
 // ─── Auto match modal ────────────────────────────────────────────────────────
 
+/** Palier de confiance — énonce la règle appliquée par le serveur, sans la négocier. */
+function ConfidenceTier({
+  range, accent, title, detail,
+}: { range: string; accent: string; title: string; detail: string }) {
+  return (
+    <div style={{ display: 'flex', gap: 12, padding: '12px 14px', alignItems: 'flex-start' }}>
+      <span style={{
+        flexShrink: 0, fontSize: 11.5, fontWeight: 700, fontFamily: 'var(--font-mono)',
+        color: accent, background: `${accent}14`, border: `1px solid ${accent}33`,
+        borderRadius: 999, padding: '3px 9px', marginTop: 1,
+        fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
+      }}>
+        {range}
+      </span>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-1)', marginBottom: 1 }}>{title}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.5 }}>{detail}</div>
+      </div>
+    </div>
+  )
+}
+
+/** Ligne de suite à donner après un auto-matching. Icône + texte : jamais la couleur seule. */
+function ResultRow({
+  icon, bg, border, color, text,
+}: { icon: React.ReactNode; bg: string; border: string; color: string; text: string }) {
+  return (
+    <div style={{
+      display: 'flex', gap: 8, alignItems: 'flex-start',
+      padding: '10px 12px', borderRadius: 'var(--radius-md)',
+      background: bg, border: `1px solid ${border}`,
+    }}>
+      <span style={{ flexShrink: 0, marginTop: 1, display: 'flex' }}>{icon}</span>
+      <span style={{ fontSize: 12.5, color, lineHeight: 1.5 }}>{text}</span>
+    </div>
+  )
+}
+
 function AutoMatchModal({
   reconciliationId,
   onClose,
 }: { reconciliationId: string; onClose: () => void }) {
-  const [applied,  setApplied]  = useState(false)
-  const [result,   setResult]   = useState<{ applied: number; skipped: number } | null>(null)
-  const [highOnly, setHighOnly] = useState(true)
+  const [applied, setApplied] = useState(false)
+  const [result,  setResult]  = useState<{ applied: number; pending: number; conflicts: number } | null>(null)
   const autoMatch = useAutoMatch(reconciliationId)
 
   const handleApply = async () => {
-    const res = await autoMatch.mutateAsync(highOnly)
-    // En mode étendu, les correspondances moyennes (70–89 %) sont appliquées,
-    // donc elles ne sont « ignorées » qu'en mode haute confiance uniquement.
-    setResult({ applied: res.applied, skipped: highOnly ? (res.medium?.length ?? 0) : 0 })
+    // Le serveur n'applique que les ≥ 90 %. `medium` = suggestions à confirmer,
+    // `skipped` = ≥ 90 % abandonnées faute de contrepartie libre. Les trois issues
+    // sont distinctes et toutes affichées.
+    const res = await autoMatch.mutateAsync()
+    setResult({
+      applied:   res.applied,
+      pending:   res.medium?.length  ?? 0,
+      conflicts: res.skipped?.length ?? 0,
+    })
     setApplied(true)
   }
 
@@ -178,34 +220,25 @@ function AutoMatchModal({
                 L'algorithme analyse les montants, dates et libellés pour détecter automatiquement les correspondances.
               </p>
 
-              {/* Option haute confiance */}
-              <label style={{
-                display: 'flex', alignItems: 'flex-start', gap: 12,
-                padding: '14px 16px', borderRadius: 'var(--radius-md)',
-                border: `1.5px solid ${highOnly ? 'var(--primary)' : 'var(--border)'}`,
-                background: highOnly ? 'rgba(45,125,210,0.05)' : 'var(--surface)',
-                cursor: 'pointer', marginBottom: 16, transition: 'all 0.15s',
+              {/* Règle de décision — deux paliers, énoncés tels qu'appliqués par le serveur */}
+              <div style={{
+                borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)',
+                overflow: 'hidden', marginBottom: 16,
               }}>
-                <input type="checkbox" checked={highOnly} onChange={e => setHighOnly(e.target.checked)}
-                  style={{ marginTop: 2, accentColor: 'var(--primary)', cursor: 'pointer', flexShrink: 0 }} />
-                <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)', marginBottom: 2 }}>
-                    Haute confiance uniquement (≥ 90%)
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.5 }}>
-                    Plus sûr. Seules les correspondances quasi-certaines sont appliquées automatiquement.
-                  </div>
-                </div>
-              </label>
-
-              {!highOnly && (
-                <div style={{ display: 'flex', gap: 8, padding: '10px 14px', borderRadius: 'var(--radius-md)', background: '#fef3c7', border: '1px solid #fde68a', marginBottom: 16 }}>
-                  <AlertTriangle size={14} style={{ color: '#d97706', flexShrink: 0, marginTop: 1 }} />
-                  <span style={{ fontSize: 12.5, color: '#92400e', lineHeight: 1.5 }}>
-                    Mode étendu : certaines correspondances à 70–89% pourraient être incorrectes. Vérifiez après application.
-                  </span>
-                </div>
-              )}
+                <ConfidenceTier
+                  range="≥ 90 %"
+                  accent="#16a34a"
+                  title="Rapprochées automatiquement"
+                  detail="Montant exact, même date, libellé concordant."
+                />
+                <div style={{ height: 1, background: 'var(--border)' }} />
+                <ConfidenceTier
+                  range="70–89 %"
+                  accent="#d97706"
+                  title="Proposées, à confirmer"
+                  detail="Trop ambigu pour être écrit sans relecture. Vous validez au cas par cas."
+                />
+              </div>
 
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button type="button" onClick={onClose}
@@ -220,21 +253,57 @@ function AutoMatchModal({
               </div>
             </>
           ) : result ? (
-            <div style={{ textAlign: 'center', padding: '8px 0 16px' }}>
-              <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#dcfce7', border: '2px solid #86efac', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                <CheckCircle2 size={28} style={{ color: '#16a34a' }} />
+            <div style={{ padding: '4px 0 4px' }}>
+              <div style={{ textAlign: 'center', marginBottom: 18 }}>
+                <div style={{
+                  width: 52, height: 52, borderRadius: '50%',
+                  background: result.applied > 0 ? '#dcfce7' : 'var(--surface-2)',
+                  border: `2px solid ${result.applied > 0 ? '#86efac' : 'var(--border)'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
+                }}>
+                  <CheckCircle2 size={26} style={{ color: result.applied > 0 ? '#16a34a' : 'var(--text-3)' }} />
+                </div>
+                <div style={{ fontSize: 26, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-1)', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
+                  {result.applied}
+                </div>
+                <div style={{ fontSize: 13.5, color: 'var(--text-2)', marginTop: 2 }}>
+                  mouvement{result.applied !== 1 ? 's' : ''} rapproché{result.applied !== 1 ? 's' : ''}
+                </div>
               </div>
-              <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-1)', marginBottom: 6 }}>
-                {result.applied}
+
+              {/* Ce qui reste à faire — jamais masqué : sans ça, l'écran laisserait
+                  croire que le rapprochement est terminé. */}
+              {(result.pending > 0 || result.conflicts > 0) && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
+                  {result.pending > 0 && (
+                    <ResultRow
+                      icon={<AlertTriangle size={14} style={{ color: '#d97706' }} />}
+                      bg="#fffbeb" border="#fde68a" color="#92400e"
+                      text={`${result.pending} correspondance${result.pending > 1 ? 's' : ''} à 70–89 % attend${result.pending > 1 ? 'ent' : ''} votre confirmation, dans la liste ci-dessous.`}
+                    />
+                  )}
+                  {result.conflicts > 0 && (
+                    <ResultRow
+                      icon={<AlertTriangle size={14} style={{ color: '#dc2626' }} />}
+                      bg="#fef2f2" border="#fecaca" color="#991b1b"
+                      text={`${result.conflicts} écartée${result.conflicts > 1 ? 's' : ''} : la contrepartie est déjà rapprochée d'un autre mouvement.`}
+                    />
+                  )}
+                </div>
+              )}
+
+              {result.applied === 0 && result.pending === 0 && result.conflicts === 0 && (
+                <p style={{ fontSize: 13, color: 'var(--text-3)', lineHeight: 1.6, textAlign: 'center', marginBottom: 18 }}>
+                  Aucune correspondance trouvée sur cette période. Rapprochez les mouvements à la main, ou vérifiez que les paiements correspondants ont bien été saisis.
+                </p>
+              )}
+
+              <div style={{ textAlign: 'center' }}>
+                <button type="button" onClick={onClose}
+                  style={{ padding: '10px 24px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 12px rgba(45,125,210,0.25)' }}>
+                  Continuer le rapprochement
+                </button>
               </div>
-              <div style={{ fontSize: 14, color: 'var(--text-2)', marginBottom: 20, lineHeight: 1.5 }}>
-                transaction{result.applied !== 1 ? 's' : ''} rapprochée{result.applied !== 1 ? 's' : ''} automatiquement.
-                {result.skipped > 0 && <><br /><span style={{ color: 'var(--text-3)', fontSize: 12.5 }}>{result.skipped} ignorée{result.skipped !== 1 ? 's' : ''} (confiance insuffisante)</span></>}
-              </div>
-              <button type="button" onClick={onClose}
-                style={{ padding: '10px 24px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 12px rgba(45,125,210,0.25)' }}>
-                Continuer le rapprochement
-              </button>
             </div>
           ) : null}
         </div>

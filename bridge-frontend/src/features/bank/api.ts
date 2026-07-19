@@ -118,8 +118,10 @@ export const bankReconciliationsApi = {
   open: (data: OpenReconciliationPayload) =>
     apiClient.post<BankReconciliation>('/bank/reconciliations', data).then(r => r.data),
 
-  autoMatch: (id: string, applyHighConfidence?: boolean) =>
-    apiClient.post<AutoMatchResult>(`/bank/reconciliations/${id}/auto-match`, { applyHighConfidence }).then(r => r.data),
+  // Le serveur n'applique que les correspondances ≥ 90 % et renvoie les 70–89 %
+  // comme suggestions. L'ancien paramètre `applyHighConfidence` n'est plus lu.
+  autoMatch: (id: string) =>
+    apiClient.post<AutoMatchResult>(`/bank/reconciliations/${id}/auto-match`, {}).then(r => r.data),
 
   complete: (id: string) =>
     apiClient.post<BankReconciliation>(`/bank/reconciliations/${id}/complete`).then(r => r.data),
