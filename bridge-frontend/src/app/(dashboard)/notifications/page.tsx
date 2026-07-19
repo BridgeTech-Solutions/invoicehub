@@ -19,6 +19,8 @@ import { useSocket } from '@/hooks/useSocket'
 import { useQueryClient } from '@tanstack/react-query'
 import { formatDate } from '@/lib/utils'
 import type { NotificationType } from '@/features/notifications/types'
+import { ListLoadError } from '@/components/feedback/ListLoadError'
+import { getApiErrorMessage } from '@/lib/api-error'
 
 // ─── Type config (Lucide icons — no emojis) ───────────────────
 const TYPE_CONFIG: Record<NotificationType, {
@@ -345,7 +347,7 @@ export default function NotificationsPage() {
   const [page, setPage]             = useState(1)
   const [unreadOnly, setUnreadOnly] = useState(false)
 
-  const { data, isLoading, refetch, isFetching } = useNotifications({ page, limit: 20, unreadOnly })
+  const { data, isLoading, isError, error, refetch, isFetching } = useNotifications({ page, limit: 20, unreadOnly })
   const markReadMut = useMarkRead()
   const markAllMut  = useMarkAllRead()
   const qc          = useQueryClient()
@@ -379,10 +381,14 @@ export default function NotificationsPage() {
             aria-live="polite"
             aria-atomic="true"
           >
-            {unreadCount > 0
-              ? <><strong style={{ color: 'var(--primary)' }}>{unreadCount}</strong> non lue{unreadCount > 1 ? 's' : ''}</>
-              : 'Tout est lu'}
-            {total > 0 && ` · ${total} au total`}
+            {/* Ne rien affirmer quand le chargement a échoué : `unreadCount` retombe
+                à 0 et l'écran annonçait « Tout est lu » sans avoir rien pu lire. */}
+            {isError && !data
+              ? 'Décompte indisponible'
+              : unreadCount > 0
+                ? <><strong style={{ color: 'var(--primary)' }}>{unreadCount}</strong> non lue{unreadCount > 1 ? 's' : ''}</>
+                : 'Tout est lu'}
+            {!isError && total > 0 && ` · ${total} au total`}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -458,6 +464,21 @@ export default function NotificationsPage() {
       <div className="card" style={{ overflow: 'hidden', padding: 0 }}>
         {isLoading
           ? Array.from({ length: 6 }).map((_, i) => <SkeletonNotif key={i} />)
+          // L'échec de chargement doit précéder le cas « liste vide » : sans cette
+          // branche, `data` undefined donnait `notifs = []` et l'écran affirmait
+          // « Aucune notification » alors que rien n'avait pu être chargé.
+          // On ne bascule sur l'erreur que s'il n'y a RIEN à montrer : quand une
+          // actualisation échoue mais que des données restent en cache, mieux vaut
+          // garder la liste affichée que la remplacer par un message d'erreur.
+          : isError && notifs.length === 0
+            ? (
+              <ListLoadError
+                entity="les notifications"
+                message={getApiErrorMessage(error, 'La connexion au serveur a échoué. Vérifiez votre réseau, puis réessayez.')}
+                onRetry={() => refetch()}
+                isRetrying={isFetching}
+              />
+            )
           : notifs.length === 0
             ? (
               <div style={{ padding: '60px 24px', textAlign: 'center' }}>
