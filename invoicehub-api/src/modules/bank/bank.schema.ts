@@ -43,17 +43,6 @@ export const openReconciliationSchema = z.object({
   notes:          z.string().optional().nullable(),
 });
 
-export const importCsvSchema = z.object({
-  bankAccountId:   z.string().uuid(),
-  dateColumn:      z.string().default('date'),
-  labelColumn:     z.string().default('libelle'),
-  debitColumn:     z.string().default('debit'),
-  creditColumn:    z.string().default('credit'),
-  referenceColumn: z.string().optional(),
-  dateFormat:      z.enum(['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD']).default('DD/MM/YYYY'),
-  delimiter:       z.enum([',', ';', '\t']).default(';'),
-});
-
 export const detectFormatSchema = z.object({
   bankAccountId: z.string().uuid(),
   encoding:      z.enum(['auto', 'utf-8', 'win1252', 'iso-8859-1', 'utf-16le']).optional().default('auto'),
@@ -77,7 +66,6 @@ export type CreateBankAccountInput  = z.infer<typeof createBankAccountSchema>;
 export type CreateTransactionInput  = z.infer<typeof createTransactionSchema>;
 export type ReconcileInput          = z.infer<typeof reconcileTransactionSchema>;
 export type OpenReconciliationInput = z.infer<typeof openReconciliationSchema>;
-export type ImportCsvInput          = z.infer<typeof importCsvSchema>;
 export type DetectFormatInput       = z.infer<typeof detectFormatSchema>;
 
 // ── Import profiles ───────────────────────────────────────────────────────────

@@ -45,17 +45,46 @@ const queueMock = {
   // Traçabilité pour le nettoyage : on ne supprime que ça.
   const createdAccountIds: string[] = [];
   const createdImportIds:  string[] = [];
+  const createdExpenseIds: string[] = [];
   let userId: string;
+  let officeId: string;
+  let categoryId: string;
+  let expenseSeq = 0;
 
   beforeAll(async () => {
     await prisma.$connect();
     const user = await prisma.user.findFirst({ select: { id: true } });
     if (!user) throw new Error('Aucun utilisateur en base — impossible de satisfaire les FK');
     userId = user.id;
+
+    // Référentiel existant, lu seulement (jamais modifié)
+    officeId   = (await prisma.agencyOffice.findFirstOrThrow({ select: { id: true } })).id;
+    categoryId = (await prisma.expenseCategory.findFirstOrThrow({ select: { id: true } })).id;
   });
+
+  /**
+   * Contrepartie réelle pour les rapprochements. `reconcileTransaction` refuse
+   * désormais une contrepartie introuvable ou déjà liée : les UUID fictifs ne
+   * suffisent plus, ce qui est précisément la garantie anti-double-rapprochement.
+   */
+  async function makeExpense(amountTtc: number, expenseDate: Date) {
+    const e = await prisma.expense.create({
+      data: {
+        number: `__TEST_${RUN_ID}__EXP${++expenseSeq}`,
+        officeId, categoryId, createdById: userId,
+        title: tag('dépense'), expenseDate, amountTtc,
+      },
+      select: { id: true },
+    });
+    createdExpenseIds.push(e.id);
+    return e;
+  }
 
   afterAll(async () => {
     try {
+      if (createdExpenseIds.length) {
+        await prisma.expense.deleteMany({ where: { id: { in: createdExpenseIds } } });
+      }
       if (createdAccountIds.length) {
         // Ordre imposé par les FK (bank_transactions.bank_account_id = Restrict)
         await prisma.bankTransaction.deleteMany({ where: { bankAccountId: { in: createdAccountIds } } });
@@ -168,13 +197,18 @@ const queueMock = {
       // Photographie du solde système au moment de l'ouverture
       expect(Number(rec.closingBalanceSystem)).toBe(1_300_000);
 
-      // Rapprochement des deux mouvements
+      // Rapprochement des deux mouvements sur des contreparties réelles
       for (const t of [credit, debit]) {
+        const exp  = await makeExpense(Number(t.amount), t.transactionDate);
         const done = await service.reconcileTransaction(
-          t.id, { matchedEntityType: 'payment', matchedEntityId: randomUUID() } as any,
+          t.id, { matchedEntityType: 'expense', matchedEntityId: exp.id } as any, userId,
         );
         expect(done.reconciliationStatus).toBe('reconciled');
         expect(done.reconciledAt).not.toBeNull();
+
+        // La contrepartie est bien liée en retour (fin du demi-rapprochement)
+        const linked = await prisma.expense.findUniqueOrThrow({ where: { id: exp.id } });
+        expect(linked.bankTransactionId).toBe(t.id);
       }
 
       const report = await service.getReconciliationReport(rec.id);
@@ -216,8 +250,9 @@ const queueMock = {
         openingBalance: 1_000_000,
       } as any, userId);
 
+      const exp = await makeExpense(400_000, credit.transactionDate);
       await service.reconcileTransaction(
-        credit.id, { matchedEntityType: 'payment', matchedEntityId: randomUUID() } as any,
+        credit.id, { matchedEntityType: 'expense', matchedEntityId: exp.id } as any, userId,
       );
 
       const report = await service.getReconciliationReport(rec.id);
@@ -234,17 +269,65 @@ const queueMock = {
         bankAccountId: acc.id, transactionDate: d('2026-03-10'),
         label: 'MOUVEMENT', amount: 10_000, type: 'credit',
       } as any);
-      const payload = { matchedEntityType: 'payment', matchedEntityId: randomUUID() } as any;
+      const exp     = await makeExpense(10_000, d('2026-03-10'));
+      const payload = { matchedEntityType: 'expense', matchedEntityId: exp.id } as any;
 
-      await service.reconcileTransaction(t.id, payload);
-      await expect(service.reconcileTransaction(t.id, payload)).rejects.toThrow(/déjà rapprochée/i);
+      await service.reconcileTransaction(t.id, payload, userId);
+      await expect(service.reconcileTransaction(t.id, payload, userId)).rejects.toThrow(/déjà rapprochée/i);
 
       const un = await service.unmatchTransaction(t.id);
       expect(un.reconciliationStatus).toBe('pending');
       expect(un.matchedEntityId).toBeNull();
       expect(un.reconciledAt).toBeNull();
 
+      // Le dé-rapprochement libère aussi la contrepartie
+      const released = await prisma.expense.findUniqueOrThrow({ where: { id: exp.id } });
+      expect(released.bankTransactionId).toBeNull();
+
       await expect(service.unmatchTransaction(t.id)).rejects.toThrow(/non rapprochée/i);
+    });
+
+    // Régression : c'est LE risque comptable que la liaison de contrepartie ferme.
+    it('refuse de rapprocher deux mouvements sur la même contrepartie', async () => {
+      const acc = await makeAccount(0);
+      const t1 = await service.createTransaction({
+        bankAccountId: acc.id, transactionDate: d('2026-03-10'),
+        label: 'VIREMENT A', amount: 75_000, type: 'debit',
+      } as any);
+      const t2 = await service.createTransaction({
+        bankAccountId: acc.id, transactionDate: d('2026-03-11'),
+        label: 'VIREMENT B', amount: 75_000, type: 'debit',
+      } as any);
+
+      const exp = await makeExpense(75_000, d('2026-03-10'));
+      const payload = { matchedEntityType: 'expense', matchedEntityId: exp.id } as any;
+
+      await service.reconcileTransaction(t1.id, payload, userId);
+
+      // Même dépense, autre mouvement du même montant → doit être refusé
+      await expect(service.reconcileTransaction(t2.id, payload, userId))
+        .rejects.toThrow(/déjà rapprochée d’un autre mouvement/i);
+
+      const t2After = await prisma.bankTransaction.findUniqueOrThrow({ where: { id: t2.id } });
+      expect(t2After.reconciliationStatus).toBe('pending'); // rien n'a été écrit
+
+      const stillLinkedToT1 = await prisma.expense.findUniqueOrThrow({ where: { id: exp.id } });
+      expect(stillLinkedToT1.bankTransactionId).toBe(t1.id);
+    });
+
+    it('refuse une contrepartie introuvable', async () => {
+      const acc = await makeAccount(0);
+      const t = await service.createTransaction({
+        bankAccountId: acc.id, transactionDate: d('2026-03-10'),
+        label: 'MOUVEMENT ORPHELIN', amount: 5_000, type: 'credit',
+      } as any);
+
+      await expect(service.reconcileTransaction(
+        t.id, { matchedEntityType: 'expense', matchedEntityId: randomUUID() } as any, userId,
+      )).rejects.toThrow(/introuvable/i);
+
+      const after = await prisma.bankTransaction.findUniqueOrThrow({ where: { id: t.id } });
+      expect(after.reconciliationStatus).toBe('pending');
     });
 
     it('ignoreTransaction sort le mouvement du périmètre', async () => {

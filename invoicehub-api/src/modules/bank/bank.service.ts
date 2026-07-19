@@ -9,7 +9,7 @@ import { BANK_IMPORT_QUEUE } from '../../jobs/constants';
 import {
   CreateBankAccountInput, UpdateBankAccountInput,
   CreateTransactionInput, ReconcileInput, OpenReconciliationInput,
-  ImportCsvInput, DetectFormatInput,
+  DetectFormatInput,
 } from './bank.schema';
 import {
   decodeBuffer, autoDetectFormat, parseStatementFile,
@@ -339,6 +339,47 @@ export class BankService {
 
   // ── Réconciliation d'une transaction ────────────────────────────────────────
 
+  /**
+   * Lie la contrepartie métier (paiement / paiement fournisseur / dépense) à la
+   * transaction bancaire, et renvoie le nombre de lignes effectivement liées.
+   *
+   * Le filtre `bankTransactionId: null` rend l'opération atomique : si la
+   * contrepartie a déjà été rattachée à une autre transaction, on renvoie 0 et
+   * l'appelant doit renoncer au rapprochement. C'est ce qui empêche un même
+   * paiement d'être rapproché de deux mouvements bancaires distincts.
+   */
+  private async _linkMatchedEntity(
+    tx: Prisma.TransactionClient,
+    transactionId: string,
+    entityType: string,
+    entityId: string,
+    reconciledAt: Date,
+    userId?: string,
+  ): Promise<number> {
+    if (entityType === 'payment') {
+      const r = await tx.payment.updateMany({
+        where: { id: entityId, deletedAt: null, bankTransactionId: null },
+        data:  { bankTransactionId: transactionId, reconciledAt, reconciledById: userId ?? undefined },
+      });
+      return r.count;
+    }
+    if (entityType === 'supplier_payment') {
+      const r = await tx.supplierPayment.updateMany({
+        where: { id: entityId, deletedAt: null, bankTransactionId: null },
+        data:  { bankTransactionId: transactionId, reconciledAt, reconciledById: userId ?? undefined },
+      });
+      return r.count;
+    }
+    if (entityType === 'expense') {
+      const r = await tx.expense.updateMany({
+        where: { id: entityId, deletedAt: null, bankTransactionId: null },
+        data:  { bankTransactionId: transactionId },
+      });
+      return r.count;
+    }
+    return 0;
+  }
+
   async reconcileTransaction(id: string, data: ReconcileInput, userId?: string) {
     const t = await this.prisma.bankTransaction.findUnique({ where: { id } });
     if (!t) throw AppError.notFound('Transaction introuvable');
@@ -347,7 +388,16 @@ export class BankService {
     const now = new Date();
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.bankTransaction.update({
+      const linked = await this._linkMatchedEntity(
+        tx, id, data.matchedEntityType, data.matchedEntityId, now, userId,
+      );
+      if (linked === 0) {
+        throw AppError.conflict(
+          'Cette contrepartie est déjà rapprochée d’un autre mouvement bancaire (ou introuvable).',
+        );
+      }
+
+      return tx.bankTransaction.update({
         where: { id },
         data: {
           reconciliationStatus: 'reconciled',
@@ -357,25 +407,6 @@ export class BankService {
           matchedEntityId:      data.matchedEntityId,
         },
       });
-
-      if (data.matchedEntityType === 'payment') {
-        await tx.payment.updateMany({
-          where: { id: data.matchedEntityId, deletedAt: null, bankTransactionId: null },
-          data:  { bankTransactionId: id, reconciledAt: now, reconciledById: userId ?? undefined },
-        });
-      } else if (data.matchedEntityType === 'supplier_payment') {
-        await tx.supplierPayment.updateMany({
-          where: { id: data.matchedEntityId, deletedAt: null, bankTransactionId: null },
-          data:  { bankTransactionId: id, reconciledAt: now, reconciledById: userId ?? undefined },
-        });
-      } else if (data.matchedEntityType === 'expense') {
-        await tx.expense.updateMany({
-          where: { id: data.matchedEntityId, deletedAt: null, bankTransactionId: null },
-          data:  { bankTransactionId: id },
-        });
-      }
-
-      return result;
     });
 
     // Apprentissage automatique
@@ -558,128 +589,6 @@ export class BankService {
       ]);
 
       return updated;
-    });
-  }
-
-  // ── Import CSV (ancien pipeline — déprécié) ─────────────────────────────────
-
-  async importCsv(csvContent: string, params: ImportCsvInput, userId: string) {
-    const account = await this.prisma.bankAccount.findFirst({
-      where: { id: params.bankAccountId, deletedAt: null },
-    });
-    if (!account) throw AppError.notFound('Compte bancaire introuvable');
-
-    const lines   = csvContent.split(/\r?\n/).filter(l => l.trim().length > 0);
-    if (lines.length < 2) throw AppError.badRequest('Le fichier CSV est vide ou ne contient pas d\'en-tête');
-
-    const parseCsvLine = (line: string, delimiter: string): string[] => {
-      const result: string[] = [];
-      let cur = ''; let inQuotes = false;
-      for (const ch of line) {
-        if (ch === '"') { inQuotes = !inQuotes; }
-        else if (ch === delimiter && !inQuotes) { result.push(cur.trim()); cur = ''; }
-        else { cur += ch; }
-      }
-      result.push(cur.trim());
-      return result;
-    };
-
-    const parseDate = (raw: string, format: ImportCsvInput['dateFormat']): Date | null => {
-      const s = raw.trim();
-      let day: number, month: number, year: number;
-      if (format === 'DD/MM/YYYY') [day, month, year] = s.split('/').map(Number) as [number, number, number];
-      else if (format === 'MM/DD/YYYY') [month, day, year] = s.split('/').map(Number) as [number, number, number];
-      else [year, month, day] = s.split('-').map(Number) as [number, number, number];
-      // Date calendaire → construite en UTC : minuit LOCAL décalait la date d'un jour
-      // en arrière à l'écriture dans la colonne `@db.Date` (cf. parseDate dans bank.parsers).
-      const d = new Date(Date.UTC(year, month - 1, day));
-      return isNaN(d.getTime()) ? null : d;
-    };
-
-    const headers  = parseCsvLine(lines[0]!, params.delimiter).map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
-    const colIndex = (name: string) => {
-      const key = name.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const idx = headers.indexOf(key);
-      if (idx === -1) throw AppError.badRequest(`Colonne "${name}" introuvable dans le CSV`);
-      return idx;
-    };
-
-    const dateIdx  = colIndex(params.dateColumn);
-    const labelIdx = colIndex(params.labelColumn);
-    const debitIdx = colIndex(params.debitColumn);
-    const creditIdx = colIndex(params.creditColumn);
-    const refIdx   = params.referenceColumn ? headers.indexOf(params.referenceColumn.toLowerCase().replace(/[^a-z0-9]/g, '')) : -1;
-
-    const toCreate: Array<{
-      bankAccountId: string; transactionDate: Date; label: string;
-      amount: number; type: 'debit' | 'credit'; reference?: string; source: string;
-    }> = [];
-
-    let skipped = 0, totalCredits = 0, totalDebits = 0;
-    let periodStart: Date | null = null, periodEnd: Date | null = null;
-
-    for (const raw of lines.slice(1)) {
-      const cols     = parseCsvLine(raw, params.delimiter);
-      const date     = parseDate(cols[dateIdx] ?? '', params.dateFormat);
-      if (!date) { skipped++; continue; }
-
-      const debitRaw  = Number((cols[debitIdx]  ?? '0').replace(/\s/g, '').replace(',', '.'));
-      const creditRaw = Number((cols[creditIdx] ?? '0').replace(/\s/g, '').replace(',', '.'));
-      const label     = (cols[labelIdx] ?? '').trim();
-      if (!label) { skipped++; continue; }
-
-      const isCredit = creditRaw > 0;
-      const amount   = isCredit ? creditRaw : debitRaw;
-      if (amount <= 0) { skipped++; continue; }
-
-      if (!periodStart || date < periodStart) periodStart = date;
-      if (!periodEnd   || date > periodEnd)   periodEnd   = date;
-      if (isCredit) totalCredits += amount; else totalDebits += amount;
-
-      toCreate.push({
-        bankAccountId: params.bankAccountId,
-        transactionDate: date, label, amount,
-        type:      isCredit ? 'credit' : 'debit',
-        reference: refIdx >= 0 ? (cols[refIdx] ?? undefined) : undefined,
-        source:    'csv',
-      });
-    }
-
-    if (toCreate.length === 0) throw AppError.badRequest('Aucune ligne valide dans le fichier CSV');
-
-    return this.prisma.$transaction(async (tx) => {
-      const importRecord = await tx.bankStatementImport.create({
-        data: {
-          bankAccountId:  params.bankAccountId,
-          filename:       'import.csv',
-          fileFormat:     'csv',
-          periodStart:    periodStart!,
-          periodEnd:      periodEnd!,
-          totalCredits, totalDebits,
-          nbTransactions: toCreate.length,
-          status:         'completed',
-          importedById:   userId,
-          processedAt:    new Date(),
-        },
-      });
-
-      await tx.bankTransaction.createMany({
-        data: toCreate.map(t => ({ ...t, importId: importRecord.id })),
-      });
-
-      await tx.bankAccount.update({
-        where: { id: params.bankAccountId },
-        data:  { currentBalance: { increment: totalCredits - totalDebits } },
-      });
-
-      return {
-        importId:   importRecord.id,
-        nbImported: toCreate.length,
-        nbSkipped:  skipped,
-        totalCredits, totalDebits,
-        periodStart: periodStart!,
-        periodEnd:   periodEnd!,
-      };
     });
   }
 
@@ -1114,7 +1023,15 @@ export class BankService {
 
   // ── Auto-match Hungarian ────────────────────────────────────────────────────
 
-  async getAutoMatchBatch(reconciliationId: string, highConfidenceOnly: boolean) {
+  /**
+   * Rapprochement automatique d'une session.
+   *
+   * Applique uniquement les correspondances à haute confiance (≥ 90 %) et renvoie
+   * les 70–89 % comme suggestions à confirmer. L'ancien paramètre
+   * `highConfidenceOnly` a été retiré : son défaut était inversé (un appel sans
+   * corps activait le mode étendu, qui appliquait automatiquement les 70 %).
+   */
+  async getAutoMatchBatch(reconciliationId: string, userId?: string) {
     const r = await this.prisma.bankReconciliation.findUnique({ where: { id: reconciliationId } });
     if (!r) throw AppError.notFound('Session de rapprochement introuvable');
 
@@ -1161,25 +1078,46 @@ export class BankService {
       else if (detail.total >= 70) medium.push({ txId: tx.id, entityType: c.entityType, entityId: c.entityId, score: detail.total });
     }
 
-    // highConfidenceOnly = true  → on applique uniquement la haute confiance (≥ 90 %)
-    // highConfidenceOnly = false → mode étendu : on applique aussi les 70–89 %
-    const toApply = highConfidenceOnly ? high : [...high, ...medium];
+    // Seule la haute confiance (≥ 90 %) est appliquée automatiquement : montant
+    // exact + même jour + libellé concordant. Les 70–89 % sont RENVOYÉES comme
+    // suggestions à confirmer, jamais appliquées : 70 points, c'est typiquement
+    // « bon montant (45) + date à ±2 j (22) + vague écho de libellé (3) ». Avec
+    // plusieurs paiements du même montant dans la semaine — acomptes, abonnements —
+    // le choix relève du tirage au sort, ce qui est inacceptable en comptabilité.
+    const toApply = high;
 
+    // On lie la contrepartie AVANT de marquer la transaction rapprochée, et on
+    // renonce si la liaison échoue. Auparavant seule la transaction bancaire était
+    // mise à jour : le paiement gardait `bankTransactionId: null`, restait donc
+    // candidat pour d'autres mouvements (les requêtes filtrent là-dessus) et
+    // pouvait être rapproché plusieurs fois. `unmatchTransaction` ne le nettoyait
+    // pas non plus, faute de lien.
     let applied = 0;
+    const skipped: Array<{ txId: string; entityType: string; entityId: string; reason: string }> = [];
+
     if (toApply.length > 0) {
+      const now = new Date();
       await this.prisma.$transaction(async (tx) => {
         for (const m of toApply) {
+          const linked = await this._linkMatchedEntity(tx, m.txId, m.entityType, m.entityId, now, userId);
+          if (linked === 0) {
+            skipped.push({ ...m, reason: 'contrepartie déjà rapprochée' });
+            continue;
+          }
           await tx.bankTransaction.update({
             where: { id: m.txId },
-            data:  { reconciliationStatus: 'reconciled', reconciledAt: new Date(),
+            data:  { reconciliationStatus: 'reconciled', reconciledAt: now,
+                     reconciledById: userId ?? undefined,
                      matchedEntityType: m.entityType, matchedEntityId: m.entityId },
           });
+          applied++;
         }
       });
-      applied = toApply.length;
     }
 
-    return { applied, high, medium };
+    // `high`   : appliquées (déduire `skipped` pour les contreparties déjà liées)
+    // `medium` : NON appliquées — suggestions 70–89 % à confirmer manuellement
+    return { applied, skipped, high, medium };
   }
 
   // ── Apprentissage automatique ────────────────────────────────────────────────

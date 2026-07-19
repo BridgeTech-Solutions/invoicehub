@@ -2,7 +2,7 @@
 import {
   Controller, Get, Post, Put, Delete,
   Body, Param, Query, UploadedFile,
-  UseInterceptors, Header, HttpCode, HttpStatus,
+  UseInterceptors, HttpCode, HttpStatus,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -14,7 +14,7 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import {
   createBankAccountSchema, updateBankAccountSchema,
   createTransactionSchema, reconcileTransactionSchema,
-  openReconciliationSchema, importCsvSchema,
+  openReconciliationSchema,
   detectFormatSchema, confirmImportSchema, saveProfileOverrideSchema,
   createImportProfileSchema, updateImportProfileSchema,
   createMatchingRuleSchema, updateMatchingRuleSchema,
@@ -162,11 +162,14 @@ export class BankController {
 
   @Post('reconciliations/:id/auto-match')
   @Permission('bank:auto-match')
+  // Applique les correspondances ≥ 90 % et renvoie les 70–89 % à confirmer.
+  // `applyHighConfidence` du corps n'est plus lu : les 70–89 % ne sont plus
+  // jamais appliquées automatiquement.
   async autoMatch(
     @Param('id') id: string,
-    @Body() body: { applyHighConfidence?: boolean },
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.bank.getAutoMatchBatch(id, body?.applyHighConfidence === true);
+    return this.bank.getAutoMatchBatch(id, user.sub);
   }
 
   @Post('reconciliations/:id/complete')
@@ -268,23 +271,6 @@ export class BankController {
     const l = Math.min(100, Math.max(1, parseInt(limit)));
     const { data, total } = await this.bank.listImports(p, l);
     return { success: true, data, meta: { total, page: p, limit: l, totalPages: Math.ceil(total / l) } };
-  }
-
-  // Route dépréciée
-  @Post('import')
-  @Permission('bank:import-confirm')
-  @Header('Deprecation', 'true')
-  @Header('Sunset', '2026-12-31')
-  @UseInterceptors(FileInterceptor('file', fileUpload))
-  @HttpCode(HttpStatus.CREATED)
-  async importCsv(
-    @UploadedFile() file: Express.Multer.File,
-    @Body(new ZodValidationPipe(importCsvSchema)) body: any,
-    @CurrentUser() user: JwtPayload,
-  ) {
-    if (!file) throw AppError.badRequest('Fichier CSV requis');
-    const csvContent = file.buffer.toString('utf-8');
-    return this.bank.importCsv(csvContent, body, user.sub);
   }
 
   // ── Profils — override par compte ───────────────────────────────────────────
