@@ -25,7 +25,8 @@
     "db:generate": "prisma generate",
     "db:sync-emails": "ts-node prisma/sync-email-templates.ts",
     "db:fix-expense-vat": "ts-node prisma/fix-expense-vat.ts",
-    "db:fix-bank-dates": "ts-node prisma/fix-bank-transaction-dates.ts"
+    "db:fix-bank-dates": "ts-node prisma/fix-bank-transaction-dates.ts",
+    "qa:seed-automatch": "ts-node prisma/qa-seed-automatch.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1039.0",
