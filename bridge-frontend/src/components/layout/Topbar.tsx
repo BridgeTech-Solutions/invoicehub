@@ -79,6 +79,15 @@ const LABELS: Record<string, string> = {
   exports:              'Exports',
   outlook:              'Microsoft Outlook',
   sage:                 'Export Sage',
+  // Sans libellé, `useBreadcrumbs` retombe sur le segment brut : le fil d'Ariane
+  // affichait « workflows », « import-profiles », « statement-config »…
+  workflows:            "Workflows d'approbation",
+  branding:             'Image de marque',
+  'import-profiles':    "Profils d'import",
+  'product-categories': 'Catégories de produits',
+  'statement-config':   'Paramétrage du bilan',
+  history:              'Historique',
+  edit:                 'Modification',
 }
 
 function useBreadcrumbs() {

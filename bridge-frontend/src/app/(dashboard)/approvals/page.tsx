@@ -39,22 +39,45 @@ const fmtRelative = (d: string) => {
 
 // ─── KPI Card ────────────────────────────────────────────────────
 
+const KPI_TONES = {
+  neutral:  'var(--text-1)',
+  pending:  '#b45309',
+  approved: '#15803d',
+  rejected: '#b91c1c',
+} as const
+
+/**
+ * Tuile de décompte.
+ *
+ * La couleur est réservée à ce qui porte une information. Auparavant chaque tuile
+ * encodait son statut TROIS fois — bordure teintée, fond teinté, chiffre coloré —
+ * y compris pour une valeur nulle : l'écran criait en rouge et en orange pour
+ * annoncer « zéro rejet, zéro en attente ». Un décompte à zéro n'a rien à signaler,
+ * il reste donc muet, et seule la file d'attente — la seule qui appelle une action —
+ * conserve un accent quand elle n'est pas vide.
+ */
 function KpiCard({
-  label, value, color, bg, borderColor,
-}: { label: string; value: number | string; color: string; bg: string; borderColor: string }) {
+  label, value, tone = 'neutral',
+}: { label: string; value: number | string; tone?: keyof typeof KPI_TONES }) {
+  const isEmpty   = value === 0
+  const needsEyes = tone === 'pending' && !isEmpty
+
   return (
     <div
       className="card"
       style={{
         padding: '14px 20px', flex: 1, minWidth: 120,
-        borderTop: `3px solid ${borderColor}`,
-        background: bg,
+        ...(needsEyes ? { borderTop: `3px solid ${KPI_TONES.pending}` } : {}),
       }}
     >
       <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-3)', fontFamily: 'var(--font-display)' }}>
         {label}
       </p>
-      <p style={{ margin: 0, fontSize: 26, fontWeight: 800, fontFamily: 'var(--font-display)', color }}>
+      <p style={{
+        margin: 0, fontSize: 26, fontWeight: 800, fontFamily: 'var(--font-display)',
+        color: isEmpty ? 'var(--text-3)' : KPI_TONES[tone],
+        fontVariantNumeric: 'tabular-nums',
+      }}>
         {value}
       </p>
     </div>
@@ -142,18 +165,25 @@ function RequestCard({ request, onDecide }: { request: ApprovalRequest; onDecide
           </div>
         </div>
 
-        {/* Progress bar */}
-        <div style={{ display: 'flex', gap: 3, alignItems: 'center', marginBottom: request.isMyTurn || !request.isMyTurn ? 12 : 0 }}>
+        {/* Progression par étape — `marginBottom` était `a || !a ? 12 : 0`, soit
+            toujours 12 : la condition ne décidait rien. */}
+        <div style={{ display: 'flex', gap: 3, alignItems: 'center', marginBottom: 12 }}>
           {request.workflow.steps.map((step) => {
             const isDone   = step.order < request.currentStep || request.status === 'approved'
             const isActive = step.order === request.currentStep && request.status === 'pending'
+            // Une demande close relève de l'historique, pas de l'alerte : son vert est
+            // désaturé. La couleur pleine reste à l'étape EN COURS, la seule qui
+            // appelle une décision.
+            const isResolved = request.status !== 'pending'
             return (
               <div
                 key={step.order}
                 title={step.name}
                 style={{
                   flex: 1, height: 4, borderRadius: 2,
-                  background: isDone ? '#16a34a' : isActive ? 'var(--primary)' : 'var(--border)',
+                  background: isDone
+                    ? (isResolved ? 'rgba(22,163,74,0.35)' : '#16a34a')
+                    : isActive ? 'var(--primary)' : 'var(--border)',
                   transition: 'background 0.2s',
                 }}
               />
@@ -298,10 +328,10 @@ export default function ApprovalsPage() {
       {/* KPIs */}
       {!isLoading && !isError && (
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <KpiCard label="Total"       value={counts.total}    color="var(--text-1)"   bg="var(--surface)"              borderColor="var(--border)" />
-          <KpiCard label="En attente"  value={counts.pending}  color="#d97706"          bg="rgba(217,119,6,0.04)"        borderColor="#d97706" />
-          <KpiCard label="Approuvées"  value={counts.approved} color="#16a34a"          bg="rgba(22,163,74,0.04)"        borderColor="#16a34a" />
-          <KpiCard label="Rejetées"    value={counts.rejected} color="#dc2626"          bg="rgba(220,38,38,0.04)"        borderColor="#dc2626" />
+          <KpiCard label="Total"      value={counts.total} />
+          <KpiCard label="En attente" value={counts.pending}  tone="pending" />
+          <KpiCard label="Approuvées" value={counts.approved} tone="approved" />
+          <KpiCard label="Rejetées"   value={counts.rejected} tone="rejected" />
         </div>
       )}
 
