@@ -36,6 +36,11 @@ export class BankImportProcessor extends WorkerHost {
 
     const BATCH_SIZE = 100;
     let totalImported = 0;
+    // Le delta de solde ne doit porter QUE sur les lignes réellement créées.
+    // Le calculer sur `lines` (doublons compris) faisait dériver le solde à chaque
+    // réimport d'un relevé qui se chevauche : les doublons sont écartés de la
+    // création mais étaient quand même comptés dans le solde.
+    let balanceDelta = 0;
 
     try {
       for (let i = 0; i < lines.length; i += BATCH_SIZE) {
@@ -71,18 +76,19 @@ export class BankImportProcessor extends WorkerHost {
             skipDuplicates: true,
           });
           totalImported += result.count;
+          balanceDelta  += toCreate.reduce(
+            (acc, l) => acc + (l.type === 'credit' ? l.amount : -l.amount), 0,
+          );
         }
 
         const progress = Math.round(((i + BATCH_SIZE) / lines.length) * 100);
         await job.updateProgress(Math.min(progress, 99));
       }
 
-      const delta = lines.reduce((acc, l) => acc + (l.type === 'credit' ? l.amount : -l.amount), 0);
-
       await this.prisma.$transaction([
         this.prisma.bankAccount.update({
           where: { id: bankAccountId },
-          data:  { currentBalance: { increment: delta } },
+          data:  { currentBalance: { increment: balanceDelta } },
         }),
         this.prisma.bankStatementImport.update({
           where: { id: importId },

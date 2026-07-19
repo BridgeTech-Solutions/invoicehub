@@ -342,6 +342,41 @@ const queueMock = {
       await expect(service.confirmImport(p.importId, userId)).rejects.toThrow(/déjà été traité/i);
     });
 
+    // Régression : au-delà de 200 lignes, confirmImport bascule sur la file BullMQ.
+    // Les Date de `previewData` reviennent de JSONB en chaînes ISO, et l'appel à
+    // `.toISOString()` plantait — aucun relevé de plus de 200 lignes n'était importable.
+    it('bascule sur la file au-delà de 200 lignes, avec des dates ISO valides', async () => {
+      const acc = await makeAccount(0);
+
+      let bigCsv = 'Date;Libellé;Débit;Crédit\n';
+      for (let i = 1; i <= 250; i++) {
+        const day = String((i % 28) + 1).padStart(2, '0');
+        bigCsv += `${day}/03/2026;OPERATION NUMERO ${i};;${1000 + i}\n`;
+      }
+
+      const preview = await service.previewImport(Buffer.from(bigCsv, 'utf-8'), acc.id, 'gros-releve.csv');
+      createdImportIds.push(preview.importId);
+      expect(preview.rows).toHaveLength(250);
+
+      queueMock.add.mockClear();
+      const confirmed = await service.confirmImport(preview.importId, userId);
+
+      expect(confirmed.status).toBe('processing');
+      expect(confirmed.jobId).toBeDefined();
+      expect(queueMock.add).toHaveBeenCalledTimes(1);
+
+      // Le worker attend des chaînes ISO exploitables par `new Date(...)`
+      const payload = (queueMock.add.mock.calls[0] as any[])[1];
+      expect(payload.lines).toHaveLength(250);
+      const first = payload.lines[0];
+      expect(typeof first.transactionDate).toBe('string');
+      expect(Number.isNaN(new Date(first.transactionDate).getTime())).toBe(false);
+      expect(first.transactionDate).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+      const rec = await prisma.bankStatementImport.findUniqueOrThrow({ where: { id: preview.importId } });
+      expect(rec.status).toBe('processing');
+    });
+
     it('rollback d’un import encore en attente supprime simplement le brouillon', async () => {
       const acc = await makeAccount(0);
       const p = await service.previewImport(Buffer.from(CSV, 'utf-8'), acc.id, 'releve.csv');

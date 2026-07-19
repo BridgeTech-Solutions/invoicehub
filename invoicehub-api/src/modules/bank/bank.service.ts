@@ -909,6 +909,13 @@ export class BankService {
     const transactions = preview.sampleTransactions.filter(t => !hashSet.has(t.contentHash));
     const nbDuplicates = preview.duplicateRows;
 
+    // `previewData` transite par une colonne JSONB : les Date en reviennent sous
+    // forme de chaînes ISO. Sans cette re-normalisation, la branche asynchrone
+    // (> 200 lignes) plantait sur `t.transactionDate.toISOString is not a function`,
+    // rendant tout relevé de plus de 200 lignes impossible à importer.
+    const asDate = (v: Date | string | null | undefined): Date | undefined =>
+      v == null ? undefined : (v instanceof Date ? v : new Date(v));
+
     if (transactions.length === 0) {
       await this.prisma.bankStatementImport.update({
         where: { id: importId },
@@ -921,8 +928,8 @@ export class BankService {
     if (transactions.length > 200) {
       const lines = transactions.map(t => ({
         bankAccountId:   importRecord.bankAccountId,
-        transactionDate: t.transactionDate.toISOString(),
-        valueDate:       t.valueDate?.toISOString(),
+        transactionDate: asDate(t.transactionDate)!.toISOString(),
+        valueDate:       asDate(t.valueDate)?.toISOString(),
         label: t.label, amount: t.amount, type: t.type,
         reference: t.reference, balanceAfter: t.balanceAfter,
         contentHash: t.contentHash, source: 'csv_import', importId, createdById: userId,
@@ -945,8 +952,8 @@ export class BankService {
       const created = await tx.bankTransaction.createMany({
         data: transactions.map(t => ({
           bankAccountId:   importRecord.bankAccountId,
-          transactionDate: t.transactionDate,
-          valueDate:       t.valueDate ?? undefined,
+          transactionDate: asDate(t.transactionDate)!,
+          valueDate:       asDate(t.valueDate),
           label:           t.label,
           amount:          t.amount,
           type:            t.type,
