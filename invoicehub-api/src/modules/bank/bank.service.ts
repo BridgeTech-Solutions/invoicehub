@@ -1039,7 +1039,13 @@ export class BankService {
       where: { bankAccountId: r.bankAccountId, reconciliationStatus: 'pending',
                transactionDate: { gte: r.periodStart, lte: r.periodEnd } },
     });
-    if (pendingTxns.length === 0) return { applied: 0, suggestions: [] };
+    // Forme de réponse STABLE sur tous les chemins de sortie. Les sorties anticipées
+    // renvoyaient `{ applied, suggestions }` — une clé qui n'existe nulle part
+    // ailleurs — au lieu de `{ applied, skipped, high, medium }`. Le client recevait
+    // donc un objet aux champs absents selon qu'il y avait ou non des candidats.
+    const emptyResult = () => ({ applied: 0, skipped: [], high: [], medium: [] });
+
+    if (pendingTxns.length === 0) return emptyResult();
 
     const [payments, supplierPayments, expenses] = await Promise.all([
       this.prisma.payment.findMany({ where: { deletedAt: null, bankTransactionId: null, paymentDate: { gte: r.periodStart, lte: r.periodEnd } }, take: 100 }),
@@ -1053,7 +1059,7 @@ export class BankService {
       ...supplierPayments.map(s => ({ entityType: 'supplier_payment', entityId: s.id, amount: Number(s.amount),   date: s.paymentDate, label: '' })),
       ...expenses.map(e         => ({ entityType: 'expense',          entityId: e.id, amount: Number(e.amountTtc), date: e.expenseDate, label: e.title })),
     ];
-    if (candidates.length === 0) return { applied: 0, suggestions: [] };
+    if (candidates.length === 0) return emptyResult();
 
     const costMatrix = pendingTxns.map(tx =>
       candidates.map(c => {

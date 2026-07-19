@@ -11,6 +11,7 @@ import { useReconciliations, useOpenReconciliation, useBankAccounts } from '@/fe
 import type { BankReconciliation, OpenReconciliationPayload } from '@/features/bank/types'
 import { formatDate } from '@/lib/utils'
 import { ROUTES } from '@/lib/constants'
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
 
 const STATUS_CONFIG = {
   in_progress: { label: 'En cours',  color: '#3b82f6', bg: '#dbeafe' },
@@ -56,61 +57,63 @@ function NewSessionModal({ onClose, accounts }: { onClose: () => void; accounts:
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(10,20,35,0.5)', backdropFilter: 'blur(2px)' }} aria-hidden />
-      <div style={{ position: 'relative', background: 'var(--surface)', borderRadius: 'var(--radius-xl)', border: '1.5px solid var(--border)', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', width: '100%', maxWidth: 460, padding: '28px 28px 24px', zIndex: 1 }}>
-        <div style={{ height: 3, background: 'linear-gradient(90deg,#0f2d4a 0%,#2D7DD2 100%)', borderRadius: '99px 99px 0 0', position: 'absolute', top: 0, left: 0, right: 0 }} />
-        <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: '0 0 20px' }}>
-          Nouvelle session de rapprochement
-        </h3>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <label htmlFor={idAccount} style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)' }}>
-              Compte <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <select id={idAccount} required value={form.bankAccountId}
-              onChange={e => setForm(f => ({ ...f, bankAccountId: e.target.value }))}
-              style={{ ...INPUT_STYLE, cursor: 'pointer' }}>
-              {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+    <OverlayPortal>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(10,20,35,0.5)', backdropFilter: 'blur(2px)' }} aria-hidden />
+        <div style={{ position: 'relative', background: 'var(--surface)', borderRadius: 'var(--radius-xl)', border: '1.5px solid var(--border)', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', width: '100%', maxWidth: 460, padding: '28px 28px 24px', zIndex: 1 }}>
+          <div style={{ height: 3, background: 'linear-gradient(90deg,#0f2d4a 0%,#2D7DD2 100%)', borderRadius: '99px 99px 0 0', position: 'absolute', top: 0, left: 0, right: 0 }} />
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: '0 0 20px' }}>
+            Nouvelle session de rapprochement
+          </h3>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <label htmlFor={idStart} style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)' }}>
-                Début <span style={{ color: '#ef4444' }}>*</span>
+              <label htmlFor={idAccount} style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)' }}>
+                Compte <span style={{ color: '#ef4444' }}>*</span>
               </label>
-              <input id={idStart} type="date" required value={form.periodStart}
-                onChange={e => setForm(f => ({ ...f, periodStart: e.target.value }))} style={INPUT_STYLE} />
+              <select id={idAccount} required value={form.bankAccountId}
+                onChange={e => setForm(f => ({ ...f, bankAccountId: e.target.value }))}
+                style={{ ...INPUT_STYLE, cursor: 'pointer' }}>
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <label htmlFor={idStart} style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)' }}>
+                  Début <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input id={idStart} type="date" required value={form.periodStart}
+                  onChange={e => setForm(f => ({ ...f, periodStart: e.target.value }))} style={INPUT_STYLE} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <label htmlFor={idEnd} style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)' }}>
+                  Fin <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input id={idEnd} type="date" required value={form.periodEnd}
+                  onChange={e => setForm(f => ({ ...f, periodEnd: e.target.value }))} style={INPUT_STYLE} />
+              </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <label htmlFor={idEnd} style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)' }}>
-                Fin <span style={{ color: '#ef4444' }}>*</span>
+              <label htmlFor={idBalance} style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)' }}>
+                Solde de clôture du relevé (XAF) <span style={{ color: '#ef4444' }}>*</span>
               </label>
-              <input id={idEnd} type="date" required value={form.periodEnd}
-                onChange={e => setForm(f => ({ ...f, periodEnd: e.target.value }))} style={INPUT_STYLE} />
+              <input id={idBalance} type="number" step="1" required value={form.openingBalance || ''}
+                onChange={e => setForm(f => ({ ...f, openingBalance: parseFloat(e.target.value) || 0 }))}
+                placeholder="ex: 2 450 000"
+                style={{ ...INPUT_STYLE, fontFamily: 'var(--font-mono)' }} />
             </div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <label htmlFor={idBalance} style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)' }}>
-              Solde de clôture du relevé (XAF) <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <input id={idBalance} type="number" step="1" required value={form.openingBalance || ''}
-              onChange={e => setForm(f => ({ ...f, openingBalance: parseFloat(e.target.value) || 0 }))}
-              placeholder="ex: 2 450 000"
-              style={{ ...INPUT_STYLE, fontFamily: 'var(--font-mono)' }} />
-          </div>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
-            <button type="button" onClick={onClose} style={{ padding: '9px 18px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 500, cursor: 'pointer' }}>
-              Annuler
-            </button>
-            <button type="submit" disabled={openMutation.isPending} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 20px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: openMutation.isPending ? 'wait' : 'pointer', opacity: openMutation.isPending ? 0.75 : 1, boxShadow: '0 4px 12px rgba(45,125,210,0.25)' }}>
-              {openMutation.isPending && <Loader2 size={13} style={{ animation: 'spin 0.8s linear infinite' }} />}
-              Ouvrir la session
-            </button>
-          </div>
-        </form>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+              <button type="button" onClick={onClose} style={{ padding: '9px 18px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 500, cursor: 'pointer' }}>
+                Annuler
+              </button>
+              <button type="submit" disabled={openMutation.isPending} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 20px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: openMutation.isPending ? 'wait' : 'pointer', opacity: openMutation.isPending ? 0.75 : 1, boxShadow: '0 4px 12px rgba(45,125,210,0.25)' }}>
+                {openMutation.isPending && <Loader2 size={13} style={{ animation: 'spin 0.8s linear infinite' }} />}
+                Ouvrir la session
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+    </OverlayPortal>
   )
 }
 

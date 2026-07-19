@@ -12,6 +12,7 @@ import { useMatchingRules, useCreateMatchingRule, useUpdateMatchingRule, useDele
 import type { BankMatchingRule, CreateMatchingRulePayload, MatchedEntityType } from '@/features/bank/types'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
 
 const ENTITY_TYPE_LABEL: Record<MatchedEntityType, string> = {
   payment:          'Paiement client',
@@ -102,7 +103,7 @@ function RuleDrawer({ rule, accounts, onClose }: {
   }
 
   return (
-    <>
+    <OverlayPortal>
       <div onClick={handleClose} aria-hidden style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(10,20,35,0.45)', backdropFilter: 'blur(2px)', opacity: isVisible ? 1 : 0, transition: 'opacity 0.28s' }} />
       <div role="dialog" aria-modal aria-labelledby={titleId} style={{ position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 301, width: '100%', maxWidth: 460, background: 'var(--surface)', display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 40px rgba(10,20,35,0.18)', borderLeft: '1px solid var(--border)', transform: isVisible ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.30s cubic-bezier(0.4,0,0.2,1)' }}>
         <div style={{ height: 3, background: 'linear-gradient(90deg,#0f2d4a 0%,#2D7DD2 100%)' }} />
@@ -195,7 +196,7 @@ function RuleDrawer({ rule, accounts, onClose }: {
           </button>
         </div>
       </div>
-    </>
+    </OverlayPortal>
   )
 }
 

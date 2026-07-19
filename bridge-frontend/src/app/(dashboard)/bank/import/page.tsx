@@ -25,6 +25,7 @@ import type {
 import { ROUTES } from '@/lib/constants'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
 
 type Step = 1 | 2 | 3
 
@@ -584,29 +585,31 @@ function ConfirmModal({ title, message, confirmLabel, onConfirm, onCancel, isPen
   useEffect(() => { btnRef.current?.focus() }, [])
 
   return (
-    <div
-      role="dialog" aria-modal="true" aria-labelledby={titleId}
-      style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-    >
-      <div onClick={onCancel} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)' }} />
-      <div className="card" style={{ position: 'relative', width: '100%', maxWidth: 420, padding: '28px 28px 24px', zIndex: 1 }}>
-        <h2 id={titleId} style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: '0 0 10px' }}>
-          {title}
-        </h2>
-        <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: '0 0 24px', lineHeight: 1.55 }}>{message}</p>
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button type="button" onClick={onCancel} disabled={isPending}
-            style={{ padding: '8px 18px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 500, cursor: 'pointer' }}>
-            Annuler
-          </button>
-          <button ref={btnRef} type="button" onClick={onConfirm} disabled={isPending}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 'var(--radius-md)', background: '#dc2626', color: '#fff', border: 'none', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: isPending ? 'wait' : 'pointer', opacity: isPending ? 0.75 : 1 }}>
-            {isPending ? <Loader2 size={13} style={{ animation: 'spin 0.8s linear infinite' }} /> : null}
-            {confirmLabel}
-          </button>
+    <OverlayPortal>
+      <div
+        role="dialog" aria-modal="true" aria-labelledby={titleId}
+        style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        <div onClick={onCancel} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)' }} />
+        <div className="card" style={{ position: 'relative', width: '100%', maxWidth: 420, padding: '28px 28px 24px', zIndex: 1 }}>
+          <h2 id={titleId} style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: '0 0 10px' }}>
+            {title}
+          </h2>
+          <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: '0 0 24px', lineHeight: 1.55 }}>{message}</p>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button type="button" onClick={onCancel} disabled={isPending}
+              style={{ padding: '8px 18px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 500, cursor: 'pointer' }}>
+              Annuler
+            </button>
+            <button ref={btnRef} type="button" onClick={onConfirm} disabled={isPending}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 'var(--radius-md)', background: '#dc2626', color: '#fff', border: 'none', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: isPending ? 'wait' : 'pointer', opacity: isPending ? 0.75 : 1 }}>
+              {isPending ? <Loader2 size={13} style={{ animation: 'spin 0.8s linear infinite' }} /> : null}
+              {confirmLabel}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </OverlayPortal>
   )
 }
 

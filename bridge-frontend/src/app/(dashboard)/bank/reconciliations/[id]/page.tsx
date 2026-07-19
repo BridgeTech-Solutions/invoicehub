@@ -22,6 +22,7 @@ import type { BankTransaction, MatchingSuggestion, MatchedEntityType } from '@/f
 import { formatDate } from '@/lib/utils'
 import { ROUTES } from '@/lib/constants'
 import { toast } from 'sonner'
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
 
 // ─── Balance bar ────────────────────────────────────────────────────────────
 
@@ -190,125 +191,127 @@ function AutoMatchModal({
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(10,20,35,0.55)', backdropFilter: 'blur(3px)' }} aria-hidden />
-      <div style={{
-        position: 'relative', zIndex: 1,
-        background: 'var(--surface)',
-        borderRadius: 'var(--radius-xl)',
-        border: '1.5px solid var(--border)',
-        boxShadow: '0 24px 64px rgba(0,0,0,0.22)',
-        width: '100%', maxWidth: 420,
-        overflow: 'hidden',
-      }}>
-        {/* Gradient stripe */}
-        <div style={{ height: 3, background: 'linear-gradient(90deg,#0f2d4a 0%,#9333ea 50%,#2D7DD2 100%)' }} />
+    <OverlayPortal>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(10,20,35,0.55)', backdropFilter: 'blur(3px)' }} aria-hidden />
+        <div style={{
+          position: 'relative', zIndex: 1,
+          background: 'var(--surface)',
+          borderRadius: 'var(--radius-xl)',
+          border: '1.5px solid var(--border)',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.22)',
+          width: '100%', maxWidth: 420,
+          overflow: 'hidden',
+        }}>
+          {/* Gradient stripe */}
+          <div style={{ height: 3, background: 'linear-gradient(90deg,#0f2d4a 0%,#9333ea 50%,#2D7DD2 100%)' }} />
 
-        <div style={{ padding: '24px 28px 20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: '#f3e8ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Zap size={20} style={{ color: '#9333ea' }} strokeWidth={1.8} />
+          <div style={{ padding: '24px 28px 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: '#f3e8ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Zap size={20} style={{ color: '#9333ea' }} strokeWidth={1.8} />
+              </div>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0 }}>
+                Auto-matching intelligent
+              </h3>
             </div>
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0 }}>
-              Auto-matching intelligent
-            </h3>
-          </div>
 
-          {!applied ? (
-            <>
-              <p style={{ fontSize: 13.5, color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 20 }}>
-                L'algorithme analyse les montants, dates et libellés pour détecter automatiquement les correspondances.
-              </p>
-
-              {/* Règle de décision — deux paliers, énoncés tels qu'appliqués par le serveur */}
-              <div style={{
-                borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)',
-                overflow: 'hidden', marginBottom: 16,
-              }}>
-                <ConfidenceTier
-                  range="≥ 90 %"
-                  accent="#16a34a"
-                  title="Rapprochées automatiquement"
-                  detail="Montant exact, même date, libellé concordant."
-                />
-                <div style={{ height: 1, background: 'var(--border)' }} />
-                <ConfidenceTier
-                  range="70–89 %"
-                  accent="#d97706"
-                  title="Proposées, à confirmer"
-                  detail="Trop ambigu pour être écrit sans relecture. Vous validez au cas par cas."
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                <button type="button" onClick={onClose}
-                  style={{ padding: '9px 18px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 500, cursor: 'pointer' }}>
-                  Annuler
-                </button>
-                <button type="button" onClick={handleApply} disabled={autoMatch.isPending}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 20px', borderRadius: 'var(--radius-md)', background: '#9333ea', color: '#fff', border: 'none', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: autoMatch.isPending ? 'wait' : 'pointer', opacity: autoMatch.isPending ? 0.8 : 1, boxShadow: '0 4px 12px rgba(147,51,234,0.3)', transition: 'opacity 0.15s' }}>
-                  {autoMatch.isPending ? <Loader2 size={14} style={{ animation: 'spin 0.8s linear infinite' }} /> : <Zap size={14} />}
-                  {autoMatch.isPending ? 'Traitement…' : 'Lancer l\'auto-matching'}
-                </button>
-              </div>
-            </>
-          ) : result ? (
-            <div style={{ padding: '4px 0 4px' }}>
-              <div style={{ textAlign: 'center', marginBottom: 18 }}>
-                <div style={{
-                  width: 52, height: 52, borderRadius: '50%',
-                  background: result.applied > 0 ? '#dcfce7' : 'var(--surface-2)',
-                  border: `2px solid ${result.applied > 0 ? '#86efac' : 'var(--border)'}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
-                }}>
-                  <CheckCircle2 size={26} style={{ color: result.applied > 0 ? '#16a34a' : 'var(--text-3)' }} />
-                </div>
-                <div style={{ fontSize: 26, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-1)', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
-                  {result.applied}
-                </div>
-                <div style={{ fontSize: 13.5, color: 'var(--text-2)', marginTop: 2 }}>
-                  mouvement{result.applied !== 1 ? 's' : ''} rapproché{result.applied !== 1 ? 's' : ''}
-                </div>
-              </div>
-
-              {/* Ce qui reste à faire — jamais masqué : sans ça, l'écran laisserait
-                  croire que le rapprochement est terminé. */}
-              {(result.pending > 0 || result.conflicts > 0) && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
-                  {result.pending > 0 && (
-                    <ResultRow
-                      icon={<AlertTriangle size={14} style={{ color: '#d97706' }} />}
-                      bg="#fffbeb" border="#fde68a" color="#92400e"
-                      text={`${result.pending} correspondance${result.pending > 1 ? 's' : ''} à 70–89 % attend${result.pending > 1 ? 'ent' : ''} votre confirmation, dans la liste ci-dessous.`}
-                    />
-                  )}
-                  {result.conflicts > 0 && (
-                    <ResultRow
-                      icon={<AlertTriangle size={14} style={{ color: '#dc2626' }} />}
-                      bg="#fef2f2" border="#fecaca" color="#991b1b"
-                      text={`${result.conflicts} écartée${result.conflicts > 1 ? 's' : ''} : la contrepartie est déjà rapprochée d'un autre mouvement.`}
-                    />
-                  )}
-                </div>
-              )}
-
-              {result.applied === 0 && result.pending === 0 && result.conflicts === 0 && (
-                <p style={{ fontSize: 13, color: 'var(--text-3)', lineHeight: 1.6, textAlign: 'center', marginBottom: 18 }}>
-                  Aucune correspondance trouvée sur cette période. Rapprochez les mouvements à la main, ou vérifiez que les paiements correspondants ont bien été saisis.
+            {!applied ? (
+              <>
+                <p style={{ fontSize: 13.5, color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 20 }}>
+                  L'algorithme analyse les montants, dates et libellés pour détecter automatiquement les correspondances.
                 </p>
-              )}
 
-              <div style={{ textAlign: 'center' }}>
-                <button type="button" onClick={onClose}
-                  style={{ padding: '10px 24px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 12px rgba(45,125,210,0.25)' }}>
-                  Continuer le rapprochement
-                </button>
+                {/* Règle de décision — deux paliers, énoncés tels qu'appliqués par le serveur */}
+                <div style={{
+                  borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)',
+                  overflow: 'hidden', marginBottom: 16,
+                }}>
+                  <ConfidenceTier
+                    range="≥ 90 %"
+                    accent="#16a34a"
+                    title="Rapprochées automatiquement"
+                    detail="Montant exact, même date, libellé concordant."
+                  />
+                  <div style={{ height: 1, background: 'var(--border)' }} />
+                  <ConfidenceTier
+                    range="70–89 %"
+                    accent="#d97706"
+                    title="Proposées, à confirmer"
+                    detail="Trop ambigu pour être écrit sans relecture. Vous validez au cas par cas."
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                  <button type="button" onClick={onClose}
+                    style={{ padding: '9px 18px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 500, cursor: 'pointer' }}>
+                    Annuler
+                  </button>
+                  <button type="button" onClick={handleApply} disabled={autoMatch.isPending}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 20px', borderRadius: 'var(--radius-md)', background: '#9333ea', color: '#fff', border: 'none', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: autoMatch.isPending ? 'wait' : 'pointer', opacity: autoMatch.isPending ? 0.8 : 1, boxShadow: '0 4px 12px rgba(147,51,234,0.3)', transition: 'opacity 0.15s' }}>
+                    {autoMatch.isPending ? <Loader2 size={14} style={{ animation: 'spin 0.8s linear infinite' }} /> : <Zap size={14} />}
+                    {autoMatch.isPending ? 'Traitement…' : 'Lancer l\'auto-matching'}
+                  </button>
+                </div>
+              </>
+            ) : result ? (
+              <div style={{ padding: '4px 0 4px' }}>
+                <div style={{ textAlign: 'center', marginBottom: 18 }}>
+                  <div style={{
+                    width: 52, height: 52, borderRadius: '50%',
+                    background: result.applied > 0 ? '#dcfce7' : 'var(--surface-2)',
+                    border: `2px solid ${result.applied > 0 ? '#86efac' : 'var(--border)'}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
+                  }}>
+                    <CheckCircle2 size={26} style={{ color: result.applied > 0 ? '#16a34a' : 'var(--text-3)' }} />
+                  </div>
+                  <div style={{ fontSize: 26, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-1)', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
+                    {result.applied}
+                  </div>
+                  <div style={{ fontSize: 13.5, color: 'var(--text-2)', marginTop: 2 }}>
+                    mouvement{result.applied !== 1 ? 's' : ''} rapproché{result.applied !== 1 ? 's' : ''}
+                  </div>
+                </div>
+
+                {/* Ce qui reste à faire — jamais masqué : sans ça, l'écran laisserait
+                    croire que le rapprochement est terminé. */}
+                {(result.pending > 0 || result.conflicts > 0) && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
+                    {result.pending > 0 && (
+                      <ResultRow
+                        icon={<AlertTriangle size={14} style={{ color: '#d97706' }} />}
+                        bg="#fffbeb" border="#fde68a" color="#92400e"
+                        text={`${result.pending} correspondance${result.pending > 1 ? 's' : ''} à 70–89 % attend${result.pending > 1 ? 'ent' : ''} votre confirmation, dans la liste ci-dessous.`}
+                      />
+                    )}
+                    {result.conflicts > 0 && (
+                      <ResultRow
+                        icon={<AlertTriangle size={14} style={{ color: '#dc2626' }} />}
+                        bg="#fef2f2" border="#fecaca" color="#991b1b"
+                        text={`${result.conflicts} écartée${result.conflicts > 1 ? 's' : ''} : la contrepartie est déjà rapprochée d'un autre mouvement.`}
+                      />
+                    )}
+                  </div>
+                )}
+
+                {result.applied === 0 && result.pending === 0 && result.conflicts === 0 && (
+                  <p style={{ fontSize: 13, color: 'var(--text-3)', lineHeight: 1.6, textAlign: 'center', marginBottom: 18 }}>
+                    Aucune correspondance trouvée sur cette période. Rapprochez les mouvements à la main, ou vérifiez que les paiements correspondants ont bien été saisis.
+                  </p>
+                )}
+
+                <div style={{ textAlign: 'center' }}>
+                  <button type="button" onClick={onClose}
+                    style={{ padding: '10px 24px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 12px rgba(45,125,210,0.25)' }}>
+                    Continuer le rapprochement
+                  </button>
+                </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
       </div>
-    </div>
+    </OverlayPortal>
   )
 }
 
@@ -681,47 +684,49 @@ function CompleteModal({
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(10,20,35,0.55)', backdropFilter: 'blur(3px)' }} aria-hidden />
-      <div style={{ position: 'relative', zIndex: 1, background: 'var(--surface)', borderRadius: 'var(--radius-xl)', border: '1.5px solid var(--border)', boxShadow: '0 24px 64px rgba(0,0,0,0.22)', width: '100%', maxWidth: 400, overflow: 'hidden' }}>
-        <div style={{ height: 3, background: isOk ? 'linear-gradient(90deg,#16a34a,#22c55e)' : 'linear-gradient(90deg,#dc2626,#f87171)' }} />
-        <div style={{ padding: '24px 28px 20px', textAlign: 'center' }}>
-          <div style={{ width: 56, height: 56, borderRadius: '50%', background: isOk ? '#dcfce7' : '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-            {isOk
-              ? <CheckCircle2 size={28} style={{ color: '#16a34a' }} />
-              : <AlertTriangle size={28} style={{ color: '#dc2626' }} />}
-          </div>
-          <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: '0 0 10px' }}>
-            {isOk ? 'Clôturer le rapprochement ?' : 'Écart non résolu'}
-          </h3>
-          {!isOk && (
-            <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: '#fee2e2', marginBottom: 16 }}>
-              <span style={{ fontSize: 13.5, fontWeight: 600, color: '#dc2626', fontFamily: 'var(--font-mono)' }}>
-                Écart de {Math.abs(diff).toLocaleString('fr-FR')} XAF non résolu.
-              </span>
-              <div style={{ fontSize: 12, color: '#b91c1c', marginTop: 4 }}>
-                Il est recommandé de résoudre l'écart avant de clôturer.
-              </div>
+    <OverlayPortal>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(10,20,35,0.55)', backdropFilter: 'blur(3px)' }} aria-hidden />
+        <div style={{ position: 'relative', zIndex: 1, background: 'var(--surface)', borderRadius: 'var(--radius-xl)', border: '1.5px solid var(--border)', boxShadow: '0 24px 64px rgba(0,0,0,0.22)', width: '100%', maxWidth: 400, overflow: 'hidden' }}>
+          <div style={{ height: 3, background: isOk ? 'linear-gradient(90deg,#16a34a,#22c55e)' : 'linear-gradient(90deg,#dc2626,#f87171)' }} />
+          <div style={{ padding: '24px 28px 20px', textAlign: 'center' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: isOk ? '#dcfce7' : '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              {isOk
+                ? <CheckCircle2 size={28} style={{ color: '#16a34a' }} />
+                : <AlertTriangle size={28} style={{ color: '#dc2626' }} />}
             </div>
-          )}
-          <p style={{ fontSize: 13, color: 'var(--text-3)', lineHeight: 1.6, marginBottom: 20 }}>
-            {isOk
-              ? 'Cette session sera marquée comme terminée. Les transactions rapprochées ne pourront plus être modifiées.'
-              : 'Vous pouvez quand même clôturer avec un écart. Cela sera consigné dans le rapport.'}
-          </p>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-            <button type="button" onClick={onClose} style={{ padding: '9px 18px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 500, cursor: 'pointer' }}>
-              Continuer
-            </button>
-            <button type="button" onClick={handleComplete} disabled={complete.isPending}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 20px', borderRadius: 'var(--radius-md)', background: isOk ? '#16a34a' : '#dc2626', color: '#fff', border: 'none', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: complete.isPending ? 'wait' : 'pointer', opacity: complete.isPending ? 0.8 : 1, boxShadow: `0 4px 12px ${isOk ? 'rgba(22,163,74,0.3)' : 'rgba(220,38,38,0.3)'}` }}>
-              {complete.isPending && <Loader2 size={14} style={{ animation: 'spin 0.8s linear infinite' }} />}
-              {isOk ? 'Clôturer' : 'Clôturer quand même'}
-            </button>
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: '0 0 10px' }}>
+              {isOk ? 'Clôturer le rapprochement ?' : 'Écart non résolu'}
+            </h3>
+            {!isOk && (
+              <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: '#fee2e2', marginBottom: 16 }}>
+                <span style={{ fontSize: 13.5, fontWeight: 600, color: '#dc2626', fontFamily: 'var(--font-mono)' }}>
+                  Écart de {Math.abs(diff).toLocaleString('fr-FR')} XAF non résolu.
+                </span>
+                <div style={{ fontSize: 12, color: '#b91c1c', marginTop: 4 }}>
+                  Il est recommandé de résoudre l'écart avant de clôturer.
+                </div>
+              </div>
+            )}
+            <p style={{ fontSize: 13, color: 'var(--text-3)', lineHeight: 1.6, marginBottom: 20 }}>
+              {isOk
+                ? 'Cette session sera marquée comme terminée. Les transactions rapprochées ne pourront plus être modifiées.'
+                : 'Vous pouvez quand même clôturer avec un écart. Cela sera consigné dans le rapport.'}
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button type="button" onClick={onClose} style={{ padding: '9px 18px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 500, cursor: 'pointer' }}>
+                Continuer
+              </button>
+              <button type="button" onClick={handleComplete} disabled={complete.isPending}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 20px', borderRadius: 'var(--radius-md)', background: isOk ? '#16a34a' : '#dc2626', color: '#fff', border: 'none', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, cursor: complete.isPending ? 'wait' : 'pointer', opacity: complete.isPending ? 0.8 : 1, boxShadow: `0 4px 12px ${isOk ? 'rgba(22,163,74,0.3)' : 'rgba(220,38,38,0.3)'}` }}>
+                {complete.isPending && <Loader2 size={14} style={{ animation: 'spin 0.8s linear infinite' }} />}
+                {isOk ? 'Clôturer' : 'Clôturer quand même'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </OverlayPortal>
   )
 }
 

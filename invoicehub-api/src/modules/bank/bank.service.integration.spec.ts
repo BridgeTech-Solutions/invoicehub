@@ -470,6 +470,52 @@ const queueMock = {
     });
   });
 
+  // ── Auto-rapprochement ────────────────────────────────────────────────────
+
+  describe('auto-rapprochement', () => {
+    const SHAPE = ['applied', 'skipped', 'high', 'medium'];
+
+    // Régression : les sorties anticipées renvoyaient `{ applied, suggestions }`,
+    // une forme différente du chemin nominal, avec une clé inexistante ailleurs.
+    // Le client recevait des champs absents selon qu'il y avait ou non des
+    // candidats — invisible au typecheck comme aux tests unitaires, trouvé en
+    // pilotant l'interface.
+    it('renvoie la même forme sans aucun mouvement en attente', async () => {
+      const acc = await makeAccount(0);
+      const rec = await service.openReconciliation({
+        bankAccountId: acc.id, periodStart: d('2026-09-01'), periodEnd: d('2026-09-30'),
+        openingBalance: 0,
+      } as any, userId);
+
+      const res = await service.getAutoMatchBatch(rec.id, userId);
+      expect(Object.keys(res).sort()).toEqual([...SHAPE].sort());
+      expect(res.applied).toBe(0);
+      expect(res.high).toEqual([]);
+      expect(res.medium).toEqual([]);
+      expect(res.skipped).toEqual([]);
+    });
+
+    it('renvoie la même forme quand aucune contrepartie n’est candidate', async () => {
+      const acc = await makeAccount(0);
+      await service.createTransaction({
+        bankAccountId: acc.id, transactionDate: d('2026-09-10'),
+        label: 'MOUVEMENT SANS CONTREPARTIE', amount: 12_345, type: 'credit',
+      } as any);
+
+      const rec = await service.openReconciliation({
+        bankAccountId: acc.id, periodStart: d('2026-09-01'), periodEnd: d('2026-09-30'),
+        openingBalance: 0,
+      } as any, userId);
+
+      const res = await service.getAutoMatchBatch(rec.id, userId);
+      expect(Object.keys(res).sort()).toEqual([...SHAPE].sort());
+      expect(res.applied).toBe(0);
+      // Les champs sont des tableaux, jamais `undefined` : le client itère dessus.
+      expect(Array.isArray(res.medium)).toBe(true);
+      expect(Array.isArray(res.skipped)).toBe(true);
+    });
+  });
+
   // ── Résumé ────────────────────────────────────────────────────────────────
 
   describe('résumé', () => {
