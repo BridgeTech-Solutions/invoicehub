@@ -820,26 +820,31 @@ export function InvoiceForm({ invoice, defaultClientId, defaultType, defaultProf
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 0, borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid rgba(8,145,178,0.2)' }}>
                       {allLinked.map((inv, idx) => (
                         <div key={inv.id} style={{
-                          display: 'grid', gridTemplateColumns: '1fr auto auto',
-                          gap: 8, alignItems: 'center',
+                          display: 'flex', flexDirection: 'column', gap: 4,
                           padding: '9px 12px',
                           background: idx % 2 === 0 ? 'rgba(8,145,178,0.03)' : 'transparent',
                           borderBottom: idx < allLinked.length - 1 ? '1px solid rgba(8,145,178,0.1)' : 'none',
                         }}>
-                          <div>
-                            <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-1)', fontFamily: 'var(--font-mono)' }}>
+                          {/* Ligne 1 : n° de facture + badge statut */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                            <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', wordBreak: 'break-all', minWidth: 0 }}>
                               {inv.number}
                             </span>
-                            {idx > 0 && <span style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 6 }}>{idx + 1}ème versement</span>}
-                          </div>
-                          <span style={{ fontSize: 11.5, fontWeight: 700, padding: '2px 7px', borderRadius: 12, background: `${statusColor(inv.status)}18`, color: statusColor(inv.status), fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            {statusLabel(inv.status)}
-                          </span>
-                          <div style={{ textAlign: 'right' }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: '#0891b2', fontFamily: 'var(--font-mono)' }}>
-                              {formatCurrency(Number(inv.amountPaid))}
+                            <span style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 700, padding: '2px 7px', borderRadius: 12, background: `${statusColor(inv.status)}18`, color: statusColor(inv.status), fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              {statusLabel(inv.status)}
                             </span>
-                            <span style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 4 }}>encaissé</span>
+                          </div>
+                          {/* Ligne 2 : rang du versement + montant encaissé */}
+                          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                            <span style={{ fontSize: 11, color: 'var(--text-3)', flexShrink: 0 }}>
+                              {idx === 0 ? '1er versement' : `${idx + 1}ème versement`}
+                            </span>
+                            <span style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: '#0891b2', fontFamily: 'var(--font-mono)' }}>
+                                {formatCurrency(Number(inv.amountPaid))}
+                              </span>
+                              <span style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 4 }}>encaissé</span>
+                            </span>
                           </div>
                         </div>
                       ))}
