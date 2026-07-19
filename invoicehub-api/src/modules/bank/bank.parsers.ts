@@ -1,4 +1,7 @@
-import { default as iconv } from 'iconv-lite';
+// iconv-lite est un module CommonJS sans export `default` : avec `esModuleInterop`
+// désactivé (cf. tsconfig), `import { default as iconv }` compile en
+// `iconv_lite_1.default` === undefined et fait planter decodeBuffer à l'exécution.
+import * as iconv from 'iconv-lite';
 import * as crypto from 'crypto';
 import { BankProfile, BANK_PROFILES } from './bank.profiles';
 
@@ -267,6 +270,15 @@ const MONTH_NAMES: Record<string, number> = {
   juil: 7, aout: 8, sept: 9, octo: 10, nove: 11, dece: 12,
 };
 
+/**
+ * Une date de relevé est une date CALENDAIRE (pas un instant) : elle est construite
+ * en UTC via Date.UTC(). Avec `new Date(y, m, d)` (minuit LOCAL), toute machine à
+ * l'est de UTC — dont le Cameroun, UTC+1 — décalait la date d'un jour en arrière au
+ * moment de l'écriture en base (colonne `@db.Date`) et dans `toISOString()` :
+ * une ligne datée 15/03/2026 était stockée 2026-03-14.
+ */
+const utcDate = (y: number, m1: number, d: number): Date => new Date(Date.UTC(y, m1, d));
+
 export function parseDate(raw: string, format: string): Date | null {
   const s = raw.trim();
   if (!s) return null;
@@ -274,28 +286,28 @@ export function parseDate(raw: string, format: string): Date | null {
   try {
     if (format === 'YYYY-MM-DD') {
       const [y, m, d] = s.split('-').map(Number);
-      return new Date(y!, m! - 1, d!);
+      return utcDate(y!, m! - 1, d!);
     }
     if (format === 'DD/MM/YYYY') {
       const [d, m, y] = s.split('/').map(Number);
-      return new Date(y!, m! - 1, d!);
+      return utcDate(y!, m! - 1, d!);
     }
     if (format === 'DD/MM/YY') {
       const [d, m, y] = s.split('/').map(Number);
-      return new Date(2000 + y!, m! - 1, d!);
+      return utcDate(2000 + y!, m! - 1, d!);
     }
     if (format === 'MM/DD/YYYY') {
       const [m, d, y] = s.split('/').map(Number);
-      return new Date(y!, m! - 1, d!);
+      return utcDate(y!, m! - 1, d!);
     }
     if (format === 'DD-MM-YYYY') {
       const [d, m, y] = s.split('-').map(Number);
-      return new Date(y!, m! - 1, d!);
+      return utcDate(y!, m! - 1, d!);
     }
     if (format === 'MMM DD YYYY') {
       const parts = s.split(/\s+/);
       const month = MONTH_NAMES[parts[0]!.toLowerCase().slice(0, 4)] ?? 1;
-      return new Date(Number(parts[2]), month - 1, Number(parts[1]));
+      return utcDate(Number(parts[2]), month - 1, Number(parts[1]));
     }
   } catch {
     return null;
@@ -378,10 +390,18 @@ export function autoDetectFormat(
   let skipRowsContaining: string[] | undefined;
 
   if (profile) {
-    // Résoudre les colonnes du profil vers les headers réels
+    // Résoudre les colonnes du profil vers les headers réels.
+    // IMPORTANT : on renvoie le header TEL QU'ÉCRIT DANS LE FICHIER, pas l'orthographe
+    // du profil. Les parsers font ensuite `headers.indexOf(col)` (comparaison stricte) :
+    // renvoyer la variante du profil (ex. 'date' pour un fichier titré 'Date') donnait
+    // un index -1 et donc 0 transaction importée, silencieusement.
     const resolve = (candidates: string | string[]): string | undefined => {
       const list = Array.isArray(candidates) ? candidates : [candidates];
-      return list.find(c => headers.some(h => normalizeHeader(h) === normalizeHeader(c)));
+      for (const c of list) {
+        const actual = headers.find(h => normalizeHeader(h) === normalizeHeader(c));
+        if (actual) return actual;
+      }
+      return undefined;
     };
 
     columnMapping = {
@@ -764,7 +784,7 @@ export function parseOfx(content: string, bankAccountId: string): ParsedTransact
     const year  = parseInt(dtposted.slice(0, 4));
     const month = parseInt(dtposted.slice(4, 6)) - 1;
     const day   = parseInt(dtposted.slice(6, 8));
-    const date  = new Date(year, month, day);
+    const date  = utcDate(year, month, day); // date calendaire → UTC (cf. parseDate)
     if (isNaN(date.getTime())) continue;
 
     const amount = Math.abs(trnamt);
@@ -799,7 +819,7 @@ export function parseMt940(content: string, bankAccountId: string): ParsedTransa
     const yy     = parseInt(m[1]!.slice(0, 2));
     const mm     = parseInt(m[1]!.slice(2, 4)) - 1;
     const dd     = parseInt(m[1]!.slice(4, 6));
-    const date   = new Date(yy < 50 ? 2000 + yy : 1900 + yy, mm, dd);
+    const date   = utcDate(yy < 50 ? 2000 + yy : 1900 + yy, mm, dd); // cf. parseDate
     const amount = parseFloat(m[4]!.replace(',', '.'));
     const type: 'debit' | 'credit' = m[3] === 'C' ? 'credit' : 'debit';
 

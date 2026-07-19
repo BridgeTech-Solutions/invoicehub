@@ -1,5 +1,8 @@
 import * as otplib from 'otplib';
-import { default as QRCode } from 'qrcode';
+// qrcode est un module CommonJS sans export `default` : avec `esModuleInterop`
+// désactivé (cf. tsconfig), `import { default as QRCode }` compile en
+// `qrcode_1.default` === undefined et fait planter generateQrCode() à l'exécution.
+import * as QRCode from 'qrcode';
 
 const authenticator = (otplib as any).authenticator ?? (otplib as any).default?.authenticator;
 

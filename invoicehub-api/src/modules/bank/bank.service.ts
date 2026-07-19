@@ -590,7 +590,9 @@ export class BankService {
       if (format === 'DD/MM/YYYY') [day, month, year] = s.split('/').map(Number) as [number, number, number];
       else if (format === 'MM/DD/YYYY') [month, day, year] = s.split('/').map(Number) as [number, number, number];
       else [year, month, day] = s.split('-').map(Number) as [number, number, number];
-      const d = new Date(year, month - 1, day);
+      // Date calendaire → construite en UTC : minuit LOCAL décalait la date d'un jour
+      // en arrière à l'écriture dans la colonne `@db.Date` (cf. parseDate dans bank.parsers).
+      const d = new Date(Date.UTC(year, month - 1, day));
       return isNaN(d.getTime()) ? null : d;
     };
 

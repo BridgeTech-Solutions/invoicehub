@@ -158,12 +158,24 @@ export function hungarian(costMatrix: number[][]): number[] {
   const n = costMatrix.length;
   if (n === 0) return [];
 
-  // Convertir en matrice carrée si nécessaire (compléter avec Infinity)
-  const m = Math.max(n, ...costMatrix.map(r => r.length));
+  const cols = Math.max(0, ...costMatrix.map(r => r.length));
+  if (cols === 0) return new Array(n).fill(-1);
+
+  const m = Math.max(n, cols);
   const INF = 1e9;
 
+  // Complétion en matrice carrée avec des coûts NEUTRES (0), pas INF.
+  // Avec INF, une ligne fictive n'avait aucune arête exploitable : delta restait
+  // à INF, j1 restait à -1, puis `p[-1]` → undefined → TypeError. Ce cas se produit
+  // dès qu'il y a plus de colonnes que de lignes, c'est-à-dire plus de candidats que
+  // de transactions à rapprocher — la situation normale dans getAutoMatchBatch.
+  // Des lignes/colonnes fictives à coût 0 sont neutres : elles absorbent le surplus
+  // sans modifier l'affectation optimale des lignes réelles.
   const cost: number[][] = Array.from({ length: m }, (_, i) =>
-    Array.from({ length: m }, (_, j) => costMatrix[i]?.[j] ?? INF)
+    Array.from({ length: m }, (_, j) => {
+      const v = costMatrix[i]?.[j];
+      return typeof v === 'number' && Number.isFinite(v) ? v : 0;
+    })
   );
 
   // Potentiels de lignes et colonnes
@@ -204,7 +216,8 @@ export function hungarian(costMatrix: number[][]): number[] {
           minDist[j]! -= delta;
         }
       }
-      j0 = j1!;
+      if (j1 === -1) break; // garde-fou : matrice dégénérée
+      j0 = j1;
     } while (p[j0] !== 0);
 
     do {
@@ -214,11 +227,15 @@ export function hungarian(costMatrix: number[][]): number[] {
     } while (j0);
   }
 
-  // Construire le résultat : assignment[i] = j (0-indexed)
+  // Construire le résultat : assignment[i] = j (0-indexed), -1 si non affecté.
+  // On borne à `cols` (et non à `n`) : une ligne réelle peut légitimement être
+  // affectée à une colonne d'indice > n quand il y a plus de candidats que de
+  // transactions. L'ancienne borne `j <= n` supprimait ces affectations valides.
   const assignment = new Array(n).fill(-1);
   for (let j = 1; j <= m; j++) {
-    if (p[j]! >= 1 && p[j]! <= n && j <= n) {
-      assignment[p[j]! - 1] = j - 1;
+    const row = p[j]!;
+    if (row >= 1 && row <= n && j <= cols) {
+      assignment[row - 1] = j - 1;
     }
   }
   return assignment;
