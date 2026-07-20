@@ -11,13 +11,36 @@ export const apiClient = axios.create({
 // ─── Token storage helpers ──────────────────────────────────────
 const TOKEN_KEY = 'bts_access_token'
 const REFRESH_KEY = 'bts_refresh_token'
+/**
+ * Store Zustand persisté (`persist({ name: 'bts-auth' })`). Il conserve une COPIE
+ * de `user` / `accessToken` / `refreshToken`, et c'est LUI que lisent les gardes de
+ * route — alors que l'intercepteur axios lit `tokenStorage`. Les deux doivent donc
+ * être effacés ensemble, sinon ils divergent (voir `clear` ci-dessous).
+ *
+ * Référencé par sa clé plutôt qu'en important le store : le store importe déjà
+ * `tokenStorage`, un import croisé créerait un cycle.
+ */
+const AUTH_STORE_KEY = 'bts-auth'
 
 export const tokenStorage = {
   getAccess:    () => (typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null),
   setAccess:    (t: string) => localStorage.setItem(TOKEN_KEY, t),
   getRefresh:   () => (typeof window !== 'undefined' ? localStorage.getItem(REFRESH_KEY) : null),
   setRefresh:   (t: string) => localStorage.setItem(REFRESH_KEY, t),
-  clear:        () => { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(REFRESH_KEY) },
+  /**
+   * Efface TOUTE l'empreinte d'authentification.
+   *
+   * Ne vider que les deux jetons laissait le store `bts-auth` intact : l'application
+   * se croyait encore connectée (les gardes lisent `accessToken` DANS LE STORE) et
+   * affichait le tableau de bord, pendant que l'intercepteur n'avait plus de jeton à
+   * injecter. Chaque requête repartait donc en 401 et chaque liste s'affichait vide
+   * — page qui charge, contenu absent, sans erreur visible.
+   */
+  clear: () => {
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(REFRESH_KEY)
+    localStorage.removeItem(AUTH_STORE_KEY)
+  },
 }
 
 // ─── Request interceptor: inject Bearer token ──────────────────

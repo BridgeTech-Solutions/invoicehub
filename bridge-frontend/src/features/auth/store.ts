@@ -69,9 +69,22 @@ export const useAuthStore = create<AuthStore>()(
         accessToken:  state.accessToken,
         refreshToken: state.refreshToken,
       }),
-      // Au démarrage : si l'utilisateur a déjà des permissions en localStorage, on est prêt
       onRehydrateStorage: () => (state) => {
-        if (state?.user?.permissions && state.user.permissions.length > 0) {
+        if (!state) return
+
+        // Auto-réparation : le store et `tokenStorage` sont deux copies de la même
+        // session. S'ils divergent — store « connecté » mais plus aucun jeton à
+        // injecter — l'application affiche le tableau de bord pendant que chaque
+        // requête part en 401, et les listes se vident sans erreur visible.
+        // On tranche en faveur des jetons : sans eux, il n'y a pas de session.
+        if (state.accessToken && !tokenStorage.getAccess()) {
+          state.user         = null
+          state.accessToken  = null
+          state.refreshToken = null
+        }
+
+        // Si l'utilisateur a déjà ses permissions en localStorage, on est prêt.
+        if (state.user?.permissions && state.user.permissions.length > 0) {
           state.permissionsLoaded = true
         }
       },
