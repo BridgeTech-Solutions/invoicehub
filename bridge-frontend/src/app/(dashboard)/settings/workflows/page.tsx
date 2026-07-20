@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Settings2, Trash2, Edit2, Power } from 'lucide-react'
-import { useApprovalWorkflows, useDeleteApprovalWorkflow, useUpdateApprovalWorkflow } from '@/features/approvals/hooks'
+import { Plus, Settings2, Edit2, Power } from 'lucide-react'
+import { useApprovalWorkflows, useUpdateApprovalWorkflow } from '@/features/approvals/hooks'
 import { WorkflowDrawer } from '@/features/approvals/components/WorkflowDrawer'
 import type { ApprovalWorkflow, CreateWorkflowPayload } from '@/features/approvals/types'
 import { DOCUMENT_TYPE_LABELS, OPERATOR_LABELS } from '@/features/approvals/types'
@@ -12,14 +12,7 @@ import { AccessDenied } from '@/components/ui/AccessDenied'
 // ─── WorkflowCard ─────────────────────────────────────────────────
 
 function WorkflowCard({ wf, onEdit }: { wf: ApprovalWorkflow; onEdit: () => void }) {
-  const deleteMut = useDeleteApprovalWorkflow()
   const updateMut = useUpdateApprovalWorkflow(wf.id)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-
-  function handleDelete() {
-    if (!confirmDelete) { setConfirmDelete(true); return }
-    deleteMut.mutate(wf.id, { onSettled: () => setConfirmDelete(false) })
-  }
 
   function handleToggle() {
     updateMut.mutate({ isActive: !wf.isActive } as Partial<CreateWorkflowPayload>)
@@ -115,22 +108,6 @@ function WorkflowCard({ wf, onEdit }: { wf: ApprovalWorkflow; onEdit: () => void
             >
               <Edit2 size={12} />
             </button>
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={deleteMut.isPending}
-              aria-label={confirmDelete ? 'Confirmer la suppression' : 'Supprimer'}
-              title={confirmDelete ? 'Cliquer pour confirmer' : 'Supprimer'}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 30, height: 30, borderRadius: 8,
-                border: confirmDelete ? '1.5px solid #ef4444' : '1.5px solid var(--border)',
-                background: confirmDelete ? 'rgba(239,68,68,0.08)' : 'transparent',
-                cursor: 'pointer', color: confirmDelete ? '#ef4444' : 'var(--text-3)',
-              }}
-            >
-              <Trash2 size={12} />
-            </button>
           </div>
         </div>
 
@@ -186,11 +163,6 @@ function WorkflowCard({ wf, onEdit }: { wf: ApprovalWorkflow; onEdit: () => void
           )}
         </div>
 
-        {confirmDelete && (
-          <p style={{ margin: '10px 0 0', fontSize: 11.5, color: '#ef4444', fontStyle: 'italic', fontFamily: 'var(--font-body)' }}>
-            Cliquer à nouveau sur la corbeille pour confirmer la suppression.
-          </p>
-        )}
       </div>
     </div>
   )

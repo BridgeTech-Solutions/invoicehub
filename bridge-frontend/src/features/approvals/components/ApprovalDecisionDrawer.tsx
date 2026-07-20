@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, useId } from 'react'
 import { X, CheckCircle2, XCircle, UserCheck, ExternalLink, Clock } from 'lucide-react'
 import { useApprove, useReject, useDelegate } from '../hooks'
 import { useUsers } from '@/features/users/hooks'
+import { useAuthStore } from '@/features/auth/store'
 import { DOCUMENT_TYPE_LABELS, STATUS_CONFIG } from '../types'
 import type { ApprovalRequest } from '../types'
 
@@ -33,7 +34,11 @@ export function ApprovalDecisionDrawer({ request, onClose }: ApprovalDecisionDra
   const rejectMut   = useReject()
   const delegateMut = useDelegate()
   const { data: usersPage } = useUsers({ limit: 100 })
-  const users = usersPage?.data ?? []
+  const currentUserId = useAuthStore((s) => s.user?.id)
+  // Se déléguer à soi-même est un non-événement : l'approbateur reste le même, mais
+  // une décision « delegated » est écrite au dossier. On retire donc l'utilisateur
+  // courant des destinataires possibles plutôt que de laisser polluer la traçabilité.
+  const users = (usersPage?.data ?? []).filter((u) => u.id !== currentUserId)
 
   const [isVisible, setIsVisible]   = useState(false)
   const [mode, setMode]             = useState<'approve' | 'reject' | null>(null)

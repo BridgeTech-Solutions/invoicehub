@@ -67,7 +67,10 @@ export function useDeleteApprovalWorkflow() {
       qc.invalidateQueries({ queryKey: KEYS.workflows })
       toast.success('Workflow désactivé')
     },
-    onError: () => toast.error('Impossible de supprimer ce workflow (demandes actives ?)'),
+    // L'endpoint DELETE /workflows/:id ne supprime PAS : il passe `isActive` à false.
+    // Un workflow est référencé par ses demandes historiques, il ne peut donc pas
+    // disparaître. Le vocabulaire doit dire ce qui se produit réellement.
+    onError: () => toast.error('Impossible de désactiver ce workflow : des demandes sont en attente.'),
   })
 }
 
