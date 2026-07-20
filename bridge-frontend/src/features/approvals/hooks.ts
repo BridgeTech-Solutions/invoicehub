@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { getApiErrorMessage } from '@/lib/api-error'
 import { approvalsApi } from './api'
 import type {
   CreateWorkflowPayload,
@@ -42,7 +43,7 @@ export function useCreateApprovalWorkflow() {
       qc.invalidateQueries({ queryKey: KEYS.workflows })
       toast.success('Workflow créé')
     },
-    onError: () => toast.error('Erreur lors de la création'),
+    onError: (e) => toast.error(getApiErrorMessage(e, 'Erreur lors de la création')),
   })
 }
 
@@ -55,7 +56,7 @@ export function useUpdateApprovalWorkflow(id: string) {
       qc.invalidateQueries({ queryKey: KEYS.workflow(id) })
       toast.success('Workflow mis à jour')
     },
-    onError: () => toast.error('Erreur lors de la mise à jour'),
+    onError: (e) => toast.error(getApiErrorMessage(e, 'Erreur lors de la mise à jour')),
   })
 }
 
@@ -70,7 +71,7 @@ export function useDeleteApprovalWorkflow() {
     // L'endpoint DELETE /workflows/:id ne supprime PAS : il passe `isActive` à false.
     // Un workflow est référencé par ses demandes historiques, il ne peut donc pas
     // disparaître. Le vocabulaire doit dire ce qui se produit réellement.
-    onError: () => toast.error('Impossible de désactiver ce workflow : des demandes sont en attente.'),
+    onError: (e) => toast.error(getApiErrorMessage(e, 'Impossible de désactiver ce workflow : des demandes sont en attente.')),
   })
 }
 
@@ -108,7 +109,7 @@ export function useApprove() {
       qc.invalidateQueries({ queryKey: KEYS.all })
       toast.success('Document approuvé')
     },
-    onError: () => toast.error("Erreur lors de l'approbation"),
+    onError: (e) => toast.error(getApiErrorMessage(e, "Erreur lors de l'approbation")),
   })
 }
 
@@ -121,7 +122,7 @@ export function useReject() {
       qc.invalidateQueries({ queryKey: KEYS.all })
       toast.success('Document rejeté')
     },
-    onError: () => toast.error('Erreur lors du rejet'),
+    onError: (e) => toast.error(getApiErrorMessage(e, 'Erreur lors du rejet')),
   })
 }
 
@@ -134,6 +135,6 @@ export function useDelegate() {
       qc.invalidateQueries({ queryKey: KEYS.all })
       toast.success('Décision déléguée')
     },
-    onError: () => toast.error('Erreur lors de la délégation'),
+    onError: (e) => toast.error(getApiErrorMessage(e, 'Erreur lors de la délégation')),
   })
 }

@@ -92,6 +92,7 @@ export function ApprovalDecisionDrawer({ request, onClose }: ApprovalDecisionDra
   }
 
   const isPending = approveMut.isPending || rejectMut.isPending || delegateMut.isPending
+  const commentRequis = mode === 'reject' || !!currentStep?.requireComment
 
   const labelStyle: React.CSSProperties = {
     fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
@@ -354,12 +355,16 @@ export function ApprovalDecisionDrawer({ request, onClose }: ApprovalDecisionDra
             <button
               type="submit"
               form={formId}
-              disabled={!mode || isPending || (mode === 'reject' && !comment.trim())}
+              // Le commentaire est exigé pour un rejet, ET pour toute étape configurée avec
+              // `requireComment`. L'écran affichait déjà l'astérisque sans jamais appliquer
+              // la règle : la soumission partait, le serveur la refusait, et l'utilisateur
+              // recevait une erreur là où le bouton aurait dû rester inactif.
+              disabled={!mode || isPending || (commentRequis && !comment.trim())}
               style={{
                 padding: '8px 20px', borderRadius: 8, border: 'none',
                 background: mode === 'reject' ? '#dc2626' : '#16a34a',
                 color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-display)',
-                opacity: !mode || isPending ? 0.6 : 1, transition: 'background 0.15s',
+                opacity: !mode || isPending || (commentRequis && !comment.trim()) ? 0.6 : 1, transition: 'background 0.15s',
               }}
             >
               {isPending ? 'En cours…' : mode === 'approve' ? 'Confirmer l\'approbation' : mode === 'reject' ? 'Confirmer le rejet' : 'Confirmer'}
