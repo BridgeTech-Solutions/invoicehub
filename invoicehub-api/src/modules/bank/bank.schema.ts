@@ -97,6 +97,31 @@ export type DetectFormatInput       = z.infer<typeof detectFormatSchema>;
 
 // ── Import profiles ───────────────────────────────────────────────────────────
 
+// Une colonne d'un profil se réfère à un en-tête (chaîne) ou à une liste de
+// synonymes d'en-têtes (comme les profils intégrés) — jamais à un objet arbitraire.
+const profileColField = z.union([
+  z.string().max(100),
+  z.array(z.string().max(100)).min(1),
+]);
+const profileNumberFormatSchema = z.object({
+  thousands: z.string().max(2),
+  decimal:   z.string().min(1).max(2),
+});
+const profileColumnMappingSchema = z.object({
+  date:         z.union([z.string().min(1).max(100), z.array(z.string().min(1).max(100)).min(1)]),
+  label:        z.union([z.string().min(1).max(100), z.array(z.string().min(1).max(100)).min(1)]),
+  debit:        profileColField.optional().nullable(),
+  credit:       profileColField.optional().nullable(),
+  amount:       profileColField.optional().nullable(),
+  direction:    profileColField.optional().nullable(),
+  reference:    profileColField.optional().nullable(),
+  balanceAfter: profileColField.optional().nullable(),
+  valueDate:    profileColField.optional().nullable(),
+}).refine(
+  (c) => !!(c.debit || c.credit || c.amount),
+  { message: 'Le mapping doit désigner une colonne de montant (débit/crédit ou montant unique).' },
+);
+
 export const createImportProfileSchema = z.object({
   name:               z.string().min(1).max(255),
   bankName:           z.string().max(255).optional().nullable(),
@@ -106,14 +131,15 @@ export const createImportProfileSchema = z.object({
   delimiter:          z.string().max(5).optional().nullable(),
   dateFormat:         z.string().max(50).optional().nullable(),
   // Requis en base (NOT NULL) — un profil sans mapping/format n'a pas de sens.
-  numberFormat:       z.record(z.any()),
-  columnMapping:      z.record(z.any()),
-  directionValues:    z.record(z.any()).optional().nullable(),
-  amountSign:         z.string().max(50).optional().nullable(),
+  // Structurés : un profil au mapping incohérent parserait 0 ligne en silence.
+  numberFormat:       profileNumberFormatSchema,
+  columnMapping:      profileColumnMappingSchema,
+  directionValues:    z.object({ debit: z.array(z.string()), credit: z.array(z.string()) }).optional().nullable(),
+  amountSign:         z.enum(['negative-is-debit', 'positive-is-credit']).optional().nullable(),
   skipRowsContaining: z.array(z.string()).optional().nullable(),
-  skipFirstRows:      z.number().int().optional().nullable(),
+  skipFirstRows:      z.number().int().min(0).max(50).optional().nullable(),
   isPublic:           z.boolean().optional(),
-  notes:              z.string().optional().nullable(),
+  notes:              z.string().max(2000).optional().nullable(),
 });
 
 export const updateImportProfileSchema = createImportProfileSchema.partial();

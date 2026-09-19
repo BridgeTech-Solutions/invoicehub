@@ -1301,6 +1301,17 @@ export class BankService {
     if (!importRecord) throw AppError.notFound('Import introuvable');
     if (importRecord.status !== 'pending') throw AppError.conflict('Cet import a déjà été traité');
 
+    // Compteur d'usage du profil partagé réellement utilisé pour cet import (au lieu
+    // de dépendre d'un appel séparé côté front, facile à oublier). Un profileId en
+    // UUID désigne un profil de la base (les profils intégrés ont un id textuel).
+    const usedProfileId = (importRecord.detectedFormat as any)?.profileId;
+    if (typeof usedProfileId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(usedProfileId)) {
+      await this.prisma.bankImportProfile.updateMany({
+        where: { id: usedProfileId, deletedAt: null },
+        data:  { usageCount: { increment: 1 }, lastUsedAt: new Date() },
+      }).catch(() => { /* compteur best-effort */ });
+    }
+
     const preview = importRecord.previewData as unknown as ImportPreview;
     if (!preview) throw AppError.badRequest('Données de prévisualisation manquantes — relancez la phase PREVIEW');
 
@@ -1355,6 +1366,14 @@ export class BankService {
       await this.prisma.bankStatementImport.update({
         where: { id: importId },
         data:  { status: 'processing', jobId: job.id ?? null, importedById: userId },
+      });
+
+      // Apprentissage de l'override : le parsing a réussi (preview OK), on marque le
+      // mapping du compte comme vérifié — comme le fait le chemin synchrone. Sans ça,
+      // les gros relevés (> 200 lignes, async) n'apprenaient jamais leur format.
+      await this.prisma.bankProfileOverride.updateMany({
+        where: { bankAccountId: importRecord.bankAccountId },
+        data:  { verifiedCount: { increment: 1 }, isVerified: true },
       });
 
       return { nbImported: 0, nbSkipped: preview.errorRows, nbDuplicates, status: 'processing', jobId: job.id };
@@ -1850,9 +1869,18 @@ export class BankService {
 
   // ── Profils d'import partagés ────────────────────────────────────────────────
 
-  async listImportProfiles() {
+  async listImportProfiles(userId?: string) {
+    // Visibilité : un profil est visible s'il est public OU s'il appartient au
+    // demandeur. Sans ce filtre, le champ `isPublic` était mort (tout le monde
+    // voyait tout). Sans userId (contexte système), on ne rend que les publics.
     return this.prisma.bankImportProfile.findMany({
-      where:   { deletedAt: null },
+      where: {
+        deletedAt: null,
+        OR: [
+          { isPublic: true },
+          ...(userId ? [{ createdById: userId }] : []),
+        ],
+      },
       orderBy: [{ source: 'asc' }, { name: 'asc' }],
       include: { createdBy: { select: { id: true, firstName: true, lastName: true } } },
     });
@@ -1873,6 +1901,14 @@ export class BankService {
     directionValues?: object; amountSign?: string;
     skipRowsContaining?: string[]; skipFirstRows?: number; isPublic?: boolean; notes?: string;
   }, userId: string) {
+    // Unicité du nom (parmi les profils vivants) : évite deux profils homonymes
+    // impossibles à distinguer dans la liste de sélection.
+    const clash = await this.prisma.bankImportProfile.findFirst({
+      where:  { name: data.name, deletedAt: null },
+      select: { id: true },
+    });
+    if (clash) throw AppError.conflict(`Un profil d'import nommé « ${data.name} » existe déjà.`, 'PROFILE_NAME_TAKEN');
+
     return this.prisma.bankImportProfile.create({
       data: {
         name:               data.name,
@@ -1905,6 +1941,13 @@ export class BankService {
   }>) {
     const profile = await this.prisma.bankImportProfile.findFirst({ where: { id, deletedAt: null } });
     if (!profile) throw AppError.notFound('Profil d\'import introuvable');
+    if (data.name && data.name !== profile.name) {
+      const clash = await this.prisma.bankImportProfile.findFirst({
+        where:  { name: data.name, deletedAt: null, id: { not: id } },
+        select: { id: true },
+      });
+      if (clash) throw AppError.conflict(`Un profil d'import nommé « ${data.name} » existe déjà.`, 'PROFILE_NAME_TAKEN');
+    }
     return this.prisma.bankImportProfile.update({ where: { id }, data });
   }
 

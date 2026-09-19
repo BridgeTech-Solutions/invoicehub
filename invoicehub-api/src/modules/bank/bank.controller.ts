@@ -343,8 +343,8 @@ export class BankController {
 
   @Get('import-profiles')
   @Permission('bank:read')
-  async listImportProfiles() {
-    return this.bank.listImportProfiles();
+  async listImportProfiles(@CurrentUser() user: JwtPayload) {
+    return this.bank.listImportProfiles(user.sub);
   }
 
   @Post('import-profiles')

@@ -196,8 +196,11 @@ function scoreProfile(profile: BankProfile, headers: string[], sampleRows: strin
   const hasLabel = labelCols.some(c => normalizedHeaders.includes(normalizeHeader(c)));
   if (hasDate && hasLabel) score += 20;
 
-  // Bonus source
+  // Bonus source. Un profil « user » a été créé/mémorisé délibérément pour un
+  // besoin réel : on le privilégie sur un fallback générique qui matcherait aussi
+  // date+libellé, sans aller jusqu'au niveau d'un profil « verified ».
   if (profile.source === 'verified')   score += 30;
+  if (profile.source === 'user')       score += 20;
   if (profile.source === 'community')  score += 10;
 
   return score;
