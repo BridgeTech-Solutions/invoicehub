@@ -23,7 +23,9 @@ export const createTransactionSchema = z.object({
   bankAccountId:   z.string().uuid(),
   transactionDate: z.coerce.date(),
   label:           z.string().min(1).max(500),
-  amount:          z.number().refine((n) => n !== 0, 'Le montant ne peut pas être zéro'),
+  // Toujours positif : le sens (entrée/sortie) est porté par `type`, pas par le
+  // signe. Un montant négatif inverserait le calcul du solde.
+  amount:          z.number().positive('Le montant doit être strictement positif'),
   type:            z.enum(['debit', 'credit']),
   reference:       z.string().max(255).optional().nullable(),
   category:        z.string().max(100).optional().nullable(),
@@ -51,15 +53,40 @@ export const detectFormatSchema = z.object({
 export const previewImportSchema = z.object({
   bankAccountId: z.string().uuid(),
   encoding:      z.enum(['auto', 'utf-8', 'win1252', 'iso-8859-1', 'utf-16le']).optional().default('auto'),
+  // Multipart : ce champ arrive en chaîne JSON (mapping manuel du ColumnMapper).
+  columnMapping: z.string().max(5000).optional(),
 });
 
 export const confirmImportSchema = z.object({
   importId: z.string().uuid(),
 });
 
+// Forme d'un format d'import détecté/mappé (DetectedFormat) : on valide au moins
+// les champs structurants avant de mémoriser un override réutilisé au parsing,
+// pour ne pas stocker un objet arbitraire qui casserait les imports suivants.
+export const detectedFormatSchema = z.object({
+  delimiter:    z.enum([',', ';', '\t', '|']),
+  encoding:     z.string().max(20),
+  dateFormat:   z.string().min(1).max(50),
+  numberFormat: z.object({ thousands: z.string().max(2), decimal: z.string().max(2) }),
+  columnMapping: z.object({
+    date:         z.string().max(100),
+    label:        z.string().max(100),
+    debit:        z.string().max(100).optional(),
+    credit:       z.string().max(100).optional(),
+    amount:       z.string().max(100).optional(),
+    direction:    z.string().max(100).optional(),
+    reference:    z.string().max(100).optional(),
+    balanceAfter: z.string().max(100).optional(),
+    valueDate:    z.string().max(100).optional(),
+  }),
+  headerRow:    z.number().int().min(0).max(100).optional(),
+  amountSign:   z.string().max(50).optional(),
+}).passthrough(); // tolère les champs annexes (profileName, confidence…)
+
 export const saveProfileOverrideSchema = z.object({
   bankAccountId: z.string().uuid(),
-  profileData:   z.record(z.any()),
+  profileData:   detectedFormatSchema,
 });
 
 export type CreateBankAccountInput  = z.infer<typeof createBankAccountSchema>;

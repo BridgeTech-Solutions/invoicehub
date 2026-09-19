@@ -343,11 +343,19 @@ export function computeContentHash(
   date: Date,
   amount: number,
   type: 'debit' | 'credit',
-  label: string
+  label: string,
+  reference?: string | null,
 ): string {
   const normalized = label.toLowerCase().trim().replace(/\s+/g, ' ');
   const dateStr = date.toISOString().slice(0, 10);
-  const payload = `${bankAccountId}|${dateStr}|${amount}|${type}|${normalized}`;
+  // La référence, QUAND elle existe, entre dans l'empreinte : elle distingue deux
+  // vrais mouvements identiques du même jour (même montant/libellé) qui, sinon,
+  // fusionnaient en un seul. Les relevés sans référence gardent l'ancienne empreinte
+  // (rétrocompatibilité : la déduplication des imports existants n'est pas affectée).
+  const ref = (reference ?? '').trim().toLowerCase();
+  const payload = ref
+    ? `${bankAccountId}|${dateStr}|${amount}|${type}|${normalized}|ref:${ref}`
+    : `${bankAccountId}|${dateStr}|${amount}|${type}|${normalized}`;
   return crypto.createHash('sha256').update(payload).digest('hex');
 }
 
@@ -611,7 +619,7 @@ export function parseCsvContent(
       }
 
       // Content hash
-      const contentHash = computeContentHash(bankAccountId, txDate, amount, type, label);
+      const contentHash = computeContentHash(bankAccountId, txDate, amount, type, label, reference);
 
       // Doublon détecté
       if (existingHashes.has(contentHash)) {
@@ -739,7 +747,7 @@ export function parseAllTransactions(
         if (bv !== null) balanceAfter = bv;
       }
 
-      const contentHash = computeContentHash(bankAccountId, txDate, amount, type, label);
+      const contentHash = computeContentHash(bankAccountId, txDate, amount, type, label, reference);
 
       if (existingHashes.has(contentHash)) { rowNum++; continue; }
 
@@ -796,7 +804,7 @@ export function parseOfx(content: string, bankAccountId: string): ParsedTransact
       amount,
       type,
       reference:       fitid || undefined,
-      contentHash:     computeContentHash(bankAccountId, date, amount, type, name),
+      contentHash:     computeContentHash(bankAccountId, date, amount, type, name, fitid || undefined),
       rawRow:          { _raw: block.slice(0, 200) },
     });
   }

@@ -448,16 +448,24 @@ const queueMock = {
       expect(confirmed.jobId).toBeDefined();
       expect(queueMock.add).toHaveBeenCalledTimes(1);
 
-      // Le worker attend des chaînes ISO exploitables par `new Date(...)`
+      // Le payload du job est désormais MINIMAL : les lignes ne transitent plus par
+      // Redis, le worker les relit depuis `previewData`. On vérifie donc le contrat
+      // léger du job + la présence des lignes exploitables dans previewData.
       const payload = (queueMock.add.mock.calls[0] as any[])[1];
-      expect(payload.lines).toHaveLength(250);
-      const first = payload.lines[0];
-      expect(typeof first.transactionDate).toBe('string');
-      expect(Number.isNaN(new Date(first.transactionDate).getTime())).toBe(false);
-      expect(first.transactionDate).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(payload.importId).toBe(preview.importId);
+      expect(payload.bankAccountId).toBe(acc.id);
+      expect(payload.lines).toBeUndefined();
 
       const rec = await prisma.bankStatementImport.findUniqueOrThrow({ where: { id: preview.importId } });
       expect(rec.status).toBe('processing');
+
+      // previewData contient les 250 transactions que le worker relira, avec des
+      // dates en chaînes ISO exploitables par `new Date(...)`.
+      const sample = (rec.previewData as any).sampleTransactions;
+      expect(sample).toHaveLength(250);
+      expect(typeof sample[0].transactionDate).toBe('string');
+      expect(Number.isNaN(new Date(sample[0].transactionDate).getTime())).toBe(false);
+      expect(sample[0].transactionDate).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     });
 
     // Régression : un relevé peut légitimement contenir deux lignes identiques
