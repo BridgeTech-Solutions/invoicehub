@@ -359,8 +359,8 @@ export class BankController {
 
   @Get('import-profiles/:id')
   @Permission('bank:read')
-  async getImportProfile(@Param('id') id: string) {
-    return this.bank.getImportProfileById(id);
+  async getImportProfile(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.bank.getImportProfileById(id, user.sub);
   }
 
   @Put('import-profiles/:id')

@@ -391,6 +391,32 @@ export function autoDetectFormat(
     .slice(headerRowIndex + 1, headerRowIndex + 6)
     .map(l => parseCsvLine(l, delimiter));
 
+  // Override mémorisé par compte : c'est un DetectedFormat (il a `columnMapping`),
+  // PAS un BankProfile (`columns`). On le renvoie directement — sans ça, le code
+  // plus bas lisait `profile.columns.date` et plantait. La confiance est RECALCULÉE
+  // contre les en-têtes réels : si la banque a changé la structure du fichier, les
+  // colonnes mappées ne s'y retrouvent plus, la confiance chute et l'appelant
+  // redemande un mapping au lieu de parser en silence avec un profil périmé.
+  if (overrideProfileData?.columnMapping) {
+    const ov = overrideProfileData as DetectedFormat;
+    const mapped  = Object.values(ov.columnMapping).filter(Boolean) as string[];
+    const present = mapped.filter(col => headers.some(h => normalizeHeader(h) === normalizeHeader(col)));
+    const ovConfidence = mapped.length > 0 ? Math.round((present.length / mapped.length) * 100) : 0;
+    return {
+      ...ov,
+      delimiter,
+      headerRow:         headerRowIndex,
+      confidence:        ovConfidence,
+      confidenceScore:   ovConfidence,
+      source:            'override',
+      profileName:       ov.profileName ?? 'Profil mémorisé',
+      headers,
+      sampleRows:        sampleRows.slice(0, 3),
+      profileCandidates: [],
+      needsMapping:      ovConfidence < 80,
+    };
+  }
+
   const { profile, confidence, candidates } = selectBestProfile(headers, sampleRows, overrideProfileData, extraProfiles);
 
   let columnMapping: DetectedFormat['columnMapping'];

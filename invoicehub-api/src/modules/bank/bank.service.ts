@@ -1886,11 +1886,15 @@ export class BankService {
     });
   }
 
-  async getImportProfileById(id: string) {
+  async getImportProfileById(id: string, userId?: string) {
     const profile = await this.prisma.bankImportProfile.findFirst({
       where: { id, deletedAt: null },
     });
-    if (!profile) throw AppError.notFound('Profil d\'import introuvable');
+    // Même règle de visibilité que la liste : on ne divulgue pas un profil privé
+    // d'autrui (on renvoie « introuvable » pour ne pas révéler son existence).
+    if (!profile || (!profile.isPublic && userId && profile.createdById !== userId)) {
+      throw AppError.notFound('Profil d\'import introuvable');
+    }
     return profile;
   }
 
