@@ -125,15 +125,34 @@ export function WorkflowDrawer({ workflow, onClose }: WorkflowDrawerProps) {
   }, [handleClose])
 
   function validate(): boolean {
+    // Contraintes alignées sur le schéma Zod backend (approvals.schema.ts) :
+    // name/step.name min 2 max 100, trigger.value non vide max 200,
+    // deadlineHours entier 1..720. Sans ça, le backend renvoie « Données invalides ».
     const errs: Record<string, string> = {}
-    if (!name.trim())                   errs.name = 'Le nom est requis'
+    if (!name.trim())                errs.name = 'Le nom est requis'
+    else if (name.trim().length < 2) errs.name = 'Le nom doit faire au moins 2 caractères'
+    else if (name.trim().length > 100) errs.name = 'Le nom ne peut dépasser 100 caractères'
+
     if (triggers.length === 0)          errs.triggers = 'Au moins un déclencheur est requis'
-    if (triggers.some((t) => !t.value)) errs.triggers = 'Toutes les valeurs de déclencheur sont requises'
-    if (steps.length === 0)             errs.steps = 'Au moins une étape est requise'
+    else if (triggers.some((t) => !t.value.trim())) errs.triggers = 'Toutes les valeurs de déclencheur sont requises'
+    else if (triggers.some((t) => t.value.length > 200)) errs.triggers = 'Une valeur de déclencheur ne peut dépasser 200 caractères'
+
+    if (steps.length === 0) errs.steps = 'Au moins une étape est requise'
     steps.forEach((s, i) => {
-      if (!s.name.trim())                                              errs[`step_${i}_name`] = 'Nom requis'
-      if (s.approverType === 'user' && !s.approverUserId.trim())      errs[`step_${i}_approver`] = 'ID approbateur requis'
-      if (s.approverType === 'role' && !s.approverRole)               errs[`step_${i}_approver`] = 'Rôle requis'
+      if (!s.name.trim())                    errs[`step_${i}_name`] = 'Nom requis'
+      else if (s.name.trim().length < 2)     errs[`step_${i}_name`] = 'Au moins 2 caractères'
+      else if (s.name.trim().length > 100)   errs[`step_${i}_name`] = 'Maximum 100 caractères'
+
+      if (s.approverType === 'user' && !s.approverUserId.trim()) errs[`step_${i}_approver`] = 'ID approbateur requis'
+      if (s.approverType === 'role' && !s.approverRole)          errs[`step_${i}_approver`] = 'Rôle requis'
+
+      // Délai optionnel, mais s'il est renseigné : entier entre 1 et 720 heures.
+      if (s.deadlineHours.trim()) {
+        const h = Number(s.deadlineHours)
+        if (!Number.isInteger(h) || h < 1 || h > 720) {
+          errs[`step_${i}_deadline`] = 'Le délai doit être un entier entre 1 et 720 heures (30 jours max)'
+        }
+      }
     })
     setErrors(errs)
     return Object.keys(errs).length === 0
@@ -406,8 +425,9 @@ export function WorkflowDrawer({ workflow, onClose }: WorkflowDrawerProps) {
                 </div>
 
                 <div style={{ marginBottom: 10 }}>
-                  <label style={labelStyle}>Délai max <span style={{ fontWeight: 400, color: 'var(--text-3)' }}>(heures, vide = illimité)</span></label>
-                  <input type="number" min={1} max={720} style={{ ...inputStyle, width: 100 }} value={step.deadlineHours} onChange={(e) => updateStep(i, 'deadlineHours', e.target.value)} placeholder="48" />
+                  <label style={labelStyle}>Délai max <span style={{ fontWeight: 400, color: 'var(--text-3)' }}>(heures, 1 à 720 · vide = illimité)</span></label>
+                  <input type="number" min={1} max={720} style={{ ...inputStyle, width: 100, borderColor: errors[`step_${i}_deadline`] ? '#ef4444' : 'var(--border)' }} value={step.deadlineHours} onChange={(e) => updateStep(i, 'deadlineHours', e.target.value)} placeholder="48" />
+                  {errors[`step_${i}_deadline`] && <p style={errStyle}>{errors[`step_${i}_deadline`]}</p>}
                 </div>
 
                 <div style={{ display: 'flex', gap: 16 }}>
