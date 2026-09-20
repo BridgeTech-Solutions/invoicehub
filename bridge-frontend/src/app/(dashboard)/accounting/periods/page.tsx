@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Plus, ChevronDown, ChevronRight, Lock, Unlock, AlertTriangle, Calendar } from 'lucide-react'
 import { useFiscalYears, useClosePeriod, useReopenPeriod } from '@/features/accounting/hooks'
 import { PeriodDrawer } from '@/features/accounting/components/PeriodDrawer'
+import { CloseYearDrawer } from '@/features/accounting/components/CloseYearDrawer'
 import { usePermission } from '@/hooks/usePermission'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { toast } from 'sonner'
@@ -50,7 +51,7 @@ function ProgressBar({ periods }: { periods: FiscalPeriod[] }) {
   )
 }
 
-function FiscalYearCard({ year, expanded, onToggle }: { year: FiscalYear; expanded: boolean; onToggle: () => void }) {
+function FiscalYearCard({ year, expanded, onToggle, onCloseYear }: { year: FiscalYear; expanded: boolean; onToggle: () => void; onCloseYear: (year: number) => void }) {
   const close   = useClosePeriod()
   const reopen  = useReopenPeriod()
   const { can } = usePermission()
@@ -137,6 +138,27 @@ function FiscalYearCard({ year, expanded, onToggle }: { year: FiscalYear; expand
           })}
         </div>
       )}
+
+      {/* Clôture d'exercice */}
+      {expanded && year.status !== 'open' && (
+        <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          {year.status === 'locked' ? (
+            <span style={{ fontSize: 12.5, color: 'var(--text-3)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <Lock size={13} /> Exercice clôturé — écritures verrouillées, report à-nouveau généré.
+            </span>
+          ) : (
+            <>
+              <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>Toutes les périodes sont clôturées : l'exercice peut être clôturé.</span>
+              {can('accounting', 'update') && (
+                <button onClick={() => onCloseYear(year.year)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 34, padding: '0 16px', borderRadius: 'var(--radius-md)', border: 'none', background: '#0f2d4a', color: '#fff', fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-display)', cursor: 'pointer' }}>
+                  <Lock size={13} /> Clôturer l'exercice
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -146,6 +168,7 @@ export default function PeriodsPage() {
   const { data: years = [], isLoading } = useFiscalYears()
   const [expandedYears, setExpandedYears] = useState<Set<string>>(new Set())
   const [drawerOpen, setDrawerOpen]       = useState(false)
+  const [closingYear, setClosingYear]     = useState<number | null>(null)
 
   function toggleYear(id: string) {
     setExpandedYears(prev => {
@@ -198,12 +221,14 @@ export default function PeriodsPage() {
             <FiscalYearCard key={year.id} year={year}
               expanded={expandedYears.has(year.id)}
               onToggle={() => toggleYear(year.id)}
+              onCloseYear={setClosingYear}
             />
           ))
         )}
       </div>
 
       <PeriodDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      <CloseYearDrawer year={closingYear} onClose={() => setClosingYear(null)} />
     </div>
   )
 }

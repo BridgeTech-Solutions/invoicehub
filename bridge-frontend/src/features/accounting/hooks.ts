@@ -100,6 +100,27 @@ export function useReopenPeriod() {
   })
 }
 
+// ─── Clôture d'exercice ───────────────────────────────────────
+export function useYearClosePreview(year: number | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ['accounting-year-close-preview', year],
+    queryFn:  () => accountingApi.closeYearPreview(year!),
+    enabled:  !!year && enabled,
+    staleTime: 0,
+  })
+}
+
+export function useCloseYear() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (year: number) => accountingApi.closeYear(year),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['accounting-fiscal-years'] })
+      qc.invalidateQueries({ queryKey: ['accounting-entries'] })
+    },
+  })
+}
+
 // ─── Journals ─────────────────────────────────────────────────
 
 export function useJournals() {
@@ -294,6 +315,24 @@ export function useUnletterGroup() {
   return useMutation({
     mutationFn: ({ letterCode, accountNumber }: { letterCode: string; accountNumber: string }) =>
       accountingApi.unletterGroup(letterCode, accountNumber),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['accounting-lettering'] }),
+  })
+}
+
+// Propositions de lettrage automatique — déclenchées à la demande (bouton).
+export function useSuggestLettering() {
+  return useMutation({
+    mutationFn: ({ accountId, dateFrom, dateTo }: { accountId: string; dateFrom?: string; dateTo?: string }) =>
+      accountingApi.suggestLettering(accountId, dateFrom, dateTo),
+  })
+}
+
+// Lettrage partiel avec écart de règlement.
+export function useLetterWithDifference() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { lineIds: string[]; accountNumber: string; differenceAccount?: string; label?: string }) =>
+      accountingApi.letterWithDifference(payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['accounting-lettering'] }),
   })
 }
