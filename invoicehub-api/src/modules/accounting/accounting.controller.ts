@@ -7,6 +7,7 @@ import { AccountingService } from './accounting.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Permission } from '../../common/decorators/permission.decorator';
 import { Audit } from '../../common/decorators/audit.decorator';
+import { AppError } from '../../common/errors/app-error';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import {
   createChartAccountSchema, updateChartAccountSchema,
@@ -129,6 +130,26 @@ export class AccountingController {
   @HttpCode(HttpStatus.OK)
   reopenPeriod(@Param('id') id: string) {
     return this.svc.reopenFiscalPeriod(id);
+  }
+
+  // ── Clôture d'exercice ────────────────────────────────────────────────────────
+  // Étape 1 : aperçu (lecture seule) — résultat estimé + contrôles bloquants.
+  @Get('fiscal-years/:year/close-preview')
+  @Permission('accounting:read')
+  closePreview(@Param('year') year: string) {
+    const y = parseInt(year, 10);
+    if (Number.isNaN(y)) throw AppError.badRequest('Exercice invalide.');
+    return this.svc.getFiscalYearClosePreview(y);
+  }
+
+  // Étape 2 : clôture effective (génère résultat + à-nouveau, verrouille).
+  @Post('fiscal-years/:year/close')
+  @Permission('accounting:write')
+  @Audit('fiscal_year_close', 'UPDATE')
+  closeYear(@Param('year') year: string, @CurrentUser() user: JwtPayload) {
+    const y = parseInt(year, 10);
+    if (Number.isNaN(y)) throw AppError.badRequest('Exercice invalide.');
+    return this.svc.closeFiscalYear(y, user.sub);
   }
 
   // ── Journaux ────────────────────────────────────────────────────────────────
