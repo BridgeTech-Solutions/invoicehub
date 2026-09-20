@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { submitButtonState } from '@/features/approvals/effectiveStatus'
 import { usePermission } from '@/hooks/usePermission'
+import { useConfirm } from '@/providers/ConfirmProvider'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import {
   useSupplierInvoice, useValidateSupplierInvoice,
@@ -157,6 +158,7 @@ function Skeleton() {
 
 export default function SupplierInvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { can }    = usePermission()
+  const confirm    = useConfirm()
   const { format } = useCurrency()
   const { id }     = use(params)
   const [showPayModal, setShowPayModal]         = useState(false)
@@ -317,7 +319,7 @@ export default function SupplierInvoiceDetailPage({ params }: { params: Promise<
             </button>
           )}
           {canDelete && can('supplier', 'update') && (
-            <button onClick={() => { if (confirm('Supprimer cette facture ?')) deleteMutation.mutate(id) }} disabled={deleteMutation.isPending}
+            <button onClick={async () => { if (await confirm({ title: 'Supprimer cette facture ?', tone: 'danger', confirmLabel: 'Supprimer' })) deleteMutation.mutate(id) }} disabled={deleteMutation.isPending}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid #dc2626', background: 'transparent', color: '#dc2626', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
               <XCircle size={13} /> Supprimer
             </button>
@@ -472,7 +474,7 @@ export default function SupplierInvoiceDetailPage({ params }: { params: Promise<
                   </button>
                   {can('supplier', 'update') && (
                     <button
-                      onClick={() => { if (confirm('Supprimer le document joint ?')) deleteAttachment.mutate() }}
+                      onClick={async () => { if (await confirm({ title: 'Supprimer le document joint ?', tone: 'danger', confirmLabel: 'Supprimer' })) deleteAttachment.mutate() }}
                       disabled={deleteAttachment.isPending}
                       aria-label="Supprimer le document"
                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '7px 10px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: '#dc2626', cursor: 'pointer' }}>

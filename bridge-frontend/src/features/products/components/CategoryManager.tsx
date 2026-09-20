@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Plus, Pencil, Trash2, Loader2, GripVertical, X } from 'lucide-react'
 import { useProductCategories, useCreateCategory, useUpdateCategory, useDeleteCategory } from '../hooks'
+import { useConfirm } from '@/providers/ConfirmProvider'
 import type { ProductCategory } from '../types'
 
 const PRESET_COLORS = [
@@ -15,6 +16,7 @@ interface CategoryManagerProps {
 }
 
 export function CategoryManager({ onClose }: CategoryManagerProps) {
+  const confirm = useConfirm()
   const { data: categories = [], isLoading } = useProductCategories()
   const createMutation = useCreateCategory()
   const updateMutation = useUpdateCategory()
@@ -47,8 +49,8 @@ export function CategoryManager({ onClose }: CategoryManagerProps) {
     )
   }
 
-  const handleDelete = (id: string, name: string) => {
-    if (!confirm(`Supprimer la catégorie "${name}" ?`)) return
+  const handleDelete = async (id: string, name: string) => {
+    if (!(await confirm({ title: `Supprimer la catégorie « ${name} » ?`, tone: 'danger', confirmLabel: 'Supprimer' }))) return
     deleteMutation.mutate(id)
   }
 

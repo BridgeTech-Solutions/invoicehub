@@ -5,9 +5,10 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import {
   Plus, Search, ArrowLeftRight, ChevronLeft, ChevronRight,
   ChevronDown, ChevronUp, CheckCircle2, XCircle, MinusCircle, HelpCircle,
-  Loader2, Link2, Link2Off,
+  Loader2, Link2, Link2Off, Trash2,
 } from 'lucide-react'
 import { usePermission } from '@/hooks/usePermission'
+import { useConfirm } from '@/providers/ConfirmProvider'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
@@ -15,12 +16,13 @@ import { ActionMenu } from '@/components/ui/ActionMenu'
 import {
   useTransactions, useTransactionSuggestions,
   useReconcileTransaction, useUnmatchTransaction, useIgnoreTransaction,
-  useCreateTransaction, useBankAccounts,
+  useCreateTransaction, useBankAccounts, useDeleteTransaction,
 } from '@/features/bank/hooks'
 import { ReconciliationStatusBadge } from '@/features/bank/components/ReconciliationStatusBadge'
 import { TransactionAmount } from '@/features/bank/components/TransactionAmount'
 import { BankAccountBadge } from '@/features/bank/components/BankAccountBadge'
 import { TransactionDrawer } from '@/features/bank/components/TransactionDrawer'
+import { FeeSuggestionCard } from '@/features/bank/components/FeeSuggestionCard'
 import { formatDate } from '@/lib/utils'
 import type { BankTransaction, ReconciliationStatus, MatchingSuggestion } from '@/features/bank/types'
 
@@ -28,11 +30,12 @@ const PAGE_SIZE = 25
 
 type StatusTab = 'all' | ReconciliationStatus
 
+// Pas d'onglet « Non identifiées » : le statut `unmatched` n'est jamais produit
+// par le backend, l'onglet restait donc toujours vide.
 const TABS: { key: StatusTab; label: string }[] = [
   { key: 'all',        label: 'Toutes' },
   { key: 'pending',    label: 'En attente' },
   { key: 'reconciled', label: 'Rapprochées' },
-  { key: 'unmatched',  label: 'Non identifiées' },
   { key: 'ignored',    label: 'Ignorées' },
 ]
 
@@ -105,7 +108,9 @@ function SuggestionRow({ suggestion, transactionId, onReconciled }: {
 // ─── Expanded suggestions panel ────────────────────────────────────────────
 
 function SuggestionsPanel({ transaction, onClose }: { transaction: BankTransaction; onClose: () => void }) {
-  const { data: suggestions = [], isLoading } = useTransactionSuggestions(transaction.id)
+  const { data, isLoading } = useTransactionSuggestions(transaction.id)
+  const suggestions   = data?.suggestions ?? []
+  const feeSuggestion = data?.feeSuggestion ?? null
 
   return (
     <tr>
@@ -119,7 +124,7 @@ function SuggestionsPanel({ transaction, onClose }: { transaction: BankTransacti
               <Loader2 size={13} style={{ animation: 'spin 0.8s linear infinite' }} />
               Analyse en cours…
             </div>
-          ) : suggestions.length === 0 ? (
+          ) : suggestions.length === 0 && !feeSuggestion ? (
             <div style={{ fontSize: 13, color: 'var(--text-3)', fontStyle: 'italic' }}>
               Aucune correspondance automatique trouvée. Rapprochez manuellement via le menu d'actions.
             </div>
@@ -133,6 +138,13 @@ function SuggestionsPanel({ transaction, onClose }: { transaction: BankTransacti
                   onReconciled={onClose}
                 />
               ))}
+              {feeSuggestion && (
+                <FeeSuggestionCard
+                  fee={feeSuggestion}
+                  transactionId={transaction.id}
+                  onDone={onClose}
+                />
+              )}
             </div>
           )}
         </div>
@@ -145,9 +157,15 @@ function SuggestionsPanel({ transaction, onClose }: { transaction: BankTransacti
 
 function TransactionRow({ tx, accounts }: { tx: BankTransaction; accounts: import('@/features/bank/types').BankAccount[] }) {
   const [expanded, setExpanded] = useState(false)
+  const confirm = useConfirm()
   const unmatch = useUnmatchTransaction()
   const ignore  = useIgnoreTransaction()
+  const del     = useDeleteTransaction()
   const account = accounts.find(a => a.id === tx.bankAccountId)
+
+  // Suppression réservée aux saisies manuelles non rapprochées (les mouvements
+  // importés relèvent de l'annulation d'import).
+  const canDelete = !tx.importId && tx.reconciliationStatus !== 'reconciled'
 
   const actions = [
     ...(tx.reconciliationStatus === 'pending' || tx.reconciliationStatus === 'unmatched' ? [
@@ -158,6 +176,11 @@ function TransactionRow({ tx, accounts }: { tx: BankTransaction; accounts: impor
     ] : []),
     ...(tx.reconciliationStatus === 'ignored' ? [
       { label: 'Réactiver',     icon: CheckCircle2, onClick: () => unmatch.mutate(tx.id) },
+    ] : []),
+    ...(canDelete ? [
+      { label: 'Supprimer', icon: Trash2, danger: true, onClick: async () => {
+        if (await confirm({ title: 'Supprimer cette transaction ?', message: 'Le solde du compte sera réajusté.', tone: 'danger', confirmLabel: 'Supprimer' })) del.mutate(tx.id)
+      } },
     ] : []),
   ]
 
@@ -260,9 +283,9 @@ export default function TransactionsPage() {
     ...(type      && { type: type as 'debit' | 'credit' }),
     ...(dateFrom  && { dateFrom }),
     ...(dateTo    && { dateTo }),
-    ...(tab !== 'all' && {
-      reconciled: tab === 'reconciled' ? true : false,
-    }),
+    // Filtre par statut réel (enum complet) plutôt qu'un booléen rapproché/pas :
+    // « Ignorées » et « En attente » sont désormais distinctes côté serveur.
+    ...(tab !== 'all' && { status: tab as ReconciliationStatus }),
   }), [page, accountId, search, type, dateFrom, dateTo, tab])
 
   const { data, isLoading } = useTransactions(params)

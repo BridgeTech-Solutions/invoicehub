@@ -8,6 +8,7 @@ import TaxDeclarationDrawer from '@/features/accounting/components/TaxDeclaratio
 import { formatDate } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
 import { usePermission } from '@/hooks/usePermission'
+import { useConfirm } from '@/providers/ConfirmProvider'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { toast } from 'sonner'
 import type { TaxDeclStatus, TaxDeclaration } from '@/features/accounting/types'
@@ -66,6 +67,7 @@ function DetailRow({ rate, base, amount }: { rate: number; base: number; amount:
 export default function TaxDeclarationsPage() {
   const { format } = useCurrency()
   const { can } = usePermission()
+  const confirm = useConfirm()
   const [drawerOpen, setDrawerOpen]     = useState(false)
   const [filterYearId, setFilterYearId] = useState('')
   const [filterMonth, setFilterMonth]   = useState('')
@@ -95,7 +97,7 @@ export default function TaxDeclarationsPage() {
   const detailDeductible = latestDetail?.detail.deductible ?? []
 
   async function handleSubmit(id: string, period: string) {
-    if (!confirm(`Déposer la déclaration TVA de ${period} ? Cette action est irréversible.`)) return
+    if (!(await confirm({ title: `Déposer la déclaration TVA de ${period} ?`, message: 'Cette action est irréversible.', tone: 'warning', confirmLabel: 'Déposer' }))) return
     try {
       await submit.mutateAsync(id)
       toast.success('Déclaration déposée')

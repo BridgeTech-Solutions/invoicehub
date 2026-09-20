@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { usePermission } from '@/hooks/usePermission'
+import { useConfirm } from '@/providers/ConfirmProvider'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { Plus, Search, TrendingDown, Clock, RefreshCw, BarChart2, MoreHorizontal, Pencil, CheckCircle2, XCircle, Banknote, Trash2, ExternalLink, Send } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -67,6 +68,7 @@ function KpiCard({ label, value, sub, color, icon: Icon }: { label: string; valu
 function ActionMenu({ exp }: { exp: ExpenseListItem }) {
   const [open, setOpen]     = useState(false)
   const [showPay, setShowPay] = useState(false)
+  const confirm             = useConfirm()
   const router              = useRouter()
   const submitMutation      = useSubmitExpense()
   const approveMutation     = useApproveExpense()
@@ -94,7 +96,7 @@ function ActionMenu({ exp }: { exp: ExpenseListItem }) {
               { show: canSubmit, icon: Send,         label: 'Soumettre',    action: () => { submitMutation.mutate(exp.id) } },
               { show: canApprove,icon: CheckCircle2, label: 'Approuver',   action: () => { approveMutation.mutate(exp.id) } },
               { show: canMarkPaid,icon: Banknote,    label: 'Marquer payé', action: () => { setShowPay(true) } },
-              { show: canDelete, icon: Trash2,       label: 'Supprimer',    action: () => { if (confirm('Supprimer cette dépense ?')) deleteMutation.mutate(exp.id) }, danger: true },
+              { show: canDelete, icon: Trash2,       label: 'Supprimer',    action: async () => { if (await confirm({ title: 'Supprimer cette dépense ?', tone: 'danger', confirmLabel: 'Supprimer' })) deleteMutation.mutate(exp.id) }, danger: true },
             ].filter(a => a.show).map(({ icon: Icon, label, action, danger }) => (
               <button key={label} onClick={() => { action(); setOpen(false) }}
                 style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 6, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: danger ? '#dc2626' : 'var(--text-1)', fontFamily: 'var(--font-body)', textAlign: 'left', width: '100%' }}

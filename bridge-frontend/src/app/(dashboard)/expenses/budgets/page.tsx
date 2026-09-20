@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight, Plus, Trash2, Loader2, AlertTriangle, X } from 'lucide-react'
 import { usePermission } from '@/hooks/usePermission'
+import { useConfirm } from '@/providers/ConfirmProvider'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
@@ -82,6 +83,7 @@ function BudgetModal({ year, onClose, isPending, onSave, cats }: {
 
 export default function ExpenseBudgetsPage() {
   const { can } = usePermission()
+  const confirm = useConfirm()
   const { format } = useCurrency()
   const [year,       setYear]       = useState(new Date().getFullYear())
   const [showCreate, setShowCreate] = useState(false)
@@ -209,7 +211,7 @@ export default function ExpenseBudgetsPage() {
                       </span>
                     </div>
                   </div>
-                  <button onClick={() => { if (confirm(`Supprimer le budget "${b.label}" ?`)) deleteMutation.mutate(b.id) }}
+                  <button onClick={async () => { if (await confirm({ title: `Supprimer le budget « ${b.label} » ?`, tone: 'danger', confirmLabel: 'Supprimer' })) deleteMutation.mutate(b.id) }}
                     style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--text-3)', flexShrink: 0 }}
                     onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#fecaca' }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.borderColor = 'var(--border)' }}>

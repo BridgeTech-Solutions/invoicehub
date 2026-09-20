@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { usePermission } from '@/hooks/usePermission'
+import { useConfirm } from '@/providers/ConfirmProvider'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { Plus, Search, MoreHorizontal, Pencil, CheckCircle2, Banknote, Trash2, ExternalLink } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -50,6 +51,7 @@ function ActionMenu({ inv }: { inv: SupplierInvoiceListItem }) {
   const [open, setOpen]     = useState(false)
   const [pos,  setPos]      = useState({ top: 0, right: 0 })
   const btnRef              = useRef<HTMLButtonElement>(null)
+  const confirm             = useConfirm()
   const router              = useRouter()
   const validateMutation    = useValidateSupplierInvoice()
   const deleteMutation      = useDeleteSupplierInvoice()
@@ -83,7 +85,7 @@ function ActionMenu({ inv }: { inv: SupplierInvoiceListItem }) {
               { show: canValidate, icon: CheckCircle2, label: 'Valider',              action: () => { validateMutation.mutate(inv.id); setOpen(false) } },
               { show: ['validated', 'partially_paid'].includes(inv.status),
                                    icon: Banknote,     label: 'Enregistrer paiement', action: () => router.push(`${ROUTES.SUPPLIER_INVOICES}/${inv.id}?pay=1`) },
-              { show: canDelete,   icon: Trash2,       label: 'Supprimer',            action: () => { if (confirm('Supprimer cette facture ?')) { deleteMutation.mutate(inv.id); setOpen(false) } }, danger: true },
+              { show: canDelete,   icon: Trash2,       label: 'Supprimer',            action: async () => { if (await confirm({ title: 'Supprimer cette facture ?', tone: 'danger', confirmLabel: 'Supprimer' })) { deleteMutation.mutate(inv.id); setOpen(false) } }, danger: true },
             ].filter(a => a.show).map(({ icon: Icon, label, action, danger }) => (
               <button key={label} onClick={() => { action(); setOpen(false) }}
                 style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 6, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: danger ? '#dc2626' : 'var(--text-1)', fontFamily: 'var(--font-body)', textAlign: 'left', width: '100%' }}

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
 import { usePermission } from '@/hooks/usePermission'
+import { useConfirm } from '@/providers/ConfirmProvider'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
@@ -94,6 +95,7 @@ function CategoryModal({
 
 export default function ExpenseCategoriesPage() {
   const { can } = usePermission()
+  const confirm = useConfirm()
   const canSeeAccounting = can('accounting', 'read')
   const { data: categories, isLoading } = useExpenseCategories()
   const createMutation = useCreateExpenseCategory()
@@ -217,7 +219,7 @@ export default function ExpenseCategoriesPage() {
                           onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-3)' }}>
                           <Pencil size={13} />
                         </button>
-                        <button onClick={() => { if (confirm(`Supprimer la catégorie "${cat.name}" ?`)) deleteMutation.mutate(cat.id) }}
+                        <button onClick={async () => { if (await confirm({ title: `Supprimer la catégorie « ${cat.name} » ?`, tone: 'danger', confirmLabel: 'Supprimer' })) deleteMutation.mutate(cat.id) }}
                           style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--text-3)' }}
                           onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#fecaca' }}
                           onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.borderColor = 'var(--border)' }}>
