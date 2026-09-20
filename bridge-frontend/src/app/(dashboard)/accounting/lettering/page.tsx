@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { Link2, CheckCircle2, AlertCircle, Link, Unlink, ChevronDown, ChevronRight } from 'lucide-react'
-import { useLetterableLines, useLetterLines, useUnletterGroup, useFiscalYears } from '@/features/accounting/hooks'
+import { useState, useMemo, useEffect } from 'react'
+import { Link2, CheckCircle2, AlertCircle, Link, Unlink, ChevronDown, ChevronRight, Wand2, Loader2, X, ArrowRight } from 'lucide-react'
+import { useLetterableLines, useLetterLines, useUnletterGroup, useFiscalYears, useSuggestLettering } from '@/features/accounting/hooks'
 import { AccountPicker } from '@/features/accounting/components/AccountPicker'
 import { formatDate } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
@@ -58,6 +58,8 @@ export default function LetteringPage() {
   const [selectedAccount, setSelectedAccount] = useState<AccountListItem | null>(null)
   const [selectedIds, setSelectedIds]         = useState<Set<string>>(new Set())
   const [showLettered, setShowLettered]       = useState(false)
+  type SuggestionGroup = { lineIds: string[]; total: number; debitIds: string[]; creditIds: string[] }
+  const [suggestions, setSuggestions]         = useState<SuggestionGroup[]>([])
 
   const { data: fiscalYears = [] } = useFiscalYears()
   const currentPeriod = fiscalYears.find(y => y.status === 'open')?.periods?.find(p => p.status === 'open')
@@ -69,6 +71,7 @@ export default function LetteringPage() {
 
   const letter  = useLetterLines()
   const unletter = useUnletterGroup()
+  const suggest  = useSuggestLettering()
 
   const selectionBalance = useMemo(() => {
     return unlettered
@@ -79,6 +82,12 @@ export default function LetteringPage() {
   const isLetterableSelection = selectedIds.size >= 2 && Math.abs(selectionBalance) < 0.01
 
   const remainingToBalance = -selectionBalance
+
+  // Index des lignes non lettrées par id, pour afficher le détail des groupes proposés.
+  const linesById = useMemo(() => new Map(unlettered.map(l => [l.id, l])), [unlettered])
+
+  // On repart de zéro à chaque changement de compte.
+  useEffect(() => { setSuggestions([]); setSelectedIds(new Set()) }, [selectedAccount?.id])
 
   function isCandidate(line: LetterableEntryLine): boolean {
     if (selectedIds.has(line.id)) return false
@@ -105,8 +114,36 @@ export default function LetteringPage() {
     try {
       await letter.mutateAsync({ lineIds: Array.from(selectedIds) })
       setSelectedIds(new Set())
+      setSuggestions([])
       toast.success('Lignes lettrées avec succès')
     } catch (e: unknown) { toast.error((e as Error).message) }
+  }
+
+  // Récupère TOUS les groupes équilibrés proposés (1 règlement ↔ plusieurs factures
+  // et inversement, jusqu'à 6 lignes) et les affiche pour application en un clic.
+  async function handleSuggest() {
+    if (!selectedAccount) return
+    try {
+      const res = await suggest.mutateAsync({ accountId: selectedAccount.number })
+      setSuggestions(res.suggestions)
+      setSelectedIds(new Set())
+      if (res.suggestions.length === 0) toast.info('Aucun groupe de lettrage évident trouvé')
+      else toast.success(`${res.suggestions.length} groupe${res.suggestions.length > 1 ? 's' : ''} proposé${res.suggestions.length > 1 ? 's' : ''}`)
+    } catch (e: unknown) { toast.error((e as Error).message) }
+  }
+
+  // Applique directement un groupe proposé (lettrage en un clic).
+  async function applyGroup(group: SuggestionGroup) {
+    try {
+      await letter.mutateAsync({ lineIds: group.lineIds })
+      setSuggestions(prev => prev.filter(g => g !== group))
+      toast.success('Groupe lettré')
+    } catch (e: unknown) { toast.error((e as Error).message) }
+  }
+
+  // Charge un groupe dans la sélection pour revue avant lettrage.
+  function reviewGroup(group: SuggestionGroup) {
+    setSelectedIds(new Set(group.lineIds))
   }
 
   async function handleUnletter(code: string) {
@@ -181,6 +218,60 @@ export default function LetteringPage() {
             </div>
           )}
 
+          {/* Suggestions de lettrage (multi-documents) */}
+          {suggestions.length > 0 && (
+            <div className="card" style={{ overflow: 'hidden', border: '1.5px solid rgba(45,125,210,0.3)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'rgba(45,125,210,0.05)' }}>
+                <Wand2 size={15} style={{ color: 'var(--primary)' }} />
+                <h2 style={{ flex: 1, fontSize: 13.5, fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: 0 }}>
+                  {suggestions.length} suggestion{suggestions.length > 1 ? 's' : ''} de lettrage
+                </h2>
+                <button onClick={() => setSuggestions([])} title="Masquer"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 6, border: '1.5px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--text-3)' }}>
+                  <X size={13} />
+                </button>
+              </div>
+              {suggestions.map((g, i) => {
+                const gl = g.lineIds.map(id => linesById.get(id)).filter(Boolean) as LetterableEntryLine[]
+                return (
+                  <div key={i} style={{ padding: '12px 16px', borderBottom: i < suggestions.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-2)', fontFamily: 'var(--font-display)' }}>
+                        {g.debitIds.length} pièce{g.debitIds.length > 1 ? 's' : ''} débit ↔ {g.creditIds.length} crédit
+                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--primary)', background: 'var(--primary-light)', padding: '1px 8px', borderRadius: 99 }}>{gl.length} lignes</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: 'var(--text-1)', marginLeft: 'auto' }}>{format(g.total)}</span>
+                      {can('accounting', 'update') && (
+                        <>
+                          <button onClick={() => reviewGroup(g)}
+                            style={{ height: 30, padding: '0 12px', borderRadius: 6, border: '1.5px solid var(--border-strong)', background: 'transparent', cursor: 'pointer', fontSize: 12, fontWeight: 500, color: 'var(--text-2)' }}>
+                            Revoir
+                          </button>
+                          <button onClick={() => applyGroup(g)} disabled={letter.isPending}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 30, padding: '0 14px', borderRadius: 6, border: 'none', background: 'var(--acc-credit)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-display)', opacity: letter.isPending ? 0.6 : 1 }}>
+                            <Link size={12} /> Appliquer
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {gl.map(l => (
+                        <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-3)' }}>
+                          <ArrowRight size={11} style={{ color: 'var(--text-3)', flexShrink: 0 }} />
+                          <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--primary)', fontWeight: 600, flexShrink: 0 }}>{l.entryNumber}</span>
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.label}</span>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: l.debit > 0 ? 'var(--acc-debit)' : 'var(--acc-credit)', flexShrink: 0 }}>
+                            {l.debit > 0 ? format(l.debit) : format(l.credit)} {l.debit > 0 ? 'D' : 'C'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
           {/* Unlettered lines */}
           <div className="card" style={{ overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
@@ -188,9 +279,18 @@ export default function LetteringPage() {
                 Lignes non lettrées ({unlettered.length})
               </h2>
               {unlettered.length > 0 && (
-                <button onClick={toggleAll} style={{ fontSize: 12.5, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
-                  {selectedIds.size === unlettered.length ? 'Désélectionner tout' : 'Tout sélectionner'}
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  {can('accounting', 'update') && (
+                    <button onClick={handleSuggest} disabled={suggest.isPending}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                      {suggest.isPending ? <Loader2 size={13} style={{ animation: 'spin 0.8s linear infinite' }} /> : <Wand2 size={13} />}
+                      Proposer un lettrage
+                    </button>
+                  )}
+                  <button onClick={toggleAll} style={{ fontSize: 12.5, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
+                    {selectedIds.size === unlettered.length ? 'Désélectionner tout' : 'Tout sélectionner'}
+                  </button>
+                </div>
               )}
             </div>
             <div style={{ overflowX: 'auto' }}>
