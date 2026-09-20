@@ -6,6 +6,7 @@ import { useJournals, useToggleJournal, useDeleteJournal } from '@/features/acco
 import { JournalDrawer } from '@/features/accounting/components/JournalDrawer'
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import { usePermission } from '@/hooks/usePermission'
+import { useConfirm } from '@/providers/ConfirmProvider'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { toast } from 'sonner'
 import type { AccountingJournal, JournalType } from '@/features/accounting/types'
@@ -26,6 +27,7 @@ function JournalCard({ journal, onEdit }: { journal: AccountingJournal; onEdit: 
   const toggle   = useToggleJournal()
   const remove   = useDeleteJournal()
   const { can }  = usePermission()
+  const confirm  = useConfirm()
 
   async function handleToggle() {
     try {
@@ -35,7 +37,7 @@ function JournalCard({ journal, onEdit }: { journal: AccountingJournal; onEdit: 
   }
 
   async function handleDelete() {
-    if (!confirm(`Supprimer le journal ${journal.code} — ${journal.name} ?`)) return
+    if (!(await confirm({ title: `Supprimer le journal ${journal.code} ?`, message: journal.name, tone: 'danger', confirmLabel: 'Supprimer' }))) return
     try {
       await remove.mutateAsync(journal.id)
       toast.success('Journal supprimé')

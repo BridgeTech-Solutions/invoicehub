@@ -7,6 +7,7 @@ import { AccountPicker } from '@/features/accounting/components/AccountPicker'
 import { formatDate } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
 import { usePermission } from '@/hooks/usePermission'
+import { useConfirm } from '@/providers/ConfirmProvider'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { toast } from 'sonner'
 import type { AccountListItem, LetterableEntryLine, LetteredGroup } from '@/features/accounting/types'
@@ -55,6 +56,7 @@ function LetteredGroupRow({ group, accountId, onUnletter }: { group: LetteredGro
 export default function LetteringPage() {
   const { format } = useCurrency()
   const { can } = usePermission()
+  const confirm = useConfirm()
   const [selectedAccount, setSelectedAccount] = useState<AccountListItem | null>(null)
   const [selectedIds, setSelectedIds]         = useState<Set<string>>(new Set())
   const [showLettered, setShowLettered]       = useState(false)
@@ -147,7 +149,8 @@ export default function LetteringPage() {
   }
 
   async function handleUnletter(code: string) {
-    if (!selectedAccount || !confirm(`Délettrer le groupe ${code} ?`)) return
+    if (!selectedAccount) return
+    if (!(await confirm({ title: `Délettrer le groupe ${code} ?`, tone: 'warning', confirmLabel: 'Délettrer' }))) return
     try {
       await unletter.mutateAsync({ letterCode: code, accountNumber: selectedAccount.number })
       toast.success(`Groupe ${code} délettré`)

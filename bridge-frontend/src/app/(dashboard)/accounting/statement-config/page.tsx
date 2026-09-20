@@ -5,6 +5,7 @@ import { Sliders, Pencil, RotateCcw, Info } from 'lucide-react'
 import { useStatementRubriques, useResetRubriques } from '@/features/accounting/hooks'
 import { RubriqueDrawer } from '@/features/accounting/components/RubriqueDrawer'
 import { usePermission } from '@/hooks/usePermission'
+import { useConfirm } from '@/providers/ConfirmProvider'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { toast } from 'sonner'
 import type { StatementRubrique, RubriqueSource } from '@/features/accounting/types'
@@ -42,6 +43,7 @@ function RubriqueRow({ r, onEdit, canEdit }: { r: StatementRubrique; onEdit: () 
 
 export default function StatementConfigPage() {
   const { can } = usePermission()
+  const confirm = useConfirm()
   const { data: rubriques = [], isLoading } = useStatementRubriques()
   const reset = useResetRubriques()
   const [editing, setEditing] = useState<StatementRubrique | null>(null)
@@ -63,7 +65,7 @@ export default function StatementConfigPage() {
   }, [rubriques])
 
   async function handleReset() {
-    if (!confirm('Réinitialiser tout le modèle du bilan au standard SYSCOHADA ? Toutes vos personnalisations seront perdues.')) return
+    if (!(await confirm({ title: 'Réinitialiser le modèle du bilan ?', message: 'Tout le modèle repassera au standard SYSCOHADA ; vos personnalisations seront perdues.', tone: 'danger', confirmLabel: 'Réinitialiser' }))) return
     try {
       await reset.mutateAsync()
       toast.success('Modèle réinitialisé au standard SYSCOHADA')

@@ -9,6 +9,7 @@ import { formatDate } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES, PAYMENT_METHODS } from '@/lib/constants'
 import { usePermission } from '@/hooks/usePermission'
+import { useConfirm } from '@/providers/ConfirmProvider'
 import type { PaymentMethod } from '@/features/invoices/types'
 
 // ─── Skeleton ───────────────────────────────────────────────────
@@ -31,6 +32,7 @@ export default function PaymentsPage() {
   const { format } = useCurrency()
   const router = useRouter()
   const { can } = usePermission()
+  const confirm = useConfirm()
 
   const [search,      setSearch]      = useState('')
   const [methodFilter, setMethodFilter] = useState<PaymentMethod | ''>('')
@@ -186,7 +188,7 @@ export default function PaymentsPage() {
                           </button>
                           {can('payment', 'delete') && (
                             <button type="button" title="Annuler" disabled={deleteMutation.isPending}
-                              onClick={() => { if (confirm('Annuler ce paiement ? Le solde de la facture sera recalculé.')) deleteMutation.mutate(pay.id) }}
+                              onClick={async () => { if (await confirm({ title: 'Annuler ce paiement ?', message: 'Le solde de la facture sera recalculé.', tone: 'danger', confirmLabel: 'Annuler le paiement' })) deleteMutation.mutate(pay.id) }}
                               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#ef4444' }}>
                               {deleteMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
                             </button>

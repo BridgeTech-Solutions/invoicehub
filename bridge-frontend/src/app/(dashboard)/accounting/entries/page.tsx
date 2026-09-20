@@ -9,6 +9,7 @@ import { ActionMenu } from '@/components/ui/ActionMenu'
 import { formatDate } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
 import { usePermission } from '@/hooks/usePermission'
+import { useConfirm } from '@/providers/ConfirmProvider'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { ROUTES } from '@/lib/constants'
 import { toast } from 'sonner'
@@ -58,6 +59,7 @@ function KpiCard({ label, value, sub, color }: { label: string; value: string; s
 export default function EntriesPage() {
   const { format } = useCurrency()
   const { can } = usePermission()
+  const confirm = useConfirm()
   const router  = useRouter()
   const [params, setParams] = useState<ListEntriesParams>({ page: 1, limit: 25 })
   const [search, setSearch] = useState('')
@@ -101,7 +103,7 @@ export default function EntriesPage() {
     } catch (e: unknown) { toast.error((e as Error).message) }
   }
   async function handleValidateAll() {
-    if (!confirm('Valider TOUTES les écritures brouillon correspondant aux filtres ? Elles deviendront définitives et entreront dans la balance.')) return
+    if (!(await confirm({ title: 'Valider toutes les écritures en brouillon ?', message: 'Toutes les écritures brouillon correspondant aux filtres deviendront définitives et entreront dans la balance.', tone: 'warning', confirmLabel: 'Tout valider' }))) return
     try {
       const r = await validateAll.mutateAsync({
         periodId: params.periodId, journalId: params.journalId,
@@ -119,7 +121,7 @@ export default function EntriesPage() {
   if (!can('accounting', 'read')) return <AccessDenied message="Vous n'avez pas accès à la comptabilité." />
 
   async function handleCancel(id: string, num: string) {
-    if (!confirm(`Annuler le brouillon ${num} ? Cette action est irréversible.`)) return
+    if (!(await confirm({ title: `Annuler le brouillon ${num} ?`, message: 'Cette action est irréversible.', tone: 'danger', confirmLabel: 'Annuler le brouillon' }))) return
     try {
       await cancel.mutateAsync(id)
       toast.success('Écriture annulée')
@@ -127,7 +129,7 @@ export default function EntriesPage() {
   }
 
   async function handleReverse(id: string, num: string) {
-    if (!confirm(`Extourner l'écriture ${num} ? Une contre-écriture miroir sera créée en brouillon.`)) return
+    if (!(await confirm({ title: `Extourner l'écriture ${num} ?`, message: 'Une contre-écriture miroir sera créée en brouillon.', tone: 'warning', confirmLabel: 'Extourner' }))) return
     try {
       await reverse.mutateAsync(id)
       toast.success('Extourne créée — à valider dans les écritures')

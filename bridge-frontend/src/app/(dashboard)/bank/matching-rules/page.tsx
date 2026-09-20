@@ -3,6 +3,7 @@
 import { useState, useId, useEffect } from 'react'
 import { Plus, Zap, Search, Pencil, Trash2, X, Loader2 } from 'lucide-react'
 import { usePermission } from '@/hooks/usePermission'
+import { useConfirm } from '@/providers/ConfirmProvider'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
@@ -204,6 +205,7 @@ function RuleDrawer({ rule, accounts, onClose }: {
 
 export default function MatchingRulesPage() {
   const { can } = usePermission()
+  const confirm = useConfirm()
   const [drawerOpen,    setDrawerOpen]   = useState(false)
   const [editingRule,   setEditingRule]  = useState<BankMatchingRule | null>(null)
   const [accountFilter, setAccountFilter] = useState('')
@@ -228,7 +230,7 @@ export default function MatchingRulesPage() {
     setTimeout(() => setEditingRule(null), 300)
   }
   const handleDelete = async (rule: BankMatchingRule) => {
-    if (!confirm(`Supprimer la règle "${rule.labelContains}" ?`)) return
+    if (!(await confirm({ title: `Supprimer la règle « ${rule.labelContains} » ?`, tone: 'danger', confirmLabel: 'Supprimer' }))) return
     await deleteMutation.mutateAsync(rule.id)
   }
   const handleToggleAutoApply = async (rule: BankMatchingRule) => {

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Plus, Building2, Landmark } from 'lucide-react'
 import { usePermission } from '@/hooks/usePermission'
+import { useConfirm } from '@/providers/ConfirmProvider'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
@@ -15,6 +16,7 @@ import { toast } from 'sonner'
 
 export default function BankAccountsPage() {
   const { can } = usePermission()
+  const confirm = useConfirm()
   const [drawerOpen,      setDrawerOpen]      = useState(false)
   const [editingAccount,  setEditingAccount]  = useState<BankAccount | null>(null)
   const [deletingAccount, setDeletingAccount] = useState<BankAccount | null>(null)
@@ -34,7 +36,7 @@ export default function BankAccountsPage() {
   }
 
   const handleDelete = async (account: BankAccount) => {
-    if (!confirm(`Supprimer le compte "${account.name}" ? Cette action est irréversible.`)) return
+    if (!(await confirm({ title: `Supprimer le compte « ${account.name} » ?`, message: 'Cette action est irréversible.', tone: 'danger', confirmLabel: 'Supprimer' }))) return
     await deleteMutation.mutateAsync(account.id)
   }
 
