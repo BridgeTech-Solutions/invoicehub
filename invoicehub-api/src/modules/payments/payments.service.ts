@@ -59,69 +59,88 @@ export class PaymentsService {
   }
 
   async create(invoiceId: string, input: CreatePaymentInput, createdById: string) {
-    const invoice = await this.prisma.invoice.findFirst({
-      where: { id: invoiceId, deletedAt: null },
-      include: { client: { select: { accountingAccount: true, name: true } } },
-    });
-
-    if (!invoice) throw AppError.notFound('Facture introuvable');
-
-    if (!['issued', 'partially_paid', 'overdue'].includes(invoice.status)) {
-      throw AppError.badRequest('Impossible d\'enregistrer un paiement sur cette facture');
-    }
-
     if (input.amount <= 0) {
       throw AppError.badRequest('Le montant du paiement doit être supérieur à zéro');
     }
+    const paymentDate = new Date(input.paymentDate);
 
-    const balanceDue = Number(invoice.balanceDue);
-    if (balanceDue <= 0) {
-      throw AppError.badRequest('Cette facture est déjà entièrement réglée');
-    }
+    // Tout ce qui dépend du solde se fait SOUS VERROU de la facture, dans la
+    // transaction : sinon deux paiements concurrents lisent le même solde et
+    // dépassent le montant dû (amountPaid/balanceDue faux). On sérialise donc les
+    // paiements d'une même facture via un SELECT ... FOR UPDATE, et on recalcule le
+    // montant réglé par AGRÉGATION réelle des paiements (jamais par arithmétique sur
+    // un snapshot périmé) — source de vérité unique, alignée sur softDelete().
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 1. Verrou de ligne : bloque tout paiement concurrent sur cette facture.
+      await tx.$executeRaw`SELECT id FROM invoices WHERE id = ${invoiceId}::uuid FOR UPDATE`;
 
-    // ── Logique escompte de règlement ────────────────────────────────────────
-    const paymentDate      = new Date(input.paymentDate);
-    const escompteDeadline = (invoice as any).escompteDeadline ? new Date((invoice as any).escompteDeadline) : null;
-    const escompteEligible =
-      (invoice as any).escompteRate !== null &&
-      (invoice as any).escompteDeadline !== null &&
-      escompteDeadline !== null &&
-      paymentDate <= escompteDeadline;
-
-    let escompteApplied = false;
-    let escompteAmount  = 0;
-
-    if (escompteEligible && input.applyEscompte) {
-      // Vérifier qu'aucun paiement précédent n'a déjà appliqué l'escompte
-      const alreadyApplied = await this.prisma.payment.findFirst({
-        where: { invoiceId, deletedAt: null, escompteApplied: true as any },
+      // 2. Relecture SOUS verrou = état de référence.
+      const invoice = await tx.invoice.findFirst({
+        where: { id: invoiceId, deletedAt: null },
+        include: { client: { select: { accountingAccount: true, name: true } } },
       });
-      if (alreadyApplied) {
-        throw AppError.badRequest('L\'escompte de règlement a déjà été appliqué sur un paiement précédent de cette facture');
+      if (!invoice) throw AppError.notFound('Facture introuvable');
+      if (!['issued', 'partially_paid', 'overdue'].includes(invoice.status)) {
+        throw AppError.badRequest('Impossible d\'enregistrer un paiement sur cette facture');
       }
-      escompteApplied = true;
-      escompteAmount  = Number((invoice as any).escompteAmount);
-    }
+      const balanceDue = Number(invoice.balanceDue);
+      if (balanceDue <= 0) {
+        throw AppError.badRequest('Cette facture est déjà entièrement réglée');
+      }
 
-    // ── Retenue à la source subie (acompte IR / précompte) ────────────────────
-    // Le client prélève une retenue et la reverse à l'État pour notre compte : ce
-    // n'est ni un impayé ni une charge, mais une créance d'impôt. Elle solde donc
-    // une partie de la facture au même titre que l'encaissement.
-    const withholdingAmount = Math.max(0, Number(input.withholdingAmount ?? 0));
-    const withholdingApplied = withholdingAmount > 0;
+      // 3. Escompte de règlement (contrôle d'unicité sous verrou).
+      const escompteDeadline = (invoice as any).escompteDeadline ? new Date((invoice as any).escompteDeadline) : null;
+      const escompteEligible =
+        (invoice as any).escompteRate !== null &&
+        (invoice as any).escompteDeadline !== null &&
+        escompteDeadline !== null &&
+        paymentDate <= escompteDeadline;
 
-    // Le solde dû est couvert par : encaissement + escompte + retenue à la source
-    const totalCovered = input.amount + escompteAmount + withholdingAmount;
-    if (totalCovered > balanceDue + 0.01) {
-      throw AppError.badRequest(
-        `Le règlement (encaissé ${input.amount.toLocaleString('fr-FR')}` +
-        `${withholdingAmount > 0 ? ` + retenue ${withholdingAmount.toLocaleString('fr-FR')}` : ''}` +
-        `${escompteAmount > 0 ? ` + escompte ${escompteAmount.toLocaleString('fr-FR')}` : ''} XAF) ` +
-        `dépasse le solde dû (${balanceDue.toLocaleString('fr-FR')} XAF)`,
-      );
-    }
+      let escompteApplied = false;
+      let escompteAmount  = 0;
+      if (escompteEligible && input.applyEscompte) {
+        const alreadyApplied = await tx.payment.findFirst({
+          where: { invoiceId, deletedAt: null, escompteApplied: true as any },
+        });
+        if (alreadyApplied) {
+          throw AppError.badRequest('L\'escompte de règlement a déjà été appliqué sur un paiement précédent de cette facture');
+        }
+        escompteApplied = true;
+        escompteAmount  = Number((invoice as any).escompteAmount);
+      }
 
-    return this.prisma.$transaction(async (tx) => {
+      // 4. Retenue à la source subie (créance d'impôt, solde une part de la facture).
+      const withholdingAmount = Math.max(0, Number(input.withholdingAmount ?? 0));
+      const withholdingApplied = withholdingAmount > 0;
+
+      // 5. Contrôle de dépassement sur données FRAÎCHES (sous verrou).
+      const totalCovered = input.amount + escompteAmount + withholdingAmount;
+      if (totalCovered > balanceDue + 0.01) {
+        throw AppError.badRequest(
+          `Le règlement (encaissé ${input.amount.toLocaleString('fr-FR')}` +
+          `${withholdingAmount > 0 ? ` + retenue ${withholdingAmount.toLocaleString('fr-FR')}` : ''}` +
+          `${escompteAmount > 0 ? ` + escompte ${escompteAmount.toLocaleString('fr-FR')}` : ''} XAF) ` +
+          `dépasse le solde dû (${balanceDue.toLocaleString('fr-FR')} XAF)`,
+        );
+      }
+
+      // 5b. Période comptable : refuser une date hors d'un exercice ouvert. Sinon le
+      //     paiement serait enregistré mais son écriture (Dr 521 / Cr 411) échouerait
+      //     silencieusement (getOpenPeriod), laissant un règlement sans comptabilité.
+      //     Comparaison par date calendaire (endDate est @db.Date à minuit UTC).
+      const day = new Date(Date.UTC(paymentDate.getUTCFullYear(), paymentDate.getUTCMonth(), paymentDate.getUTCDate()));
+      const openPeriod = await tx.fiscalPeriod.findFirst({
+        where:  { status: 'open', startDate: { lte: day }, endDate: { gte: day } },
+        select: { id: true },
+      });
+      if (!openPeriod) {
+        throw AppError.badRequest(
+          `Aucune période comptable ouverte pour le ${paymentDate.toLocaleDateString('fr-FR')} : ` +
+          `impossible d'enregistrer le paiement à cette date (période clôturée ou inexistante).`,
+        );
+      }
+
+      // 6. Création du paiement + intention de comptabilisation (outbox).
       const payment = await tx.payment.create({
         data: {
           invoiceId,
@@ -131,7 +150,8 @@ export class PaymentsService {
           reference:       input.reference,
           notes:           input.notes,
           bankAccountId:   input.bankAccountId,
-          attachmentPath:  input.attachmentPath,
+          // attachmentPath n'est JAMAIS pris du body (anti-spoof) : il n'est défini
+          // que par l'endpoint d'upload dédié (uploadAttachment).
           escompteApplied: escompteApplied as any,
           escompteAmount:  escompteAmount as any,
           withholdingApplied: withholdingApplied as any,
@@ -140,11 +160,17 @@ export class PaymentsService {
         },
       } as any);
 
-      // Outbox : intention de comptabiliser le règlement, atomique avec le paiement.
       await recordAccountingEvent(tx as any, 'onPaymentReceived', 'payment', payment.id);
 
-      // amountPaid = paiements précédents + montant reçu + escompte + retenue à la source
-      const newAmountPaid = Number(invoice.amountPaid) + input.amount + escompteAmount + withholdingAmount;
+      // 7. Recalcul du réglé par AGRÉGATION réelle (inclut le paiement qu'on vient
+      //    de créer) : encaissements + escomptes + retenues, tous non supprimés.
+      const agg = await tx.payment.aggregate({
+        where: { invoiceId, deletedAt: null },
+        _sum:  { amount: true, escompteAmount: true, withholdingAmount: true },
+      });
+      const newAmountPaid = Number(agg._sum.amount ?? 0)
+        + Number(agg._sum.escompteAmount ?? 0)
+        + Number((agg._sum as any).withholdingAmount ?? 0);
       const newBalanceDue = Number(invoice.amountDue) - newAmountPaid;
       const isPaid        = newBalanceDue <= 0.01;
 
@@ -175,7 +201,6 @@ export class PaymentsService {
 
       // Écriture comptable escompte accordé (Dr 673 / Cr 411)
       if (escompteApplied && escompteAmount > 0) {
-        // null → le moteur reprend le compte client par défaut configuré (pas de numéro en dur)
         const clientAccount = (invoice.client as any)?.accountingAccount ?? null;
         await accountingEngine.onEscompteAccorde({
           paymentId:      payment.id,
@@ -201,11 +226,11 @@ export class PaymentsService {
         }, tx);
       }
 
-      return payment;
-    }).then(async (payment) => {
-      const paidSoFar = Number(invoice.amountPaid) + input.amount + escompteAmount + withholdingAmount;
-      const remaining = Number(invoice.amountDue) - paidSoFar;
-      const fullyPaid = remaining <= 0.01;
+      return { payment, invoice, escompteApplied, escompteAmount, withholdingApplied, withholdingAmount, remaining: newBalanceDue, fullyPaid: isPaid };
+    });
+
+    return await (async () => {
+      const { payment, invoice, escompteApplied, escompteAmount, withholdingApplied, withholdingAmount, remaining, fullyPaid } = result;
 
       const escompteMsg = escompteApplied
         ? ` (escompte de ${escompteAmount.toLocaleString('fr-FR')} XAF accordé)`
@@ -240,10 +265,10 @@ export class PaymentsService {
       }
       await this.cache.invalidate();
       return payment;
-    });
+    })();
   }
 
-  async softDelete(id: string): Promise<void> {
+  async softDelete(id: string, userId: string): Promise<void> {
     const payment = await this.prisma.payment.findFirst({
       where: { id, deletedAt: null },
       include: { invoice: true },
@@ -251,27 +276,47 @@ export class PaymentsService {
 
     if (!payment) throw AppError.notFound('Paiement introuvable');
 
+    // #6 — Un paiement rapproché d'une transaction bancaire ne peut pas être
+    // supprimé tel quel : cela laisserait un rapprochement fantôme côté banque.
+    // On exige un dé-rapprochement préalable (module Banque).
+    if ((payment as any).reconciledAt || (payment as any).bankTransactionId) {
+      throw AppError.badRequest(
+        'Ce paiement est rapproché d\'une transaction bancaire. Dé-rapprochez-le d\'abord depuis le module Banque avant de le supprimer.',
+      );
+    }
+
     await this.prisma.$transaction(async (tx) => {
+      // Verrou facture (cohérent avec create) → recalcul fiable du solde.
+      await tx.$executeRaw`SELECT id FROM invoices WHERE id = ${payment.invoiceId}::uuid FOR UPDATE`;
+
       await tx.payment.update({
         where: { id },
         data: { deletedAt: new Date() },
       });
 
-      const remainingPayments = await tx.payment.aggregate({
+      // Recalcul par AGRÉGATION : encaissement + escompte accordé + retenue à la
+      // source (composantes non-cash qui soldent aussi la facture).
+      const agg = await tx.payment.aggregate({
         where: { invoiceId: payment.invoiceId, deletedAt: null },
         _sum: { amount: true, escompteAmount: true, withholdingAmount: true },
       });
-
-      // Le montant réglé inclut l'encaissement + l'escompte accordé + la retenue
-      // à la source subie (composantes non-cash qui soldent aussi la facture).
-      const newAmountPaid = Number(remainingPayments._sum.amount ?? 0)
-        + Number(remainingPayments._sum.escompteAmount ?? 0)
-        + Number((remainingPayments._sum as any).withholdingAmount ?? 0);
+      const newAmountPaid = Number(agg._sum.amount ?? 0)
+        + Number(agg._sum.escompteAmount ?? 0)
+        + Number((agg._sum as any).withholdingAmount ?? 0);
       const newBalanceDue = Number(payment.invoice.amountDue) - newAmountPaid;
 
-      let newStatus = payment.invoice.status;
-      if (newAmountPaid === 0)    newStatus = 'issued';
-      else if (newBalanceDue > 0) newStatus = 'partially_paid';
+      const prevStatus = payment.invoice.status;
+      let newStatus = prevStatus;
+      if (newAmountPaid <= 0.01) {
+        // #9 — plus aucun règlement : impayé. On restaure 'overdue' si l'échéance
+        // est dépassée, sinon 'issued' (au lieu de forcer 'issued' aveuglément).
+        const due = payment.invoice.dueDate ? new Date(payment.invoice.dueDate) : null;
+        newStatus = (due && due.getTime() < Date.now()) ? 'overdue' : 'issued';
+      } else if (newBalanceDue > 0.01) {
+        newStatus = 'partially_paid';
+      } else {
+        newStatus = 'paid';
+      }
 
       await tx.invoice.update({
         where: { id: payment.invoiceId },
@@ -279,6 +324,12 @@ export class PaymentsService {
           amountPaid: newAmountPaid,
           balanceDue: Math.max(0, newBalanceDue),
           status: newStatus,
+          // #8 — tracer le changement de statut consécutif à la suppression.
+          ...(newStatus !== prevStatus && {
+            statusHistory: {
+              create: { changedById: userId, previousStatus: prevStatus, newStatus },
+            },
+          }),
         },
       });
 
