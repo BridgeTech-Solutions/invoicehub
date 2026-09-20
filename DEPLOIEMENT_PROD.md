@@ -58,6 +58,24 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-09-20 — Module paiement : fiabilisation (concurrence, période, rapprochement)
+Corrections des points critiques du module de paiement :
+- **Concurrence** : la création d'un paiement verrouille désormais la facture
+  (`SELECT … FOR UPDATE`) et **recalcule le montant réglé par agrégation** des
+  paiements (fini l'arithmétique sur snapshot périmé). Deux paiements simultanés
+  sur la même facture ne peuvent plus dépasser le solde ni corrompre `amountPaid`.
+- **Période comptable** : un paiement daté hors d'un exercice **ouvert** est
+  désormais **refusé** (avant : accepté mais écriture Dr 521/Cr 411 échouant en
+  silence → règlement sans comptabilité).
+- **Rapprochement** : impossible de supprimer un paiement **rapproché** d'une
+  transaction bancaire ; il faut d'abord le dé-rapprocher (module Banque).
+- `attachmentPath` n'est plus accepté dans le corps de création (anti-spoof) :
+  seul l'endpoint `/attachment` le définit.
+- Suppression d'un paiement : trace le changement de statut (`statusHistory`) et
+  restaure `overdue` si l'échéance est dépassée (au lieu de forcer `issued`).
+
+> **Aucune migration SQL.** Changements de comportement uniquement.
+
 ### 2026-09-20 — Périodes comptables : corrections & durcissement
 Refonte des points faibles du module de périodes :
 - **Création d'exercice** génère désormais les **12 périodes mensuelles** (conforme à

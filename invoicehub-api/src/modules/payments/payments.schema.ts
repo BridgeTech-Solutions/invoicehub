@@ -7,7 +7,7 @@ export const createPaymentSchema = z.object({
   reference:      z.string().max(255).optional(),
   notes:          z.string().optional(),
   bankAccountId:  z.string().uuid().optional(),
-  attachmentPath: z.string().max(500).optional(),
+  // NB : le justificatif se dépose via l'endpoint /attachment dédié, jamais au body.
   applyEscompte:  z.boolean().optional(),
   // Retenue à la source subie (acompte IR / précompte) prélevée par le client.
   // Montant déjà calculé côté client (taux configurable × base), modifiable.

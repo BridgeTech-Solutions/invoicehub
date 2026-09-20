@@ -50,8 +50,8 @@ export class PaymentsController {
   @HttpCode(HttpStatus.OK)
   @Permission('payments:delete')
   @Audit('payment', 'PAYMENT_DELETED')
-  async remove(@Param('id') id: string) {
-    await this.svc.softDelete(id);
+  async remove(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    await this.svc.softDelete(id, user.sub);
     return { message: 'Paiement supprimé' };
   }
 
