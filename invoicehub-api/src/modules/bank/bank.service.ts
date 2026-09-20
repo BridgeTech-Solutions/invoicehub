@@ -21,6 +21,7 @@ import {
   computeScore, subsetSum, hungarian, SubsetCandidate, ruleLabelMatches,
 } from './bank.matching';
 import * as accountingEngine from '../../lib/accountingEngine';
+import { recordAccountingEvent } from '../../lib/accounting-outbox';
 
 export interface BankImportJobData {
   importId:      string;
@@ -671,6 +672,8 @@ export class BankService {
 
       // Écriture SYSCOHADA (brouillon) : Dr 627/671 [+ 445x] / Cr 521 banque.
       await accountingEngine.onExpensePaid(expense.id, tx);
+      // Outbox : filet de sécurité (onExpensePaid avale son erreur en interne).
+      await recordAccountingEvent(tx as any, 'onExpensePaid', 'expense', expense.id);
 
       // Lien + rapprochement de la transaction.
       await tx.expense.update({ where: { id: expense.id }, data: { bankTransactionId: transactionId } });

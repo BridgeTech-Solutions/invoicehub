@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { sweepAccountingOutbox } from '../../lib/accounting-outbox';
 import { AppError } from '../../common/errors/app-error';
 import { computeBilan, computeCompteResultat, attachBilanAccounts } from '../../lib/syscohada-statements';
 import { computeBilanFromRubriques, type RubriqueDef, type RubriqueSource } from '../../lib/statement-rubriques';
@@ -85,6 +86,33 @@ export class AccountingService {
     }
 
     return { ready: issues.length === 0, issues };
+  }
+
+  // ── Outbox comptable : rejeu / régénération des écritures manquantes ──────────
+  /** État de l'outbox : combien d'écritures restent à passer / en échec. */
+  async getOutboxStatus() {
+    const [pending, failed, recentFailed] = await Promise.all([
+      this.prisma.accountingEvent.count({ where: { status: 'pending' } }),
+      this.prisma.accountingEvent.count({ where: { status: 'failed' } }),
+      this.prisma.accountingEvent.findMany({
+        where: { status: 'failed' }, orderBy: { updatedAt: 'desc' }, take: 20,
+        select: { hook: true, sourceType: true, sourceId: true, attempts: true, lastError: true, updatedAt: true },
+      }),
+    ]);
+    return { pending, failed, recentFailed };
+  }
+
+  /**
+   * Action manuelle « régénérer les écritures manquantes » : réarme les événements
+   * en échec (failed → pending) puis rejoue tout le lot dû. À lancer après avoir
+   * corrigé une config comptable ou rouvert une période.
+   */
+  async regenerateMissingEntries() {
+    await this.prisma.accountingEvent.updateMany({
+      where: { status: 'failed' },
+      data:  { status: 'pending', attempts: 0, nextRetryAt: new Date() },
+    });
+    return sweepAccountingOutbox(this.prisma as unknown as PrismaClient, 500);
   }
 
   // ── Plan comptable ──────────────────────────────────────────────────────────

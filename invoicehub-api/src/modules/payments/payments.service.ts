@@ -12,6 +12,7 @@ import { broadcastNotification } from '../../lib/broadcast';
 import { generatePdf, buildReceiptHtml, imgToBase64 } from '../../lib/pdf';
 import { toRelativeUpload, resolveUpload } from '../../lib/uploads';
 import * as accountingEngine from '../../lib/accountingEngine';
+import { recordAccountingEvent } from '../../lib/accounting-outbox';
 import type { NotificationJobData } from '../../jobs/job-types';
 import type { CreatePaymentInput, ListPaymentsInput } from './payments.schema';
 
@@ -138,6 +139,9 @@ export class PaymentsService {
           createdById,
         },
       } as any);
+
+      // Outbox : intention de comptabiliser le règlement, atomique avec le paiement.
+      await recordAccountingEvent(tx as any, 'onPaymentReceived', 'payment', payment.id);
 
       // amountPaid = paiements précédents + montant reçu + escompte + retenue à la source
       const newAmountPaid = Number(invoice.amountPaid) + input.amount + escompteAmount + withholdingAmount;

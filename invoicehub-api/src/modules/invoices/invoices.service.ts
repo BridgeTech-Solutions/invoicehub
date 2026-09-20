@@ -14,6 +14,7 @@ import { computeLine, computeTotals } from '../../lib/document-math';
 import { PaymentsService } from '../payments/payments.service';
 import { ApprovalsService } from '../approvals/approvals.service';
 import * as accountingEngine from '../../lib/accountingEngine';
+import { recordAccountingEvent } from '../../lib/accounting-outbox';
 import { broadcastNotification } from '../../lib/broadcast';
 import { StockService } from '../stock/stock.service';
 import type { EmailJobData, NotificationJobData } from '../../jobs/job-types';
@@ -483,7 +484,7 @@ export class InvoicesService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      return tx.invoice.update({
+      const upd = await tx.invoice.update({
         where: { id },
         data: {
           status: 'issued',
@@ -494,6 +495,11 @@ export class InvoicesService {
           },
         },
       });
+      // Outbox : intention de comptabiliser, atomique avec l'émission. La tentative
+      // immédiate ci-dessous donne l'écriture tout de suite ; si elle échoue, le
+      // worker la rejouera à partir de cet événement (aucune facture sans écriture).
+      await recordAccountingEvent(tx as any, 'onInvoiceIssued', 'invoice', id);
+      return upd;
     });
 
     // Mouvements de stock dans leur PROPRE transaction : une erreur (compte
@@ -620,6 +626,8 @@ export class InvoicesService {
         },
       });
 
+      // Outbox : la contre-passation sera rejouée si la tentative immédiate échoue.
+      await recordAccountingEvent(tx as any, 'onInvoiceCancelled', 'invoice_reversal', id);
       return { cancelled, avoirId: avoirCreated.id, avoirNumber: avoirCreated.number };
     }).then(async ({ cancelled, avoirId, avoirNumber }) => {
       void broadcastNotification(this.prisma as any, this.notifQueue, {
@@ -788,6 +796,8 @@ export class InvoicesService {
         }
       }
 
+      // Outbox : la contre-passation de l'avoir sera rejouée si besoin.
+      await recordAccountingEvent(tx as any, 'onInvoiceCancelled', 'invoice_reversal', created.id);
       return created;
     });
 

@@ -32,6 +32,20 @@ export class AccountingController {
     return this.svc.getReadiness();
   }
 
+  // ── Outbox : écritures manquantes ─────────────────────────────────────────────
+  @Get('outbox')
+  @Permission('accounting:read')
+  getOutboxStatus() {
+    return this.svc.getOutboxStatus();
+  }
+
+  @Post('outbox/regenerate')
+  @Permission('accounting:write')
+  @Audit('accounting_outbox', 'UPDATE')
+  regenerateMissingEntries() {
+    return this.svc.regenerateMissingEntries();
+  }
+
   // ── Plan comptable ──────────────────────────────────────────────────────────
 
   @Get('accounts')
