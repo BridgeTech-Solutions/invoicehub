@@ -11,6 +11,7 @@ import type {
   TaxDeclaration, TaxDeclarationDetail, CreateTaxDeclPayload,
   AccountingStats, ExportConfig, AccountClass,
   Bilan, CompteResultat, StatementRubrique, RubriqueSource,
+  YearClosePreview, YearCloseResult,
 } from './types'
 
 // ── Normalizers ──────────────────────────────────────────────────
@@ -156,6 +157,13 @@ export const accountingApi = {
 
   reopenPeriod: (id: string) =>
     apiClient.post<FiscalPeriod>(`/accounting/periods/${id}/reopen`).then(r => r.data),
+
+  // ── Clôture d'exercice ──────────────────────────────────────────────────────
+  closeYearPreview: (year: number): Promise<YearClosePreview> =>
+    apiClient.get<YearClosePreview>(`/accounting/fiscal-years/${year}/close-preview`).then(r => r.data),
+
+  closeYear: (year: number): Promise<YearCloseResult> =>
+    apiClient.post<YearCloseResult>(`/accounting/fiscal-years/${year}/close`).then(r => r.data),
 
   // ─── Journals ───────────────────────────────────────────────
 
@@ -313,7 +321,21 @@ export const accountingApi = {
   },
 
   letterLines: (lineIds: string[], accountNumber?: string) =>
-    apiClient.post<void>('/accounting/lettering', { lineIds, ...(accountNumber ? { accountNumber } : {}) }).then(r => r.data),
+    apiClient.post<{ letteringCode: string }>('/accounting/lettering', { lineIds, ...(accountNumber ? { accountNumber } : {}) }).then(r => r.data),
+
+  // Propositions de lettrage automatique (aucune modification côté serveur).
+  suggestLettering: (accountId: string, dateFrom?: string, dateTo?: string) => {
+    const q = new URLSearchParams({ accountId })
+    if (dateFrom) q.set('dateFrom', dateFrom)
+    if (dateTo)   q.set('dateTo', dateTo)
+    return apiClient
+      .get<{ accountNumber: string | null; count: number; suggestions: Array<{ lineIds: string[]; total: number; debitIds: string[]; creditIds: string[] }> }>(`/accounting/lettering/suggestions?${q}`)
+      .then(r => r.data)
+  },
+
+  // Lettrage partiel : impute l'écart (escompte/arrondi) sur un compte d'écart.
+  letterWithDifference: (payload: { lineIds: string[]; accountNumber: string; differenceAccount?: string; label?: string }) =>
+    apiClient.post<{ letteringCode: string; difference: number; entryId: string }>('/accounting/lettering/with-difference', payload).then(r => r.data),
 
   unletterGroup: (letterCode: string, accountNumber: string) =>
     apiClient.delete<void>(`/accounting/lettering/${letterCode}?accountNumber=${encodeURIComponent(accountNumber)}`).then(r => r.data),

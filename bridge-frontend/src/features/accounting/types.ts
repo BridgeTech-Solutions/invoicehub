@@ -372,3 +372,34 @@ export interface ExportConfig {
   format:     ExportFormat
   encoding:   'utf-8' | 'latin-1'
 }
+
+// ── Clôture d'exercice ────────────────────────────────────────────────────────
+export interface YearCloseControls {
+  allPeriodsClosed: boolean
+  noDraftEntries:   boolean
+  balanced:         boolean
+  canClose:         boolean
+}
+export interface YearCloseResultat {
+  produits: number
+  charges:  number
+  resultat: number
+  sens:     'benefice' | 'perte'
+}
+export interface YearClosePreview {
+  year:              number
+  alreadyClosed:     boolean
+  resultat:          YearCloseResultat
+  controls:          YearCloseControls
+  draftCount:        number
+  carryForwardCount: number
+  periods:           Array<{ id: string; name: string; status: string }>
+}
+export interface YearCloseResult {
+  year:                   number
+  resultat:               YearCloseResultat
+  determinationEntry:     string | null
+  aNouveauEntry:          string | null
+  nextYearPeriodsCreated: number
+  lockedPeriods:          number
+}
