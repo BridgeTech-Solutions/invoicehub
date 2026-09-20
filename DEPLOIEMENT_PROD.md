@@ -58,6 +58,58 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-09-20 — TVA sur les encaissements (prestations de services)
+Régime optionnel des encaissements pour la **TVA des services** (les marchandises restent au
+régime des débits). Quand `tva_on_collection` est activé dans les paramètres : à l'émission, la
+TVA des lignes de **services** est logée en **4438** « TVA en attente d'exigibilité » (au lieu de
+4431) ; à **chaque règlement**, la fraction encaissée est transférée `Dr 4438 / Cr 4431` au prorata
+du montant payé sur le TTC (le solde final absorbe le résidu d'arrondi). L'écriture de transfert
+(journal **OD**, `entryKind='tva_collection'`) est idempotente par paiement et contre-passée si le
+paiement est supprimé. Ajoute le compte **4438**, les colonnes `company_settings.pending_tva_account`
+(défaut `'4438'`) et `company_settings.tva_on_collection` (défaut `FALSE`). Réglage dans
+**Paramètres → Facturation → Comptes SYSCOHADA → TVA sur les encaissements**.
+
+> Durcissement inclus : `nextEntryNumber` borne désormais la recherche du dernier numéro au
+> **préfixe exact** (`JOURNAL-ANNÉE-`), pour éviter qu'une donnée héritée mal préfixée dans le même
+> journal provoque une collision d'`entry_number`.
+
+```bash
+cd invoicehub-api
+npx prisma db execute --file prisma/add_tva_on_collection.sql --schema prisma/schema.prisma
+```
+> Option **désactivée par défaut** : aucun changement de comportement tant qu'elle n'est pas activée.
+> À valider avec l'expert-comptable avant activation (régime réel selon la déclaration de TVA).
+
+### 2026-09-16 — Règles de matching : compteur d'usage + anti-doublon + logique effective
+Le module de règles de rapprochement exploite désormais réellement l'apprentissage :
+bonus fondé sur le **libellé bancaire** (et non le libellé fabriqué), règles **globales**
+prises en compte, bonus appliqué aussi dans l'**auto-match**, `isAutoApply` **effectif**
+(abaisse le seuil d'auto-application à 75 % avec marge), règles **manuelles fiables d'emblée**,
+plage de montants **élargie** au fil de l'apprentissage, **jokers `*`/`?`** supportés, et audit
+des mutations. Ajoute `bank_matching_rules.usage_count` (compteur réel) + contrainte unique
+`(bank_account_id, label_contains, entity_type)`.
+
+```bash
+cd invoicehub-api
+npx prisma db execute --file prisma/add_matching_rule_usage_and_unique.sql --schema prisma/schema.prisma
+```
+> ⚠️ La contrainte unique échoue s'il existe des doublons de règle : dédupliquer d'abord
+> (garder la règle à la confiance la plus haute). En dev, aucune dédup n'a été nécessaire.
+
+### 2026-09-16 — Contrepartie automatique des frais bancaires / agios (rapprochement)
+Un débit bancaire sans contrepartie métier dont le libellé est reconnu (FRAIS, COMMISSION,
+AGIOS, INTÉRÊTS…) peut, **sur confirmation**, générer sa contrepartie comptable : une dépense
+« payée » + son écriture SYSCOHADA (Dr **627** services bancaires / **671** agios & intérêts,
++ 445x si TVA / Cr **521** banque) + le rapprochement de la transaction. Le dé-rapprochement
+supprime la dépense et son écriture. Ajoute la colonne `expenses.auto_bank_fee`.
+
+```bash
+cd invoicehub-api
+npx prisma db execute --file prisma/add_expense_auto_bank_fee.sql --schema prisma/schema.prisma
+```
+> Endpoint : `POST /api/bank/transactions/:id/create-fee-expense` (permission `bank:reconcile`).
+> Plafond de sécurité appris de l'historique ; au-delà, `allowOverCeiling: true` requis.
+
 ### 2026-07-02 — Options d'affichage du PDF par facture (masquer colonne PT / TOTAL HT)
 Permet, **facture par facture**, de masquer sur le PDF la colonne **PT** (montant par ligne d'article)
 et/ou la/les ligne(s) **TOTAL HT** du bloc des totaux — sans toucher aux calculs ni à la

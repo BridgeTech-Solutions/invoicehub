@@ -11,6 +11,7 @@ const ASSET_PATH_FIELDS = ['logoPath', 'stampPath', 'signaturePath', 'headerImag
 // pour empêcher qu'une faute de frappe casse les écritures automatiques (violation FK).
 const ACCOUNT_FIELDS = [
   'initialStockAccount', 'escompteAccountingAccount', 'collectedTaxAccount', 'deductibleTaxAccount',
+  'pendingTvaAccount',
   'stockAccount', 'stockVariationAccount', 'stockLossAccount',
   'defaultClientAccount', 'defaultSupplierAccount', 'defaultBankAccount',
   'defaultSalesGoodsAccount', 'defaultSalesServiceAccount', 'defaultPurchaseAccount', 'defaultExpenseAccount',
@@ -125,6 +126,8 @@ export class SettingsService {
           ...(input.escompteAccountingAccount    !== undefined && { escompteAccountingAccount:    input.escompteAccountingAccount }),
           ...(input.collectedTaxAccount          !== undefined && { collectedTaxAccount:          input.collectedTaxAccount }),
           ...(input.deductibleTaxAccount         !== undefined && { deductibleTaxAccount:         input.deductibleTaxAccount }),
+          ...(input.pendingTvaAccount            !== undefined && { pendingTvaAccount:            input.pendingTvaAccount }),
+          ...(input.tvaOnCollection              !== undefined && { tvaOnCollection:              input.tvaOnCollection }),
           ...(input.stockAccount                 !== undefined && { stockAccount:                 input.stockAccount }),
           ...(input.stockVariationAccount        !== undefined && { stockVariationAccount:        input.stockVariationAccount }),
           ...(input.stockLossAccount             !== undefined && { stockLossAccount:             input.stockLossAccount }),

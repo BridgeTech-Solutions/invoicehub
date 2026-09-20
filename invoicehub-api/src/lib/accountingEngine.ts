@@ -106,8 +106,13 @@ async function nextEntryNumber(tx: Tx, journalCode: string, date: Date): Promise
 
   const last = await tx.journalEntry.findFirst({
     where: {
-      journal:   { code: journalCode },
-      entryDate: { gte: new Date(Date.UTC(year, 0, 1)), lte: new Date(Date.UTC(year, 11, 31, 23, 59, 59)) },
+      journal:     { code: journalCode },
+      // On borne au PRÉFIXE exact (JOURNAL-ANNÉE-) : sans ce filtre, une donnée
+      // héritée mal préfixée dans le même journal (ex. import avec « JNL-… ») serait
+      // lexicalement > au préfixe courant, ferait échouer le parseInt → reset à 1 →
+      // collision d'entry_number. On ne compare donc que notre propre famille.
+      entryNumber: { startsWith: prefix },
+      entryDate:   { gte: new Date(Date.UTC(year, 0, 1)), lte: new Date(Date.UTC(year, 11, 31, 23, 59, 59)) },
     },
     orderBy: { entryNumber: 'desc' },
     select:  { entryNumber: true },
@@ -187,12 +192,14 @@ function buildSalesBreakdown(
   defaultTaxAccount:   string,
   salesGoodsAccount:   string,
   salesServiceAccount: string,
+  opts?: { tvaOnCollection?: boolean; pendingTaxAccount?: string | null },
 ): { salesLines: JournalLineData[]; taxLines: JournalLineData[] } {
   const salesMap = new Map<string, number>();
   const taxMap   = new Map<string, number>();
   // Libellé par compte, déduit du TYPE de produit (marchandise/service) et non du
   // numéro de compte → indépendant du plan comptable (OHADA, PCG, ou autre zone).
   const salesLabelMap = new Map<string, string>();
+  const taxLabelMap   = new Map<string, string>();
 
   for (const l of lines) {
     // Compte ventes : produit → catégorie → défaut entreprise selon le type
@@ -209,8 +216,15 @@ function buildSalesBreakdown(
 
     const rate = Number(l.taxRate);
     if (rate > 0) {
-      // Compte TVA : depuis le taux de TVA de la ligne, sinon compte global company settings
-      const taxAccount = l.taxRateCollectedAccount ?? defaultTaxAccount;
+      // Régime "TVA sur encaissement" : la TVA des PRESTATIONS DE SERVICES n'est pas
+      // encore exigible à l'émission → compte "en attente". Elle sera transférée vers
+      // la TVA collectée à l'encaissement (onPaymentReceived). Les biens restent
+      // exigibles immédiatement (régime des débits).
+      const isPending  = !!opts?.tvaOnCollection && !isGoods && !!opts?.pendingTaxAccount;
+      const taxAccount = isPending
+        ? opts!.pendingTaxAccount!
+        : (l.taxRateCollectedAccount ?? defaultTaxAccount);
+      if (!taxLabelMap.has(taxAccount)) taxLabelMap.set(taxAccount, isPending ? 'TVA en attente (services)' : 'TVA collectée');
       taxMap.set(taxAccount, (taxMap.get(taxAccount) ?? 0) + Number(l.taxAmount));
     }
   }
@@ -227,7 +241,8 @@ function buildSalesBreakdown(
   const taxLines: JournalLineData[] = [];
   for (const [accountNumber, amount] of taxMap) {
     if (amount > 0) {
-      taxLines.push({ sortOrder: sortOrder++, accountNumber, label: 'TVA collectée', debit: 0, credit: amount });
+      const label = taxLabelMap.get(accountNumber) ?? 'TVA collectée';
+      taxLines.push({ sortOrder: sortOrder++, accountNumber, label, debit: 0, credit: amount });
     }
   }
 
@@ -392,6 +407,8 @@ async function getCompanyAccounts(tx: Tx) {
     select: {
       collectedTaxAccount:        true,
       deductibleTaxAccount:       true,
+      pendingTvaAccount:          true,
+      tvaOnCollection:            true,
       initialStockAccount:        true,
       escompteAccountingAccount:  true,
       defaultClientAccount:       true,
@@ -412,6 +429,8 @@ async function getCompanyAccounts(tx: Tx) {
   return {
     collectedTaxAccount:        s.collectedTaxAccount,
     deductibleTaxAccount:       s.deductibleTaxAccount,
+    pendingTvaAccount:          s.pendingTvaAccount,
+    tvaOnCollection:            s.tvaOnCollection,
     initialStockAccount:        s.initialStockAccount,
     escompteAccountingAccount:  s.escompteAccountingAccount,
     defaultClientAccount:       s.defaultClientAccount,
@@ -473,6 +492,7 @@ export async function onInvoiceIssued(invoiceId: string, tx: Tx): Promise<void> 
     const breakdown = buildSalesBreakdown(
       linesWithTax, accounts.collectedTaxAccount,
       accounts.defaultSalesGoodsAccount, accounts.defaultSalesServiceAccount,
+      { tvaOnCollection: accounts.tvaOnCollection, pendingTaxAccount: accounts.pendingTvaAccount },
     );
 
     // Lignes d'écriture selon le régime (prorata par défaut ; avance 4191 si activé).
@@ -567,6 +587,22 @@ export async function onPaymentReceived(paymentId: string, tx: Tx): Promise<void
       },
     });
 
+    // TVA sur encaissement : rendre exigible la fraction de TVA services encaissée.
+    if (accounts.tvaOnCollection && accounts.pendingTvaAccount && payment.invoice?.id) {
+      try {
+        await transferPendingTvaOnCollection(tx, {
+          invoiceId:           payment.invoice.id,
+          paymentId:           payment.id,
+          paymentAmount:       Number(payment.amount),
+          invoiceTtc:          Number(payment.invoice.totalTtc),
+          invoiceNumber:       payment.invoice.number ?? '',
+          pendingTvaAccount:   accounts.pendingTvaAccount,
+          collectedTaxAccount: accounts.collectedTaxAccount,
+          entryDate,
+        });
+      } catch (e) { console.error('[accountingEngine.onPaymentReceived.tvaCollection]', e instanceof Error ? e.message : e); }
+    }
+
     // Lettrage auto 411 : déclenché quand la facture est soldée (balanceDue ≤ 0)
     try {
       const invoiceId = payment.invoice?.id;
@@ -614,6 +650,94 @@ export async function onPaymentReceived(paymentId: string, tx: Tx): Promise<void
       }
     } catch (e) { console.error('[accountingEngine.onPaymentReceived.lettering]', e instanceof Error ? e.message : e); }
   } catch (e) { logErr('onPaymentReceived', e, { sourceType: 'payment', sourceId: paymentId }); }
+}
+
+// ── TVA sur encaissement : transfert de la TVA en attente vers la TVA collectée ─
+//
+// Régime des encaissements (prestations de services) : à l'émission, la TVA des
+// lignes de services est logée en 4438 « TVA en attente d'exigibilité » (voir
+// buildSalesBreakdown). Elle ne devient exigible — donc déclarable — qu'au moment
+// du règlement. À chaque paiement, on transfère la fraction encaissée :
+//   Dr 4438 (TVA en attente) / Cr 4431 (TVA collectée)
+// au prorata du montant réglé sur le TTC ; au solde, on transfère tout le reliquat
+// pour absorber les résidus d'arrondi.
+async function transferPendingTvaOnCollection(
+  tx: Tx,
+  args: {
+    invoiceId: string; paymentId: string; paymentAmount: number; invoiceTtc: number;
+    invoiceNumber: string; pendingTvaAccount: string; collectedTaxAccount: string;
+    entryDate: Date;
+  },
+): Promise<void> {
+  const { invoiceId, paymentId, paymentAmount, invoiceTtc, invoiceNumber,
+          pendingTvaAccount, collectedTaxAccount, entryDate } = args;
+
+  // Idempotence : une seule écriture d'exigibilité par paiement.
+  const dupe = await tx.journalEntry.findFirst({
+    where:  { sourceType: 'payment', sourceId: paymentId, entryKind: 'tva_collection', status: { not: 'cancelled' } },
+    select: { id: true },
+  });
+  if (dupe) return;
+
+  // TVA en attente initialement comptabilisée sur la facture (lignes 4438 au crédit).
+  const saleEntries = await tx.journalEntry.findMany({
+    where:   { sourceType: 'invoice', sourceId: invoiceId, status: { not: 'cancelled' } },
+    include: { lines: true },
+  });
+  const pendingTvaTotal = round2(
+    saleEntries
+      .flatMap(e => e.lines)
+      .filter(l => l.accountNumber === pendingTvaAccount)
+      .reduce((s, l) => s + Number(l.credit), 0),
+  );
+  if (pendingTvaTotal <= 0) return; // aucune TVA services en attente sur cette facture
+
+  // Fraction déjà rendue exigible par les règlements précédents de cette facture.
+  const invoicePayments = await tx.payment.findMany({ where: { invoiceId, deletedAt: null }, select: { id: true } });
+  const priorTransfers  = await tx.journalEntry.findMany({
+    where: {
+      sourceType: 'payment', sourceId: { in: invoicePayments.map(p => p.id) },
+      entryKind:  'tva_collection', status: { not: 'cancelled' },
+    },
+    select: { totalCredit: true },
+  });
+  const alreadyTransferred = round2(priorTransfers.reduce((s, e) => s + Number(e.totalCredit), 0));
+  const remaining          = round2(pendingTvaTotal - alreadyTransferred);
+  if (remaining <= 0) return;
+
+  // Facture soldée → on solde tout le reliquat ; sinon prorata montant réglé / TTC.
+  const fresh        = await tx.invoice.findUnique({ where: { id: invoiceId }, select: { balanceDue: true } });
+  const isFullyPaid  = Number(fresh?.balanceDue ?? 1) <= 0;
+  const prorata      = invoiceTtc > 0 ? round2(pendingTvaTotal * (paymentAmount / invoiceTtc)) : 0;
+  const amount       = isFullyPaid ? remaining : Math.min(prorata, remaining);
+  if (amount <= 0) return;
+
+  const journal     = await getDefaultJournal(tx, JournalType.operations);
+  const period      = await getOpenPeriod(tx, entryDate);
+  const entryNumber = await nextEntryNumber(tx, journal.code, entryDate);
+
+  await createBalancedEntry(tx, {
+    data: {
+      journalId:      journal.id,
+      fiscalPeriodId: period.id,
+      entryDate,
+      accountingDate: entryDate,
+      entryNumber,
+      label:       `TVA exigible sur encaissement — FAC ${invoiceNumber}`,
+      sourceType:  'payment',
+      sourceId:    paymentId,
+      entryKind:   'tva_collection',
+      totalDebit:  amount,
+      totalCredit: amount,
+      status:      'draft',
+      lines: {
+        create: [
+          { sortOrder: 0, accountNumber: pendingTvaAccount,   label: 'TVA en attente (services)', debit: amount, credit: 0 },
+          { sortOrder: 1, accountNumber: collectedTaxAccount, label: 'TVA collectée',              debit: 0, credit: amount },
+        ],
+      },
+    },
+  });
 }
 
 // ── Extourne paiement client supprimé ────────────────────────────────────────

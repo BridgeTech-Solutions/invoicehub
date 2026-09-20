@@ -55,6 +55,8 @@ export const updateSettingsSchema = z.object({
   escompteAccountingAccount:   z.string().max(20).optional(),
   collectedTaxAccount:         z.string().max(20).optional(),
   deductibleTaxAccount:        z.string().max(20).optional(),
+  pendingTvaAccount:           z.string().max(20).optional(),
+  tvaOnCollection:             z.boolean().optional(),
   // Comptes de mouvement de stock (inventaire permanent SYSCOHADA)
   stockAccount:                z.string().max(20).optional(),
   stockVariationAccount:       z.string().max(20).optional(),
