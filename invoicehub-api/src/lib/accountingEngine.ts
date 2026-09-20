@@ -44,8 +44,14 @@ async function getDefaultJournal(tx: Tx, type: JournalType) {
 }
 
 async function getOpenPeriod(tx: Tx, date: Date) {
+  // Comparaison par DATE CALENDAIRE : startDate/endDate sont des @db.Date (minuit
+  // UTC). Les hooks d'extourne construisent `new Date()` (avec heure) ; comparer tel
+  // quel à endDate (minuit) échouait le DERNIER jour de la période (ex. le 31 à 14h :
+  // endDate 31 00:00 < date 31 14:00) → « aucune période ouverte » → contre-passation
+  // silencieusement omise. On tronque donc la date à minuit UTC avant de comparer.
+  const day = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
   const p = await tx.fiscalPeriod.findFirst({
-    where: { status: 'open', startDate: { lte: date }, endDate: { gte: date } },
+    where: { status: 'open', startDate: { lte: day }, endDate: { gte: day } },
   });
   if (!p) throw new Error(`Aucune période fiscale ouverte pour le ${date.toLocaleDateString('fr-FR')}`);
 

@@ -2,13 +2,14 @@ import { useAuthStore } from '@/features/auth/store'
 import type { Role } from '@/lib/constants'
 
 // ─── Types ────────────────────────────────────────────────────
-export type Action = 'create' | 'read' | 'update' | 'delete' | 'cancel' | 'issue' | 'export' | 'manage' | '*'
+export type Action = 'create' | 'read' | 'update' | 'delete' | 'cancel' | 'issue' | 'export' | 'manage' | 'write' | '*'
 export type Resource =
   | 'invoice' | 'proforma' | 'payment' | 'client'
   | 'product' | 'user' | 'settings' | 'audit'
   | 'report'  | 'recurring' | 'notification'
   | 'accounting' | 'bank' | 'role' | 'approval'
   | 'expense' | 'supplier' | 'purchase-order' | 'stock'
+  | 'fiscal'
 
 // ─── Modules backend valides (issus de ALL_PERMISSIONS dans roles.service.ts) ─
 // Ce type sert de filet de sécurité : si on ajoute un module backend,
@@ -18,7 +19,7 @@ type BackendModule =
   | 'suppliers' | 'purchases' | 'expenses' | 'stock'
   | 'bank' | 'accounting' | 'users' | 'roles' | 'reports'
   | 'dashboard' | 'settings' | 'audit' | 'notifications'
-  | 'search' | 'backups' | 'approvals'
+  | 'search' | 'backups' | 'approvals' | 'fiscal'
 
 // ─── Frontend resource → backend module ──────────────────────
 // Record<Resource, BackendModule> garantit que chaque Resource a un module valide.
@@ -43,6 +44,7 @@ const RESOURCE_MODULE: Record<Resource, BackendModule> = {
   supplier:         'suppliers',
   'purchase-order': 'purchases',
   stock:            'stock',
+  fiscal:           'fiscal',
 }
 
 // Actions frontend sans équivalent exact en backend → alias

@@ -206,19 +206,14 @@ export class AccountingService {
     return period;
   }
 
-  async createFiscalPeriod(data: CreateFiscalPeriodInput) {
-    if (data.endDate <= data.startDate)
-      throw AppError.badRequest('La date de fin doit être après la date de début');
-    return this.prisma.fiscalPeriod.create({
-      data: {
-        name:       data.name,
-        fiscalYear: data.fiscalYear,
-        periodType: data.periodType ?? 'month',
-        startDate:  data.startDate,
-        endDate:    data.endDate,
-        status:     'open',
-      },
-    });
+  // Crée un EXERCICE = ses 12 périodes mensuelles (SYSCOHADA, déclarations de TVA
+  // mensuelles). C'est le même modèle que les exercices générés par la clôture
+  // (voir _ensureYearPeriods) : un exercice n'est jamais une seule période annuelle.
+  async createFiscalPeriod(data: CreateFiscalPeriodInput, userId: string) {
+    const year = data.fiscalYear;
+    const existing = await this.prisma.fiscalPeriod.findFirst({ where: { fiscalYear: year }, select: { id: true } });
+    if (existing) throw AppError.conflict(`L'exercice ${year} existe déjà.`);
+    return this.prisma.$transaction((tx) => this._ensureYearPeriods(tx, year, userId));
   }
 
   async closeFiscalPeriod(id: string) {
@@ -453,6 +448,10 @@ export class AccountingService {
       }
 
       // 4. Verrouillage des écritures et périodes de l'exercice clôturé.
+      // INTANGIBILITÉ SYSCOHADA : ce verrouillage est DÉFINITIF et volontairement
+      // irréversible (aucune route de dé-clôture). Les triggers d'immuabilité en base
+      // bloquent toute UPDATE/DELETE sur une écriture verrouillée. Une correction
+      // ultérieure passe obligatoirement par une contre-passation sur l'exercice ouvert.
       const now = new Date();
       await tx.journalEntry.updateMany({
         where: { fiscalPeriodId: { in: periodIds }, status: { not: 'cancelled' } },
@@ -592,10 +591,13 @@ export class AccountingService {
       period = await this.prisma.fiscalPeriod.findUnique({ where: { id: data.fiscalPeriodId } });
       if (!period) throw AppError.notFound('Période introuvable');
     } else {
+      // Comparaison par date calendaire (endDate est @db.Date à minuit UTC) : sinon
+      // une entryDate portant une heure échoue le dernier jour de la période.
+      const day = new Date(Date.UTC(entryDate.getUTCFullYear(), entryDate.getUTCMonth(), entryDate.getUTCDate()));
       period = await this.prisma.fiscalPeriod.findFirst({
         where: {
-          startDate: { lte: entryDate },
-          endDate:   { gte: entryDate },
+          startDate: { lte: day },
+          endDate:   { gte: day },
           status:    { in: ['open'] as any[] },
         },
         orderBy: { startDate: 'asc' },
@@ -626,18 +628,17 @@ export class AccountingService {
     if (unknown.length)
       throw AppError.badRequest(`Compte(s) inconnu(s) au plan comptable : ${unknown.join(', ')}.`);
 
-    const [seqRow] = await this.prisma.$queryRaw<[{ nextval: string }]>`
-      SELECT nextval('journal_entry_seq') AS nextval
-    `.catch(() =>
-      this.prisma.$queryRaw<[{ nextval: string }]>`SELECT (EXTRACT(EPOCH FROM NOW()) * 1000)::bigint AS nextval`
-    );
-
-    // Valeur COMPLÈTE de la séquence (globalement unique) — l'ancien slice(-6)
-    // provoquait des collisions d'entryNumber dès que la séquence dépassait 999 999.
-    const entryNumber    = `JNL-${entryDate.getFullYear()}-${String(seqRow.nextval).padStart(6, '0')}`;
     const accountingDate = data.accountingDate ?? entryDate;
 
     return this.prisma.$transaction(async (tx) => {
+      // Numérotation UNIFIÉE avec le moteur : préfixe du journal + année UTC
+      // (JOURNAL-AAAA-NNNNN), séquence par journal/année via advisory lock. Évite la
+      // coexistence de deux schémas (ancien JNL- global vs VTE-/OD-… du moteur) qui
+      // polluait un même journal et cassait le calcul du dernier numéro.
+      const journal = await tx.accountingJournal.findUnique({ where: { id: data.journalId }, select: { code: true } });
+      if (!journal) throw AppError.badRequest('Journal introuvable.');
+      const entryNumber = await this._nextEntryNumber(tx, journal.code, entryDate.getUTCFullYear());
+
       return tx.journalEntry.create({
         data: {
           journalId:      data.journalId,

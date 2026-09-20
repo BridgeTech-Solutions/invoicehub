@@ -5,6 +5,7 @@ import { Plus, ChevronDown, ChevronRight, Lock, Unlock, AlertTriangle, Calendar 
 import { useFiscalYears, useClosePeriod, useReopenPeriod } from '@/features/accounting/hooks'
 import { PeriodDrawer } from '@/features/accounting/components/PeriodDrawer'
 import { CloseYearDrawer } from '@/features/accounting/components/CloseYearDrawer'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { usePermission } from '@/hooks/usePermission'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { toast } from 'sonner'
@@ -34,14 +35,15 @@ function isCloseToEnd(period: FiscalPeriod): boolean {
 }
 
 function ProgressBar({ periods }: { periods: FiscalPeriod[] }) {
+  const total    = periods.length || 1
   const closed   = periods.filter(p => p.status === 'closed' || p.status === 'locked').length
   const current  = periods.find(p => p.status === 'open')
-  const pct      = Math.round((closed / 12) * 100)
+  const pct      = Math.round((closed / total) * 100)
 
   return (
     <div style={{ marginTop: 8 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>
-        <span>{closed} période{closed > 1 ? 's' : ''} clôturée{closed > 1 ? 's' : ''}</span>
+        <span>{closed}/{periods.length} période{closed > 1 ? 's' : ''} clôturée{closed > 1 ? 's' : ''}</span>
         <span>{current ? `Mois en cours : ${MONTHS[current.month - 1]}` : '—'}</span>
       </div>
       <div style={{ height: 6, borderRadius: 99, background: 'var(--border)', overflow: 'hidden' }}>
@@ -56,20 +58,16 @@ function FiscalYearCard({ year, expanded, onToggle, onCloseYear }: { year: Fisca
   const reopen  = useReopenPeriod()
   const { can } = usePermission()
   const cfg     = PERIOD_CFG[year.status]
+  const [confirmAction, setConfirmAction] = useState<{ type: 'close' | 'reopen'; period: FiscalPeriod } | null>(null)
 
-  async function handleClose(period: FiscalPeriod) {
-    if (!confirm(`Clôturer ${MONTHS[period.month - 1]} ${period.year} ? Cette action verrouillera toutes les écritures de cette période.`)) return
+  async function runConfirm() {
+    if (!confirmAction) return
+    const { type, period } = confirmAction
+    const label = `${MONTHS[period.month - 1]} ${period.year}`
     try {
-      await close.mutateAsync(period.id)
-      toast.success(`${MONTHS[period.month - 1]} ${period.year} clôturée`)
-    } catch (e: unknown) { toast.error((e as Error).message) }
-  }
-
-  async function handleReopen(period: FiscalPeriod) {
-    if (!confirm(`Réouvrir ${MONTHS[period.month - 1]} ${period.year} ? Cette action sera tracée dans l'audit.`)) return
-    try {
-      await reopen.mutateAsync(period.id)
-      toast.success(`${MONTHS[period.month - 1]} ${period.year} rouverte`)
+      if (type === 'close') { await close.mutateAsync(period.id);  toast.success(`${label} clôturée`) }
+      else                  { await reopen.mutateAsync(period.id); toast.success(`${label} rouverte`) }
+      setConfirmAction(null)
     } catch (e: unknown) { toast.error((e as Error).message) }
   }
 
@@ -117,16 +115,16 @@ function FiscalYearCard({ year, expanded, onToggle, onCloseYear }: { year: Fisca
                     Fin de période imminente
                   </div>
                 )}
-                {(canClose || canReopen) && can('accounting', 'update') && (
+                {(canClose || canReopen) && can('fiscal', 'write') && (
                   <div style={{ display: 'flex', gap: 6 }}>
                     {canClose && (
-                      <button onClick={() => handleClose(period)} disabled={close.isPending}
+                      <button onClick={() => setConfirmAction({ type: 'close', period })} disabled={close.isPending}
                         style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, height: 28, borderRadius: 6, border: '1.5px solid var(--border)', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--text-2)', fontWeight: 500, transition: 'all 0.15s' }}>
                         <Lock size={11} /> Clôturer
                       </button>
                     )}
                     {canReopen && (
-                      <button onClick={() => handleReopen(period)} disabled={reopen.isPending}
+                      <button onClick={() => setConfirmAction({ type: 'reopen', period })} disabled={reopen.isPending}
                         style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, height: 28, borderRadius: 6, border: '1.5px solid #d97706', background: 'rgba(217,119,6,0.08)', cursor: 'pointer', fontSize: 12, color: '#92400e', fontWeight: 500, transition: 'all 0.15s' }}>
                         <Unlock size={11} /> Réouvrir
                       </button>
@@ -149,7 +147,7 @@ function FiscalYearCard({ year, expanded, onToggle, onCloseYear }: { year: Fisca
           ) : (
             <>
               <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>Toutes les périodes sont clôturées : l'exercice peut être clôturé.</span>
-              {can('accounting', 'update') && (
+              {can('fiscal', 'write') && (
                 <button onClick={() => onCloseYear(year.year)}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 34, padding: '0 16px', borderRadius: 'var(--radius-md)', border: 'none', background: '#0f2d4a', color: '#fff', fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-display)', cursor: 'pointer' }}>
                   <Lock size={13} /> Clôturer l'exercice
@@ -159,6 +157,21 @@ function FiscalYearCard({ year, expanded, onToggle, onCloseYear }: { year: Fisca
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmAction}
+        tone={confirmAction?.type === 'reopen' ? 'warning' : 'default'}
+        title={confirmAction?.type === 'reopen'
+          ? `Réouvrir ${confirmAction ? `${MONTHS[confirmAction.period.month - 1]} ${confirmAction.period.year}` : ''} ?`
+          : `Clôturer ${confirmAction ? `${MONTHS[confirmAction.period.month - 1]} ${confirmAction.period.year}` : ''} ?`}
+        confirmLabel={confirmAction?.type === 'reopen' ? 'Réouvrir la période' : 'Clôturer la période'}
+        busy={close.isPending || reopen.isPending}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={runConfirm}
+        message={confirmAction?.type === 'reopen'
+          ? <>La période repassera en <strong>ouvert</strong> et acceptera de nouvelles écritures. Cette réouverture sera <strong>tracée dans l&apos;audit</strong>.</>
+          : <>Les <strong>{confirmAction?.period.entryCount ?? 0} écriture(s)</strong> de cette période resteront modifiables tant que l&apos;exercice n&apos;est pas clôturé, mais la période sera fermée aux nouvelles écritures. Vous pourrez la rouvrir si besoin.</>}
+      />
     </div>
   )
 }
@@ -179,7 +192,7 @@ export default function PeriodsPage() {
     })
   }
 
-  if (!can('accounting', 'read')) return <AccessDenied message="Vous n'avez pas accès à la comptabilité." />
+  if (!can('fiscal', 'read')) return <AccessDenied message="Vous n'avez pas accès à la comptabilité." />
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto' }}>
@@ -193,7 +206,7 @@ export default function PeriodsPage() {
             <p style={{ fontSize: 12, color: 'var(--text-3)', margin: 0 }}>SYSCOHADA — exercices annuels</p>
           </div>
         </div>
-        {can('accounting', 'create') && (
+        {can('fiscal', 'write') && (
           <button onClick={() => setDrawerOpen(true)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 38, padding: '0 16px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', fontSize: 13.5, fontWeight: 600, fontFamily: 'var(--font-display)', border: 'none', cursor: 'pointer' }}>
             <Plus size={15} /> Nouvel exercice

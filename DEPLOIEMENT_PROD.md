@@ -58,6 +58,28 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-09-20 — Périodes comptables : corrections & durcissement
+Refonte des points faibles du module de périodes :
+- **Création d'exercice** génère désormais les **12 périodes mensuelles** (conforme à
+  l'UI et aux déclarations de TVA mensuelles) au lieu d'une seule période annuelle ;
+  refuse la création d'un exercice déjà existant et trace le créateur.
+- **`getOpenPeriod` / auto-détection** comparent par **date calendaire** : corrige
+  l'échec silencieux des contre-passations effectuées le dernier jour d'une période
+  (l'écriture d'extourne était omise → solde faussé).
+- **Numérotation des écritures manuelles** unifiée sur le préfixe du journal
+  (`JOURNAL-AAAA-NNNNN`, année **UTC**) au lieu de l'ancien `JNL-…` global qui polluait
+  les journaux et cassait le calcul du dernier numéro.
+- **Permissions** : les routes périodes / clôture d'exercice passent de `accounting:*`
+  à **`fiscal:read` / `fiscal:write`** (permission dédiée, déjà détenue par `admin` et
+  `comptable`).
+- Frontend : confirmations `window.confirm()` remplacées par un `ConfirmDialog`, barre
+  de progression basée sur le nombre réel de périodes.
+
+> **Aucune migration SQL.** ⚠️ Si des **rôles personnalisés** doivent gérer les périodes,
+> leur accorder `fiscal:read` / `fiscal:write` (les rôles système `admin`/`comptable`
+> les ont déjà). Les exercices déjà créés « en une période annuelle » restent tels quels ;
+> pour repartir sur 12 mois, supprimer l'exercice (s'il est sans écriture) puis le recréer.
+
 ### 2026-09-20 — TVA sur les encaissements (prestations de services)
 Régime optionnel des encaissements pour la **TVA des services** (les marchandises restent au
 régime des débits). Quand `tva_on_collection` est activé dans les paramètres : à l'émission, la

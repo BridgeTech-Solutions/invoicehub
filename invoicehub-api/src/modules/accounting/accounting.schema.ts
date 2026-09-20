@@ -24,11 +24,14 @@ export const updateChartAccountSchema = z.object({
   isActive:             z.boolean().optional(),
 });
 
+// Un exercice est identifié par sa seule année : les 12 périodes mensuelles en sont
+// dérivées côté serveur (voir createFiscalPeriod). name/startDate/endDate sont
+// tolérés (compat. anciens clients) mais ignorés.
 export const createFiscalPeriodSchema = z.object({
-  name:       z.string().min(2).max(100),
-  startDate:  z.coerce.date(),
-  endDate:    z.coerce.date(),
   fiscalYear: z.number().int().min(2000).max(2100),
+  name:       z.string().min(2).max(100).optional(),
+  startDate:  z.coerce.date().optional(),
+  endDate:    z.coerce.date().optional(),
   periodType: z.string().max(20).optional(),
 });
 
@@ -102,6 +105,19 @@ export const manualLetteringSchema = z.object({
   accountNumber: z.string().min(3, 'Numéro de compte requis'),
 });
 
+// Lettrage « auto-compte » : le compte est déduit des lignes, non fourni.
+export const autoLetteringSchema = z.object({
+  lineIds: z.array(z.string().uuid()).min(2, 'Au moins 2 lignes requises'),
+});
+
+// Lettrage partiel avec imputation de l'écart de règlement.
+export const letterWithDifferenceSchema = z.object({
+  lineIds:           z.array(z.string().uuid()).min(1, 'Au moins une ligne requise'),
+  accountNumber:     z.string().min(3, 'Numéro de compte requis'),
+  differenceAccount: z.string().min(2).max(20).optional(),
+  label:             z.string().max(255).optional(),
+});
+
 export const deleteLetteringSchema = z.object({
   accountNumber: z.string().min(3, 'Numéro de compte requis'),
 });
@@ -137,5 +153,7 @@ export type CreateJournalEntryInput   = z.infer<typeof createJournalEntrySchema>
 export type UpdateJournalEntryInput   = z.infer<typeof updateJournalEntrySchema>;
 export type CreateTaxDeclarationInput = z.infer<typeof createTaxDeclarationSchema>;
 export type ManualLetteringInput      = z.infer<typeof manualLetteringSchema>;
+export type AutoLetteringInput        = z.infer<typeof autoLetteringSchema>;
+export type LetterWithDifferenceInput = z.infer<typeof letterWithDifferenceSchema>;
 export type DeleteLetteringInput      = z.infer<typeof deleteLetteringSchema>;
 export type UnletteredLinesInput      = z.infer<typeof unletteredLinesSchema>;
