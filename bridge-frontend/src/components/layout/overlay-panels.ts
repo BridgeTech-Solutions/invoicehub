@@ -113,7 +113,7 @@ export const OVERLAY_PANELS: Record<string, OverlayPanel> = {
         title: 'RÉFÉRENTIEL',
         items: [
           { label: 'Plan comptable',    href: ROUTES.ACCOUNTING_CHART,   icon: List, permission: { resource: 'accounting', action: 'read' } },
-          { label: 'Périodes fiscales', href: ROUTES.ACCOUNTING_PERIODS, icon: Calendar, permission: { resource: 'accounting', action: 'read' } },
+          { label: 'Périodes fiscales', href: ROUTES.ACCOUNTING_PERIODS, icon: Calendar, permission: { resource: 'fiscal', action: 'read' } },
         ],
       },
       {

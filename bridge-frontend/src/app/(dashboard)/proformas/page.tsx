@@ -19,6 +19,7 @@ import { toast } from 'sonner'
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { formatDate, buildPageRange } from '@/lib/utils'
 import { ROUTES, STATUS_LABELS, PROFORMA_STATUSES } from '@/lib/constants'
 import type { ProformaListItem, ProformaStatus } from '@/features/proformas/types'
@@ -199,6 +200,8 @@ export default function ProformasPage() {
   const total      = data?.total      ?? 0
   const totalPages = data?.totalPages ?? 1
   const pageRange  = buildPageRange(page, totalPages)
+
+  if (!can('proforma', 'read')) return <AccessDenied message="Vous n'avez pas accès aux proformas." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

@@ -15,6 +15,7 @@ import { ClientInvoiceHistory } from '@/features/clients/components/ClientInvoic
 import { ClientSummaryCard } from '@/features/clients/components/ClientSummaryCard'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { formatDate, getInitials } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
@@ -91,6 +92,8 @@ export default function ClientDetailPage() {
   const { can } = usePermission()
   const archiveMutation = useArchiveClient()
   const canSeeInternalNotes = can('client', 'update')
+
+  if (!can('client', 'read')) return <AccessDenied message="Vous n'avez pas accès aux clients." />
 
   // ─── Loading ───────────────────────────────────────────────
   if (isLoading) {

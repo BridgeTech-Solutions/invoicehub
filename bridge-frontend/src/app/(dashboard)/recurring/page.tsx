@@ -9,6 +9,7 @@ import { useRecurringList, useActivateRecurring, useDeactivateRecurring, useDele
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { formatDate, getInitials } from '@/lib/utils'
 import { computeLineValues } from '@/lib/document-math'
 import { ROUTES } from '@/lib/constants'
@@ -247,6 +248,8 @@ export default function RecurringPage() {
   const totalShown = data && data.totalPages > 1
     ? `${((page - 1) * PAGE_SIZE) + 1}–${Math.min(page * PAGE_SIZE, data.total)} sur ${data.total} gabarit${data.total !== 1 ? 's' : ''}`
     : data ? `${data.total} gabarit${data.total !== 1 ? 's' : ''}` : undefined
+
+  if (!can('recurring', 'read')) return <AccessDenied message="Vous n'avez pas accès aux factures récurrentes." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

@@ -20,6 +20,7 @@ import { ROUTES, STATUS_LABELS, INVOICE_TYPES, PAYMENT_METHODS } from '@/lib/con
 import type { Invoice, InvoiceType, DiscountType } from '@/features/invoices/types'
 import { getEffectiveStatus } from '@/features/invoices/effectiveStatus'
 import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 
 // ─── Status / type badges ────────────────────────────────────────
 
@@ -202,6 +203,7 @@ function InvoiceDetailView({ id }: { id: string }) {
   const { can }         = usePermission()
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
+  if (!can('invoice', 'read')) return <AccessDenied message="Vous n'avez pas accès aux factures." />
   if (isLoading) return <Skeleton />
   if (!invoice) return (
     <div style={{ textAlign: 'center', padding: '60px 20px' }}>
@@ -583,7 +585,10 @@ export default function InvoicePage() {
   const { id }       = useParams<{ id: string }>()
   const searchParams = useSearchParams()
   const isEditMode   = searchParams.get('mode') === 'edit'
+  const { can }      = usePermission()
   const { data: invoice, isLoading } = useInvoice(id)
+
+  if (!can('invoice', 'read')) return <AccessDenied message="Vous n'avez pas accès aux factures." />
 
   if (isEditMode) {
     if (isLoading) return (

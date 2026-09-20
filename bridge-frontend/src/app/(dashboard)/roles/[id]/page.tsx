@@ -10,6 +10,7 @@ import { useRole } from '@/features/roles/hooks'
 import { RoleDrawer } from '@/features/roles/components/RoleDrawer'
 import { PermissionsMatrix } from '@/features/roles/components/PermissionsMatrix'
 import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { formatDate, getInitials } from '@/lib/utils'
 import { ROUTES } from '@/lib/constants'
 
@@ -85,6 +86,7 @@ export default function RoleDetailPage() {
 
   const { data: role, isLoading, isError } = useRole(id)
 
+  if (!can('role', 'read')) return <AccessDenied message="Vous n'avez pas accès à la gestion des rôles." />
   if (isLoading) return <Skeleton />
   if (isError || !role) {
     return (
