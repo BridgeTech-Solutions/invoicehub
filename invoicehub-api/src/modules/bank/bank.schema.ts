@@ -23,7 +23,9 @@ export const createTransactionSchema = z.object({
   bankAccountId:   z.string().uuid(),
   transactionDate: z.coerce.date(),
   label:           z.string().min(1).max(500),
-  amount:          z.number().refine((n) => n !== 0, 'Le montant ne peut pas être zéro'),
+  // Toujours positif : le sens (entrée/sortie) est porté par `type`, pas par le
+  // signe. Un montant négatif inverserait le calcul du solde.
+  amount:          z.number().positive('Le montant doit être strictement positif'),
   type:            z.enum(['debit', 'credit']),
   reference:       z.string().max(255).optional().nullable(),
   category:        z.string().max(100).optional().nullable(),
@@ -51,15 +53,40 @@ export const detectFormatSchema = z.object({
 export const previewImportSchema = z.object({
   bankAccountId: z.string().uuid(),
   encoding:      z.enum(['auto', 'utf-8', 'win1252', 'iso-8859-1', 'utf-16le']).optional().default('auto'),
+  // Multipart : ce champ arrive en chaîne JSON (mapping manuel du ColumnMapper).
+  columnMapping: z.string().max(5000).optional(),
 });
 
 export const confirmImportSchema = z.object({
   importId: z.string().uuid(),
 });
 
+// Forme d'un format d'import détecté/mappé (DetectedFormat) : on valide au moins
+// les champs structurants avant de mémoriser un override réutilisé au parsing,
+// pour ne pas stocker un objet arbitraire qui casserait les imports suivants.
+export const detectedFormatSchema = z.object({
+  delimiter:    z.enum([',', ';', '\t', '|']),
+  encoding:     z.string().max(20),
+  dateFormat:   z.string().min(1).max(50),
+  numberFormat: z.object({ thousands: z.string().max(2), decimal: z.string().max(2) }),
+  columnMapping: z.object({
+    date:         z.string().max(100),
+    label:        z.string().max(100),
+    debit:        z.string().max(100).optional(),
+    credit:       z.string().max(100).optional(),
+    amount:       z.string().max(100).optional(),
+    direction:    z.string().max(100).optional(),
+    reference:    z.string().max(100).optional(),
+    balanceAfter: z.string().max(100).optional(),
+    valueDate:    z.string().max(100).optional(),
+  }),
+  headerRow:    z.number().int().min(0).max(100).optional(),
+  amountSign:   z.string().max(50).optional(),
+}).passthrough(); // tolère les champs annexes (profileName, confidence…)
+
 export const saveProfileOverrideSchema = z.object({
   bankAccountId: z.string().uuid(),
-  profileData:   z.record(z.any()),
+  profileData:   detectedFormatSchema,
 });
 
 export type CreateBankAccountInput  = z.infer<typeof createBankAccountSchema>;
@@ -70,6 +97,31 @@ export type DetectFormatInput       = z.infer<typeof detectFormatSchema>;
 
 // ── Import profiles ───────────────────────────────────────────────────────────
 
+// Une colonne d'un profil se réfère à un en-tête (chaîne) ou à une liste de
+// synonymes d'en-têtes (comme les profils intégrés) — jamais à un objet arbitraire.
+const profileColField = z.union([
+  z.string().max(100),
+  z.array(z.string().max(100)).min(1),
+]);
+const profileNumberFormatSchema = z.object({
+  thousands: z.string().max(2),
+  decimal:   z.string().min(1).max(2),
+});
+const profileColumnMappingSchema = z.object({
+  date:         z.union([z.string().min(1).max(100), z.array(z.string().min(1).max(100)).min(1)]),
+  label:        z.union([z.string().min(1).max(100), z.array(z.string().min(1).max(100)).min(1)]),
+  debit:        profileColField.optional().nullable(),
+  credit:       profileColField.optional().nullable(),
+  amount:       profileColField.optional().nullable(),
+  direction:    profileColField.optional().nullable(),
+  reference:    profileColField.optional().nullable(),
+  balanceAfter: profileColField.optional().nullable(),
+  valueDate:    profileColField.optional().nullable(),
+}).refine(
+  (c) => !!(c.debit || c.credit || c.amount),
+  { message: 'Le mapping doit désigner une colonne de montant (débit/crédit ou montant unique).' },
+);
+
 export const createImportProfileSchema = z.object({
   name:               z.string().min(1).max(255),
   bankName:           z.string().max(255).optional().nullable(),
@@ -79,14 +131,15 @@ export const createImportProfileSchema = z.object({
   delimiter:          z.string().max(5).optional().nullable(),
   dateFormat:         z.string().max(50).optional().nullable(),
   // Requis en base (NOT NULL) — un profil sans mapping/format n'a pas de sens.
-  numberFormat:       z.record(z.any()),
-  columnMapping:      z.record(z.any()),
-  directionValues:    z.record(z.any()).optional().nullable(),
-  amountSign:         z.string().max(50).optional().nullable(),
+  // Structurés : un profil au mapping incohérent parserait 0 ligne en silence.
+  numberFormat:       profileNumberFormatSchema,
+  columnMapping:      profileColumnMappingSchema,
+  directionValues:    z.object({ debit: z.array(z.string()), credit: z.array(z.string()) }).optional().nullable(),
+  amountSign:         z.enum(['negative-is-debit', 'positive-is-credit']).optional().nullable(),
   skipRowsContaining: z.array(z.string()).optional().nullable(),
-  skipFirstRows:      z.number().int().optional().nullable(),
+  skipFirstRows:      z.number().int().min(0).max(50).optional().nullable(),
   isPublic:           z.boolean().optional(),
-  notes:              z.string().optional().nullable(),
+  notes:              z.string().max(2000).optional().nullable(),
 });
 
 export const updateImportProfileSchema = createImportProfileSchema.partial();

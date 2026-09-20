@@ -12,7 +12,9 @@ import { RecurringProcessor } from './processors/recurring.processor';
 import { ReminderProcessor } from './processors/reminder.processor';
 import { BackupProcessor } from './processors/backup.processor';
 import { CleanupProcessor } from './processors/cleanup.processor';
+import { AccountingOutboxProcessor } from './processors/accounting-outbox.processor';
 import { JobFailureListener } from './job-failure.listener';
+import { ACCOUNTING_OUTBOX_QUEUE } from './constants';
 
 @Module({
   imports: [
@@ -28,10 +30,12 @@ import { JobFailureListener } from './job-failure.listener';
       { name: 'approval' },
       { name: 'notification' },
       { name: 'email' },
+      { name: ACCOUNTING_OUTBOX_QUEUE },
     ),
   ],
   providers: [
     CronScheduler,
+    AccountingOutboxProcessor,
     EmailProcessor,
     NotificationProcessor,
     ApprovalProcessor,

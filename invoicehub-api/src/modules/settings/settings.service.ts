@@ -19,7 +19,18 @@ const ACCOUNT_FIELDS = [
 
 function toRelativePath(absPath: string | null): string | null {
   if (!absPath) return null;
-  if (!path.isAbsolute(absPath)) return absPath.replace(/\\/g, '/');
+  const p = absPath.replace(/\\/g, '/');
+  // Valeur DÉJÀ au format URL applicative (ex. "/api/settings/assets/<uuid>.png",
+  // écrite par uploadAsset) ou URL absolue : on la renvoie telle quelle.
+  // NE PAS la passer à path.relative : sur Windows, path.isAbsolute("/api/…") vaut
+  // true, et path.relative(cwd, "/api/…") produit "../../../../api/…" → URL cassée
+  // (c'est ce qui empêchait tous les logos/cachets/signatures de s'afficher).
+  if (/^\/?api\//.test(p) || /^https?:\/\//.test(p)) {
+    return p.startsWith('/') || /^https?:\/\//.test(p) ? p : '/' + p;
+  }
+  // Rétro-compat : d'anciens enregistrements pouvaient stocker un chemin ABSOLU
+  // de système de fichiers ; on le ramène en relatif au cwd.
+  if (!path.isAbsolute(absPath)) return p;
   return path.relative(process.cwd(), absPath).replace(/\\/g, '/');
 }
 
@@ -70,6 +81,12 @@ export class SettingsService {
     if (notDetail.length > 0) {
       throw AppError.badRequest(
         `Compte(s) racine non imputables : ${notDetail.join(', ')}. Utilisez un sous-compte de détail (ex : 3111 plutôt que 311).`,
+      );
+    }
+    const inactive = unique.filter((a) => byNumber.get(a)?.isActive === false);
+    if (inactive.length > 0) {
+      throw AppError.badRequest(
+        `Compte(s) désactivé(s) : ${inactive.join(', ')}. Réactivez-les dans le plan comptable ou choisissez un autre compte.`,
       );
     }
   }

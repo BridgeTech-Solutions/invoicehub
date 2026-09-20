@@ -48,11 +48,26 @@ async function getOpenPeriod(tx: Tx, date: Date) {
     where: { status: 'open', startDate: { lte: date }, endDate: { gte: date } },
   });
   if (!p) throw new Error(`Aucune période fiscale ouverte pour le ${date.toLocaleDateString('fr-FR')}`);
+
+  // Verrou de ligne : empêche une clôture de période de s'intercaler entre cette
+  // lecture et le commit de l'écriture. Une clôture UPDATE le statut de la période →
+  // elle bloque sur ce verrou jusqu'à notre commit (et inversement). Après l'avoir
+  // obtenu, on RE-VÉRIFIE que la période est toujours ouverte : si une clôture a
+  // commité juste avant, on refuse l'écriture plutôt que de l'insérer dans une
+  // période fermée.
+  await tx.$executeRaw`SELECT id FROM fiscal_periods WHERE id = ${p.id}::uuid FOR UPDATE`;
+  const fresh = await tx.fiscalPeriod.findUnique({ where: { id: p.id }, select: { status: true } });
+  if (fresh?.status !== 'open') {
+    throw new Error(`La période fiscale du ${date.toLocaleDateString('fr-FR')} a été clôturée entre-temps`);
+  }
   return p;
 }
 
 // ── Étape 1 — nextLetteringCode : A → B → ... → Z → AA → AB ... (style colonnes Excel)
 async function nextLetteringCode(tx: Tx, accountNumber: string): Promise<string> {
+  // Verrou par compte : deux lettrages concurrents sur le même compte pourraient
+  // lire le même « dernier code » et générer le même code de lettrage. Sérialisé ici.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`lettering:${accountNumber}`}))`;
   const last = await tx.journalEntryLine.findFirst({
     where: { accountNumber, letteringCode: { not: null } },
     orderBy: { letteredAt: 'desc' },
@@ -80,7 +95,11 @@ async function nextLetteringCode(tx: Tx, accountNumber: string): Promise<string>
 // transaction englobante → plus de collision de entry_number (contrainte @unique)
 // qui ferait silencieusement échouer l'écriture sous charge concurrente.
 async function nextEntryNumber(tx: Tx, journalCode: string, date: Date): Promise<string> {
-  const year   = date.getFullYear();
+  // Année/bornes en UTC : entryDate est une date CALENDAIRE (@db.Date). En heure
+  // locale, getFullYear()/new Date(year,…) décalent l'année et les bornes selon le
+  // fuseau du serveur (ex. un 01/01 00:00 local vu la veille en UTC) → mauvaise
+  // séquence en tout début/fin d'exercice. On raisonne donc en UTC de bout en bout.
+  const year   = date.getUTCFullYear();
   const prefix = `${journalCode}-${year}-`;
 
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`jentry:${journalCode}:${year}`}))`;
@@ -88,7 +107,7 @@ async function nextEntryNumber(tx: Tx, journalCode: string, date: Date): Promise
   const last = await tx.journalEntry.findFirst({
     where: {
       journal:   { code: journalCode },
-      entryDate: { gte: new Date(year, 0, 1), lte: new Date(year, 11, 31, 23, 59, 59) },
+      entryDate: { gte: new Date(Date.UTC(year, 0, 1)), lte: new Date(Date.UTC(year, 11, 31, 23, 59, 59)) },
     },
     orderBy: { entryNumber: 'desc' },
     select:  { entryNumber: true },
@@ -101,6 +120,42 @@ async function nextEntryNumber(tx: Tx, journalCode: string, date: Date): Promise
   }
 
   return `${prefix}${String(next).padStart(5, '0')}`;
+}
+
+// ── Verrou consultatif par source métier ───────────────────────────────────────
+// Sérialise les appels concurrents qui comptabilisent LA MÊME pièce (facture,
+// paiement…). Sans lui, le garde d'idempotence `_dupe` (une simple lecture) est
+// « check-then-act » : deux transactions concurrentes (retry, double-déclenchement,
+// job rejoué) passent toutes deux le test « aucune écriture » et en créent deux —
+// et il n'existe pas de contrainte unique (source_type, source_id) qui l'empêche
+// (elle serait d'ailleurs erronée : un paiement porte légitimement plusieurs
+// écritures « payment » — règlement + escompte + retenue). Le verrou est libéré au
+// commit/rollback de la transaction englobante.
+async function lockSource(tx: Tx, sourceType: string, sourceId: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`jentry-src:${sourceType}:${sourceId}`}))`;
+}
+
+// ── Création d'écriture avec garde d'équilibre ─────────────────────────────────
+// Les écritures sont équilibrées par construction, mais on refuse de créer une
+// écriture dont la somme des débits ≠ somme des crédits (au centime) : garde-fou
+// de dernier recours contre un futur refactor du calcul qui introduirait un
+// déséquilibre silencieux (non validable, faux bilan). Dans les hooks non
+// bloquants, l'erreur est captée et notifiée ; dans les bloquants, elle annule
+// l'opération — dans les deux cas, jamais d'écriture fausse en base.
+async function createBalancedEntry(
+  tx: Tx,
+  args: { data: { lines?: { create?: JournalLineData[] } } & Record<string, any> },
+) {
+  const lines = args.data?.lines?.create ?? [];
+  const sumD  = round2(lines.reduce((s, l) => s + Number(l.debit  || 0), 0));
+  const sumC  = round2(lines.reduce((s, l) => s + Number(l.credit || 0), 0));
+  if (Math.abs(sumD - sumC) > 0.01) {
+    throw new Error(
+      `Écriture déséquilibrée (${args.data.sourceType ?? '?'}/${args.data.sourceId ?? '?'}) : ` +
+      `débit ${sumD} ≠ crédit ${sumC}`,
+    );
+  }
+  return (tx as any).journalEntry.create(args);
 }
 
 // ── Helper Étape 2 — décompose les lignes de facture en lignes d'écriture ──────
@@ -380,6 +435,10 @@ async function getCompanyAccounts(tx: Tx) {
  */
 export async function onInvoiceIssued(invoiceId: string, tx: Tx): Promise<void> {
   try {
+    // Verrou par source PUIS garde d'idempotence : atomique contre les appels concurrents.
+    await lockSource(tx, 'invoice', invoiceId);
+    const _dupe = await tx.journalEntry.findFirst({ where: { sourceType: 'invoice', sourceId: invoiceId, status: { not: 'cancelled' } }, select: { id: true } });
+    if (_dupe) return;
     const [invoice, accounts] = await Promise.all([
       tx.invoice.findUnique({
         where: { id: invoiceId },
@@ -428,7 +487,7 @@ export async function onInvoiceIssued(invoiceId: string, tx: Tx): Promise<void> 
     const period      = await getOpenPeriod(tx, entryDate);
     const entryNumber = await nextEntryNumber(tx, journal.code, entryDate);
 
-    await tx.journalEntry.create({
+    await createBalancedEntry(tx, {
       data: {
         journalId:      journal.id,
         fiscalPeriodId: period.id,
@@ -438,6 +497,7 @@ export async function onInvoiceIssued(invoiceId: string, tx: Tx): Promise<void> 
         label:       `FAC ${invoice.number} — ${invoice.client?.name ?? ''}`,
         sourceType:  'invoice',
         sourceId:    invoice.id,
+        entryKind:   'sale',
         totalDebit:  built.total,
         totalCredit: built.total,
         status:      'draft',
@@ -455,6 +515,10 @@ export async function onInvoiceIssued(invoiceId: string, tx: Tx): Promise<void> 
  */
 export async function onPaymentReceived(paymentId: string, tx: Tx): Promise<void> {
   try {
+    // Verrou par source PUIS garde d'idempotence : atomique contre les appels concurrents.
+    await lockSource(tx, 'payment', paymentId);
+    const _dupe = await tx.journalEntry.findFirst({ where: { sourceType: 'payment', sourceId: paymentId, status: { not: 'cancelled' } }, select: { id: true } });
+    if (_dupe) return;
     const [payment, accounts] = await Promise.all([
       tx.payment.findUnique({
         where: { id: paymentId },
@@ -480,7 +544,7 @@ export async function onPaymentReceived(paymentId: string, tx: Tx): Promise<void
     const period      = await getOpenPeriod(tx, entryDate);
     const entryNumber = await nextEntryNumber(tx, journal.code, entryDate);
 
-    await tx.journalEntry.create({
+    await createBalancedEntry(tx, {
       data: {
         journalId:      journal.id,
         fiscalPeriodId: period.id,
@@ -490,6 +554,7 @@ export async function onPaymentReceived(paymentId: string, tx: Tx): Promise<void
         label:       `Règlement FAC ${payment.invoice?.number ?? ''} — ${payment.invoice?.client?.name ?? ''}`,
         sourceType:  'payment',
         sourceId:    payment.id,
+        entryKind:   'settlement',
         totalDebit:  Number(payment.amount),
         totalCredit: Number(payment.amount),
         status:      'draft',
@@ -576,7 +641,7 @@ export async function onPaymentDeleted(paymentId: string, tx: Tx): Promise<void>
       const period      = await getOpenPeriod(tx, entryDate);
       const entryNumber = await nextEntryNumber(tx, journal.code, entryDate);
 
-      await tx.journalEntry.create({
+      await createBalancedEntry(tx, {
         data: {
           journalId:      journal.id,
           fiscalPeriodId: period.id,
@@ -586,6 +651,7 @@ export async function onPaymentDeleted(paymentId: string, tx: Tx): Promise<void>
           label:       `Extourne — ${original.label}`,
           sourceType:  'payment_reversal',
           sourceId:    paymentId,
+          entryKind:   original.entryKind ?? undefined,
           totalDebit:  original.totalCredit,
           totalCredit: original.totalDebit,
           status:      'draft',
@@ -619,6 +685,10 @@ export async function onSupplierInvoiceValidated(supplierInvoiceId: string, tx: 
   // NB : pas de try/catch silencieux ici — cette fonction est appelée DANS la
   // transaction de validation. Toute erreur doit remonter pour annuler la
   // validation : on n'autorise pas une FF validée sans écriture comptable.
+  // Verrou par source PUIS garde d'idempotence : atomique contre les appels concurrents.
+  await lockSource(tx, 'supplier_invoice', supplierInvoiceId);
+  const _dupe = await tx.journalEntry.findFirst({ where: { sourceType: 'supplier_invoice', sourceId: supplierInvoiceId, status: { not: 'cancelled' } }, select: { id: true } });
+  if (_dupe) return;
   const [inv, accounts] = await Promise.all([
     tx.supplierInvoice.findUnique({
       where: { id: supplierInvoiceId },
@@ -646,7 +716,7 @@ export async function onSupplierInvoiceValidated(supplierInvoiceId: string, tx: 
     const period      = await getOpenPeriod(tx, entryDate);
     const entryNumber = await nextEntryNumber(tx, journal.code, entryDate);
 
-    await tx.journalEntry.create({
+    await createBalancedEntry(tx, {
       data: {
         journalId:      journal.id,
         fiscalPeriodId: period.id,
@@ -656,6 +726,7 @@ export async function onSupplierInvoiceValidated(supplierInvoiceId: string, tx: 
         label:       `FF ${inv.supplierInvoiceNumber} — ${inv.supplier?.name ?? 'Fournisseur'}`,
         sourceType:  'supplier_invoice',
         sourceId:    inv.id,
+        entryKind:   'purchase',
         totalDebit:  Number(inv.totalTtc),
         totalCredit: Number(inv.totalTtc),
         status:      'draft',
@@ -680,6 +751,10 @@ export async function onSupplierInvoiceValidated(supplierInvoiceId: string, tx: 
 export async function onSupplierPaymentMade(supplierPaymentId: string, tx: Tx): Promise<void> {
   // NB : appelée DANS la transaction de paiement → toute erreur doit remonter
   // pour annuler le paiement plutôt que de laisser une FF payée sans écriture.
+  // Verrou par source PUIS garde d'idempotence : atomique contre les appels concurrents.
+  await lockSource(tx, 'supplier_payment', supplierPaymentId);
+  const _dupe = await tx.journalEntry.findFirst({ where: { sourceType: 'supplier_payment', sourceId: supplierPaymentId, status: { not: 'cancelled' } }, select: { id: true } });
+  if (_dupe) return;
   const [payment, accounts] = await Promise.all([
     tx.supplierPayment.findUnique({
       where: { id: supplierPaymentId },
@@ -713,7 +788,7 @@ export async function onSupplierPaymentMade(supplierPaymentId: string, tx: Tx): 
     const period      = await getOpenPeriod(tx, entryDate);
     const entryNumber = await nextEntryNumber(tx, journal.code, entryDate);
 
-    await tx.journalEntry.create({
+    await createBalancedEntry(tx, {
       data: {
         journalId:      journal.id,
         fiscalPeriodId: period.id,
@@ -723,6 +798,7 @@ export async function onSupplierPaymentMade(supplierPaymentId: string, tx: Tx): 
         label:       `Paiement fournisseur ${payment.supplier?.name ?? ''}`,
         sourceType:  'supplier_payment',
         sourceId:    payment.id,
+        entryKind:   'settlement',
         totalDebit:  Number(payment.amount),
         totalCredit: Number(payment.amount),
         status:      'draft',
@@ -792,7 +868,7 @@ export async function onSupplierInvoiceDisputed(supplierInvoiceId: string, tx: T
   const period      = await getOpenPeriod(tx, entryDate);
   const entryNumber = await nextEntryNumber(tx, journal.code, entryDate);
 
-  await tx.journalEntry.create({
+  await createBalancedEntry(tx, {
     data: {
       journalId:      journal.id,
       fiscalPeriodId: period.id,
@@ -802,6 +878,7 @@ export async function onSupplierInvoiceDisputed(supplierInvoiceId: string, tx: T
       label:       `Extourne — ${original.label}`,
       sourceType:  'supplier_invoice_reversal',
       sourceId:    supplierInvoiceId,
+      entryKind:   'reversal',
       totalDebit:  original.totalCredit,
       totalCredit: original.totalDebit,
       status:      'draft',
@@ -832,58 +909,30 @@ export async function onSupplierInvoiceDisputed(supplierInvoiceId: string, tx: T
  */
 export async function onInvoiceCancelled(invoiceId: string, tx: Tx): Promise<void> {
   try {
-    const [invoice, accounts] = await Promise.all([
-      tx.invoice.findUnique({
-        where: { id: invoiceId },
-        include: {
-          client: { select: { id: true, name: true, accountingAccount: true } },
-          lines: {
-            include: {
-              product: {
-                select: {
-                  type: true,
-                  salesAccountingAccount: true,
-                  category: { select: { salesAccountingAccount: true } },
-                },
-              },
-            },
-          },
-        },
-      }),
-      getCompanyAccounts(tx),
-    ]);
-    if (!invoice) return;
-    if (!accounts) {
-      logSkip('onInvoiceCancelled', 'paramètres comptables entreprise non configurés', { sourceType: 'invoice_reversal', sourceId: invoiceId });
-      return;
-    }
+    await lockSource(tx, 'invoice_reversal', invoiceId);
 
-    const clientAccount = (invoice.client as any)?.accountingAccount ?? accounts.defaultClientAccount;
-    const linesWithTax  = (invoice.lines as any).map((l: any) => ({
-      ...l,
-      taxRateCollectedAccount: accounts.collectedTaxAccount,
-    }));
-    // Garde anti-double-contre-passation : si une extourne d'annulation a déjà été
-    // passée pour cette facture (précédente annulation, ou extourne enregistrée sous
-    // ce type), on n'en crée pas une seconde — sinon l'émission serait inversée deux
-    // fois et le compte 411 client se déséquilibrerait.
+    // Garde anti-double-contre-passation : une seule extourne active par facture.
     const existingReversal = await tx.journalEntry.findFirst({
-      where: { sourceType: 'invoice_reversal', sourceId: invoiceId, status: { not: 'cancelled' } },
+      where:  { sourceType: 'invoice_reversal', sourceId: invoiceId, status: { not: 'cancelled' } },
       select: { id: true },
     });
     if (existingReversal) return;
 
-    const breakdown = buildSalesBreakdown(
-      linesWithTax, accounts.collectedTaxAccount,
-      accounts.defaultSalesGoodsAccount, accounts.defaultSalesServiceAccount,
-    );
+    // On INVERSE l'écriture d'émission STOCKÉE (source de vérité), au lieu de la
+    // reconstruire depuis la facture. Reconstruire exposait à un décalage si un
+    // compte de vente produit ou un paramètre société avait changé depuis l'émission
+    // → l'avoir n'annulait plus exactement l'originale (comptes 70x/443 non soldés).
+    // On s'aligne ainsi sur onPaymentDeleted / onSupplierInvoiceDisputed.
+    const original = await tx.journalEntry.findFirst({
+      where:   { sourceType: 'invoice', sourceId: invoiceId, status: { not: 'cancelled' } },
+      include: { lines: true },
+    });
+    if (!original) return; // facture jamais émise / sans écriture → rien à contre-passer
 
-    // On reconstruit les lignes d'émission (même régime : prorata ou avance 4191)
-    // puis on les inverse exactement → contre-passation fidèle quel que soit le type.
-    const built = await buildInvoiceIssuanceLines(
-      invoice as any, clientAccount, accounts.advanceAccount, accounts.useAdvanceAccount, breakdown, tx,
-    );
-    if (!built) return;
+    const invoice = await tx.invoice.findUnique({
+      where:  { id: invoiceId },
+      select: { number: true, client: { select: { name: true } } },
+    });
 
     const entryDate = new Date();
     let journal = await tx.accountingJournal.findFirst({ where: { type: JournalType.operations, isActive: true } });
@@ -892,27 +941,28 @@ export async function onInvoiceCancelled(invoiceId: string, tx: Tx): Promise<voi
     const period      = await getOpenPeriod(tx, entryDate);
     const entryNumber = await nextEntryNumber(tx, journal.code, entryDate);
 
-    // Contre-passation = inversion exacte de l'écriture d'émission (débit ↔ crédit)
-    const counterLines: JournalLineData[] = built.lines.map((l, i) => ({
+    // Contre-passation = inversion exacte des lignes de l'écriture d'émission.
+    const counterLines: JournalLineData[] = original.lines.map((l, i) => ({
       sortOrder:     i,
       accountNumber: l.accountNumber,
       label:         `Avoir — ${l.label}`,
-      debit:         l.credit,
-      credit:        l.debit,
+      debit:         Number(l.credit),
+      credit:        Number(l.debit),
     }));
 
-    await tx.journalEntry.create({
+    await createBalancedEntry(tx, {
       data: {
         journalId:      journal.id,
         fiscalPeriodId: period.id,
         entryDate,
         accountingDate: entryDate,
         entryNumber,
-        label:       `AVOIR sur FAC ${invoice.number} — ${invoice.client?.name ?? ''}`,
+        label:       `AVOIR sur FAC ${invoice?.number ?? ''} — ${invoice?.client?.name ?? ''}`,
         sourceType:  'invoice_reversal',
-        sourceId:    invoice.id,
-        totalDebit:  built.total,
-        totalCredit: built.total,
+        sourceId:    invoiceId,
+        entryKind:   'reversal',
+        totalDebit:  Number(original.totalCredit),
+        totalCredit: Number(original.totalDebit),
         status:      'draft',
         lines: { create: counterLines },
       },
@@ -928,6 +978,10 @@ export async function onInvoiceCancelled(invoiceId: string, tx: Tx): Promise<voi
  */
 export async function onExpensePaid(expenseId: string, tx: Tx): Promise<void> {
   try {
+    // Verrou par source PUIS garde d'idempotence : atomique contre les appels concurrents.
+    await lockSource(tx, 'expense', expenseId);
+    const _dupe = await tx.journalEntry.findFirst({ where: { sourceType: 'expense', sourceId: expenseId, status: { not: 'cancelled' } }, select: { id: true } });
+    if (_dupe) return;
     const [expense, accounts] = await Promise.all([
       tx.expense.findUnique({
         where:   { id: expenseId },
@@ -971,9 +1025,13 @@ export async function onExpensePaid(expenseId: string, tx: Tx): Promise<void> {
     // serait surévaluée et le crédit de TVA perdu. À défaut de compte TVA configuré,
     // repli sur l'imputation du TTC en charge (comportement historique).
     const splitVat = taxAmount > 0.005 && !!accounts.deductibleTaxAccount;
+    // Réconciliation de l'arrondi : on impute le HT comme (TTC − TVA) et non le HT
+    // stocké, pour que débit = crédit AU CENTIME (sinon round2(HT)+round2(TVA) peut
+    // valoir round2(TTC) ± 0,01 → lignes déséquilibrées → écriture non validable).
+    const chargeHt = round2(amountTtc - taxAmount);
     const lines: JournalLineData[] = splitVat
       ? [
-          { sortOrder: 0, accountNumber: chargeAccount,                  label: expense.title,                          debit: amountHt,  credit: 0 },
+          { sortOrder: 0, accountNumber: chargeAccount,                  label: expense.title,                          debit: chargeHt,  credit: 0 },
           { sortOrder: 1, accountNumber: accounts.deductibleTaxAccount!, label: `TVA déductible — DEP ${expense.number}`, debit: taxAmount, credit: 0 },
           { sortOrder: 2, accountNumber: bankAccount,                    label: `Paiement — ${bankLabel}`,              debit: 0, credit: amountTtc },
         ]
@@ -982,7 +1040,7 @@ export async function onExpensePaid(expenseId: string, tx: Tx): Promise<void> {
           { sortOrder: 1, accountNumber: bankAccount,   label: `Paiement — ${bankLabel}`, debit: 0, credit: amountTtc },
         ];
 
-    await tx.journalEntry.create({
+    await createBalancedEntry(tx, {
       data: {
         journalId:      journal.id,
         fiscalPeriodId: period.id,
@@ -992,6 +1050,7 @@ export async function onExpensePaid(expenseId: string, tx: Tx): Promise<void> {
         label:       `DEP ${expense.number} — ${expense.title}`,
         sourceType:  'expense',
         sourceId:    expense.id,
+        entryKind:   'expense',
         totalDebit:  amountTtc,
         totalCredit: amountTtc,
         status:      'draft',
@@ -1098,7 +1157,7 @@ export async function onStockMovement(params: {
       return;
     }
 
-    await tx.journalEntry.create({
+    await createBalancedEntry(tx, {
       data: {
         journalId:      journal.id,
         fiscalPeriodId: period.id,
@@ -1108,6 +1167,7 @@ export async function onStockMovement(params: {
         label,
         sourceType:  'stock_movement',
         sourceId:    params.movementId,
+        entryKind:   'stock',
         totalDebit:  totalCostHt,
         totalCredit: totalCostHt,
         status:      'draft',
@@ -1152,11 +1212,24 @@ export async function onEscompteAccorde(params: {
       logSkip('onEscompteAccorde', 'paramètres comptables entreprise non configurés', { sourceType: 'payment', sourceId: params.paymentId });
       return;
     }
+    // Idempotence (verrou + garde) : l'escompte partage sourceType='payment'/sourceId
+    // avec le règlement, on l'identifie donc par son compte 673x pour ne pas le
+    // recréer sur un retour arrière/retry (on ne change PAS le sourceType, sinon
+    // onPaymentDeleted ne l'extournerait plus).
+    await lockSource(tx, 'payment', paymentId);
+    const _dupe = await tx.journalEntry.findFirst({
+      where: {
+        sourceType: 'payment', sourceId: paymentId, status: { not: 'cancelled' },
+        lines: { some: { accountNumber: accounts.escompteAccountingAccount } },
+      },
+      select: { id: true },
+    });
+    if (_dupe) return;
     // Repli sur le compte client par défaut configuré (jamais de numéro en dur).
     const resolvedClientAccount = clientAccount ?? accounts.defaultClientAccount;
     const entryNumber = await nextEntryNumber(tx, journal.code, paymentDate);
 
-    await tx.journalEntry.create({
+    await createBalancedEntry(tx, {
       data: {
         journalId:      journal.id,
         fiscalPeriodId: period.id,
@@ -1166,6 +1239,7 @@ export async function onEscompteAccorde(params: {
         label:       `Escompte accordé FAC ${invoiceNumber} — ${clientName}`,
         sourceType:  'payment',
         sourceId:    paymentId,
+        entryKind:   'discount',
         totalDebit:  escompteAmount,
         totalCredit: escompteAmount,
         status:      'draft',
@@ -1227,9 +1301,20 @@ export async function onRetenueSource(params: {
     // Repli sur les comptes par défaut configurés (jamais de numéro en dur).
     const resolvedClientAccount = clientAccount ?? accounts.defaultClientAccount;
     const withholdingAccount    = accounts.withholdingAccount;
+    // Idempotence (verrou + garde) : identifiée par le compte de retenue (4492) car
+    // elle partage sourceType='payment'/sourceId avec le règlement.
+    await lockSource(tx, 'payment', paymentId);
+    const _dupe = await tx.journalEntry.findFirst({
+      where: {
+        sourceType: 'payment', sourceId: paymentId, status: { not: 'cancelled' },
+        lines: { some: { accountNumber: withholdingAccount } },
+      },
+      select: { id: true },
+    });
+    if (_dupe) return;
     const entryNumber = await nextEntryNumber(tx, journal.code, paymentDate);
 
-    await tx.journalEntry.create({
+    await createBalancedEntry(tx, {
       data: {
         journalId:      journal.id,
         fiscalPeriodId: period.id,
@@ -1239,6 +1324,7 @@ export async function onRetenueSource(params: {
         label:       `Retenue à la source FAC ${invoiceNumber} — ${clientName}`,
         sourceType:  'payment',
         sourceId:    paymentId,
+        entryKind:   'withholding',
         totalDebit:  withholdingAmount,
         totalCredit: withholdingAmount,
         status:      'draft',

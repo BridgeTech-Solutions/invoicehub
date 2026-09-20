@@ -12,7 +12,14 @@ export class CronScheduler {
     @InjectQueue('backup')    private backupQueue:    Queue,
     @InjectQueue('cleanup')   private cleanupQueue:   Queue,
     @InjectQueue('approval')  private approvalQueue:  Queue,
+    @InjectQueue('accounting-outbox') private accountingOutboxQueue: Queue,
   ) {}
+
+  // Outbox comptable : rejoue les écritures manquantes toutes les 15 min.
+  @Cron('*/15 * * * *')
+  async runAccountingOutbox() {
+    await this.accountingOutboxQueue.add('sweep', { triggeredAt: new Date().toISOString() });
+  }
 
   @Cron('45 7 * * *', { timeZone: 'UTC' })
   async runOverdue() {

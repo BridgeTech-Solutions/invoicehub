@@ -196,8 +196,11 @@ function scoreProfile(profile: BankProfile, headers: string[], sampleRows: strin
   const hasLabel = labelCols.some(c => normalizedHeaders.includes(normalizeHeader(c)));
   if (hasDate && hasLabel) score += 20;
 
-  // Bonus source
+  // Bonus source. Un profil « user » a été créé/mémorisé délibérément pour un
+  // besoin réel : on le privilégie sur un fallback générique qui matcherait aussi
+  // date+libellé, sans aller jusqu'au niveau d'un profil « verified ».
   if (profile.source === 'verified')   score += 30;
+  if (profile.source === 'user')       score += 20;
   if (profile.source === 'community')  score += 10;
 
   return score;
@@ -343,11 +346,19 @@ export function computeContentHash(
   date: Date,
   amount: number,
   type: 'debit' | 'credit',
-  label: string
+  label: string,
+  reference?: string | null,
 ): string {
   const normalized = label.toLowerCase().trim().replace(/\s+/g, ' ');
   const dateStr = date.toISOString().slice(0, 10);
-  const payload = `${bankAccountId}|${dateStr}|${amount}|${type}|${normalized}`;
+  // La référence, QUAND elle existe, entre dans l'empreinte : elle distingue deux
+  // vrais mouvements identiques du même jour (même montant/libellé) qui, sinon,
+  // fusionnaient en un seul. Les relevés sans référence gardent l'ancienne empreinte
+  // (rétrocompatibilité : la déduplication des imports existants n'est pas affectée).
+  const ref = (reference ?? '').trim().toLowerCase();
+  const payload = ref
+    ? `${bankAccountId}|${dateStr}|${amount}|${type}|${normalized}|ref:${ref}`
+    : `${bankAccountId}|${dateStr}|${amount}|${type}|${normalized}`;
   return crypto.createHash('sha256').update(payload).digest('hex');
 }
 
@@ -379,6 +390,32 @@ export function autoDetectFormat(
   const sampleRows = lines
     .slice(headerRowIndex + 1, headerRowIndex + 6)
     .map(l => parseCsvLine(l, delimiter));
+
+  // Override mémorisé par compte : c'est un DetectedFormat (il a `columnMapping`),
+  // PAS un BankProfile (`columns`). On le renvoie directement — sans ça, le code
+  // plus bas lisait `profile.columns.date` et plantait. La confiance est RECALCULÉE
+  // contre les en-têtes réels : si la banque a changé la structure du fichier, les
+  // colonnes mappées ne s'y retrouvent plus, la confiance chute et l'appelant
+  // redemande un mapping au lieu de parser en silence avec un profil périmé.
+  if (overrideProfileData?.columnMapping) {
+    const ov = overrideProfileData as DetectedFormat;
+    const mapped  = Object.values(ov.columnMapping).filter(Boolean) as string[];
+    const present = mapped.filter(col => headers.some(h => normalizeHeader(h) === normalizeHeader(col)));
+    const ovConfidence = mapped.length > 0 ? Math.round((present.length / mapped.length) * 100) : 0;
+    return {
+      ...ov,
+      delimiter,
+      headerRow:         headerRowIndex,
+      confidence:        ovConfidence,
+      confidenceScore:   ovConfidence,
+      source:            'override',
+      profileName:       ov.profileName ?? 'Profil mémorisé',
+      headers,
+      sampleRows:        sampleRows.slice(0, 3),
+      profileCandidates: [],
+      needsMapping:      ovConfidence < 80,
+    };
+  }
 
   const { profile, confidence, candidates } = selectBestProfile(headers, sampleRows, overrideProfileData, extraProfiles);
 
@@ -611,7 +648,7 @@ export function parseCsvContent(
       }
 
       // Content hash
-      const contentHash = computeContentHash(bankAccountId, txDate, amount, type, label);
+      const contentHash = computeContentHash(bankAccountId, txDate, amount, type, label, reference);
 
       // Doublon détecté
       if (existingHashes.has(contentHash)) {
@@ -739,7 +776,7 @@ export function parseAllTransactions(
         if (bv !== null) balanceAfter = bv;
       }
 
-      const contentHash = computeContentHash(bankAccountId, txDate, amount, type, label);
+      const contentHash = computeContentHash(bankAccountId, txDate, amount, type, label, reference);
 
       if (existingHashes.has(contentHash)) { rowNum++; continue; }
 
@@ -796,7 +833,7 @@ export function parseOfx(content: string, bankAccountId: string): ParsedTransact
       amount,
       type,
       reference:       fitid || undefined,
-      contentHash:     computeContentHash(bankAccountId, date, amount, type, name),
+      contentHash:     computeContentHash(bankAccountId, date, amount, type, name, fitid || undefined),
       rawRow:          { _raw: block.slice(0, 200) },
     });
   }

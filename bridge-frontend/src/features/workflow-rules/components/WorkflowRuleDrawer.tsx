@@ -165,14 +165,44 @@ export function WorkflowRuleDrawer({ onClose }: WorkflowRuleDrawerProps) {
   }
 
   function validate(): boolean {
+    // Contraintes alignées sur le schéma Zod backend (settings-advanced.schema.ts) :
+    // name 2..200, entityType/triggerEvent requis, au moins 1 action avec un type.
     const errs: Record<string, string> = {}
-    if (!name.trim())  errs.name   = 'Le nom est requis'
-    if (!module)       errs.module = 'Le module est requis'
-    if (!event)        errs.event  = "L'événement déclencheur est requis"
-    if (actions.length === 0)             errs.actions = 'Au moins une action est requise'
-    if (actions.some((a) => !a.type))     errs.actions = 'Choisir un type pour chaque action'
+    if (!name.trim())                  errs.name = 'Le nom est requis'
+    else if (name.trim().length < 2)   errs.name = 'Le nom doit faire au moins 2 caractères'
+    else if (name.trim().length > 200) errs.name = 'Le nom ne peut dépasser 200 caractères'
+
+    if (!module) errs.module = 'Le module est requis'
+    if (!event)  errs.event  = "L'événement déclencheur est requis"
+
+    if (actions.length === 0)          errs.actions = 'Au moins une action est requise'
+    else if (actions.some((a) => !a.type)) errs.actions = 'Choisir un type pour chaque action'
+    else {
+      // Vérifie que la config requise de chaque action est remplie (sinon la
+      // règle serait créée mais inopérante — ex. envoi email sans destinataire).
+      const missing = actions
+        .map((a, i) => ({ i, label: actionConfigError(a) }))
+        .filter((x) => x.label)
+      if (missing.length > 0) {
+        errs.actions = missing.map((m) => `Action ${m.i + 1} : ${m.label}`).join(' ; ')
+      }
+    }
     setErrors(errs)
     return Object.keys(errs).length === 0
+  }
+
+  /** Message si la configuration d'une action est incomplète, sinon '' (OK). */
+  function actionConfigError(a: WorkflowAction): string {
+    const c = a.config as Record<string, unknown>
+    const empty = (v: unknown) => !(typeof v === 'string' && v.trim())
+    switch (a.type) {
+      case 'send_notification': return empty(c.message)         ? 'message de notification requis' : ''
+      case 'send_email':        return empty(c.to)              ? 'destinataire (email/rôle) requis'
+                                     : empty(c.subject)         ? 'sujet requis' : ''
+      case 'send_webhook':      return empty(c.url)             ? 'URL du webhook requise' : ''
+      case 'change_status':     return empty(c.status)          ? 'nouveau statut requis' : ''
+      default:                  return ''
+    }
   }
 
   function handleSubmit(e: React.FormEvent) {

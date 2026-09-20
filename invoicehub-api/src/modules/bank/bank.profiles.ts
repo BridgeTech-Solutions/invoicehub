@@ -3,7 +3,8 @@ export interface BankProfile {
   name: string;
   country: string;
 
-  source: 'estimated' | 'community' | 'verified';
+  // 'user' = profil partagé créé en base par un utilisateur (BankImportProfile).
+  source: 'estimated' | 'community' | 'verified' | 'user';
   verificationNote?: string;
 
   fileFormat: 'csv' | 'ofx' | 'mt940';

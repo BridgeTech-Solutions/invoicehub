@@ -9,20 +9,31 @@ import { memoryStorage } from 'multer';
 import { BankService } from './bank.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Permission } from '../../common/decorators/permission.decorator';
+import { Audit } from '../../common/decorators/audit.decorator';
 import { SkipResponseWrapper } from '../../common/interceptors/response.interceptor';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import {
   createBankAccountSchema, updateBankAccountSchema,
   createTransactionSchema, reconcileTransactionSchema,
   openReconciliationSchema,
-  detectFormatSchema, confirmImportSchema, saveProfileOverrideSchema,
+  detectFormatSchema, previewImportSchema, confirmImportSchema, saveProfileOverrideSchema,
   createImportProfileSchema, updateImportProfileSchema,
   createMatchingRuleSchema, updateMatchingRuleSchema,
 } from './bank.schema';
 import type { JwtPayload } from '../../common/types/jwt-payload.type';
 import { AppError } from '../../common/errors/app-error';
 
-const fileUpload = { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } };
+// Extensions de relevé acceptées : on rejette tout le reste AVANT de bufferiser
+// le fichier en mémoire (un binaire de 5 Mo n'a rien à faire dans le parser).
+const ALLOWED_IMPORT_EXT = ['csv', 'txt', 'ofx', 'qfx', 'sta', 'mt940'];
+const fileUpload = {
+  storage: memoryStorage(),
+  limits:  { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req: unknown, file: Express.Multer.File, cb: (e: Error | null, ok: boolean) => void) => {
+    const ext = (file.originalname.split('.').pop() ?? '').toLowerCase();
+    cb(null, ALLOWED_IMPORT_EXT.includes(ext));
+  },
+};
 
 @Controller('bank')
 export class BankController {
@@ -46,6 +57,7 @@ export class BankController {
 
   @Post('accounts')
   @Permission('bank:manage')
+  @Audit('bank_account', 'CREATE')
   @HttpCode(HttpStatus.CREATED)
   async createAccount(
     @Body(new ZodValidationPipe(createBankAccountSchema)) body: any,
@@ -67,6 +79,7 @@ export class BankController {
 
   @Put('accounts/:id')
   @Permission('bank:manage')
+  @Audit('bank_account', 'UPDATE')
   async updateAccount(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateBankAccountSchema)) body: any,
@@ -76,6 +89,7 @@ export class BankController {
 
   @Delete('accounts/:id')
   @Permission('bank:manage')
+  @Audit('bank_account', 'DELETE')
   async deleteAccount(@Param('id') id: string) {
     await this.bank.deleteAccount(id);
     return { message: 'Compte bancaire supprimé' };
@@ -97,6 +111,7 @@ export class BankController {
 
   @Post('transactions/:id/reconcile')
   @Permission('bank:reconcile')
+  @Audit('bank_transaction', 'RECONCILED')
   async reconcileTransaction(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(reconcileTransactionSchema)) body: any,
@@ -107,14 +122,30 @@ export class BankController {
 
   @Post('transactions/:id/unmatch')
   @Permission('bank:reconcile')
+  @Audit('bank_transaction', 'STATUS_CHANGE')
   async unmatchTransaction(@Param('id') id: string) {
     return this.bank.unmatchTransaction(id);
   }
 
   @Post('transactions/:id/ignore')
   @Permission('bank:reconcile')
+  @Audit('bank_transaction', 'STATUS_CHANGE')
   async ignoreTransaction(@Param('id') id: string) {
     return this.bank.ignoreTransaction(id);
+  }
+
+  // Crée la contrepartie comptable d'un mouvement de frais bancaire / agios
+  // (dépense payée + écriture SYSCOHADA + rapprochement). Sur confirmation
+  // explicite ; `allowOverCeiling` force au-delà du plafond de sécurité.
+  @Post('transactions/:id/create-fee-expense')
+  @Permission('bank:reconcile')
+  @Audit('bank_transaction', 'RECONCILED')
+  async createFeeCounterpart(
+    @Param('id') id: string,
+    @Body() body: { taxRate?: number; account?: string; categoryName?: string; allowOverCeiling?: boolean },
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.bank.createFeeCounterpart(id, user.sub, body ?? {});
   }
 
   @Get('transactions')
@@ -128,17 +159,19 @@ export class BankController {
     @Query('dateFrom')   dateFrom?:  string,
     @Query('dateTo')     dateTo?:    string,
     @Query('reconciled') reconciledStr?: string,
+    @Query('status')     status?:    string,
     @Query('search')     search?:    string,
   ) {
     const p         = Math.max(1, parseInt(page));
     const l         = Math.min(100, Math.max(1, parseInt(limit)));
     const reconciled = reconciledStr === 'true' ? true : reconciledStr === 'false' ? false : undefined;
-    const { data, total } = await this.bank.listTransactions({ page: p, limit: l, accountId, type, dateFrom, dateTo, reconciled, search });
+    const { data, total } = await this.bank.listTransactions({ page: p, limit: l, accountId, type, dateFrom, dateTo, reconciled, status, search });
     return { success: true, data, meta: { total, page: p, limit: l, totalPages: Math.ceil(total / l) } };
   }
 
   @Post('transactions')
   @Permission('bank:manage')
+  @Audit('bank_transaction', 'CREATE')
   @HttpCode(HttpStatus.CREATED)
   async createTransaction(
     @Body(new ZodValidationPipe(createTransactionSchema)) body: any,
@@ -152,6 +185,15 @@ export class BankController {
     return this.bank.getTransactionById(id);
   }
 
+  // Suppression d'une saisie manuelle (rétablit le solde). Refuse les mouvements
+  // importés et les transactions rapprochées.
+  @Delete('transactions/:id')
+  @Permission('bank:manage')
+  @Audit('bank_transaction', 'DELETE')
+  async deleteTransaction(@Param('id') id: string) {
+    return this.bank.deleteTransaction(id);
+  }
+
   // ── Rapprochements ───────────────────────────────────────────────────────────
 
   @Get('reconciliations/:id/report')
@@ -162,6 +204,7 @@ export class BankController {
 
   @Post('reconciliations/:id/auto-match')
   @Permission('bank:auto-match')
+  @Audit('bank_reconciliation', 'RECONCILED')
   // Applique les correspondances ≥ 90 % et renvoie les 70–89 % à confirmer.
   // `applyHighConfidence` du corps n'est plus lu : les 70–89 % ne sont plus
   // jamais appliquées automatiquement.
@@ -174,11 +217,13 @@ export class BankController {
 
   @Post('reconciliations/:id/complete')
   @Permission('bank:reconcile')
+  @Audit('bank_reconciliation', 'STATUS_CHANGE')
   async completeReconciliation(
     @Param('id') id: string,
     @CurrentUser() user: JwtPayload,
+    @Query('force') force?: string,
   ) {
-    return this.bank.completeReconciliation(id, user.sub);
+    return this.bank.completeReconciliation(id, user.sub, force === 'true');
   }
 
   @Get('reconciliations')
@@ -197,6 +242,7 @@ export class BankController {
 
   @Post('reconciliations')
   @Permission('bank:reconcile')
+  @Audit('bank_reconciliation', 'CREATE')
   @HttpCode(HttpStatus.CREATED)
   async openReconciliation(
     @Body(new ZodValidationPipe(openReconciliationSchema)) body: any,
@@ -220,7 +266,7 @@ export class BankController {
     @UploadedFile() file: Express.Multer.File,
     @Body(new ZodValidationPipe(detectFormatSchema)) body: any,
   ) {
-    if (!file) throw AppError.badRequest('Fichier requis');
+    if (!file) throw AppError.badRequest('Fichier requis (formats acceptés : CSV, TXT, OFX, QFX, MT940).');
     return this.bank.detectImportFormat(file.buffer, body.bankAccountId, file.originalname, body.encoding);
   }
 
@@ -229,18 +275,26 @@ export class BankController {
   @UseInterceptors(FileInterceptor('file', fileUpload))
   async previewImport(
     @UploadedFile() file: Express.Multer.File,
-    @Body() body: { bankAccountId: string; encoding?: string; columnMapping?: string },
+    @Body(new ZodValidationPipe(previewImportSchema)) body: { bankAccountId: string; encoding?: string; columnMapping?: string },
   ) {
-    if (!file) throw AppError.badRequest('Fichier requis');
+    if (!file) throw AppError.badRequest('Fichier requis (formats acceptés : CSV, TXT, OFX, QFX, MT940).');
+    // Mapping manuel du ColumnMapper : un JSON invalide doit remonter une erreur
+    // claire, pas être avalé (sinon l'auto-détection reprend en silence et
+    // l'utilisateur croit à tort que son mapping a été pris en compte).
     let columnMappingOverride: object | undefined;
     if (body.columnMapping) {
-      try { columnMappingOverride = JSON.parse(body.columnMapping); } catch { /* ignore */ }
+      try {
+        columnMappingOverride = JSON.parse(body.columnMapping);
+      } catch {
+        throw AppError.badRequest('Le mapping de colonnes est invalide (JSON malformé).', 'INVALID_COLUMN_MAPPING');
+      }
     }
     return this.bank.previewImport(file.buffer, body.bankAccountId, file.originalname, body.encoding as any, undefined, columnMappingOverride);
   }
 
   @Post('import/confirm')
   @Permission('bank:import-confirm')
+  @Audit('bank_statement_import', 'CREATE')
   async confirmImport(
     @Body(new ZodValidationPipe(confirmImportSchema)) body: { importId: string },
     @CurrentUser() user: JwtPayload,
@@ -256,6 +310,7 @@ export class BankController {
 
   @Delete('import/:id')
   @Permission('bank:import-confirm')
+  @Audit('bank_statement_import', 'DELETE')
   async rollbackImport(@Param('id') id: string) {
     return this.bank.rollbackImport(id);
   }
@@ -288,8 +343,8 @@ export class BankController {
 
   @Get('import-profiles')
   @Permission('bank:read')
-  async listImportProfiles() {
-    return this.bank.listImportProfiles();
+  async listImportProfiles(@CurrentUser() user: JwtPayload) {
+    return this.bank.listImportProfiles(user.sub);
   }
 
   @Post('import-profiles')
@@ -304,8 +359,8 @@ export class BankController {
 
   @Get('import-profiles/:id')
   @Permission('bank:read')
-  async getImportProfile(@Param('id') id: string) {
-    return this.bank.getImportProfileById(id);
+  async getImportProfile(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.bank.getImportProfileById(id, user.sub);
   }
 
   @Put('import-profiles/:id')
@@ -341,6 +396,7 @@ export class BankController {
 
   @Post('matching-rules')
   @Permission('bank:rules')
+  @Audit('bank_matching_rule', 'CREATE')
   @HttpCode(HttpStatus.CREATED)
   async createMatchingRule(
     @Body(new ZodValidationPipe(createMatchingRuleSchema)) body: any,
@@ -351,6 +407,7 @@ export class BankController {
 
   @Put('matching-rules/:id')
   @Permission('bank:rules')
+  @Audit('bank_matching_rule', 'UPDATE')
   async updateMatchingRule(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateMatchingRuleSchema)) body: any,
@@ -360,6 +417,7 @@ export class BankController {
 
   @Delete('matching-rules/:id')
   @Permission('bank:rules')
+  @Audit('bank_matching_rule', 'DELETE')
   async deleteMatchingRule(@Param('id') id: string) {
     await this.bank.deleteMatchingRule(id);
     return { message: 'Règle désactivée' };
