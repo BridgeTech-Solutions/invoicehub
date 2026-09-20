@@ -235,6 +235,245 @@ export class AccountingService {
     return this.prisma.fiscalPeriod.update({ where: { id }, data: { status: 'open', closedAt: null } });
   }
 
+  // ── Clôture d'exercice — ÉTAPE 1 : aperçu & contrôles (lecture seule) ──────────
+  // Ne modifie RIEN : calcule le résultat (6/7), liste les soldes de bilan à
+  // reporter (classes 1-5) et évalue les contrôles bloquants. Sert à valider les
+  // montants AVANT de générer les écritures de clôture et de verrouiller.
+  async getFiscalYearClosePreview(year: number) {
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+
+    const periods = await this.prisma.fiscalPeriod.findMany({
+      where:   { fiscalYear: year },
+      select:  { id: true, name: true, status: true, startDate: true, endDate: true },
+      orderBy: { startDate: 'asc' },
+    });
+    if (periods.length === 0) throw AppError.notFound(`Aucune période pour l'exercice ${year}.`);
+
+    const periodIds     = periods.map((p) => p.id);
+    const alreadyClosed = periods.every((p) => p.status === 'locked');
+
+    const draftCount = await this.prisma.journalEntry.count({
+      where: { fiscalPeriodId: { in: periodIds }, status: 'draft' },
+    });
+
+    // Agrégation par compte des écritures NON annulées de l'exercice.
+    const grouped = await this.prisma.journalEntryLine.groupBy({
+      by:    ['accountNumber'],
+      where: { journalEntry: { fiscalPeriodId: { in: periodIds }, status: { not: 'cancelled' } } },
+      _sum:  { debit: true, credit: true },
+    });
+
+    let charges = 0, produits = 0, totalDebit = 0, totalCredit = 0;
+    const carryForward: Array<{ accountNumber: string; balance: number }> = [];
+    for (const g of grouped) {
+      const d = Number(g._sum.debit ?? 0);
+      const c = Number(g._sum.credit ?? 0);
+      totalDebit += d; totalCredit += c;
+      const cls = g.accountNumber.charAt(0);
+      if      (cls === '6') charges  += (d - c);       // charges : solde débiteur
+      else if (cls === '7') produits += (c - d);       // produits : solde créditeur
+      else if ('12345'.includes(cls)) {
+        const balance = r2(d - c);
+        if (Math.abs(balance) > 0.005) carryForward.push({ accountNumber: g.accountNumber, balance });
+      }
+    }
+    charges = r2(charges); produits = r2(produits);
+    const resultat = r2(produits - charges);
+
+    const balanced         = Math.abs(r2(totalDebit) - r2(totalCredit)) < 0.01;
+    const allPeriodsClosed = periods.every((p) => p.status === 'closed' || p.status === 'locked');
+
+    return {
+      year,
+      alreadyClosed,
+      resultat: { produits, charges, resultat, sens: resultat >= 0 ? 'benefice' : 'perte' },
+      controls: {
+        allPeriodsClosed,
+        noDraftEntries: draftCount === 0,
+        balanced,
+        canClose: allPeriodsClosed && draftCount === 0 && balanced && !alreadyClosed,
+      },
+      draftCount,
+      carryForwardCount: carryForward.length,
+      carryForward: carryForward.sort((a, b) => a.accountNumber.localeCompare(b.accountNumber)),
+      periods,
+    };
+  }
+
+  // Numéro d'écriture séquentiel (JOURNAL-ANNÉE-NNNNN), atomique via advisory lock.
+  private async _nextEntryNumber(tx: Prisma.TransactionClient, journalCode: string, year: number): Promise<string> {
+    const prefix = `${journalCode}-${year}-`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`jentry:${journalCode}:${year}`}))`;
+    const last = await tx.journalEntry.findFirst({
+      where:   { journal: { code: journalCode }, entryNumber: { startsWith: prefix } },
+      orderBy: { entryNumber: 'desc' }, select: { entryNumber: true },
+    });
+    let next = 1;
+    if (last?.entryNumber) {
+      const n = parseInt(last.entryNumber.replace(prefix, ''), 10);
+      if (!Number.isNaN(n)) next = n + 1;
+    }
+    return `${prefix}${String(next).padStart(5, '0')}`;
+  }
+
+  // Crée les 12 périodes mensuelles d'un exercice s'il n'en a aucune.
+  private async _ensureYearPeriods(tx: Prisma.TransactionClient, year: number, userId: string) {
+    const existing = await tx.fiscalPeriod.findMany({ where: { fiscalYear: year }, orderBy: { startDate: 'asc' } });
+    if (existing.length > 0) return existing;
+    const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+    for (let m = 0; m < 12; m++) {
+      await tx.fiscalPeriod.create({
+        data: {
+          name: `${MONTHS[m]} ${year}`, fiscalYear: year, periodType: 'month',
+          startDate: new Date(Date.UTC(year, m, 1)),
+          endDate:   new Date(Date.UTC(year, m + 1, 0)),
+          status: 'open', createdById: userId,
+        },
+      });
+    }
+    return tx.fiscalPeriod.findMany({ where: { fiscalYear: year }, orderBy: { startDate: 'asc' } });
+  }
+
+  // ── Clôture d'exercice — ÉTAPE 2 : génération + verrouillage ───────────────────
+  // En UNE transaction : détermination du résultat (6/7 → 1301/1302), à-nouveau des
+  // soldes de bilan (classes 1-5) sur l'exercice suivant, puis verrouillage des
+  // écritures et périodes de l'exercice (intangibilité assurée par les triggers).
+  async closeFiscalYear(year: number, userId: string) {
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Contrôles bloquants (re-vérifiés dans la transaction).
+      const periods = await tx.fiscalPeriod.findMany({ where: { fiscalYear: year }, orderBy: { startDate: 'asc' } });
+      if (periods.length === 0) throw AppError.notFound(`Aucune période pour l'exercice ${year}.`);
+      if (periods.every((p) => p.status === 'locked')) throw AppError.conflict(`L'exercice ${year} est déjà clôturé.`);
+      if (!periods.every((p) => p.status === 'closed' || p.status === 'locked'))
+        throw AppError.badRequest('Toutes les périodes de l\'exercice doivent être clôturées avant la clôture annuelle.');
+      const periodIds = periods.map((p) => p.id);
+      const draft = await tx.journalEntry.count({ where: { fiscalPeriodId: { in: periodIds }, status: 'draft' } });
+      if (draft > 0) throw AppError.badRequest(`${draft} écriture(s) en brouillon dans l'exercice : validez-les d'abord.`);
+
+      // Comptes techniques requis (imputables).
+      const [resBenef, resPerte] = await Promise.all([
+        tx.chartOfAccount.findFirst({ where: { accountNumber: '1301', isDetailAccount: true, isActive: true }, select: { accountNumber: true } }),
+        tx.chartOfAccount.findFirst({ where: { accountNumber: '1302', isDetailAccount: true, isActive: true }, select: { accountNumber: true } }),
+      ]);
+      if (!resBenef || !resPerte) throw AppError.badRequest('Comptes de résultat 1301/1302 introuvables ou non imputables dans le plan comptable.');
+
+      const clJournal = await tx.accountingJournal.findFirst({ where: { type: 'closing' as never, isActive: true } });
+      const anJournal = await tx.accountingJournal.findFirst({ where: { type: 'opening' as never, isActive: true } });
+      if (!clJournal) throw AppError.badRequest('Journal de clôture (type closing) introuvable.');
+      if (!anJournal) throw AppError.badRequest('Journal d\'à-nouveau (type opening) introuvable.');
+
+      const lastPeriod = periods[periods.length - 1]!;
+      const closingDate = new Date(lastPeriod.endDate);
+
+      // 2. Agrégation par compte (avant détermination).
+      const grouped = await tx.journalEntryLine.groupBy({
+        by: ['accountNumber'],
+        where: { journalEntry: { fiscalPeriodId: { in: periodIds }, status: { not: 'cancelled' } } },
+        _sum: { debit: true, credit: true },
+      });
+
+      let produits = 0, charges = 0;
+      const detLines: Array<{ sortOrder: number; accountNumber: string; label: string; debit: number; credit: number }> = [];
+      let so = 0;
+      for (const g of grouped) {
+        const d = Number(g._sum.debit ?? 0), c = Number(g._sum.credit ?? 0);
+        const cls = g.accountNumber.charAt(0);
+        if (cls === '7') {
+          const bal = r2(c - d); // solde créditeur d'un produit
+          if (Math.abs(bal) > 0.005) { produits += bal; detLines.push({ sortOrder: so++, accountNumber: g.accountNumber, label: 'Solde produit (clôture)', debit: bal, credit: 0 }); }
+        } else if (cls === '6') {
+          const bal = r2(d - c); // solde débiteur d'une charge
+          if (Math.abs(bal) > 0.005) { charges += bal; detLines.push({ sortOrder: so++, accountNumber: g.accountNumber, label: 'Solde charge (clôture)', debit: 0, credit: bal }); }
+        }
+      }
+      produits = r2(produits); charges = r2(charges);
+      const resultat = r2(produits - charges);
+
+      let determinationNumber: string | null = null;
+      if (detLines.length > 0) {
+        // Ligne de résultat (contrepartie) : 1301 crédité (bénéfice) ou 1302 débité (perte).
+        if (resultat >= 0) detLines.push({ sortOrder: so++, accountNumber: '1301', label: `Résultat de l'exercice ${year} (bénéfice)`, debit: 0, credit: resultat });
+        else               detLines.push({ sortOrder: so++, accountNumber: '1302', label: `Résultat de l'exercice ${year} (perte)`,   debit: r2(-resultat), credit: 0 });
+
+        const totDebit  = r2(detLines.reduce((s, l) => s + l.debit, 0));
+        const totCredit = r2(detLines.reduce((s, l) => s + l.credit, 0));
+        if (Math.abs(totDebit - totCredit) > 0.01) throw new Error(`Écriture de détermination déséquilibrée (${totDebit} vs ${totCredit}).`);
+
+        determinationNumber = await this._nextEntryNumber(tx, clJournal.code, year);
+        await tx.journalEntry.create({
+          data: {
+            journalId: clJournal.id, fiscalPeriodId: lastPeriod.id, entryDate: closingDate, accountingDate: closingDate,
+            entryNumber: determinationNumber, label: `Détermination du résultat — exercice ${year}`,
+            sourceType: 'year_close', sourceId: null, entryKind: `result:${year}`,
+            totalDebit: totDebit, totalCredit: totCredit, status: 'validated', validatedById: userId, validatedAt: new Date(),
+            lines: { create: detLines },
+          },
+        });
+      }
+
+      // 3. À-nouveau : soldes de bilan (classes 1-5) APRÈS détermination.
+      const nextYear = year + 1;
+      const nextPeriods = await this._ensureYearPeriods(tx, nextYear, userId);
+      const firstNext = nextPeriods[0]!;
+      const openingDate = new Date(firstNext.startDate);
+
+      const grouped2 = await tx.journalEntryLine.groupBy({
+        by: ['accountNumber'],
+        where: { journalEntry: { fiscalPeriodId: { in: periodIds }, status: { not: 'cancelled' } } },
+        _sum: { debit: true, credit: true },
+      });
+      const anLines: Array<{ sortOrder: number; accountNumber: string; label: string; debit: number; credit: number }> = [];
+      let so2 = 0;
+      for (const g of grouped2) {
+        const cls = g.accountNumber.charAt(0);
+        if (!'12345'.includes(cls)) continue;
+        const bal = r2(Number(g._sum.debit ?? 0) - Number(g._sum.credit ?? 0));
+        if (Math.abs(bal) <= 0.005) continue;
+        if (bal > 0) anLines.push({ sortOrder: so2++, accountNumber: g.accountNumber, label: `À-nouveau ${nextYear}`, debit: bal, credit: 0 });
+        else         anLines.push({ sortOrder: so2++, accountNumber: g.accountNumber, label: `À-nouveau ${nextYear}`, debit: 0, credit: r2(-bal) });
+      }
+
+      let aNouveauNumber: string | null = null;
+      if (anLines.length > 0) {
+        const totD = r2(anLines.reduce((s, l) => s + l.debit, 0));
+        const totC = r2(anLines.reduce((s, l) => s + l.credit, 0));
+        if (Math.abs(totD - totC) > 0.01) throw new Error(`À-nouveau déséquilibré (${totD} vs ${totC}) — bilan de clôture non équilibré.`);
+        aNouveauNumber = await this._nextEntryNumber(tx, anJournal.code, nextYear);
+        await tx.journalEntry.create({
+          data: {
+            journalId: anJournal.id, fiscalPeriodId: firstNext.id, entryDate: openingDate, accountingDate: openingDate,
+            entryNumber: aNouveauNumber, label: `Report à-nouveau — bilan d'ouverture ${nextYear}`,
+            sourceType: 'year_open', sourceId: null, entryKind: `opening:${nextYear}`,
+            totalDebit: totD, totalCredit: totC, status: 'validated', validatedById: userId, validatedAt: new Date(),
+            lines: { create: anLines },
+          },
+        });
+      }
+
+      // 4. Verrouillage des écritures et périodes de l'exercice clôturé.
+      const now = new Date();
+      await tx.journalEntry.updateMany({
+        where: { fiscalPeriodId: { in: periodIds }, status: { not: 'cancelled' } },
+        data:  { status: 'locked', lockedAt: now },
+      });
+      await tx.fiscalPeriod.updateMany({
+        where: { id: { in: periodIds } },
+        data:  { status: 'locked', lockedAt: now, lockedById: userId },
+      });
+
+      return {
+        year,
+        resultat: { produits, charges, resultat, sens: resultat >= 0 ? 'benefice' : 'perte' },
+        determinationEntry: determinationNumber,
+        aNouveauEntry: aNouveauNumber,
+        nextYearPeriodsCreated: nextPeriods.length,
+        lockedPeriods: periodIds.length,
+      };
+    });
+  }
+
   // ── Journaux ────────────────────────────────────────────────────────────────
 
   async listJournals() {
