@@ -1684,6 +1684,7 @@ model Expense {
   paidAmount            Decimal         @default(0) @map("paid_amount") @db.Decimal(15, 2)
   bankAccountId         String?         @map("bank_account_id") @db.Uuid
   bankTransactionId     String?         @map("bank_transaction_id") @db.Uuid
+  autoBankFee           Boolean         @default(false) @map("auto_bank_fee")
   reference             String?         @db.VarChar(255)
   isRecurring           Boolean         @default(false) @map("is_recurring")
   frequency             ExpenseFrequency?
@@ -1908,6 +1909,7 @@ model BankMatchingRule {
   amountMin     Decimal?     @map("amount_min") @db.Decimal(15, 2)
   amountMax     Decimal?     @map("amount_max") @db.Decimal(15, 2)
   confidence    Int          @default(1)
+  usageCount    Int          @default(0) @map("usage_count")
   isActive      Boolean      @default(true) @map("is_active")
   isAutoApply   Boolean      @default(false) @map("is_auto_apply")
   createdById   String       @map("created_by") @db.Uuid
@@ -1915,6 +1917,9 @@ model BankMatchingRule {
   createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
+  // Empêche les doublons de règle (même compte + libellé + type d'entité), ce qui
+  // sécurise l'upsert d'auto-apprentissage contre les rapprochements concurrents.
+  @@unique([bankAccountId, labelContains, entityType], map: "uq_bank_matching_rule")
   @@map("bank_matching_rules")
 }
 
@@ -2064,6 +2069,11 @@ model JournalEntry {
   description    String?
   sourceType     String?          @map("source_type") @db.VarChar(50)
   sourceId       String?          @map("source_id") @db.Uuid
+  /// Discriminant d'idempotence : une même pièce (source) peut porter plusieurs
+  /// écritures légitimes (ex. un paiement = règlement + escompte + retenue).
+  /// Combiné à (source_type, source_id) dans un index unique partiel (statut ≠
+  /// cancelled) pour garantir l'unicité au niveau BASE, en plus du verrou applicatif.
+  entryKind      String?          @map("entry_kind") @db.VarChar(30)
   status         EntryStatus      @default(draft)
   validatedById  String?          @map("validated_by") @db.Uuid
   validatedBy    User?            @relation("JournalEntryValidatedBy", fields: [validatedById], references: [id], onDelete: SetNull)
@@ -2102,6 +2112,28 @@ model JournalEntryLine {
   createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz()
 
   @@map("journal_entry_lines")
+}
+
+/// Outbox comptable : garantit qu'aucune pièce (facture, paiement, dépense…) ne
+/// reste sans écriture. Un événement est écrit dans LA MÊME transaction que
+/// l'opération métier (donc atomique) ; un worker rejoue le hook du moteur jusqu'à
+/// ce que l'écriture existe (les hooks sont idempotents → rejeu sûr).
+model AccountingEvent {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  hook        String   @db.VarChar(60)   // ex. 'onInvoiceIssued'
+  sourceType  String   @map("source_type") @db.VarChar(50)
+  sourceId    String   @map("source_id") @db.Uuid
+  status      String   @default("pending") @db.VarChar(20) // pending | done | failed
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(10) @map("max_attempts")
+  lastError   String?  @map("last_error")
+  nextRetryAt DateTime @default(now()) @map("next_retry_at") @db.Timestamptz()
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@unique([hook, sourceId], name: "uq_accounting_event")
+  @@index([status, nextRetryAt])
+  @@map("accounting_events")
 }
 
 model TaxDeclaration {

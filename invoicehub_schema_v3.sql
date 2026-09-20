@@ -2052,6 +2052,9 @@ CREATE TABLE supplier_payments (
     -- Lien bancaire (FK ajoutée étape 5)
     bank_account_id     UUID,
     bank_transaction_id UUID,
+    -- Dépense créée automatiquement comme contrepartie d'un frais/agios bancaire
+    -- (rapprochement) — permet une annulation propre au désappariement.
+    auto_bank_fee       BOOLEAN        NOT NULL DEFAULT FALSE,
     reconciled_at       TIMESTAMPTZ,
     reconciled_by       UUID           REFERENCES users(id) ON DELETE SET NULL,
 
@@ -2869,6 +2872,9 @@ CREATE TABLE bank_matching_rules (
     -- Bonus de +15 pts dans computeScore() si confidence >= 3
     confidence      INTEGER       NOT NULL DEFAULT 1,
 
+    -- Nombre de rapprochements réellement appliqués grâce à cette règle.
+    usage_count     INTEGER       NOT NULL DEFAULT 0,
+
     is_active       BOOLEAN       NOT NULL DEFAULT TRUE,
     -- Si TRUE : rapprochement appliqué automatiquement sans validation manuelle
     is_auto_apply   BOOLEAN       NOT NULL DEFAULT FALSE,
@@ -2879,7 +2885,10 @@ CREATE TABLE bank_matching_rules (
 
     CONSTRAINT chk_bmr_entity_type CHECK (entity_type IN ('payment','supplier_payment','expense')),
     CONSTRAINT chk_bmr_confidence  CHECK (confidence >= 0),
-    CONSTRAINT chk_bmr_amount      CHECK (amount_min IS NULL OR amount_max IS NULL OR amount_max >= amount_min)
+    CONSTRAINT chk_bmr_amount      CHECK (amount_min IS NULL OR amount_max IS NULL OR amount_max >= amount_min),
+    -- Pas de doublon de règle (même compte + libellé + type) → sécurise l'upsert
+    -- d'auto-apprentissage face aux rapprochements concurrents.
+    CONSTRAINT uq_bank_matching_rule UNIQUE (bank_account_id, label_contains, entity_type)
 );
 CREATE TRIGGER tg_bank_matching_rules_updated_at
     BEFORE UPDATE ON bank_matching_rules
@@ -4564,6 +4573,10 @@ CREATE TABLE journal_entries (
     -- Source (polymorphique)
     source_type      VARCHAR(50),
     source_id        UUID,
+    -- Discriminant d'idempotence : une meme piece peut porter plusieurs ecritures
+    -- legitimes (ex. un paiement = reglement + escompte + retenue). Voir l'index
+    -- unique partiel uq_journal_entry_source_kind ci-dessous.
+    entry_kind       VARCHAR(30),
 
     -- Validation
     status           entry_status  NOT NULL DEFAULT 'draft',
@@ -4592,6 +4605,46 @@ CREATE INDEX idx_je_fiscal_period ON journal_entries(fiscal_period_id);
 CREATE INDEX idx_je_entry_date    ON journal_entries(entry_date DESC);
 CREATE INDEX idx_je_source        ON journal_entries(source_type, source_id);
 CREATE INDEX idx_je_status        ON journal_entries(status);
+
+-- Idempotence garantie par la BASE (en plus du verrou applicatif du moteur) :
+-- une seule ecriture ACTIVE par (source_type, source_id, entry_kind). Partiel car
+-- les ecritures annulees (contre-passees) ne comptent pas, et les ecritures sans
+-- source (saisie manuelle) ne sont pas concernees.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_journal_entry_source_kind
+    ON journal_entries (source_type, source_id, entry_kind)
+    WHERE status <> 'cancelled'
+      AND source_type IS NOT NULL AND source_id IS NOT NULL AND entry_kind IS NOT NULL;
+
+-- Immutabilite comptable (SYSCOHADA) : une ecriture VERROUILLEE (locked, ex. periode
+-- close) ne peut plus etre ni modifiee ni supprimee. La correction se fait uniquement
+-- par contre-passation. Meme principe que audit_logs.
+CREATE OR REPLACE FUNCTION fn_block_locked_journal_entry() RETURNS trigger AS $$
+BEGIN
+    IF OLD.status = 'locked' THEN
+        RAISE EXCEPTION 'Ecriture verrouillee (%): modification/suppression interdite. Corrigez par contre-passation.', OLD.entry_number;
+    END IF;
+    IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_block_locked_journal_entry ON journal_entries;
+CREATE TRIGGER trg_block_locked_journal_entry
+    BEFORE UPDATE OR DELETE ON journal_entries
+    FOR EACH ROW EXECUTE FUNCTION fn_block_locked_journal_entry();
+
+-- (le trigger d'immutabilite sur journal_entry_lines est cree apres la table, plus bas)
+CREATE OR REPLACE FUNCTION fn_block_locked_journal_line() RETURNS trigger AS $$
+DECLARE parent_status text;
+BEGIN
+    SELECT status INTO parent_status FROM journal_entries
+        WHERE id = COALESCE(NEW.journal_entry_id, OLD.journal_entry_id);
+    IF parent_status = 'locked' THEN
+        RAISE EXCEPTION 'Ligne d''une ecriture verrouillee : modification/suppression interdite.';
+    END IF;
+    IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+END;
+$$ LANGUAGE plpgsql;
+
 COMMENT ON TABLE journal_entries IS 'En-tetes des ecritures comptables. Chaque piece (facture, paiement, achat, depense) genere automatiquement ses ecritures.';
 
 -- ---------------------------------------------------------------
@@ -4629,6 +4682,35 @@ CREATE INDEX idx_jel_entry_id    ON journal_entry_lines(journal_entry_id);
 CREATE INDEX idx_jel_account     ON journal_entry_lines(account_number);
 CREATE INDEX idx_jel_lettering   ON journal_entry_lines(lettering_code) WHERE lettering_code IS NOT NULL;
 COMMENT ON TABLE journal_entry_lines IS 'Lignes du plan comptable. Principe : somme debits = somme credits par ecriture.';
+
+-- Immutabilite : une ligne d'ecriture verrouillee (locked) ne peut etre modifiee ni supprimee.
+DROP TRIGGER IF EXISTS trg_block_locked_journal_line ON journal_entry_lines;
+CREATE TRIGGER trg_block_locked_journal_line
+    BEFORE INSERT OR UPDATE OR DELETE ON journal_entry_lines
+    FOR EACH ROW EXECUTE FUNCTION fn_block_locked_journal_line();
+
+-- ---------------------------------------------------------------
+-- OUTBOX COMPTABLE : aucune piece sans ecriture (rejeu idempotent par un worker)
+-- ---------------------------------------------------------------
+CREATE TABLE accounting_events (
+    id            UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
+    hook          VARCHAR(60)  NOT NULL,
+    source_type   VARCHAR(50)  NOT NULL,
+    source_id     UUID         NOT NULL,
+    status        VARCHAR(20)  NOT NULL DEFAULT 'pending',   -- pending | done | failed
+    attempts      INT          NOT NULL DEFAULT 0,
+    max_attempts  INT          NOT NULL DEFAULT 10,
+    last_error    TEXT,
+    next_retry_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_accounting_event UNIQUE (hook, source_id)
+);
+CREATE INDEX idx_accounting_events_due ON accounting_events(status, next_retry_at);
+CREATE TRIGGER tg_accounting_events_updated_at
+    BEFORE UPDATE ON accounting_events
+    FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
+COMMENT ON TABLE accounting_events IS 'Outbox comptable : un evenement par (hook, piece), rejoue jusqu''a ce que l''ecriture existe. Hooks idempotents => rejeu sur.';
 
 -- ---------------------------------------------------------------
 -- 6.8 Vue v_account_balance — Grand Livre / Balance des comptes

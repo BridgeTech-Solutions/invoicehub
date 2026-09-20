@@ -6,6 +6,7 @@ import type { Response } from 'express';
 import { AccountingService } from './accounting.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Permission } from '../../common/decorators/permission.decorator';
+import { Audit } from '../../common/decorators/audit.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import {
   createChartAccountSchema, updateChartAccountSchema,
@@ -14,13 +15,22 @@ import {
   createJournalEntrySchema, updateJournalEntrySchema,
   createTaxDeclarationSchema,
   manualLetteringSchema, deleteLetteringSchema,
+  autoLetteringSchema, letterWithDifferenceSchema,
   updateRubriqueSchema,
 } from './accounting.schema';
+import type { LetterWithDifferenceInput } from './accounting.schema';
 import type { JwtPayload } from '../../common/types/jwt-payload.type';
 
 @Controller('accounting')
 export class AccountingController {
   constructor(private readonly svc: AccountingService) {}
+
+  // ── Health check : « Comptabilité prête ? » ──────────────────────────────────
+  @Get('health')
+  @Permission('accounting:read')
+  getReadiness() {
+    return this.svc.getReadiness();
+  }
 
   // ── Plan comptable ──────────────────────────────────────────────────────────
 
@@ -373,18 +383,44 @@ export class AccountingController {
     return { unlettered: unletteredResult.data ?? [], lettered: letteredGroups };
   }
 
+  // Propositions de lettrage automatique (aucune modification).
+  @Get('lettering/suggestions')
+  @Permission('accounting:read')
+  async letteringSuggestions(
+    @Query('accountId') accountNumber?: string,
+    @Query('dateFrom')  dateFrom?: string,
+    @Query('dateTo')    dateTo?: string,
+  ) {
+    if (!accountNumber) return { accountNumber: null, count: 0, suggestions: [] };
+    return this.svc.suggestLettering(accountNumber, dateFrom, dateTo);
+  }
+
   @Post('lettering')
   @Permission('accounting:write')
+  @Audit('journal_lettering', 'RECONCILED')
   @HttpCode(HttpStatus.OK)
   async letterLines(
-    @Body() body: { lineIds: string[]; accountNumber?: string },
+    @Body(new ZodValidationPipe(autoLetteringSchema)) body: { lineIds: string[] },
     @CurrentUser() user: JwtPayload,
   ) {
     return this.svc.letterLinesAuto(body.lineIds, user.sub);
   }
 
+  // Lettrage partiel avec imputation de l'écart de règlement (escompte/arrondi).
+  @Post('lettering/with-difference')
+  @Permission('accounting:write')
+  @Audit('journal_lettering', 'RECONCILED')
+  @HttpCode(HttpStatus.OK)
+  async letterWithDifference(
+    @Body(new ZodValidationPipe(letterWithDifferenceSchema)) body: LetterWithDifferenceInput,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.svc.letterLinesWithDifference(body, user.sub);
+  }
+
   @Delete('lettering/:code')
   @Permission('accounting:write')
+  @Audit('journal_lettering', 'UPDATE')
   @HttpCode(HttpStatus.OK)
   deleteLettering(
     @Param('code') code: string,

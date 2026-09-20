@@ -7,6 +7,7 @@ import { computeBilanFromRubriques, type RubriqueDef, type RubriqueSource } from
 import { BILAN_RUBRIQUES } from '../../lib/statement-rubriques.seed';
 import type { UpdateRubriqueInput } from './accounting.schema';
 import { generatePdf, buildStatementHtml, resolveDocumentAssets, escapeHtml } from '../../lib/pdf';
+import { subsetSum, type SubsetCandidate } from '../bank/bank.matching';
 import {
   CreateChartAccountInput, UpdateChartAccountInput,
   CreateFiscalPeriodInput,
@@ -19,6 +20,72 @@ import {
 @Injectable()
 export class AccountingService {
   constructor(private prisma: PrismaService) {}
+
+  // ── Health check : « Comptabilité prête ? » ──────────────────────────────────
+  // Vérifie en amont tout ce dont le moteur d'écritures a besoin, pour signaler les
+  // problèmes de configuration AVANT qu'ils ne fassent échouer une écriture au fil
+  // de l'eau (facture émise sans pièce comptable). Exposé en un indicateur UI.
+  async getReadiness() {
+    const issues: Array<{ code: string; message: string }> = [];
+
+    const settings = await this.prisma.companySettings.findFirst();
+    if (!settings) {
+      return {
+        ready: false,
+        issues: [{ code: 'NO_SETTINGS', message: "Paramètres de l'entreprise non configurés." }],
+      };
+    }
+
+    // 1. Comptes configurés : présents, actifs, imputables (compte de détail).
+    const ACCOUNT_FIELDS = [
+      'collectedTaxAccount', 'deductibleTaxAccount', 'initialStockAccount', 'escompteAccountingAccount',
+      'stockAccount', 'stockVariationAccount', 'stockLossAccount',
+      'defaultClientAccount', 'defaultSupplierAccount', 'defaultBankAccount',
+      'defaultSalesGoodsAccount', 'defaultSalesServiceAccount', 'defaultPurchaseAccount', 'defaultExpenseAccount',
+      'withholdingAccount',
+      ...(((settings as any).useAdvanceAccount) ? ['advanceAccount'] : []),
+    ];
+    const configured = [...new Set(
+      ACCOUNT_FIELDS
+        .map((f) => (settings as any)[f])
+        .filter((v): v is string => typeof v === 'string' && v.trim() !== ''),
+    )];
+    if (configured.length > 0) {
+      const rows = await this.prisma.chartOfAccount.findMany({
+        where:  { accountNumber: { in: configured } },
+        select: { accountNumber: true, isActive: true, isDetailAccount: true },
+      });
+      const byNum = new Map(rows.map((r) => [r.accountNumber, r]));
+      const missing   = configured.filter((a) => !byNum.has(a));
+      const inactive  = configured.filter((a) => byNum.get(a)?.isActive === false);
+      const notDetail = configured.filter((a) => byNum.get(a)?.isDetailAccount === false);
+      if (missing.length)   issues.push({ code: 'MISSING_ACCOUNTS',  message: `Comptes inexistants dans le plan comptable : ${missing.join(', ')}.` });
+      if (inactive.length)  issues.push({ code: 'INACTIVE_ACCOUNTS', message: `Comptes désactivés : ${inactive.join(', ')}.` });
+      if (notDetail.length) issues.push({ code: 'ROOT_ACCOUNTS',     message: `Comptes racine non imputables : ${notDetail.join(', ')}.` });
+    }
+
+    // 2. Journaux par défaut requis par le moteur (ventes, banque, achats, OD).
+    const journals = await this.prisma.accountingJournal.findMany({
+      where: { isActive: true }, select: { type: true },
+    });
+    const types = new Set(journals.map((j) => String(j.type)));
+    const missingJournals = ['sales', 'bank', 'purchases', 'operations'].filter((t) => !types.has(t));
+    if (missingJournals.length) {
+      issues.push({ code: 'MISSING_JOURNALS', message: `Journaux comptables manquants ou inactifs : ${missingJournals.join(', ')}.` });
+    }
+
+    // 3. Période fiscale ouverte couvrant aujourd'hui (sinon toute écriture du jour échoue).
+    const today = new Date();
+    const openPeriod = await this.prisma.fiscalPeriod.findFirst({
+      where: { status: 'open', startDate: { lte: today }, endDate: { gte: today } },
+      select: { id: true },
+    });
+    if (!openPeriod) {
+      issues.push({ code: 'NO_OPEN_PERIOD', message: "Aucune période fiscale ouverte pour la date du jour." });
+    }
+
+    return { ready: issues.length === 0, issues };
+  }
 
   // ── Plan comptable ──────────────────────────────────────────────────────────
 
@@ -271,10 +338,26 @@ export class AccountingService {
     if (period.status === 'locked') throw AppError.forbidden("Impossible d'écrire dans une période verrouillée");
     if (period.status === 'closed') throw AppError.forbidden("Impossible d'écrire dans une période clôturée");
 
+    // Une écriture en partie double = au moins deux lignes.
+    if (!data.lines || data.lines.length < 2)
+      throw AppError.badRequest('Une écriture comptable requiert au moins deux lignes.');
+    // Une ligne est à un seul sens (débit OU crédit), jamais les deux.
+    if (data.lines.some((l) => l.debit > 0 && l.credit > 0))
+      throw AppError.badRequest('Une ligne ne peut être à la fois au débit et au crédit.');
+
     const totalDebit  = data.lines.reduce((s, l) => s + l.debit,  0);
     const totalCredit = data.lines.reduce((s, l) => s + l.credit, 0);
     if (Math.abs(totalDebit - totalCredit) >= 0.01)
       throw AppError.badRequest('Écriture non équilibrée : débit ≠ crédit');
+
+    // Comptes existants (message clair en amont au lieu d'une violation FK = 500).
+    const accts = [...new Set(data.lines.map((l) => l.accountNumber))];
+    const known = await this.prisma.chartOfAccount.findMany({
+      where: { accountNumber: { in: accts } }, select: { accountNumber: true },
+    });
+    const unknown = accts.filter((a) => !known.some((k) => k.accountNumber === a));
+    if (unknown.length)
+      throw AppError.badRequest(`Compte(s) inconnu(s) au plan comptable : ${unknown.join(', ')}.`);
 
     const [seqRow] = await this.prisma.$queryRaw<[{ nextval: string }]>`
       SELECT nextval('journal_entry_seq') AS nextval
@@ -282,7 +365,9 @@ export class AccountingService {
       this.prisma.$queryRaw<[{ nextval: string }]>`SELECT (EXTRACT(EPOCH FROM NOW()) * 1000)::bigint AS nextval`
     );
 
-    const entryNumber    = `JNL-${entryDate.getFullYear()}-${String(seqRow.nextval).slice(-6).padStart(6, '0')}`;
+    // Valeur COMPLÈTE de la séquence (globalement unique) — l'ancien slice(-6)
+    // provoquait des collisions d'entryNumber dès que la séquence dépassait 999 999.
+    const entryNumber    = `JNL-${entryDate.getFullYear()}-${String(seqRow.nextval).padStart(6, '0')}`;
     const accountingDate = data.accountingDate ?? entryDate;
 
     return this.prisma.$transaction(async (tx) => {
@@ -1013,26 +1098,47 @@ export class AccountingService {
     return 'A' + chars.join('');
   }
 
-  async letterLinesAuto(lineIds: string[], userId: string): Promise<void> {
-    if (lineIds.length < 2) throw AppError.badRequest('Au moins 2 lignes requises');
+  /**
+   * Prochain code de lettrage d'un compte. On prend le MAX réel (bijective base-26 :
+   * d'abord la longueur, puis l'ordre alphabétique) et non « le dernier par date » —
+   * sinon, après suppression/recréation, on risquait de réutiliser un code.
+   * À appeler dans une transaction déjà protégée par le verrou (voir _letterCore).
+   */
+  private async _nextLetteringCode(tx: Prisma.TransactionClient, accountNumber: string): Promise<string> {
+    const rows = await tx.$queryRaw<Array<{ lettering_code: string }>>`
+      SELECT lettering_code FROM journal_entry_lines
+      WHERE account_number = ${accountNumber} AND lettering_code IS NOT NULL
+      ORDER BY LENGTH(lettering_code) DESC, lettering_code DESC
+      LIMIT 1
+    `;
+    return this.generateNextCode(rows[0]?.lettering_code ?? null);
+  }
+
+  async letterLinesAuto(lineIds: string[], userId: string): Promise<{ letteringCode: string }> {
+    const ids = [...new Set(lineIds)];
+    if (ids.length < 2) throw AppError.badRequest('Au moins 2 lignes distinctes requises');
     const lines = await this.prisma.journalEntryLine.findMany({
-      where:  { id: { in: lineIds } },
-      select: { id: true, accountNumber: true, debit: true, credit: true, letteringCode: true },
+      where:  { id: { in: ids } },
+      select: { id: true, accountNumber: true },
     });
-    if (lines.length !== lineIds.length) throw AppError.notFound('Une ou plusieurs lignes introuvables');
+    if (lines.length !== ids.length) throw AppError.notFound('Une ou plusieurs lignes introuvables');
     const accountNumbers = [...new Set(lines.map(l => l.accountNumber))];
     if (accountNumbers.length > 1)
       throw AppError.badRequest(`Les lignes appartiennent à plusieurs comptes : ${accountNumbers.join(', ')}`);
-    const accountNumber = accountNumbers[0]!;
-    await this.letterLines({ lineIds, accountNumber }, userId);
+    return this.letterLines({ lineIds: ids, accountNumber: accountNumbers[0]! }, userId);
   }
 
-  async letterLines(input: ManualLetteringInput, userId: string): Promise<void> {
-    const { lineIds, accountNumber } = input;
+  async letterLines(input: ManualLetteringInput, userId: string): Promise<{ letteringCode: string }> {
+    const { accountNumber } = input;
+    const lineIds = [...new Set(input.lineIds)];
+    if (lineIds.length < 2) throw AppError.badRequest('Au moins 2 lignes distinctes requises');
 
     const lines = await this.prisma.journalEntryLine.findMany({
       where:  { id: { in: lineIds } },
-      select: { id: true, accountNumber: true, debit: true, credit: true, letteringCode: true },
+      select: {
+        id: true, accountNumber: true, debit: true, credit: true, letteringCode: true,
+        journalEntry: { select: { fiscalPeriod: { select: { status: true } } } },
+      },
     });
 
     if (lines.length !== lineIds.length)
@@ -1041,6 +1147,20 @@ export class AccountingService {
     const wrongAccount = lines.find(l => l.accountNumber !== accountNumber);
     if (wrongAccount)
       throw AppError.badRequest(`La ligne ${wrongAccount.id} appartient au compte ${wrongAccount.accountNumber}, pas ${accountNumber}`);
+
+    // Le compte doit être déclaré lettrable (flag SYSCOHADA `allowsReconciliation`) :
+    // on ne lettre pas un compte de charge/produit/trésorerie.
+    const account = await this.prisma.chartOfAccount.findUnique({
+      where:  { accountNumber },
+      select: { allowsReconciliation: true },
+    });
+    if (!account) throw AppError.notFound(`Compte ${accountNumber} introuvable`);
+    if (!account.allowsReconciliation)
+      throw AppError.badRequest(`Le compte ${accountNumber} n'est pas lettrable.`, 'ACCOUNT_NOT_RECONCILABLE');
+
+    // Aucune ligne d'un exercice clôturé/verrouillé (cohérent avec le reste du module).
+    if (lines.some(l => l.journalEntry?.fiscalPeriod?.status !== 'open'))
+      throw AppError.forbidden('Lettrage impossible : une écriture appartient à une période non ouverte.');
 
     const alreadyLettered = lines.find(l => l.letteringCode);
     if (alreadyLettered)
@@ -1051,27 +1171,30 @@ export class AccountingService {
     if (Math.abs(totalDebit - totalCredit) > 0.01)
       throw AppError.badRequest(`Lettrage non équilibré : débit ${totalDebit} ≠ crédit ${totalCredit}`);
 
-    await this.prisma.$transaction(async (tx) => {
-      const last = await tx.journalEntryLine.findFirst({
-        where:   { accountNumber, letteringCode: { not: null } },
-        orderBy: { letteredAt: 'desc' },
-        select:  { letteringCode: true },
-      });
-      const code = this.generateNextCode(last?.letteringCode ?? null);
+    return this.prisma.$transaction(async (tx) => {
+      // Verrou par compte : sérialise la génération du code pour empêcher deux
+      // lettrages concurrents de produire le même code (fusion accidentelle).
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${accountNumber}))`;
+      const code = await this._nextLetteringCode(tx, accountNumber);
       await tx.journalEntryLine.updateMany({
         where: { id: { in: lineIds } },
         data:  { letteringCode: code, letteredAt: new Date(), letteredById: userId },
       });
+      return { letteringCode: code };
     });
   }
 
   async deleteLettering(code: string, accountNumber: string): Promise<void> {
+    if (!accountNumber) throw AppError.badRequest('Numéro de compte requis');
     const lines = await this.prisma.journalEntryLine.findMany({
       where:  { letteringCode: code, accountNumber },
-      select: { id: true },
+      select: { id: true, journalEntry: { select: { fiscalPeriod: { select: { status: true } } } } },
     });
     if (lines.length === 0)
       throw AppError.notFound(`Aucune ligne lettrée avec le code "${code}" sur le compte ${accountNumber}`);
+    // On ne délettre pas des écritures d'un exercice clôturé/verrouillé.
+    if (lines.some(l => l.journalEntry?.fiscalPeriod?.status !== 'open'))
+      throw AppError.forbidden('Délettrage impossible : une écriture appartient à une période non ouverte.');
     await this.prisma.journalEntryLine.updateMany({
       where: { letteringCode: code, accountNumber },
       data:  { letteringCode: null, letteredAt: null, letteredById: null },
@@ -1097,7 +1220,7 @@ export class AccountingService {
       },
     };
 
-    const [data, total] = await Promise.all([
+    const [data, total, sums] = await Promise.all([
       this.prisma.journalEntryLine.findMany({
         where,
         skip,
@@ -1110,10 +1233,13 @@ export class AccountingService {
         },
       }),
       this.prisma.journalEntryLine.count({ where }),
+      // Totaux calculés sur TOUT le compte (pas la seule page) — sinon le solde
+      // « à lettrer » était faux dès qu'il y avait plus d'une page de lignes.
+      this.prisma.journalEntryLine.aggregate({ where, _sum: { debit: true, credit: true } }),
     ]);
 
-    const totalDebit  = data.reduce((s, l) => s + Number(l.debit),  0);
-    const totalCredit = data.reduce((s, l) => s + Number(l.credit), 0);
+    const totalDebit  = Number(sums._sum.debit  ?? 0);
+    const totalCredit = Number(sums._sum.credit ?? 0);
 
     // Aplatissement vers la forme plate attendue par le frontend (mêmes champs
     // que les groupes lettrés) : date / n° pièce / journal n'apparaissaient pas.
@@ -1132,22 +1258,39 @@ export class AccountingService {
     return { data: flat, total, page, limit, totalPages: Math.ceil(total / limit), totalDebit, totalCredit, balance: totalDebit - totalCredit };
   }
 
+  // Nombre maximum de groupes lettrés renvoyés en une fois (les plus récents) —
+  // borne mémoire : sans date, un compte ancien pouvait charger tout son historique.
+  private static readonly LETTERED_GROUPS_LIMIT = 500;
+
   async getLeteredGroups(accountNumber: string, dateFrom?: string, dateTo?: string) {
-    // Récupère les lignes lettrées pour ce compte, groupées par letteringCode
-    const lines = await this.prisma.journalEntryLine.findMany({
-      where: {
-        account: { accountNumber },
-        letteringCode: { not: null },
-        journalEntry: {
-          status: { not: 'cancelled' as never },
-          ...(dateFrom || dateTo ? {
-            entryDate: {
-              ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
-              ...(dateTo   ? { lte: new Date(dateTo)   } : {}),
-            },
-          } : {}),
-        },
+    const lineWhere: Prisma.JournalEntryLineWhereInput = {
+      account: { accountNumber },
+      letteringCode: { not: null },
+      journalEntry: {
+        status: { not: 'cancelled' as never },
+        ...(dateFrom || dateTo ? {
+          entryDate: {
+            ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+            ...(dateTo   ? { lte: new Date(dateTo)   } : {}),
+          },
+        } : {}),
       },
+    };
+
+    // On borne au N codes les plus récents (par date de lettrage) au lieu de charger
+    // tout l'historique, puis on récupère les lignes de ces seuls codes.
+    const recentCodes = await this.prisma.journalEntryLine.groupBy({
+      by:      ['letteringCode'],
+      where:   lineWhere,
+      _max:    { letteredAt: true },
+      orderBy: { _max: { letteredAt: 'desc' } },
+      take:    AccountingService.LETTERED_GROUPS_LIMIT,
+    });
+    const codes = recentCodes.map(c => c.letteringCode!).filter(Boolean);
+    if (codes.length === 0) return [];
+
+    const lines = await this.prisma.journalEntryLine.findMany({
+      where: { ...lineWhere, letteringCode: { in: codes } },
       include: {
         journalEntry: { select: { id: true, entryNumber: true, journalId: true, journal: { select: { code: true } }, entryDate: true } },
       },
@@ -1183,6 +1326,186 @@ export class AccountingService {
         balance:    totalDebit - totalCredit,
         letteredAt: grpLines[0]?.letteredAt?.toISOString() ?? new Date().toISOString(),
       };
+    });
+  }
+
+  // ── Lettrage automatique : PROPOSITIONS ──────────────────────────────────────
+
+  /**
+   * Propose des groupes de lettrage équilibrés sur un compte : pour chaque ligne
+   * d'un sens, cherche un sous-ensemble de lignes du sens opposé dont la somme
+   * l'égale (ex. un règlement soldant une ou plusieurs factures). Ne modifie rien
+   * (suggestions) — l'utilisateur valide ensuite via letterLines. Réutilise le
+   * `subsetSum` du rapprochement bancaire.
+   */
+  async suggestLettering(accountNumber: string, dateFrom?: string, dateTo?: string) {
+    const account = await this.prisma.chartOfAccount.findUnique({
+      where: { accountNumber }, select: { allowsReconciliation: true },
+    });
+    if (!account) throw AppError.notFound(`Compte ${accountNumber} introuvable`);
+    if (!account.allowsReconciliation)
+      throw AppError.badRequest(`Le compte ${accountNumber} n'est pas lettrable.`, 'ACCOUNT_NOT_RECONCILABLE');
+
+    const lines = await this.prisma.journalEntryLine.findMany({
+      where: {
+        accountNumber, letteringCode: null,
+        journalEntry: {
+          status: { not: 'cancelled' as never },
+          ...(dateFrom || dateTo ? {
+            entryDate: {
+              ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+              ...(dateTo   ? { lte: new Date(dateTo)   } : {}),
+            },
+          } : {}),
+        },
+      },
+      select: { id: true, debit: true, credit: true, label: true, journalEntry: { select: { entryDate: true } } },
+      orderBy: { createdAt: 'asc' },
+      take: 300, // borne : le subset-sum est exponentiel dans le pire cas
+    });
+
+    const debits  = lines.filter(l => Number(l.debit)  > 0).map(l => ({ id: l.id, amount: Number(l.debit),  label: l.label ?? '', date: l.journalEntry?.entryDate ?? new Date() }));
+    const credits = lines.filter(l => Number(l.credit) > 0).map(l => ({ id: l.id, amount: Number(l.credit), label: l.label ?? '', date: l.journalEntry?.entryDate ?? new Date() }));
+
+    const used = new Set<string>();
+    const suggestions: Array<{ lineIds: string[]; total: number; debitIds: string[]; creditIds: string[] }> = [];
+
+    // On solde chaque ligne « one-side » par un sous-ensemble de l'autre sens.
+    // On part du plus petit nombre de lignes (les crédits, souvent des règlements).
+    const [anchors, others, anchorIsCredit] = credits.length <= debits.length
+      ? [credits, debits, true]
+      : [debits, credits, false];
+
+    for (const anchor of anchors) {
+      if (used.has(anchor.id)) continue;
+      const pool: SubsetCandidate[] = others.filter(o => !used.has(o.id));
+      const tol = Math.max(1, anchor.amount * 0.001);
+      const [match] = subsetSum(pool, anchor.amount, tol, 6, 1);
+      if (!match) continue;
+      const otherIds = match.ids;
+      if (otherIds.some(id => used.has(id))) continue;
+      used.add(anchor.id);
+      otherIds.forEach(id => used.add(id));
+      const debitIds  = anchorIsCredit ? otherIds : [anchor.id];
+      const creditIds = anchorIsCredit ? [anchor.id] : otherIds;
+      suggestions.push({ lineIds: [anchor.id, ...otherIds], total: anchor.amount, debitIds, creditIds });
+    }
+
+    return { accountNumber, count: suggestions.length, suggestions };
+  }
+
+  // ── Lettrage partiel / écart de règlement ────────────────────────────────────
+
+  /**
+   * Lettre un groupe DÉSÉQUILIBRÉ en imputant le résidu sur un compte d'écart
+   * (escompte/frais/arrondi). On crée une écriture d'écart (brouillon) : une ligne
+   * sur le compte de tiers qui absorbe le résidu — lettrée avec le groupe pour
+   * l'équilibrer — et sa contrepartie sur le compte d'écart. Le résidu doit rester
+   * sous un plafond de sécurité.
+   */
+  async letterLinesWithDifference(
+    input: { lineIds: string[]; accountNumber: string; differenceAccount?: string; label?: string },
+    userId: string,
+  ): Promise<{ letteringCode: string; difference: number; entryId: string }> {
+    const accountNumber = input.accountNumber;
+    const lineIds = [...new Set(input.lineIds)];
+    if (lineIds.length < 1) throw AppError.badRequest('Au moins une ligne requise');
+
+    const lines = await this.prisma.journalEntryLine.findMany({
+      where:  { id: { in: lineIds } },
+      select: {
+        id: true, accountNumber: true, debit: true, credit: true, letteringCode: true,
+        journalEntry: { select: { entryDate: true, fiscalPeriod: { select: { status: true } } } },
+      },
+    });
+    if (lines.length !== lineIds.length) throw AppError.notFound('Une ou plusieurs lignes introuvables');
+    if (lines.some(l => l.accountNumber !== accountNumber))
+      throw AppError.badRequest('Toutes les lignes doivent appartenir au même compte.');
+    if (lines.some(l => l.letteringCode))
+      throw AppError.conflict('Une ligne est déjà lettrée.');
+    if (lines.some(l => l.journalEntry?.fiscalPeriod?.status !== 'open'))
+      throw AppError.forbidden('Lettrage impossible : une écriture appartient à une période non ouverte.');
+
+    const account = await this.prisma.chartOfAccount.findUnique({
+      where: { accountNumber }, select: { allowsReconciliation: true },
+    });
+    if (!account?.allowsReconciliation)
+      throw AppError.badRequest(`Le compte ${accountNumber} n'est pas lettrable.`, 'ACCOUNT_NOT_RECONCILABLE');
+
+    const totalDebit  = lines.reduce((s, l) => s + Number(l.debit),  0);
+    const totalCredit = lines.reduce((s, l) => s + Number(l.credit), 0);
+    const difference  = Math.round((totalDebit - totalCredit) * 100) / 100;
+    if (Math.abs(difference) < 0.01)
+      throw AppError.badRequest('Groupe déjà équilibré : utilisez le lettrage simple.', 'ALREADY_BALANCED');
+
+    // Plafond de sécurité : on ne « passe en écart » qu'un petit résidu (escompte,
+    // frais, arrondi), jamais un demi-règlement. 5 % de la plus grosse jambe.
+    const ceiling = Math.max(1000, Math.max(totalDebit, totalCredit) * 0.05);
+    if (Math.abs(difference) > ceiling)
+      throw AppError.badRequest(
+        `Écart trop important (${difference.toLocaleString('fr-FR')}) : au-delà du seuil d'écart de règlement.`,
+        'DIFFERENCE_TOO_LARGE',
+      );
+
+    // Compte d'écart : fourni, sinon compte d'escompte de l'entreprise (673).
+    const settings = await this.prisma.companySettings.findFirst({ select: { escompteAccountingAccount: true } });
+    const differenceAccount = input.differenceAccount ?? settings?.escompteAccountingAccount;
+    if (!differenceAccount)
+      throw AppError.badRequest("Aucun compte d'écart configuré (escompte) — précisez differenceAccount.", 'NO_DIFFERENCE_ACCOUNT');
+
+    // Journal d'opérations diverses pour l'écriture d'écart.
+    const journal = await this.prisma.accountingJournal.findFirst({
+      where: { isActive: true, type: { in: ['operations', 'misc'] as any } },
+      orderBy: { type: 'asc' },
+    });
+    if (!journal) throw AppError.badRequest("Aucun journal d'opérations diverses disponible.", 'NO_OD_JOURNAL');
+
+    const entryDate = new Date();
+    const period = await this.prisma.fiscalPeriod.findFirst({
+      where: { startDate: { lte: entryDate }, endDate: { gte: entryDate }, status: 'open' as any },
+      orderBy: { startDate: 'asc' },
+    });
+    if (!period) throw AppError.forbidden(`Aucune période ouverte pour le ${entryDate.toLocaleDateString('fr-FR')}.`);
+
+    const [seqRow] = await this.prisma.$queryRaw<[{ nextval: string }]>`
+      SELECT nextval('journal_entry_seq') AS nextval
+    `.catch(() => this.prisma.$queryRaw<[{ nextval: string }]>`SELECT (EXTRACT(EPOCH FROM NOW()) * 1000)::bigint AS nextval`);
+    const entryNumber = `JNL-${entryDate.getFullYear()}-${String(seqRow.nextval).slice(-6).padStart(6, '0')}`;
+
+    // difference > 0 : le compte de tiers est trop débiteur → on le CRÉDITE du résidu
+    // (et on débite le compte d'écart) pour équilibrer le groupe. Inversement sinon.
+    const absDiff       = Math.abs(difference);
+    const tiersIsCredit = difference > 0;
+    const label         = input.label ?? `Écart de règlement — lettrage ${accountNumber}`;
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${accountNumber}))`;
+
+      const entry = await tx.journalEntry.create({
+        data: {
+          journalId: journal.id, fiscalPeriodId: period.id,
+          entryDate, accountingDate: entryDate, label, entryNumber,
+          sourceType: 'lettering_difference', status: 'draft',
+          totalDebit: absDiff, totalCredit: absDiff, createdById: userId,
+          lines: {
+            create: [
+              { sortOrder: 0, accountNumber,            label, debit: tiersIsCredit ? 0 : absDiff, credit: tiersIsCredit ? absDiff : 0 },
+              { sortOrder: 1, accountNumber: differenceAccount, label, debit: tiersIsCredit ? absDiff : 0, credit: tiersIsCredit ? 0 : absDiff },
+            ],
+          },
+        },
+        include: { lines: true },
+      });
+
+      // La ligne de tiers de l'écriture d'écart rejoint le groupe → il s'équilibre.
+      const tiersLine = entry.lines.find(l => l.accountNumber === accountNumber)!;
+      const code = await this._nextLetteringCode(tx, accountNumber);
+      await tx.journalEntryLine.updateMany({
+        where: { id: { in: [...lineIds, tiersLine.id] } },
+        data:  { letteringCode: code, letteredAt: new Date(), letteredById: userId },
+      });
+
+      return { letteringCode: code, difference, entryId: entry.id };
     });
   }
 }
