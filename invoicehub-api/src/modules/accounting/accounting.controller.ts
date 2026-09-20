@@ -97,45 +97,47 @@ export class AccountingController {
   // ── Périodes fiscales ───────────────────────────────────────────────────────
 
   @Get('fiscal-years')
-  @Permission('accounting:read')
+  @Permission('fiscal:read')
   listFiscalYears() {
     return this.svc.listFiscalPeriods();
   }
 
   @Post('fiscal-years')
-  @Permission('accounting:write')
+  @Permission('fiscal:write')
   @HttpCode(HttpStatus.CREATED)
   createFiscalYear(
     @Body(new ZodValidationPipe(createFiscalPeriodSchema)) body: any,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.svc.createFiscalPeriod(body);
+    return this.svc.createFiscalPeriod(body, user.sub);
   }
 
   @Get('periods/:id')
-  @Permission('accounting:read')
+  @Permission('fiscal:read')
   getPeriod(@Param('id') id: string) {
     return this.svc.getFiscalPeriodById(id);
   }
 
   @Post('periods/:id/close')
-  @Permission('accounting:write')
+  @Permission('fiscal:write')
   @HttpCode(HttpStatus.OK)
   closePeriod(@Param('id') id: string) {
     return this.svc.closeFiscalPeriod(id);
   }
 
   @Post('periods/:id/reopen')
-  @Permission('accounting:write')
+  @Permission('fiscal:write')
   @HttpCode(HttpStatus.OK)
   reopenPeriod(@Param('id') id: string) {
     return this.svc.reopenFiscalPeriod(id);
   }
 
   // ── Clôture d'exercice ────────────────────────────────────────────────────────
+  // Permission dédiée fiscal:* (≠ accounting:write des écritures courantes) : seuls
+  // l'admin et le comptable gèrent les périodes et la clôture d'exercice.
   // Étape 1 : aperçu (lecture seule) — résultat estimé + contrôles bloquants.
   @Get('fiscal-years/:year/close-preview')
-  @Permission('accounting:read')
+  @Permission('fiscal:read')
   closePreview(@Param('year') year: string) {
     const y = parseInt(year, 10);
     if (Number.isNaN(y)) throw AppError.badRequest('Exercice invalide.');
@@ -144,7 +146,7 @@ export class AccountingController {
 
   // Étape 2 : clôture effective (génère résultat + à-nouveau, verrouille).
   @Post('fiscal-years/:year/close')
-  @Permission('accounting:write')
+  @Permission('fiscal:write')
   @Audit('fiscal_year_close', 'UPDATE')
   closeYear(@Param('year') year: string, @CurrentUser() user: JwtPayload) {
     const y = parseInt(year, 10);
