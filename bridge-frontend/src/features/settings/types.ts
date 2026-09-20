@@ -52,6 +52,9 @@ export interface CompanySettings {
   escompteAccountingAccount:    string
   collectedTaxAccount:          string
   deductibleTaxAccount:         string
+  // TVA sur encaissement (prestations de services) — option SYSCOHADA
+  pendingTvaAccount:            string
+  tvaOnCollection:              boolean
   stockAccount:                 string
   stockVariationAccount:        string
   stockLossAccount:             string

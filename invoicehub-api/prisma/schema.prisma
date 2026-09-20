@@ -532,6 +532,13 @@ model CompanySettings {
   escompteAccountingAccount    String   @default("673") @map("escompte_accounting_account") @db.VarChar(20)
   collectedTaxAccount          String   @default("4431") @map("collected_tax_account") @db.VarChar(20)
   deductibleTaxAccount         String   @default("4452") @map("deductible_tax_account") @db.VarChar(20)
+  /// TVA collectée en attente d'exigibilité (prestations de services facturées mais
+  /// pas encore encaissées). Utilisé uniquement si tvaOnCollection = true.
+  pendingTvaAccount            String   @default("4438") @map("pending_tva_account") @db.VarChar(20)
+  /// Régime "TVA sur encaissement" pour les services : à l'émission la TVA des lignes
+  /// de service va sur pendingTvaAccount, puis est transférée vers collectedTaxAccount
+  /// au prorata des encaissements.
+  tvaOnCollection              Boolean  @default(false) @map("tva_on_collection")
   stockAccount                 String   @default("3111") @map("stock_account") @db.VarChar(20)
   stockVariationAccount        String   @default("6031") @map("stock_variation_account") @db.VarChar(20)
   stockLossAccount             String   @default("6032") @map("stock_loss_account") @db.VarChar(20)

@@ -252,6 +252,7 @@ function AccountingSection() {
 
   const [form, setForm] = useState<Pick<UpdateSettingsPayload,
     'initialStockAccount' | 'escompteAccountingAccount' | 'collectedTaxAccount' | 'deductibleTaxAccount'
+    | 'pendingTvaAccount' | 'tvaOnCollection'
     | 'stockAccount' | 'stockVariationAccount' | 'stockLossAccount'
     | 'defaultClientAccount' | 'defaultSupplierAccount' | 'defaultBankAccount'
     | 'defaultSalesGoodsAccount' | 'defaultSalesServiceAccount' | 'defaultPurchaseAccount'
@@ -266,6 +267,8 @@ function AccountingSection() {
       escompteAccountingAccount: settings.escompteAccountingAccount,
       collectedTaxAccount:       settings.collectedTaxAccount,
       deductibleTaxAccount:      settings.deductibleTaxAccount,
+      pendingTvaAccount:         settings.pendingTvaAccount,
+      tvaOnCollection:           settings.tvaOnCollection,
       stockAccount:              settings.stockAccount,
       stockVariationAccount:     settings.stockVariationAccount,
       stockLossAccount:          settings.stockLossAccount,
@@ -309,6 +312,30 @@ function AccountingSection() {
               <AccountGroup title="TVA">
                 <AccountField label="TVA collectée"   value={form.collectedTaxAccount}  onChange={(v) => set('collectedTaxAccount', v)} />
                 <AccountField label="TVA déductible"  value={form.deductibleTaxAccount} onChange={(v) => set('deductibleTaxAccount', v)} />
+              </AccountGroup>
+              <AccountGroup title="TVA sur les encaissements (prestations de services)">
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '2px 0' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.tvaOnCollection ?? false}
+                    onChange={(e) => set('tvaOnCollection', e.target.checked)}
+                    style={{ marginTop: 2, width: 16, height: 16, accentColor: 'var(--primary)', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: 13 }}>
+                    Rendre la TVA des <strong>services</strong> exigible à l&apos;encaissement (régime des encaissements)
+                    <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-3)', marginTop: 3, lineHeight: 1.5 }}>
+                      Désactivé (régime des débits) : la TVA des services est collectée dès l&apos;émission de la facture.
+                      Activé : à l&apos;émission, la TVA des lignes de services est logée en <strong>TVA en attente</strong> ;
+                      à chaque règlement, la fraction encaissée est transférée en TVA collectée
+                      (Dr {form.pendingTvaAccount || '4438'} / Cr {form.collectedTaxAccount || '4431'}), au prorata du
+                      montant payé. La TVA des marchandises reste exigible dès l&apos;émission. ⚠️ Option à valider avec
+                      votre expert-comptable.
+                    </span>
+                  </span>
+                </label>
+                {(form.tvaOnCollection ?? false) && (
+                  <AccountField label="Compte TVA en attente d'exigibilité" value={form.pendingTvaAccount} onChange={(v) => set('pendingTvaAccount', v)} />
+                )}
               </AccountGroup>
               <AccountGroup title="Stock — inventaire permanent">
                 <AccountField label="Stock marchandises"    value={form.stockAccount}          onChange={(v) => set('stockAccount', v)} />
