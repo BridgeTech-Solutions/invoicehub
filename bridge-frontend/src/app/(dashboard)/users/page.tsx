@@ -6,6 +6,7 @@ import { Search, UserPlus, Loader2, Shield, Pencil, Trash2, KeyRound, X, AlertTr
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useReactivateUser, useRoles } from '@/features/users/hooks'
 import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { useAuthStore } from '@/features/auth/store'
 import { formatDate, getInitials } from '@/lib/utils'
 import type { User, CreateUserPayload, UpdateUserPayload, UserStatus } from '@/features/users/types'
@@ -528,6 +529,8 @@ export default function UsersPage() {
     background: 'var(--bg)', fontSize: 13.5, color: 'var(--text-1)',
     fontFamily: 'var(--font-body)', outline: 'none',
   }
+
+  if (!can('user', 'read')) return <AccessDenied message="Vous n'avez pas accès à la gestion des utilisateurs." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

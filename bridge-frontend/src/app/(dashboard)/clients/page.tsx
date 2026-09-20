@@ -11,6 +11,7 @@ import { exportClientsCsv } from '@/features/clients/api'
 import { ActionMenu } from '@/components/ui/ActionMenu'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { formatDate, getInitials } from '@/lib/utils'
 import { ROUTES } from '@/lib/constants'
 import type { Client } from '@/features/clients/types'
@@ -154,6 +155,8 @@ export default function ClientsPage() {
   const totalShown = data
     ? `${((page - 1) * PAGE_SIZE) + 1}–${Math.min(page * PAGE_SIZE, data.total)} sur ${data.total} client${data.total !== 1 ? 's' : ''}`
     : undefined
+
+  if (!can('client', 'read')) return <AccessDenied message="Vous n'avez pas accès aux clients." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

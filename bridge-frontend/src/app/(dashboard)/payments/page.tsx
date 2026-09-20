@@ -9,6 +9,7 @@ import { formatDate } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES, PAYMENT_METHODS } from '@/lib/constants'
 import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { useConfirm } from '@/providers/ConfirmProvider'
 import type { PaymentMethod } from '@/features/invoices/types'
 
@@ -68,6 +69,8 @@ export default function PaymentsPage() {
     padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)',
     background: 'var(--bg)', fontSize: 13.5, color: 'var(--text-1)', fontFamily: 'var(--font-body)', outline: 'none',
   }
+
+  if (!can('payment', 'read')) return <AccessDenied message="Vous n'avez pas accès aux paiements." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

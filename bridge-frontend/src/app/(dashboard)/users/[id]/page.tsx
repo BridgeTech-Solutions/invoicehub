@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { useUser, useUpdateUser, useReactivateUser, useResetUserPassword, useDeleteUser, useUserActivity, useRoles, useResendInvitation } from '@/features/users/hooks'
 import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, getInitials } from '@/lib/utils'
 import { ROUTES } from '@/lib/constants'
@@ -367,6 +368,7 @@ export default function UserDetailPage() {
   const reactivateM     = useReactivateUser()
   const resendInviteM   = useResendInvitation()
 
+  if (!can('user', 'read')) return <AccessDenied message="Vous n'avez pas accès à la gestion des utilisateurs." />
   if (isLoading) return <Skeleton />
   if (isError || !user) {
     return (

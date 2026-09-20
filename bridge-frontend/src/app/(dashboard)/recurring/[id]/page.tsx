@@ -12,6 +12,7 @@ import {
   useDeleteRecurring, useGenerateRecurring,
 } from '@/features/recurring/hooks'
 import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { formatDate, getInitials } from '@/lib/utils'
 import { computeLineValues } from '@/lib/document-math'
 import { ROUTES } from '@/lib/constants'
@@ -145,6 +146,7 @@ function RecurringDetailView({ id }: { id: string }) {
   const [generating, setGenerating]       = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
+  if (!can('recurring', 'read')) return <AccessDenied message="Vous n'avez pas accès aux factures récurrentes." />
   if (isLoading) return <Skeleton />
   if (!template) return (
     <div style={{ textAlign: 'center', padding: '60px 20px' }}>

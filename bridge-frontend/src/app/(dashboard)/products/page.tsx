@@ -10,6 +10,7 @@ import { CategoryManager } from '@/features/products/components/CategoryManager'
 import { ImportProductsModal, downloadProductTemplate } from '@/features/products/ImportProductsModal'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { usePermission } from '@/hooks/usePermission'
+import { AccessDenied } from '@/components/ui/AccessDenied'
 import { ROUTES } from '@/lib/constants'
 import type { Product } from '@/features/products/types'
 
@@ -108,6 +109,8 @@ export default function ProductsPage() {
     { key: 'service',  label: 'Prestations' },
     { key: 'product',  label: 'Produits' },
   ] as const
+
+  if (!can('product', 'read')) return <AccessDenied message="Vous n'avez pas accès au catalogue produits." />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

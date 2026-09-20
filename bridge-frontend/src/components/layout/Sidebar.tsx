@@ -134,6 +134,9 @@ export function Sidebar() {
   const notifCount    = useUnreadCount()
   const { data: approvalCountData } = useApprovalPendingCount()
   const approvalCount = approvalCountData?.count ?? 0
+  // Le bouton Paramètres n'apparaît que si au moins une section de réglages est
+  // accessible (sinon l'utilisateur ouvrirait un panneau vide).
+  const canSeeSettings = can('settings', 'read') || can('settings', 'update')
 
   const { collapsed, mobileOpen, overlayPanel, openSections, setCollapsed, setMobileOpen, setOverlayPanel, toggle, openSection, toggleSection } = useSidebarStore()
 
@@ -656,7 +659,8 @@ export function Sidebar() {
           )}
         </button>
 
-        {/* Paramètres → overlay */}
+        {/* Paramètres → overlay (masqué si aucun réglage accessible) */}
+        {canSeeSettings && (
         <button
           type="button"
           onClick={() => setOverlayPanel(overlayPanel === 'settings' ? null : 'settings')}
@@ -704,6 +708,7 @@ export function Sidebar() {
             Paramètres
           </span>
         </button>
+        )}
       </div>
     </>
   )
