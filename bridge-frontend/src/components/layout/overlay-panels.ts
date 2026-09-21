@@ -119,7 +119,7 @@ export const OVERLAY_PANELS: Record<string, OverlayPanel> = {
       {
         title: 'SAISIE',
         items: [
-          { label: 'Journaux',  href: ROUTES.ACCOUNTING_JOURNALS, icon: BookOpen, permission: { resource: 'accounting', action: 'read' } },
+          { label: 'Journaux',  href: ROUTES.ACCOUNTING_JOURNALS, icon: BookOpen, permission: { resource: 'fiscal', action: 'read' } },
           { label: 'Écritures', href: ROUTES.ACCOUNTING_ENTRIES,  icon: PenLine, permission: { resource: 'accounting', action: 'read' } },
         ],
       },

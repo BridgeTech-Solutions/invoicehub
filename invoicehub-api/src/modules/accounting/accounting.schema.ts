@@ -42,6 +42,7 @@ export const createJournalSchema = z.object({
   description:      z.string().optional().nullable(),
   defaultAccountId: z.string().max(20).optional().nullable(), // numéro du compte de contrepartie par défaut
   bankAccountId:    z.string().uuid().optional().nullable(),  // fiche bancaire liée (journaux banque/caisse)
+  isDefault:        z.boolean().optional(),                   // journal par défaut de son type
 });
 
 export const updateJournalSchema = z.object({
@@ -51,6 +52,7 @@ export const updateJournalSchema = z.object({
   defaultAccountId: z.string().max(20).optional().nullable(),
   bankAccountId:    z.string().uuid().optional().nullable(),
   isActive:         z.boolean().optional(),
+  isDefault:        z.boolean().optional(),
 });
 
 const entryLineSchema = z.object({

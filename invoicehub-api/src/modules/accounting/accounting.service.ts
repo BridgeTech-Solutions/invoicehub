@@ -354,8 +354,8 @@ export class AccountingService {
       ]);
       if (!resBenef || !resPerte) throw AppError.badRequest('Comptes de résultat 1301/1302 introuvables ou non imputables dans le plan comptable.');
 
-      const clJournal = await tx.accountingJournal.findFirst({ where: { type: 'closing' as never, isActive: true } });
-      const anJournal = await tx.accountingJournal.findFirst({ where: { type: 'opening' as never, isActive: true } });
+      const clJournal = await tx.accountingJournal.findFirst({ where: { type: 'closing' as never, isActive: true }, orderBy: [{ isDefault: 'desc' }, { code: 'asc' }] });
+      const anJournal = await tx.accountingJournal.findFirst({ where: { type: 'opening' as never, isActive: true }, orderBy: [{ isDefault: 'desc' }, { code: 'asc' }] });
       if (!clJournal) throw AppError.badRequest('Journal de clôture (type closing) introuvable.');
       if (!anJournal) throw AppError.badRequest('Journal d\'à-nouveau (type opening) introuvable.');
 
@@ -476,11 +476,28 @@ export class AccountingService {
   // ── Journaux ────────────────────────────────────────────────────────────────
 
   async listJournals() {
+    // On renvoie AUSSI les journaux inactifs (actifs d'abord) : sinon un journal
+    // désactivé disparaît de l'UI et devient impossible à réactiver.
     return this.prisma.accountingJournal.findMany({
-      where:   { isActive: true },
-      orderBy: { code: 'asc' },
+      orderBy: [{ isActive: 'desc' }, { code: 'asc' }],
       include: { _count: { select: { journalEntries: true } } },
     });
+  }
+
+  /**
+   * Valide qu'un numéro de compte fourni comme contrepartie par défaut existe au
+   * plan comptable, est imputable (compte de détail) et actif — sinon l'écriture
+   * pré-remplie plantera plus tard (violation FK / compte racine).
+   */
+  private async assertValidCounterpartAccount(accountNumber?: string | null) {
+    if (!accountNumber) return;
+    const acc = await this.prisma.chartOfAccount.findUnique({
+      where:  { accountNumber },
+      select: { isDetailAccount: true, isActive: true },
+    });
+    if (!acc)                        throw AppError.badRequest(`Compte de contrepartie inexistant au plan comptable : ${accountNumber}.`);
+    if (acc.isDetailAccount === false) throw AppError.badRequest(`Compte de contrepartie non imputable (racine) : ${accountNumber}. Utilisez un sous-compte de détail.`);
+    if (acc.isActive === false)      throw AppError.badRequest(`Compte de contrepartie désactivé : ${accountNumber}.`);
   }
 
   async getJournalById(id: string) {
@@ -495,14 +512,59 @@ export class AccountingService {
   async createJournal(data: CreateJournalInput, userId: string) {
     const existing = await this.prisma.accountingJournal.findFirst({ where: { code: data.code } });
     if (existing) throw AppError.conflict(`Le journal ${data.code} existe déjà`);
-    return this.prisma.accountingJournal.create({
-      data: { code: data.code, name: data.name, description: data.description ?? undefined, defaultAccountId: data.defaultAccountId ?? undefined, bankAccountId: data.bankAccountId ?? undefined, type: data.type as never, isActive: true, createdById: userId },
+    await this.assertValidCounterpartAccount(data.defaultAccountId);
+
+    return this.prisma.$transaction(async (tx) => {
+      // Un seul journal "par défaut" par type : si on marque celui-ci, on retire le
+      // drapeau des autres du même type (cohérent avec getDefaultJournal).
+      if ((data as any).isDefault) {
+        await tx.accountingJournal.updateMany({ where: { type: data.type as never, isDefault: true }, data: { isDefault: false } });
+      }
+      return tx.accountingJournal.create({
+        data: {
+          code: data.code, name: data.name,
+          description: data.description ?? undefined,
+          defaultAccountId: data.defaultAccountId ?? undefined,
+          bankAccountId: data.bankAccountId ?? undefined,
+          type: data.type as never,
+          isDefault: !!(data as any).isDefault,
+          isActive: true,
+          createdById: userId,
+        },
+      });
     });
   }
 
   async updateJournal(id: string, data: UpdateJournalInput) {
-    const journal = await this.prisma.accountingJournal.findUnique({ where: { id } });
+    const journal = await this.prisma.accountingJournal.findUnique({
+      where:   { id },
+      include: { _count: { select: { journalEntries: true } } },
+    });
     if (!journal) throw AppError.notFound('Journal introuvable');
+    const isSystem = (journal as any).isSystem === true;
+    const hasEntries = journal._count.journalEntries > 0;
+
+    // Changement de TYPE : interdit sur un journal système, et interdit dès qu'il
+    // porte des écritures (les reclasserait rétroactivement + peut vider un type).
+    if (data.type !== undefined && data.type !== (journal.type as unknown as string)) {
+      if (isSystem)   throw AppError.forbidden('Le type d\'un journal système ne peut pas être modifié.');
+      if (hasEntries) throw AppError.badRequest('Impossible de changer le type d\'un journal qui contient déjà des écritures.');
+    }
+
+    // DÉSACTIVATION : interdite sur un journal système, et refusée si c'est le
+    // dernier journal actif de son type (casserait le moteur d'écritures).
+    if (data.isActive === false && journal.isActive === true) {
+      if (isSystem) throw AppError.forbidden('Un journal système ne peut pas être désactivé.');
+      const otherActive = await this.prisma.accountingJournal.count({
+        where: { type: journal.type, isActive: true, id: { not: id } },
+      });
+      if (otherActive === 0) {
+        throw AppError.badRequest('Impossible de désactiver le dernier journal actif de ce type (requis par la comptabilisation automatique).');
+      }
+    }
+
+    if (data.defaultAccountId !== undefined) await this.assertValidCounterpartAccount(data.defaultAccountId);
+
     // Allow-list des champs réellement persistés sur le modèle AccountingJournal.
     const updateData: Prisma.AccountingJournalUpdateInput = {};
     if (data.name             !== undefined) updateData.name             = data.name;
@@ -511,7 +573,17 @@ export class AccountingService {
     if (data.bankAccountId    !== undefined) updateData.bankAccount      = data.bankAccountId ? { connect: { id: data.bankAccountId } } : { disconnect: true };
     if (data.type             !== undefined) updateData.type             = data.type as never;
     if (data.isActive         !== undefined) updateData.isActive         = data.isActive;
-    return this.prisma.accountingJournal.update({ where: { id }, data: updateData });
+
+    return this.prisma.$transaction(async (tx) => {
+      if ((data as any).isDefault === true) {
+        const targetType = (data.type ?? journal.type) as never;
+        await tx.accountingJournal.updateMany({ where: { type: targetType, isDefault: true, id: { not: id } }, data: { isDefault: false } });
+        updateData.isDefault = true;
+      } else if ((data as any).isDefault === false) {
+        updateData.isDefault = false;
+      }
+      return tx.accountingJournal.update({ where: { id }, data: updateData });
+    });
   }
 
   async deleteJournal(id: string) {
@@ -520,6 +592,8 @@ export class AccountingService {
       include: { _count: { select: { journalEntries: true } } },
     });
     if (!journal) throw AppError.notFound('Journal introuvable');
+    if ((journal as any).isSystem === true)
+      throw AppError.forbidden('Journal système : suppression interdite (requis par la comptabilisation automatique).');
     if (journal._count.journalEntries > 0)
       throw AppError.conflict('Impossible de supprimer un journal avec des écritures');
     await this.prisma.accountingJournal.delete({ where: { id } });

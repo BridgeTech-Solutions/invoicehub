@@ -31,11 +31,15 @@ export function JournalDrawer({ open, onClose, editing }: Props) {
   const [type, setType]       = useState<JournalType>('purchases')
   const [defaultAccountId, setDefaultAccountId] = useState<string | null>(null)
   const [bankAccountId, setBankAccountId]       = useState<string | null>(null)
+  const [isDefault, setIsDefault]               = useState(false)
 
   const create = useCreateJournal()
   const update = useUpdateJournal()
   const { data: bankAccounts = [] } = useBankAccounts()
   const isTreasury = type === 'bank' || type === 'cash'
+  // Le type est figé pour un journal système ou déjà mouvementé (le backend refuse
+  // de le changer : reclasserait les écritures / viderait un type requis).
+  const typeLocked = !!editing && (!!editing.isSystem || (editing.entriesCount ?? 0) > 0)
 
   // Sélection d'une banque -> lie la fiche + pré-remplit la contrepartie avec son compte comptable
   function selectBank(id: string | null) {
@@ -51,8 +55,9 @@ export function JournalDrawer({ open, onClose, editing }: Props) {
         setCode(editing.code); setName(editing.name); setType(editing.type)
         setDefaultAccountId(editing.defaultAccountId ?? null)
         setBankAccountId(editing.bankAccountId ?? null)
+        setIsDefault(!!editing.isDefault)
       } else {
-        setCode(''); setName(''); setType('purchases'); setDefaultAccountId(null); setBankAccountId(null)
+        setCode(''); setName(''); setType('purchases'); setDefaultAccountId(null); setBankAccountId(null); setIsDefault(false)
       }
     }
   }, [open, editing])
@@ -76,7 +81,7 @@ export function JournalDrawer({ open, onClose, editing }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const payload: CreateJournalPayload = { code: code.toUpperCase(), name, type }
+    const payload: CreateJournalPayload = { code: code.toUpperCase(), name, type, isDefault }
     if (defaultAccountId) payload.defaultAccountId = defaultAccountId
     // Lien banque seulement pertinent pour les journaux de trésorerie
     payload.bankAccountId = isTreasury ? bankAccountId : null
@@ -134,14 +139,30 @@ export function JournalDrawer({ open, onClose, editing }: Props) {
             <label style={lbl}>Type de journal <span style={{ color: 'var(--s-overdue)' }}>*</span></label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {JOURNAL_TYPES.map(t => (
-                <button key={t.value} type="button" onClick={() => setType(t.value)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${type === t.value ? t.color : 'var(--border)'}`, background: type === t.value ? `${t.color}10` : 'transparent', cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s' }}>
+                <button key={t.value} type="button" disabled={typeLocked} onClick={() => !typeLocked && setType(t.value)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${type === t.value ? t.color : 'var(--border)'}`, background: type === t.value ? `${t.color}10` : 'transparent', cursor: typeLocked ? 'not-allowed' : 'pointer', opacity: typeLocked && type !== t.value ? 0.4 : 1, textAlign: 'left', transition: 'all 0.15s' }}>
                   <div style={{ width: 10, height: 10, borderRadius: 99, background: t.color, flexShrink: 0 }} />
                   <span style={{ fontSize: 13.5, fontWeight: type === t.value ? 600 : 400, color: type === t.value ? t.color : 'var(--text-1)' }}>{t.label}</span>
                 </button>
               ))}
             </div>
+            {typeLocked && (
+              <p style={{ marginTop: 6, fontSize: 11, color: 'var(--text-3)' }}>
+                {editing?.isSystem ? 'Journal système : le type est figé.' : 'Type figé : ce journal contient déjà des écritures.'}
+              </p>
+            )}
           </div>
+
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+            <input type="checkbox" checked={isDefault} onChange={e => setIsDefault(e.target.checked)}
+              style={{ marginTop: 2, width: 16, height: 16, accentColor: 'var(--primary)', cursor: 'pointer' }} />
+            <span style={{ fontSize: 13 }}>
+              Journal <strong>par défaut</strong> de ce type
+              <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>
+                Utilisé par la comptabilisation automatique quand plusieurs journaux partagent le même type.
+              </span>
+            </span>
+          </label>
 
           {isTreasury && (
             <div>

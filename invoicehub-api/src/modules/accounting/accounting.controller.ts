@@ -157,13 +157,13 @@ export class AccountingController {
   // ── Journaux ────────────────────────────────────────────────────────────────
 
   @Get('journals')
-  @Permission('accounting:read')
+  @Permission('fiscal:read')
   listJournals() {
     return this.svc.listJournals();
   }
 
   @Post('journals')
-  @Permission('accounting:write')
+  @Permission('fiscal:write')
   @HttpCode(HttpStatus.CREATED)
   createJournal(
     @Body(new ZodValidationPipe(createJournalSchema)) body: any,
@@ -173,7 +173,7 @@ export class AccountingController {
   }
 
   @Put('journals/:id')
-  @Permission('accounting:write')
+  @Permission('fiscal:write')
   updateJournal(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateJournalSchema)) body: any,
@@ -182,7 +182,7 @@ export class AccountingController {
   }
 
   @Delete('journals/:id')
-  @Permission('accounting:write')
+  @Permission('fiscal:write')
   @HttpCode(HttpStatus.OK)
   deleteJournal(@Param('id') id: string) {
     return this.svc.deleteJournal(id);

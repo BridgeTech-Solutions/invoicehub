@@ -38,7 +38,13 @@ const logSkip = (fn: string, reason: string, ctx?: { sourceType?: string; source
 type Tx = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
 
 async function getDefaultJournal(tx: Tx, type: JournalType) {
-  const j = await tx.accountingJournal.findFirst({ where: { type, isActive: true } });
+  // Sélection DÉTERMINISTE : si plusieurs journaux actifs partagent le même type,
+  // on prend celui marqué par défaut, sinon le plus petit code (ordre stable) —
+  // jamais un findFirst dépendant de l'ordre physique des lignes.
+  const j = await tx.accountingJournal.findFirst({
+    where:   { type, isActive: true },
+    orderBy: [{ isDefault: 'desc' }, { code: 'asc' }],
+  });
   if (!j) throw new Error(`Journal comptable "${type}" introuvable`);
   return j;
 }
@@ -1065,7 +1071,7 @@ export async function onInvoiceCancelled(invoiceId: string, tx: Tx): Promise<voi
     });
 
     const entryDate = new Date();
-    let journal = await tx.accountingJournal.findFirst({ where: { type: JournalType.operations, isActive: true } });
+    let journal = await tx.accountingJournal.findFirst({ where: { type: JournalType.operations, isActive: true }, orderBy: [{ isDefault: 'desc' }, { code: 'asc' }] });
     if (!journal) journal = await getDefaultJournal(tx, JournalType.sales);
 
     const period      = await getOpenPeriod(tx, entryDate);
