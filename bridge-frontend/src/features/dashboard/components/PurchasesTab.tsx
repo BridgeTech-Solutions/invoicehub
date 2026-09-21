@@ -5,6 +5,7 @@ import { PurchaseOrderPipeline } from './PurchaseOrderPipeline'
 import { ExpensesByCategory } from './ExpensesByCategory'
 import { TopSuppliers } from './TopSuppliers'
 import { StockAlerts } from './StockAlerts'
+import { BudgetHealth } from './BudgetHealth'
 
 // ─── Component ────────────────────────────────────────────────
 /**
@@ -28,6 +29,9 @@ export function PurchasesTab() {
         <ExpensesByCategory />
         <TopSuppliers />
       </div>
+
+      {/* Santé des budgets (engagé + réalisé) */}
+      <BudgetHealth />
     </div>
   )
 }
