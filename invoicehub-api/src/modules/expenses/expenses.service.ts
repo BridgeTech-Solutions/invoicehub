@@ -162,110 +162,83 @@ export class ExpensesService {
    * agrégat — d'où des alertes sur un mois où rien n'avait bougé, et un dépassement
    * réel de janvier jamais signalé.
    */
-  private async checkBudgetAlerts(
-    categoryId: string | null,
-    paidAmountTtc: number,
-    expenseDate?: Date | null,
-  ): Promise<void> {
-    if (!categoryId) return;
+  /** Config du contrôle budgétaire (company_settings.budgetControl), avec défauts. */
+  private async budgetControlConfig(): Promise<{ warnThresholdPct: number; blockOnExceed: boolean; notifyRoles: string[] }> {
+    const s = await this.prisma.companySettings.findFirst({ select: { budgetControl: true } });
+    const c = (s?.budgetControl ?? {}) as Record<string, unknown>;
+    return {
+      warnThresholdPct: typeof c['warnThresholdPct'] === 'number' ? (c['warnThresholdPct'] as number) : 80,
+      blockOnExceed:    c['blockOnExceed'] === true,
+      notifyRoles:      Array.isArray(c['notifyRoles']) && (c['notifyRoles'] as unknown[]).length ? (c['notifyRoles'] as string[]) : ['admin'],
+    };
+  }
 
-    // `expenseDate` est une colonne `@db.Date` : on raisonne en UTC de bout en bout.
-    const ref = expenseDate ? new Date(expenseDate) : new Date();
-    const y = ref.getUTCFullYear();
-    const m = ref.getUTCMonth() + 1; // 1-based
-
-    const budgets = await this.prisma.expenseBudget.findMany({
-      where: {
-        categoryId,
-        year: y,
-        OR: [{ month: null }, { month: m }],
-      },
-      include: { category: { select: { name: true } } },
-    });
-    if (budgets.length === 0) return;
-
-    const admins = await this.prisma.user.findMany({
-      where: {
-        role: { is: { name: 'admin' } },
-        status: 'active',
-        deletedAt: null,
-      } as any,
+  private async notifyBudget(budgetId: string, label: string, pct: number, exceeded: boolean, roles: string[]) {
+    const recipients = await this.prisma.user.findMany({
+      where: { role: { is: { name: { in: roles } } }, status: 'active', deletedAt: null } as any,
       select: { id: true },
     });
-    if (admins.length === 0) return;
+    if (recipients.length === 0) return;
+    const title = exceeded ? `Budget dépassé — ${label}` : `Alerte budget ${pct} % — ${label}`;
+    const message = exceeded
+      ? `Le budget « ${label} » est dépassé : ${pct} % consommé (engagé + réalisé).`
+      : `Le budget « ${label} » atteint ${pct} % (engagé + réalisé).`;
+    await Promise.all(recipients.map((u) => this.notifQueue.add('notification', {
+      userId: u.id, type: 'budget_exceeded', title, message, data: { budgetId, threshold: pct, exceeded },
+    })));
+  }
 
-    for (const budget of budgets) {
-      // Bornes en UTC : `new Date(y, m, d)` vaut minuit LOCAL et décale la fenêtre
-      // sur un serveur à l'est de UTC (Cameroun, UTC+1), faisant sortir de la période
-      // les dépenses du premier ou du dernier jour du mois.
-      const start = budget.month
-        ? new Date(Date.UTC(y, budget.month - 1, 1))
-        : new Date(Date.UTC(y, 0, 1));
-      const end = budget.month
-        ? new Date(Date.UTC(y, budget.month, 0, 23, 59, 59))
-        : new Date(Date.UTC(y, 11, 31, 23, 59, 59));
+  /**
+   * Évalue les budgets impactés par une dépense — appelé à l'APPROBATION (moment où
+   * la dépense entre dans l'« engagé » et augmente le consommé). Le paiement ne
+   * change pas le consommé (engagé → réalisé), donc le contrôle est ici, en amont.
+   * enforce + blockOnExceed → refuse l'approbation ; sinon notifie au seuil.
+   */
+  private async evaluateBudgetForExpense(expenseId: string, opts: { enforce: boolean }): Promise<void> {
+    const exp = await this.prisma.expense.findUnique({
+      where:  { id: expenseId },
+      select: { expenseDate: true, categoryId: true, officeId: true, accountingAccount: true, category: { select: { accountingAccount: true, name: true } } },
+    });
+    if (!exp) return;
+    const account = exp.accountingAccount ?? exp.category?.accountingAccount ?? null;
+    if (!account) return; // dépense non rattachée à un compte → aucun budget applicable
 
-      const agg = await this.prisma.expense.aggregate({
-        where: {
-          categoryId,
-          status: 'paid' as any,
-          deletedAt: null,
-          expenseDate: { gte: start, lte: end },
-        },
-        _sum: { amountTtc: true },
-      });
+    const ref = exp.expenseDate ? new Date(exp.expenseDate) : new Date();
+    const y = ref.getUTCFullYear();
 
-      const spent = Number(agg._sum.amountTtc ?? 0);
-      const amount = Number(budget.budgetAmount);
+    // Budgets de l'année dont le compte est un préfixe du compte de la dépense,
+    // dimensions compatibles, et dont la période contient la date de la dépense.
+    const yearBudgets = await this.prisma.expenseBudget.findMany({
+      where:   { year: y, accountNumber: { not: null } },
+      include: { category: { select: { name: true } } },
+    });
+    const matching = yearBudgets.filter((b) => {
+      if (!b.accountNumber || !account.startsWith(b.accountNumber)) return false;
+      if (b.categoryId && b.categoryId !== exp.categoryId) return false;
+      if (b.officeId && b.officeId !== exp.officeId) return false;
+      const win = ExpensesService.budgetWindow(b);
+      return ref >= win.gte && ref <= win.lte;
+    });
+    if (matching.length === 0) return;
+
+    const config = await this.budgetControlConfig();
+
+    for (const b of matching) {
+      const amount = Number(b.budgetAmount);
       if (amount <= 0) continue;
+      const kind = ExpensesService.budgetKind(b.accountNumber);
+      const win  = ExpensesService.budgetWindow(b);
+      const consumed = (await this.budgetRealized(b.accountNumber!, kind, win)) + (await this.budgetEngaged(b.accountNumber!, kind, win));
+      const pct = Math.round((consumed / amount) * 100);
+      const label = b.notes ?? (b as any).category?.name ?? b.accountNumber!;
 
-      const prevSpent = Math.max(0, spent - paidAmountTtc);
-      const prevPct = (prevSpent / amount) * 100;
-      const newPct = (spent / amount) * 100;
-
-      const catName = (budget as any).category?.name ?? 'Catégorie';
-      const periodLabel = budget.month ? `${budget.month}/${y}` : `${y}`;
-
-      const notifications: {
-        title: string;
-        message: string;
-        threshold: number;
-      }[] = [];
-
-      if (prevPct < 80 && newPct >= 80 && newPct < 100) {
-        notifications.push({
-          title: `Alerte budget 80 % — ${catName}`,
-          message: `Le budget "${catName}" (${periodLabel}) est utilisé à ${Math.round(newPct)} %. Il reste ${Math.round(amount - spent).toLocaleString()} XAF.`,
-          threshold: 80,
-        });
-      }
-      if (prevPct < 100 && newPct >= 100) {
-        notifications.push({
-          title: `Budget dépassé — ${catName}`,
-          message: `Le budget "${catName}" (${periodLabel}) est dépassé : ${Math.round(newPct)} % utilisé (dépassement de ${Math.round(spent - amount).toLocaleString()} XAF).`,
-          threshold: 100,
-        });
-      }
-
-      for (const notif of notifications) {
-        await Promise.all(
-          admins.map((admin) =>
-            this.notifQueue.add('notification', {
-              userId: admin.id,
-              type: 'budget_exceeded',
-              title: notif.title,
-              message: notif.message,
-              data: {
-                budgetId: budget.id,
-                categoryId,
-                categoryName: catName,
-                periodLabel,
-                threshold: notif.threshold,
-                percentUsed: Math.round(newPct),
-              },
-            }),
-          ),
+      if (opts.enforce && config.blockOnExceed && consumed > amount) {
+        throw AppError.badRequest(
+          `Approbation refusée : le budget « ${label} » serait dépassé (${pct} % — ${Math.round(consumed - amount).toLocaleString('fr-FR')} XAF au-dessus). Ajustez le budget ou rejetez la dépense.`,
         );
+      }
+      if (pct >= config.warnThresholdPct) {
+        await this.notifyBudget(b.id, label, pct, consumed > amount, config.notifyRoles);
       }
     }
   }
@@ -596,6 +569,9 @@ export class ExpensesService {
       where: { id, deletedAt: null },
       select: { amountTtc: true },
     });
+    // Contrôle a priori : bloque l'approbation si le budget serait dépassé (config
+    // blockOnExceed), sinon notifie au franchissement du seuil. AVANT la transition.
+    await this.evaluateBudgetForExpense(id, { enforce: true });
     const result = await this.transition(id, 'submitted', 'approved', userId, {
       approvedById: userId,
       approvedAt: new Date(),
@@ -620,11 +596,6 @@ export class ExpensesService {
   }
 
   async payExpense(id: string, userId: string, input: PayExpenseInput = {}) {
-    const expense = await this.prisma.expense.findFirst({
-      where: { id, deletedAt: null },
-      select: { categoryId: true, amountTtc: true, expenseDate: true },
-    });
-
     // Compte de trésorerie réellement utilisé (banque ou caisse). On le valide et
     // on l'enregistre sur la dépense au moment du paiement → l'écriture comptable
     // créditera ce compte 5xx précis au lieu de retomber sur la banque par défaut.
@@ -654,12 +625,8 @@ export class ExpensesService {
       accountingEngine.onExpensePaid(id, tx),
     );
     this.eventEmitter.emit('expense.paid', { expenseId: id });
-    // Alertes budget (fire-and-forget — ne bloque pas la réponse)
-    void this.checkBudgetAlerts(
-      expense?.categoryId ?? null,
-      Number(expense?.amountTtc ?? 0),
-      expense?.expenseDate ?? null,
-    );
+    // NB : le contrôle budgétaire est fait à l'APPROBATION (le paiement ne change pas
+    // le consommé : engagé → réalisé). On ne re-notifie donc pas ici.
     return result;
   }
 

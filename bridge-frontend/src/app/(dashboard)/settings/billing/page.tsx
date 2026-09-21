@@ -257,7 +257,7 @@ function AccountingSection() {
     | 'defaultClientAccount' | 'defaultSupplierAccount' | 'defaultBankAccount'
     | 'defaultSalesGoodsAccount' | 'defaultSalesServiceAccount' | 'defaultPurchaseAccount'
     | 'defaultExpenseAccount' | 'useAdvanceAccount' | 'advanceAccount'
-    | 'withholdingAccount' | 'withholdingRate'>>({})
+    | 'withholdingAccount' | 'withholdingRate' | 'budgetControl'>>({})
   const [dirty, setDirty] = useState(false)
 
   useEffect(() => {
@@ -283,6 +283,7 @@ function AccountingSection() {
       advanceAccount:             settings.advanceAccount,
       withholdingAccount:         settings.withholdingAccount,
       withholdingRate:            settings.withholdingRate,
+      budgetControl:              settings.budgetControl ?? { warnThresholdPct: 80, blockOnExceed: false, notifyRoles: ['admin'] },
     })
     setDirty(false)
   }, [settings])
@@ -394,6 +395,61 @@ function AccountingSection() {
                     impayé. Saisie au moment du paiement, pré-remplie à ce taux et modifiable. Défaut : 2,2 %
                     (acompte IR 2 % + 10 % CAC).
                   </p>
+                </div>
+              </AccountGroup>
+
+              <AccountGroup title="Contrôle budgétaire (module Budgets)">
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                    Seuil d'alerte (%)
+                  </label>
+                  <input
+                    type="number" min={1} max={100}
+                    value={form.budgetControl?.warnThresholdPct ?? 80}
+                    onChange={(e) => set('budgetControl', { warnThresholdPct: Math.max(1, Math.min(100, Number(e.target.value) || 0)), blockOnExceed: form.budgetControl?.blockOnExceed ?? false, notifyRoles: form.budgetControl?.notifyRoles ?? ['admin'] })}
+                    style={inputCss}
+                  />
+                  <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: '6px 0 0', lineHeight: 1.5 }}>
+                    Une notification est envoyée dès que le consommé (engagé + réalisé) d&apos;un budget atteint ce pourcentage.
+                  </p>
+                </div>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '2px 0' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.budgetControl?.blockOnExceed ?? false}
+                    onChange={(e) => set('budgetControl', { warnThresholdPct: form.budgetControl?.warnThresholdPct ?? 80, blockOnExceed: e.target.checked, notifyRoles: form.budgetControl?.notifyRoles ?? ['admin'] })}
+                    style={{ marginTop: 2, width: 16, height: 16, accentColor: 'var(--primary)', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: 13 }}>
+                    <strong>Bloquer l&apos;approbation</strong> d&apos;une dépense qui dépasse son budget
+                    <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-3)', marginTop: 3, lineHeight: 1.5 }}>
+                      Désactivé : dépassement simplement signalé. Activé : l&apos;approbation est refusée tant que le budget n&apos;est pas ajusté (contrôle a priori).
+                    </span>
+                  </span>
+                </label>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                    Rôles notifiés
+                  </label>
+                  <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                    {['admin', 'comptable', 'commercial'].map((role) => {
+                      const roles = form.budgetControl?.notifyRoles ?? ['admin']
+                      const checked = roles.includes(role)
+                      return (
+                        <label key={role} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', textTransform: 'capitalize' }}>
+                          <input
+                            type="checkbox" checked={checked}
+                            onChange={(e) => {
+                              const next = e.target.checked ? [...new Set([...roles, role])] : roles.filter((r) => r !== role)
+                              set('budgetControl', { warnThresholdPct: form.budgetControl?.warnThresholdPct ?? 80, blockOnExceed: form.budgetControl?.blockOnExceed ?? false, notifyRoles: next.length ? next : ['admin'] })
+                            }}
+                            style={{ width: 15, height: 15, accentColor: 'var(--primary)', cursor: 'pointer' }}
+                          />
+                          {role}
+                        </label>
+                      )
+                    })}
+                  </div>
                 </div>
               </AccountGroup>
             </div>

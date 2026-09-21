@@ -47,6 +47,12 @@ export interface CompanySettings {
     checkLevels?:     CheckLevel[]
     draftCheckLevels?: CheckLevel[]
   } | null
+  // Contrôle budgétaire (module Budgets)
+  budgetControl:                {
+    warnThresholdPct: number
+    blockOnExceed:    boolean
+    notifyRoles:      string[]
+  } | null
   // Comptes comptables SYSCOHADA
   initialStockAccount:          string
   escompteAccountingAccount:    string

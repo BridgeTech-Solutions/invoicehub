@@ -50,6 +50,13 @@ export const updateSettingsSchema = z.object({
 
   footerSafeZonePx: z.number().int().min(0).optional(),
 
+  // Contrôle budgétaire (module Budgets)
+  budgetControl: z.object({
+    warnThresholdPct: z.number().int().min(1).max(100),
+    blockOnExceed:    z.boolean(),
+    notifyRoles:      z.array(z.string().min(1)).max(10),
+  }).optional(),
+
   // Comptes comptables SYSCOHADA
   initialStockAccount:         z.string().max(20).optional(),
   escompteAccountingAccount:   z.string().max(20).optional(),

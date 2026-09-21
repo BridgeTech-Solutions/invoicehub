@@ -224,6 +224,7 @@ CREATE TABLE company_settings (
     -- Relances automatiques
     auto_reminder_days      SMALLINT[]           DEFAULT ARRAY[7, 14, 30],
     reminder_escalation     JSONB                NOT NULL DEFAULT '{}',
+    budget_control          JSONB                NOT NULL DEFAULT '{"warnThresholdPct": 80, "blockOnExceed": false, "notifyRoles": ["admin"]}'::jsonb,
 
     -- Comptes comptables
     initial_stock_account         VARCHAR(20) NOT NULL DEFAULT '1042',
