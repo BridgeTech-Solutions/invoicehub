@@ -58,6 +58,13 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-09-21 — Budgets v2 (Phase 4.1) : engagé = dépenses + commandes d'achat
+L'« engagé » d'un budget inclut désormais les **commandes d'achat ouvertes** (statut
+`sent`/`confirmed`, non `fullyInvoiced`), rattachées au **compte d'achat par défaut**
+(`company_settings.default_purchase_account`), en plus des dépenses approuvées non payées.
+On s'arrête à `confirmed` pour ne pas double-compter avec le réalisé (le grand-livre prend
+le relais à la validation de la facture fournisseur). Aucune migration SQL.
+
 ### 2026-09-21 — Budgets v2 (Phase 3b) : édition + révisions/versions
 - **Édition d'un budget** (bouton crayon sur chaque carte) : réutilise la modale, permet
   de modifier compte/dimensions/période/montant.

@@ -754,10 +754,18 @@ export class ExpensesService {
     return kind === 'revenue' ? c - d : d - c; // charge : solde débiteur ; produit : solde créditeur
   }
 
-  /** Engagé = dépenses approuvées/soumises NON encore payées (pas d'écriture) mappées au compte. */
+  /**
+   * Engagé = ce qui grève déjà le budget sans être encore comptabilisé (réalisé) :
+   *  1) dépenses approuvées/soumises non payées, mappées au compte ;
+   *  2) commandes d'achat ouvertes (envoyées/confirmées, NON facturées) rattachées au
+   *     compte d'achat par défaut. On s'arrête à « confirmed » : dès la réception/
+   *     facturation fournisseur, le montant bascule en réalisé (écriture au grand-livre)
+   *     — les compter ici en plus le double-compterait.
+   */
   private async budgetEngaged(accountNumber: string, kind: 'charge' | 'revenue' | 'other', win: { gte: Date; lte: Date }): Promise<number> {
     if (kind !== 'charge') return 0;
-    const agg = await this.prisma.expense.aggregate({
+
+    const expAgg = await this.prisma.expense.aggregate({
       where: {
         status: { in: ['submitted', 'approved'] as any },
         deletedAt: null,
@@ -769,7 +777,25 @@ export class ExpensesService {
       },
       _sum: { amountTtc: true },
     });
-    return Number(agg._sum.amountTtc ?? 0);
+    let engaged = Number(expAgg._sum.amountTtc ?? 0);
+
+    // Commandes d'achat ouvertes → compte d'achat par défaut (les commandes n'ont pas
+    // de compte par ligne). Un budget sur ce compte (ou un compte parent) les capte.
+    const settings = await this.prisma.companySettings.findFirst({ select: { defaultPurchaseAccount: true } });
+    const poAccount = settings?.defaultPurchaseAccount ?? null;
+    if (poAccount && poAccount.startsWith(accountNumber)) {
+      const poAgg = await this.prisma.purchaseOrder.aggregate({
+        where: {
+          status: { in: ['sent', 'confirmed'] as any },
+          fullyInvoiced: false,
+          deletedAt: null,
+          issueDate: { gte: win.gte, lte: win.lte },
+        },
+        _sum: { totalTtc: true },
+      });
+      engaged += Number(poAgg._sum.totalTtc ?? 0);
+    }
+    return engaged;
   }
 
   async listBudgets(params: { year?: number; categoryId?: string; officeId?: string; accountNumber?: string }) {
