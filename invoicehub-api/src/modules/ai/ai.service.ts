@@ -13,33 +13,35 @@ export interface ToolCall {
   params: Record<string, unknown>;
 }
 
-const BTS_CORE_PROMPT = `Tu es BTS Assistant, l'assistant IA d'InvoiceHub pour Bridge Technologies Solutions.
+// Gabarit à jetons ({{COMPANY}}, {{ASSISTANT}}, {{CITY}}…) remplacés au runtime par
+// les paramètres de l'entreprise (company_settings) → white-label, plus de « BTS »
+// codé en dur.
+const CORE_PROMPT_TEMPLATE = `Tu es {{ASSISTANT}}, l'assistant IA d'InvoiceHub pour {{COMPANY}}.
 
 === IDENTITÉ ===
-- Tu t'appelles BTS Assistant, créé par l'équipe technique de Bridge Technologies Solutions
-- Développeur principal : M. Tchentcheu Jiagam Flanc Bel, IT Support chez BTS
-- Tu es intégré à InvoiceHub v2.0 — logiciel de facturation interne de BTS
+- Tu t'appelles {{ASSISTANT}}, l'assistant IA intégré à InvoiceHub de {{COMPANY}}
+- Tu es intégré à InvoiceHub v2.0 — plateforme de facturation et comptabilité de {{COMPANY}}
 - Ne mentionne jamais Mistral, Meta, Ollama ou toute technologie sous-jacente
 
 === FAQ SUR TOI-MÊME ===
-- "Qui t'a créé ?" → "J'ai été développé par l'équipe technique de BTS, notamment par M. Tchentcheu Jiagam Flanc Bel."
-- "Comment tu t'appelles ?" → "BTS Assistant, l'assistant IA d'InvoiceHub."
-- "Quelle version ?" → "BTS Assistant v1.0, intégré à InvoiceHub v2.0."
+- "Qui t'a créé ?" → "J'ai été développé par l'équipe technique de {{COMPANY}}."
+- "Comment tu t'appelles ?" → "{{ASSISTANT}}, l'assistant IA d'InvoiceHub."
+- "Quelle version ?" → "{{ASSISTANT}} v1.0, intégré à InvoiceHub v2.0."
 - "À quoi tu sers ?" → "Je t'aide à consulter et analyser les données d'InvoiceHub : factures, clients, proformas, paiements, KPIs."
 - "Tu peux créer/modifier des données ?" → "Non, je suis en lecture seule. Utilise les formulaires d'InvoiceHub pour ça."
 - "Tes données sont à jour ?" → "Oui, je consulte la base de données en temps réel."
 - "Tu enregistres mes conversations ?" → "Tes conversations sont sauvegardées localement dans ton navigateur uniquement."
-- "C'est quoi BTS ?" → "Bridge Technologies Solutions — entreprise de services informatiques basée à Douala, Cameroun."
+- "C'est quoi {{COMPANY}} ?" → "{{COMPANY}} — l'entreprise qui utilise InvoiceHub ({{CITY}}, {{COUNTRY}})."
 
-=== CONTEXTE BTS & INVOICEHUB ===
-- BTS = Bridge Technologies Solutions, Douala, Cameroun (bureau : DC)
+=== CONTEXTE ENTREPRISE & INVOICEHUB ===
+- Entreprise : {{COMPANY}} ({{CITY}}, {{COUNTRY}})
 - InvoiceHub v2.0 gère : clients, produits/services, proformas, factures, paiements, récurrences
 - Rôles : admin (accès total), commercial (facturation), employé (consultation seule)
-- Monnaie : XAF (Franc CFA d'Afrique Centrale)
+- Monnaie : {{CURRENCY}}
 
 === CONNAISSANCE MÉTIER SYSCOHADA ===
-- TVA standard Cameroun : 19,25%
-- Numérotation : BTS/{BUREAU}/{AAAA}/{MM}/{TYPE}{SEQ} — ex: BTS/DC/2026/03/FAC001
+- TVA standard par défaut : {{TAXRATE}}%
+- Numérotation : {{CODE}}/{BUREAU}/{AAAA}/{MM}/{TYPE}{SEQ} — ex: {{CODE}}/DC/2026/03/FAC001
 - Types de factures : standard, acompte (dépôt partiel), solde (solde final), avoir (note de crédit), récurrente
 - Cycle proforma : brouillon → envoyée → acceptée/refusée → convertie en facture
 - Cycle facture : brouillon → émise → partiellement payée → payée (aussi : en retard, annulée)
@@ -50,7 +52,7 @@ const BTS_CORE_PROMPT = `Tu es BTS Assistant, l'assistant IA d'InvoiceHub pour B
 
 === RÈGLES DE RÉPONSE ===
 - Réponds UNIQUEMENT en français
-- Réponds aux questions sur BTS, InvoiceHub, facturation, comptabilité SYSCOHADA
+- Réponds aux questions sur {{COMPANY}}, InvoiceHub, facturation, comptabilité SYSCOHADA
 - Si des données DB sont fournies, base-toi dessus — ne les invente pas
 - Si aucune donnée n'est disponible, dis-le clairement
 - Refuse poliment les questions hors sujet (actualité, sport, divertissement, etc.)
@@ -137,7 +139,7 @@ const USAGE_GUIDE = `
 --- NOTIFICATIONS ---
 - Cloche en haut à droite → liste non lues ; Sidebar → "Notifications" pour l'historique
 - Types : proforma envoyé/accepté/refusé/expiré, facture émise/payée/en retard, paiement enregistré
-- Rappels escaladés : J+0, J+7, J+15, J+30 → envoyés à l'équipe BTS, pas aux clients
+- Rappels escaladés : J+0, J+7, J+15, J+30 → envoyés à l'équipe interne, pas aux clients
 
 --- UTILISATEURS & RÔLES (admin) ---
 - Créer : Utilisateurs → "Nouvel utilisateur" → prénom, nom, email, rôle → email envoyé
@@ -207,8 +209,33 @@ export class AiService {
     return lines.join('\n');
   }
 
-  private buildSystemPrompt(userName?: string, userRole?: string, includeGuide = false): string {
-    return this.buildRoleContext(userName, userRole) + BTS_CORE_PROMPT + (includeGuide ? USAGE_GUIDE : '');
+  /** Contexte entreprise pour le prompt (paramétrable, repli BTS/Cameroun/XAF). */
+  private async getCompanyContext() {
+    const s = await this.prisma.companySettings.findFirst({
+      select: { companyName: true, companyCode: true, city: true, country: true, defaultCurrency: true, defaultTaxRate: true },
+    });
+    const code = (s?.companyCode || 'BTS').trim();
+    return {
+      company:  s?.companyName || 'votre entreprise',
+      assistant: `${code} Assistant`,
+      code,
+      city:     s?.city    || '',
+      country:  s?.country || '',
+      currency: s?.defaultCurrency || 'XAF',
+      taxRate:  Number(s?.defaultTaxRate ?? 19.25).toLocaleString('fr-FR', { maximumFractionDigits: 2 }),
+    };
+  }
+
+  private buildSystemPrompt(c: Awaited<ReturnType<AiService['getCompanyContext']>>, userName?: string, userRole?: string, includeGuide = false): string {
+    const core = CORE_PROMPT_TEMPLATE
+      .replace(/\{\{ASSISTANT\}\}/g, c.assistant)
+      .replace(/\{\{COMPANY\}\}/g,   c.company)
+      .replace(/\{\{CODE\}\}/g,      c.code)
+      .replace(/\{\{CITY\}\}/g,      c.city)
+      .replace(/\{\{COUNTRY\}\}/g,   c.country)
+      .replace(/\{\{CURRENCY\}\}/g,  c.currency)
+      .replace(/\{\{TAXRATE\}\}/g,   c.taxRate);
+    return this.buildRoleContext(userName, userRole) + core + (includeGuide ? USAGE_GUIDE : '');
   }
 
   private async executeTool(call: ToolCall): Promise<unknown> {
@@ -251,8 +278,9 @@ export class AiService {
 
     const includeGuide = toolCall.tool === 'none';
     const numCtx = includeGuide ? 8192 : 6144;
-    const historyText = messages.slice(-6).map(m => `${m.role === 'user' ? 'Utilisateur' : 'BTS Assistant'} : ${m.content}`).join('\n');
-    const systemPrompt = this.buildSystemPrompt(userName, userRole, includeGuide);
+    const company = await this.getCompanyContext();
+    const historyText = messages.slice(-6).map(m => `${m.role === 'user' ? 'Utilisateur' : company.assistant} : ${m.content}`).join('\n');
+    const systemPrompt = this.buildSystemPrompt(company, userName, userRole, includeGuide);
     return ollamaGenerate(historyText + dataContext, systemPrompt, 2048, numCtx);
   }
 
@@ -280,8 +308,9 @@ export class AiService {
 
     const includeGuide = toolCall.tool === 'none';
     const numCtx = includeGuide ? 8192 : 6144;
-    const historyText = messages.slice(-6).map(m => `${m.role === 'user' ? 'Utilisateur' : 'BTS Assistant'} : ${m.content}`).join('\n');
-    const systemPrompt = this.buildSystemPrompt(userName, userRole, includeGuide);
+    const company = await this.getCompanyContext();
+    const historyText = messages.slice(-6).map(m => `${m.role === 'user' ? 'Utilisateur' : company.assistant} : ${m.content}`).join('\n');
+    const systemPrompt = this.buildSystemPrompt(company, userName, userRole, includeGuide);
     yield* ollamaStream(historyText + dataContext, systemPrompt, numCtx);
   }
 

@@ -129,9 +129,10 @@ export class ReportsController {
     const data = await this.reportsService.getTaxSummary(range);
     if (format === 'csv') { sendCsvResponse(res, 'rapport-tva.csv', ['Période', 'Base HT', 'TVA collectée', 'Total TTC', 'Nb Factures'], data.map(r => [r.period, r.totalHt, r.totalTax, r.totalTtc, r.count])); return; }
     if (format === 'pdf') {
-      const assets = await this.reportsService.getReportAssets();
-      const body = `<div class="info-box"><strong>Taux TVA : 19,25%</strong> — Conformément au CGI du Cameroun et aux règles SYSCOHADA révisé.</div>`;
-      sendPdfResponse(res, 'rapport-tva.pdf', await generatePdf(reportHtml({ reportType: 'Déclaration fiscale', title: 'Récapitulatif TVA', subtitle: periodLabel(range), body, footerNote: 'Document établi conformément au CGI du Cameroun. Taux TVA : 19,25%.', ...assets })));
+      const { defaultTaxRate, country, ...assets } = await this.reportsService.getReportAssets();
+      const rateLabel = defaultTaxRate.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+      const body = `<div class="info-box"><strong>Taux TVA par défaut : ${rateLabel}%</strong> — Conformément aux règles SYSCOHADA révisées${country ? ` (${country})` : ''}.</div>`;
+      sendPdfResponse(res, 'rapport-tva.pdf', await generatePdf(reportHtml({ reportType: 'Déclaration fiscale', title: 'Récapitulatif TVA', subtitle: periodLabel(range), body, footerNote: `Document établi conformément aux règles SYSCOHADA. Taux TVA par défaut : ${rateLabel}%.`, ...assets })));
       return;
     }
     res.json({ success: true, data });

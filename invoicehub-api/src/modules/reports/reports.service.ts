@@ -135,10 +135,12 @@ export class ReportsService {
   }
 
   async getReportAssets() {
-    const settings = await this.prisma.companySettings.findFirst({ select: { companyName: true, headerImagePath: true, footerImagePath: true } });
+    const settings = await this.prisma.companySettings.findFirst({ select: { companyName: true, headerImagePath: true, footerImagePath: true, defaultTaxRate: true, country: true } });
     const { headerImageB64, footerImageB64 } = resolveDocumentAssets(settings ?? null);
     return {
       companyName: settings?.companyName ?? 'Bridge Technologies Solutions',
+      defaultTaxRate: Number(settings?.defaultTaxRate ?? 19.25),
+      country: settings?.country ?? 'Cameroun',
       headerImageB64,
       footerImageB64,
     };
