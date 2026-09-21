@@ -2444,7 +2444,20 @@ CREATE TRIGGER tg_expense_budgets_updated_at
     BEFORE UPDATE ON expense_budgets
     FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
 
-COMMENT ON TABLE expense_budgets IS 'Budgets prévisionnels par catégorie de dépenses. Comparatif Budget vs Réalisé dans les rapports.';
+COMMENT ON TABLE expense_budgets IS 'Budgets par compte comptable (6/7) + dimensions. Budget vs Réalisé (engagé/réalisé/disponible depuis le grand-livre).';
+
+-- Historique des révisions de budget (montant initial vs révisé)
+CREATE TABLE budget_revisions (
+    id              UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+    budget_id       UUID          NOT NULL REFERENCES expense_budgets(id) ON DELETE CASCADE,
+    previous_amount NUMERIC(15,2) NOT NULL,
+    new_amount      NUMERIC(15,2) NOT NULL,
+    reason          TEXT,
+    changed_by      UUID          REFERENCES users(id) ON DELETE SET NULL,
+    created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_budget_revisions_budget ON budget_revisions (budget_id, created_at DESC);
+COMMENT ON TABLE budget_revisions IS 'Journal des changements de montant d''un budget (audit budget initial vs révisé).';
 
 -- ================================================================
 -- ████████████████████████████████████████████████████████████████

@@ -209,6 +209,27 @@ export function useCreateBudget(year: number) {
   })
 }
 
+export function useUpdateBudget(year: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<CreateBudgetPayload> & { reason?: string } }) => expensesApi.updateBudget(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: EXPENSE_KEYS.budgets(year) })
+      toast.success('Budget mis à jour')
+    },
+    onError: (e: unknown) => toast.error((e as Error)?.message ?? 'Erreur lors de la mise à jour'),
+  })
+}
+
+export function useBudgetRevisions(budgetId: string | null) {
+  return useQuery({
+    queryKey: ['budget-revisions', budgetId],
+    queryFn:  () => expensesApi.budgetRevisions(budgetId!),
+    enabled:  !!budgetId,
+    staleTime: 30_000,
+  })
+}
+
 export function useDeleteBudget(year: number) {
   const qc = useQueryClient()
   return useMutation({

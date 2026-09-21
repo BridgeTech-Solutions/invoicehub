@@ -58,6 +58,19 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-09-21 — Budgets v2 (Phase 3b) : édition + révisions/versions
+- **Édition d'un budget** (bouton crayon sur chaque carte) : réutilise la modale, permet
+  de modifier compte/dimensions/période/montant.
+- **Révisions/versions** : tout changement de **montant** est journalisé (ancien → nouveau,
+  motif, auteur, date) dans la nouvelle table `budget_revisions` ; l'historique s'affiche
+  dans la modale d'édition. Endpoint `GET /expense-budgets/:id/revisions`.
+
+```bash
+cd invoicehub-api
+npx prisma db execute --file prisma/add_budget_revisions.sql --schema prisma/schema.prisma
+```
+> Termine le module Budgets v2 (Phases 1 → 3). Aucune nouvelle dépendance.
+
 ### 2026-09-21 — Budgets v2 (Phase 3a) : report de reliquat + import Excel
 - **Report (carry-over)** : bouton « Préparer {N+1} » → recopie les budgets de l'année N
   vers N+1 (`POST /expense-budgets/carry-over` — `basis` = `budget` ou `remaining`). Les

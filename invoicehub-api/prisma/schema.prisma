@@ -684,6 +684,7 @@ model User {
   expensesPaid                     Expense[]                    @relation("ExpensePaidBy")
   expenseStatusChanges             ExpenseStatusHistory[]       @relation("ExpenseStatusChangedBy")
   expenseBudgetsCreated            ExpenseBudget[]              @relation("ExpenseBudgetCreatedBy")
+  budgetRevisions                  BudgetRevision[]             @relation("BudgetRevisionChangedBy")
   paymentsReconciled               Payment[]                    @relation("PaymentReconciledBy")
   bankAccountsCreated              BankAccount[]                @relation("BankAccountCreatedBy")
   bankTransactionsCreated          BankTransaction[]            @relation("BankTransactionCreatedBy")
@@ -1758,9 +1759,25 @@ model ExpenseBudget {
   createdBy     User?           @relation("ExpenseBudgetCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt     DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+  revisions     BudgetRevision[]
 
   @@index([accountNumber, year])
   @@map("expense_budgets")
+}
+
+model BudgetRevision {
+  id             String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  budgetId       String        @map("budget_id") @db.Uuid
+  budget         ExpenseBudget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  previousAmount Decimal       @map("previous_amount") @db.Decimal(15, 2)
+  newAmount      Decimal       @map("new_amount") @db.Decimal(15, 2)
+  reason         String?
+  changedById    String?       @map("changed_by") @db.Uuid
+  changedBy      User?         @relation("BudgetRevisionChangedBy", fields: [changedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([budgetId, createdAt])
+  @@map("budget_revisions")
 }
 
 // ================================================================
