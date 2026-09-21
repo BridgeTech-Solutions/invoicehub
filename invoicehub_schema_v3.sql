@@ -723,9 +723,14 @@ DECLARE
     v_seq         INTEGER;
     v_office_code VARCHAR(10);
     v_doc_prefix  VARCHAR(5);
+    v_company_code VARCHAR(10);
 BEGIN
     SELECT code INTO STRICT v_office_code
       FROM agency_offices WHERE id = p_office_id;
+
+    -- Préfixe = code entreprise configurable (repli 'BTS' si absent/vide).
+    SELECT NULLIF(TRIM(company_code), '') INTO v_company_code FROM company_settings LIMIT 1;
+    v_company_code := COALESCE(v_company_code, 'BTS');
 
     INSERT INTO document_sequences (office_id, document_type, year, month, last_sequence)
     VALUES (p_office_id, p_doc_type, v_year, v_month, 1)
@@ -743,7 +748,8 @@ BEGIN
         ELSE 'doc'
     END;
 
-    RETURN format('BTS/%s/%s/%s/%s%s',
+    RETURN format('%s/%s/%s/%s/%s%s',
+        v_company_code,
         v_office_code,
         v_year,
         lpad(v_month::TEXT, 2, '0'),
@@ -2139,9 +2145,14 @@ DECLARE
     v_seq         INTEGER;
     v_office_code VARCHAR(10);
     v_doc_prefix  VARCHAR(5);
+    v_company_code VARCHAR(10);
 BEGIN
     SELECT code INTO STRICT v_office_code
       FROM agency_offices WHERE id = p_office_id;
+
+    -- Préfixe = code entreprise configurable (repli 'BTS' si absent/vide).
+    SELECT NULLIF(TRIM(company_code), '') INTO v_company_code FROM company_settings LIMIT 1;
+    v_company_code := COALESCE(v_company_code, 'BTS');
 
     INSERT INTO document_sequences (office_id, document_type, year, month, last_sequence)
     VALUES (p_office_id, p_doc_type, v_year, v_month, 1)
@@ -2159,7 +2170,8 @@ BEGIN
         ELSE 'doc'
     END;
 
-    RETURN format('BTS/%s/%s/%s/%s%s',
+    RETURN format('%s/%s/%s/%s/%s%s',
+        v_company_code,
         v_office_code,
         v_year,
         lpad(v_month::TEXT, 2, '0'),

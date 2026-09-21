@@ -58,6 +58,27 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-09-21 — White-label : dé-câblage des éléments codés « BTS/Cameroun »
+Prérequis pour donner l'app à une autre entreprise (déploiement dédié) :
+- **Numérotation des documents** : le préfixe vient désormais de
+  `company_settings.company_code` (repli `BTS`), au lieu de `BTS` codé en dur dans
+  `fn_next_document_number`. Les numéros déjà émis ne changent pas.
+- **Libellés TVA des PDF** : le taux affiché (« TVA 19,25 % ») est dérivé du **taux réel
+  des lignes** (taux unique → affiché ; taux multiples → « TVA » sans taux). Le rapport
+  TVA affiche le **taux par défaut configuré** + le pays, plus de « CGI du Cameroun » figé.
+- **Assistant IA** : prompt devenu **gabarit à jetons** rempli par les paramètres
+  entreprise (nom, code, ville, pays, devise, taux) — plus d'identité « BTS » ni de nom de
+  développeur en dur. L'assistant se nomme « {company_code} Assistant ».
+- **Noms de fichiers PDF** états financiers : `{company_code}_Bilan_…` au lieu de `BTS_…`.
+
+```bash
+cd invoicehub-api
+npx prisma db execute --file prisma/add_company_code_numbering.sql --schema prisma/schema.prisma
+```
+> Reste volontairement dépendant de l'env : `TOTP_ISSUER` (label 2FA) — à définir par
+> déploiement. L'app reste **mono-entreprise** (une autre société = instance dédiée + re-seed)
+> et **orientée OHADA/SYSCOHADA** (plan comptable, états, TVA).
+
 ### 2026-09-21 — Budgets de dépenses : correction des bugs bloquants
 - **RBAC réparé** : les routes budget exigeaient `expenses:write` (permission **inexistante**
   au catalogue) → seul l'admin passait. Corrigé en `expenses:create` / `expenses:update` /

@@ -979,6 +979,14 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
         <td style="${totalTdVal}">${fmt(params.subtotalBeforeDiscountHt ?? params.subtotalHt)}</td>
       </tr>` : '';
 
+  // Libellé TVA : dérivé du taux RÉEL des lignes (plus de « 19.25 » codé en dur, qui
+  // devenait faux dès qu'on changeait le taux ou pour une autre entreprise). Taux
+  // unique → « TVA 19,25 % » ; taux multiples → « TVA » (sans taux, car agrégée).
+  const vatRates = [...new Set((params.lines ?? []).map((l) => Number(l.taxRate)).filter((r) => r > 0))];
+  const vatSuffix = vatRates.length === 1
+    ? ` ${vatRates[0]!.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}%`
+    : '';
+
   // Remise globale : si présente, on affiche la ligne de remise + TOTAL HT APRÈS REMISE
   const hasDiscount     = (params.globalDiscountAmount ?? 0) > 0;
   const discountLabel   = params.globalDiscountLabel ?? 'REMISE';
@@ -1001,7 +1009,7 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
         <td style="${totalTdVal}">${fmt(params.acompteHt)}</td>
       </tr>
       <tr>
-        <td colspan="${span}" style="${totalTd}">TVA SUR ACOMPTE 19.25%</td>
+        <td colspan="${span}" style="${totalTd}">TVA SUR ACOMPTE${vatSuffix}</td>
         <td style="${totalTdVal}">${fmt(params.acompteTax)}</td>
       </tr>
       <tr>
@@ -1018,7 +1026,7 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
         <td style="${totalTdVal}">${fmt(params.soldeHt)}</td>
       </tr>
       <tr>
-        <td colspan="${span}" style="${totalTd}">TVA SUR SOLDE 19.25%</td>
+        <td colspan="${span}" style="${totalTd}">TVA SUR SOLDE${vatSuffix}</td>
         <td style="${totalTdVal}">${fmt(params.soldeTax)}</td>
       </tr>
       <tr>
@@ -1031,7 +1039,7 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
       ${totalHtRow}
       ${discountRows}
       <tr>
-        <td colspan="${span}" style="${totalTd}">TVA 19.25%</td>
+        <td colspan="${span}" style="${totalTd}">TVA${vatSuffix}</td>
         <td style="${totalTdVal}">${fmt(params.totalTax)}</td>
       </tr>
       <tr>
@@ -1182,7 +1190,7 @@ export function buildDocumentHtml(params: DocumentHtmlParams): string {
         <div class="seal-block" style="text-align:right;margin-top:10px;padding-right:30px;">
           <div style="display:inline-block;text-align:center;width:240px;">
             <p style="font-weight:bold;font-size:12px;margin-bottom:12px;text-decoration:underline;">Le Service Commercial</p>
-            <img src="${sealImg}" style="width:240px;" alt="cachet BTS" />
+            <img src="${sealImg}" style="width:240px;" alt="Cachet" />
           </div>
         </div>`;
     }
@@ -1426,7 +1434,7 @@ export function buildReceiptHtml(params: ReceiptParams): string {
 
     <div style="text-align:right;margin-top:16px;margin-right:20px;">
       <p style="font-weight:bold;font-size:12px;margin-bottom:10px;">La Caisse</p>
-      ${sealImg ? `<img src="${sealImg}" style="width:240px;" alt="cachet BTS" />` : ''}
+      ${sealImg ? `<img src="${sealImg}" style="width:240px;" alt="Cachet" />` : ''}
     </div>
   </div>
 </body>

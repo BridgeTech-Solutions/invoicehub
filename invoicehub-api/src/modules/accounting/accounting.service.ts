@@ -1246,7 +1246,7 @@ export class AccountingService {
     const settings = await this.prisma.companySettings.findFirst({
       select: {
         headerImagePath: true, footerImagePath: true, stampPath: true,
-        companyName: true, taxNumber: true, rccm: true, address: true, city: true, defaultCurrency: true,
+        companyName: true, companyCode: true, taxNumber: true, rccm: true, address: true, city: true, defaultCurrency: true,
       },
     });
     const { headerImageB64, footerImageB64 } = resolveDocumentAssets(settings ?? null);
@@ -1262,6 +1262,7 @@ export class AccountingService {
     }
     return {
       headerImg: headerImageB64, footerImg: footerImageB64, periodLabel, closingDate,
+      companyCode: (settings?.companyCode || 'BTS').trim(),
       companyName: settings?.companyName ?? 'Bridge Technologies Solutions',
       niu:      settings?.taxNumber ?? undefined,
       rccm:     settings?.rccm ?? undefined,
@@ -1343,7 +1344,7 @@ export class AccountingService {
       headerImg: meta.headerImg, footerImg: meta.footerImg, bodyHtml,
     });
     const buffer = await generatePdf(html);
-    return { buffer, filename: `BTS_Bilan_${meta.periodLabel.replace(/[^\w]+/g, '-')}.pdf` };
+    return { buffer, filename: `${meta.companyCode}_Bilan_${meta.periodLabel.replace(/[^\w]+/g, '-')}.pdf` };
   }
 
   async generateCompteResultatPdf(scope: { fiscalPeriodId?: string; fiscalYear?: number }) {
@@ -1369,7 +1370,7 @@ export class AccountingService {
       headerImg: meta.headerImg, footerImg: meta.footerImg, bodyHtml,
     });
     const buffer = await generatePdf(html);
-    return { buffer, filename: `BTS_Compte-resultat_${meta.periodLabel.replace(/[^\w]+/g, '-')}.pdf` };
+    return { buffer, filename: `${meta.companyCode}_Compte-resultat_${meta.periodLabel.replace(/[^\w]+/g, '-')}.pdf` };
   }
 
   // ── Déclarations fiscales ───────────────────────────────────────────────────
