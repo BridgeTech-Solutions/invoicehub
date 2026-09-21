@@ -528,6 +528,8 @@ model CompanySettings {
   require2FA                   Boolean  @default(false) @map("require_2fa")
   autoReminderDays             Int[]    @default([7, 14, 30]) @map("auto_reminder_days")
   reminderEscalation           Json     @default("{}") @map("reminder_escalation")
+  /// Contrôle budgétaire : { warnThresholdPct, blockOnExceed, notifyRoles[] }. Défauts en code.
+  budgetControl                Json     @default("{}") @map("budget_control")
   initialStockAccount          String   @default("1042") @map("initial_stock_account") @db.VarChar(20)
   escompteAccountingAccount    String   @default("673") @map("escompte_accounting_account") @db.VarChar(20)
   collectedTaxAccount          String   @default("4431") @map("collected_tax_account") @db.VarChar(20)

@@ -122,6 +122,7 @@ export class SettingsService {
           ...(input.autoReminderDays           !== undefined && { autoReminderDays:           input.autoReminderDays }),
           ...(input.footerSafeZonePx             !== undefined && { footerSafeZonePx:             input.footerSafeZonePx }),
           ...(input.reminderEscalation           !== undefined && { reminderEscalation:           input.reminderEscalation }),
+          ...(input.budgetControl                !== undefined && { budgetControl:                input.budgetControl }),
           ...(input.initialStockAccount          !== undefined && { initialStockAccount:          input.initialStockAccount }),
           ...(input.escompteAccountingAccount    !== undefined && { escompteAccountingAccount:    input.escompteAccountingAccount }),
           ...(input.collectedTaxAccount          !== undefined && { collectedTaxAccount:          input.collectedTaxAccount }),

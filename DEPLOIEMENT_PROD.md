@@ -58,6 +58,25 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-09-21 — Budgets v2 (Phase 1b) : contrôle a priori + alertes configurables
+- **Contrôle a priori** : à l'**approbation** d'une dépense, si son compte/période dépasse
+  le budget → **blocage** (refus d'approbation) si `blockOnExceed`, sinon **alerte** au
+  franchissement du seuil. Le contrôle est à l'approbation (le paiement ne change pas le
+  consommé : engagé → réalisé).
+- **Alertes cohérentes** : `checkBudgetAlerts` (par catégorie, au paiement) remplacé par
+  une évaluation **par compte** réutilisant réalisé + engagé. Fini l'incohérence introduite
+  en Phase 1 (les budgets par compte n'étaient plus surveillés).
+- **Configurable** : `company_settings.budget_control` = `{ warnThresholdPct, blockOnExceed,
+  notifyRoles[] }`, éditable dans **Paramètres → Facturation → Contrôle budgétaire** (fini
+  le 80/100 % et « admins » codés en dur).
+
+```bash
+cd invoicehub-api
+npx prisma db execute --file prisma/add_budget_control.sql --schema prisma/schema.prisma
+```
+> Défauts : seuil 80 %, blocage désactivé, notifie les `admin`. Aucun changement de
+> comportement bloquant tant que `blockOnExceed` n'est pas activé.
+
 ### 2026-09-21 — Budgets v2 (Phase 1) : par compte comptable + engagé/réalisé/disponible
 Refonte du module budget en outil de pilotage :
 - Le budget cible désormais un **compte comptable** (classe 6 charge / 7 produit) avec
