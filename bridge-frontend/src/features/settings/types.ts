@@ -52,6 +52,7 @@ export interface CompanySettings {
     warnThresholdPct: number
     blockOnExceed:    boolean
     notifyRoles:      string[]
+    requireApproval?: boolean
   } | null
   // Comptes comptables SYSCOHADA
   initialStockAccount:          string

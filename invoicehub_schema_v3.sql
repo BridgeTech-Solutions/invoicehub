@@ -2427,6 +2427,7 @@ CREATE TABLE expense_budgets (
     category_id     UUID        REFERENCES expense_categories(id) ON DELETE CASCADE,  -- dimension optionnelle
     office_id       UUID        REFERENCES agency_offices(id) ON DELETE SET NULL,     -- dimension optionnelle
     period_type     VARCHAR(10) NOT NULL DEFAULT 'annual',  -- annual | quarterly | monthly
+    status          VARCHAR(10) NOT NULL DEFAULT 'active',   -- draft | active (gouvernance)
     year            SMALLINT    NOT NULL,
     quarter         SMALLINT,        -- 1..4 si period_type = quarterly
     month           SMALLINT,        -- 1..12 si period_type = monthly

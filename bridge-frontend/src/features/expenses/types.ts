@@ -134,6 +134,7 @@ export interface ExpenseBudget {
   accountNumber: string | null
   accountName:   string | null
   kind:          'charge' | 'revenue' | 'other'
+  status:        'draft' | 'active'
   categoryId:    string | null
   category:      { id: string; name: string; color: string | null } | null
   officeId:      string | null

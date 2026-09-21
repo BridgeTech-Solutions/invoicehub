@@ -58,6 +58,20 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-09-22 — Budgets v2 (Phase 4.6) : workflow d'approbation du budget (opt-in)
+- Nouvelle colonne `expense_budgets.status` (`draft`/`active`, défaut **`active`** → aucun
+  changement pour les budgets existants).
+- Si `company_settings.budget_control.requireApproval = true` : un budget créé naît en
+  **`draft`** et **ne s'applique au contrôle a priori qu'une fois activé** (bouton « Activer »,
+  droit `expenses:approve`, route `POST /expense-budgets/:id/activate`).
+- Réglage dans **Paramètres → Facturation → Contrôle budgétaire**.
+
+```bash
+cd invoicehub-api
+npx prisma db execute --file prisma/add_budget_status.sql --schema prisma/schema.prisma
+```
+> Opt-in : par défaut `requireApproval` est faux et les budgets sont actifs immédiatement.
+
 ### 2026-09-21 — Budgets v2 (Phase 4.1) : engagé = dépenses + commandes d'achat
 L'« engagé » d'un budget inclut désormais les **commandes d'achat ouvertes** (statut
 `sent`/`confirmed`, non `fullyInvoiced`), rattachées au **compte d'achat par défaut**

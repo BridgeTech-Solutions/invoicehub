@@ -1750,6 +1750,7 @@ model ExpenseBudget {
   office        AgencyOffice?   @relation("ExpenseBudgetOffice", fields: [officeId], references: [id], onDelete: SetNull)
   // QUAND : périodicité + repères.
   periodType    String          @default("annual") @map("period_type") @db.VarChar(10) // annual | quarterly | monthly
+  status        String          @default("active") @db.VarChar(10) // draft | active (gouvernance)
   year          Int             @db.SmallInt
   quarter       Int?            @db.SmallInt
   month         Int?            @db.SmallInt
