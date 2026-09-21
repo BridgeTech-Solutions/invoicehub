@@ -129,6 +129,13 @@ export class ExpenseBudgetsController {
     return this.svc.activateBudget(id);
   }
 
+  @Post(':id/spread')
+  @Permission('expenses:update')
+  @HttpCode(HttpStatus.OK)
+  async spread(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.svc.spreadBudgetToMonthly(id, user.sub);
+  }
+
   @Delete(':id')
   @Permission('expenses:delete')
   @HttpCode(HttpStatus.OK)

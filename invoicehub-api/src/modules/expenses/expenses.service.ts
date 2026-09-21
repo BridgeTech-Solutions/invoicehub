@@ -916,6 +916,40 @@ export class ExpensesService {
     });
   }
 
+  /**
+   * Ventile un budget ANNUEL en 12 budgets mensuels (répartition égale, résidu d'arrondi
+   * sur décembre) et supprime l'annuel — évite tout double comptage dans la consolidation.
+   * Le statut (draft/active) et les dimensions sont conservés.
+   */
+  async spreadBudgetToMonthly(id: string, userId: string) {
+    const b = await this.prisma.expenseBudget.findUnique({ where: { id } });
+    if (!b) throw AppError.notFound('Budget introuvable');
+    if (b.periodType !== 'annual') throw AppError.badRequest('Seul un budget annuel peut être ventilé sur les mois.');
+
+    // Refuse s'il existe déjà un budget mensuel pour ce compte/dimension/année.
+    const existingMonthly = await this.prisma.expenseBudget.findFirst({
+      where: { accountNumber: b.accountNumber, categoryId: b.categoryId, officeId: b.officeId, year: b.year, periodType: 'monthly' },
+      select: { id: true },
+    });
+    if (existingMonthly) throw AppError.conflict('Des budgets mensuels existent déjà pour ce compte/dimension et cette année.');
+
+    const total = Math.round(Number(b.budgetAmount));
+    const base = Math.floor(total / 12);
+    const rows = Array.from({ length: 12 }, (_, i) => ({
+      accountNumber: b.accountNumber, categoryId: b.categoryId, officeId: b.officeId,
+      year: b.year, periodType: 'monthly', month: i + 1, quarter: null,
+      status: b.status, notes: b.notes,
+      budgetAmount: i === 11 ? total - base * 11 : base, // décembre absorbe le résidu
+      createdById: userId,
+    }));
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.expenseBudget.delete({ where: { id } });
+      await tx.expenseBudget.createMany({ data: rows as any });
+      return { spread: 12, monthlyAmount: base, year: b.year };
+    });
+  }
+
   /** Active un budget en brouillon (workflow d'approbation). */
   async activateBudget(id: string) {
     const budget = await this.prisma.expenseBudget.findUnique({ where: { id }, select: { id: true, status: true } });
