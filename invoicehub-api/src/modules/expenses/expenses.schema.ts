@@ -61,14 +61,18 @@ export const payExpenseSchema = z.object({
 // ── Budgets ───────────────────────────────────────────────────────────────────
 
 export const createBudgetSchema = z.object({
-  // La colonne category_id est NOT NULL : un budget cible toujours une catégorie
-  // (un budget "global" serait une évolution séparée, pas un category_id null).
-  categoryId:  z.string().uuid('Catégorie requise'),
+  // QUOI : compte comptable budgété (classe 6 charge / 7 produit) — cible principale.
+  accountNumber: z.string().max(20).optional().nullable(),
+  // Dimensions optionnelles.
+  categoryId:  z.string().uuid().optional().nullable(),
+  officeId:    z.string().uuid().optional().nullable(),
+  // QUAND.
+  period:      z.enum(['annual', 'quarterly', 'monthly']).optional(),
   year:        z.number().int().min(2020).max(2100),
+  quarter:     z.number().int().min(1).max(4).optional().nullable(),
   month:       z.number().int().min(1).max(12).optional().nullable(),
   amount:      z.number().positive(),  // frontend field → DB budgetAmount
   label:       z.string().optional().nullable(), // stocké dans notes
-  period:      z.enum(['annual', 'monthly']).optional(), // 'annual' → month null
   notes:       z.string().optional().nullable(),
 });
 

@@ -750,79 +750,173 @@ export class ExpensesService {
     res.sendFile(filePath);
   }
 
-  // ── Budgets ───────────────────────────────────────────────────────────────────
+  // ══ Budgets (par compte comptable 6/7 + dimensions) ═══════════════════════════
 
-  async listBudgets(params: { year?: number; categoryId?: string }) {
+  // Fenêtre calendaire d'un budget selon sa périodicité, bornée en UTC (les dates
+  // comptables/dépenses sont @db.Date → minuit UTC).
+  private static budgetWindow(b: { periodType: string; year: number; quarter: number | null; month: number | null }) {
+    const y = b.year;
+    if (b.periodType === 'monthly' && b.month) {
+      return { gte: new Date(Date.UTC(y, b.month - 1, 1)), lte: new Date(Date.UTC(y, b.month, 0, 23, 59, 59)) };
+    }
+    if (b.periodType === 'quarterly' && b.quarter) {
+      const startM = (b.quarter - 1) * 3;
+      return { gte: new Date(Date.UTC(y, startM, 1)), lte: new Date(Date.UTC(y, startM + 3, 0, 23, 59, 59)) };
+    }
+    return { gte: new Date(Date.UTC(y, 0, 1)), lte: new Date(Date.UTC(y, 11, 31, 23, 59, 59)) };
+  }
+
+  private static budgetKind(accountNumber?: string | null): 'charge' | 'revenue' | 'other' {
+    if (accountNumber?.startsWith('6')) return 'charge';
+    if (accountNumber?.startsWith('7')) return 'revenue';
+    return 'other';
+  }
+
+  /** Réalisé depuis le GRAND-LIVRE (couvre charges 6 ET produits 7). */
+  private async budgetRealized(accountNumber: string, kind: 'charge' | 'revenue' | 'other', win: { gte: Date; lte: Date }): Promise<number> {
+    const agg = await this.prisma.journalEntryLine.aggregate({
+      where: {
+        accountNumber: { startsWith: accountNumber },
+        journalEntry: { status: { not: 'cancelled' as any }, entryDate: { gte: win.gte, lte: win.lte } },
+      },
+      _sum: { debit: true, credit: true },
+    });
+    const d = Number(agg._sum.debit ?? 0), c = Number(agg._sum.credit ?? 0);
+    return kind === 'revenue' ? c - d : d - c; // charge : solde débiteur ; produit : solde créditeur
+  }
+
+  /** Engagé = dépenses approuvées/soumises NON encore payées (pas d'écriture) mappées au compte. */
+  private async budgetEngaged(accountNumber: string, kind: 'charge' | 'revenue' | 'other', win: { gte: Date; lte: Date }): Promise<number> {
+    if (kind !== 'charge') return 0;
+    const agg = await this.prisma.expense.aggregate({
+      where: {
+        status: { in: ['submitted', 'approved'] as any },
+        deletedAt: null,
+        expenseDate: { gte: win.gte, lte: win.lte },
+        OR: [
+          { accountingAccount: { startsWith: accountNumber } },
+          { accountingAccount: null, category: { accountingAccount: { startsWith: accountNumber } } },
+        ],
+      },
+      _sum: { amountTtc: true },
+    });
+    return Number(agg._sum.amountTtc ?? 0);
+  }
+
+  async listBudgets(params: { year?: number; categoryId?: string; officeId?: string; accountNumber?: string }) {
     const where: Record<string, unknown> = {};
-    if (params.year) where['year'] = params.year;
-    if (params.categoryId) where['categoryId'] = params.categoryId;
+    if (params.year)          where['year'] = params.year;
+    if (params.categoryId)    where['categoryId'] = params.categoryId;
+    if (params.officeId)      where['officeId'] = params.officeId;
+    if (params.accountNumber) where['accountNumber'] = params.accountNumber;
 
     const budgets = await this.prisma.expenseBudget.findMany({
       where,
-      orderBy: [{ year: 'desc' }, { month: 'asc' }],
-      include: { category: { select: { id: true, name: true, color: true } } },
+      orderBy: [{ year: 'desc' }, { accountNumber: 'asc' }, { month: 'asc' }],
+      include: {
+        category: { select: { id: true, name: true, color: true } },
+        office:   { select: { id: true, name: true, code: true } },
+      },
     });
+
+    // Noms des comptes budgétés (une seule requête).
+    const accountNumbers = [...new Set(budgets.map((b) => b.accountNumber).filter(Boolean) as string[])];
+    const accounts = accountNumbers.length
+      ? await this.prisma.chartOfAccount.findMany({ where: { accountNumber: { in: accountNumbers } }, select: { accountNumber: true, name: true } })
+      : [];
+    const accountName = new Map(accounts.map((a) => [a.accountNumber, a.name]));
 
     return Promise.all(
       budgets.map(async (b) => {
-        // Bornes en UTC (expenseDate est @db.Date) : `new Date(y,m,d)` = minuit LOCAL
-        // et décale la fenêtre d'un jour au Cameroun (UTC+1) → `spent` faux en bord de
-        // période, et incohérent avec checkBudgetAlerts (déjà en UTC).
-        const dateFilter: Record<string, unknown> = {
-          expenseDate: b.month
-            ? { gte: new Date(Date.UTC(b.year, b.month - 1, 1)), lte: new Date(Date.UTC(b.year, b.month, 0, 23, 59, 59)) }
-            : { gte: new Date(Date.UTC(b.year, 0, 1)),           lte: new Date(Date.UTC(b.year, 11, 31, 23, 59, 59)) },
-        };
-        const agg = await this.prisma.expense.aggregate({
-          where: {
-            categoryId: b.categoryId,
-            status: 'paid' as any,
-            deletedAt: null,
-            ...dateFilter,
-          },
-          _sum: { amountTtc: true },
-        });
-        const spent = Number(agg._sum.amountTtc ?? 0);
         const amount = Number(b.budgetAmount);
+        const kind   = ExpensesService.budgetKind(b.accountNumber);
+        const win    = ExpensesService.budgetWindow(b);
+
+        const realized = b.accountNumber ? await this.budgetRealized(b.accountNumber, kind, win) : 0;
+        const engaged  = b.accountNumber ? await this.budgetEngaged(b.accountNumber, kind, win)  : 0;
+        const available = amount - engaged - realized;
+        const consumed  = engaged + realized; // engagé + réalisé, pour la jauge
+
         return {
           ...b,
           amount,
-          spent,
-          remaining: amount - spent,
-          percentUsed: amount > 0 ? Math.round((spent / amount) * 100) : 0,
-          label: b.notes ?? b.category?.name ?? `Budget ${b.year}`,
-          period: b.month ? 'monthly' : 'annual',
+          kind,
+          accountNumber: b.accountNumber,
+          accountName:   b.accountNumber ? accountName.get(b.accountNumber) ?? null : null,
+          officeName:    b.office?.name ?? null,
+          realized,
+          engaged,
+          available,
+          consumed,
+          // Rétro-compat champs existants
+          spent:       realized,
+          remaining:   available,
+          percentUsed: amount > 0 ? Math.round((consumed / amount) * 100) : 0,
+          label:  b.notes ?? accountName.get(b.accountNumber ?? '') ?? b.category?.name ?? `Budget ${b.year}`,
+          period: b.periodType,
         };
       }),
     );
   }
 
-  async createBudget(data: CreateBudgetInput, userId: string) {
-    const { amount, label, period, ...rest } = data as any;
-    // 'annual' force month = null ; sinon on garde le mois fourni.
-    const month = period === 'annual' ? null : (rest.month ?? null);
-    const notes = label ?? rest.notes ?? undefined;
-
-    // La catégorie doit exister (sinon violation FK → 500).
-    const cat = await this.prisma.expenseCategory.findUnique({ where: { id: rest.categoryId }, select: { id: true } });
-    if (!cat) throw AppError.badRequest('Catégorie de dépense introuvable.');
-
-    // Unicité (catégorie, année, mois) — contrôle applicatif car en Postgres deux
-    // lignes month=NULL ne violent PAS la contrainte @@unique (NULL distinct).
-    const dup = await this.prisma.expenseBudget.findFirst({
-      where: { categoryId: rest.categoryId, year: rest.year, month }, select: { id: true },
+  /** Valide le compte budgété : existant, imputable, actif, et de classe 6 ou 7. */
+  private async assertBudgetAccount(accountNumber?: string | null) {
+    if (!accountNumber) return;
+    const acc = await this.prisma.chartOfAccount.findUnique({
+      where:  { accountNumber },
+      select: { isDetailAccount: true, isActive: true },
     });
-    if (dup) throw AppError.conflict(`Un budget existe déjà pour cette catégorie sur ${month ? `${String(month).padStart(2, '0')}/${rest.year}` : rest.year}.`);
+    if (!acc) throw AppError.badRequest(`Compte budgété inexistant au plan comptable : ${accountNumber}.`);
+    if (acc.isActive === false) throw AppError.badRequest(`Compte budgété désactivé : ${accountNumber}.`);
+    if (!(accountNumber.startsWith('6') || accountNumber.startsWith('7')))
+      throw AppError.badRequest('Un budget cible un compte de charges (classe 6) ou de produits (classe 7).');
+  }
+
+  private normalizeBudgetPeriod(period?: string, month?: number | null, quarter?: number | null) {
+    const periodType = period === 'monthly' || period === 'quarterly' ? period : 'annual';
+    return {
+      periodType,
+      month:   periodType === 'monthly'   ? (month   ?? null) : null,
+      quarter: periodType === 'quarterly' ? (quarter ?? null) : null,
+    };
+  }
+
+  private async assertBudgetUnique(args: { accountNumber: string | null; categoryId: string | null; officeId: string | null; year: number; periodType: string; month: number | null; quarter: number | null; excludeId?: string }) {
+    const dup = await this.prisma.expenseBudget.findFirst({
+      where: {
+        accountNumber: args.accountNumber, categoryId: args.categoryId, officeId: args.officeId,
+        year: args.year, periodType: args.periodType, month: args.month, quarter: args.quarter,
+        ...(args.excludeId ? { id: { not: args.excludeId } } : {}),
+      },
+      select: { id: true },
+    });
+    if (dup) throw AppError.conflict('Un budget existe déjà pour ce compte, cette dimension et cette période.');
+  }
+
+  async createBudget(data: CreateBudgetInput, userId: string) {
+    const { amount, label, period, accountNumber, categoryId, officeId, month, quarter, notes: rawNotes } = data as any;
+    const p = this.normalizeBudgetPeriod(period, month, quarter);
+    const notes = label ?? rawNotes ?? undefined;
+
+    if (!accountNumber && !categoryId) throw AppError.badRequest('Précisez au moins un compte comptable ou une catégorie.');
+    await this.assertBudgetAccount(accountNumber);
+    if (categoryId) {
+      const cat = await this.prisma.expenseCategory.findUnique({ where: { id: categoryId }, select: { id: true } });
+      if (!cat) throw AppError.badRequest('Catégorie de dépense introuvable.');
+    }
+    await this.assertBudgetUnique({ accountNumber: accountNumber ?? null, categoryId: categoryId ?? null, officeId: officeId ?? null, year: data.year, ...p });
 
     return this.prisma.expenseBudget.create({
-      data: { categoryId: rest.categoryId, year: rest.year, month, budgetAmount: amount, notes, createdById: userId },
+      data: {
+        accountNumber: accountNumber ?? null, categoryId: categoryId ?? null, officeId: officeId ?? null,
+        year: data.year, periodType: p.periodType, month: p.month, quarter: p.quarter,
+        budgetAmount: amount, notes, createdById: userId,
+      },
     });
   }
 
   async deleteBudget(id: string) {
-    const budget = await this.prisma.expenseBudget.findUnique({
-      where: { id },
-    });
+    const budget = await this.prisma.expenseBudget.findUnique({ where: { id } });
     if (!budget) throw AppError.notFound('Budget introuvable');
     await this.prisma.expenseBudget.delete({ where: { id } });
   }
@@ -831,26 +925,35 @@ export class ExpensesService {
     const budget = await this.prisma.expenseBudget.findUnique({ where: { id } });
     if (!budget) throw AppError.notFound('Budget introuvable');
 
-    const { amount, label, period, ...rest } = data as any;
-    const updateData: Record<string, unknown> = { ...rest };
-    if (amount !== undefined)  updateData['budgetAmount'] = amount;
-    if (label  !== undefined)  updateData['notes'] = label;
-    if (period !== undefined)  updateData['month'] = period === 'annual' ? null : (rest.month ?? budget.month);
-
-    // Si (catégorie, année, mois) change, revalider catégorie + unicité.
-    const newCat   = (updateData['categoryId'] as string) ?? budget.categoryId;
-    const newYear  = (updateData['year'] as number) ?? budget.year;
-    const newMonth = ('month' in updateData) ? (updateData['month'] as number | null) : budget.month;
-    if (newCat !== budget.categoryId || newYear !== budget.year || newMonth !== budget.month) {
-      if (updateData['categoryId']) {
-        const cat = await this.prisma.expenseCategory.findUnique({ where: { id: newCat }, select: { id: true } });
-        if (!cat) throw AppError.badRequest('Catégorie de dépense introuvable.');
-      }
-      const dup = await this.prisma.expenseBudget.findFirst({
-        where: { categoryId: newCat, year: newYear, month: newMonth, id: { not: id } }, select: { id: true },
-      });
-      if (dup) throw AppError.conflict('Un budget existe déjà pour cette catégorie sur cette période.');
+    const { amount, label, period, accountNumber, categoryId, officeId, month, quarter, notes: rawNotes } = data as any;
+    const updateData: Record<string, unknown> = {};
+    if (amount        !== undefined) updateData['budgetAmount']  = amount;
+    if (label         !== undefined) updateData['notes']         = label;
+    else if (rawNotes !== undefined) updateData['notes']         = rawNotes;
+    if (accountNumber !== undefined) updateData['accountNumber'] = accountNumber ?? null;
+    if (categoryId    !== undefined) updateData['categoryId']    = categoryId ?? null;
+    if (officeId      !== undefined) updateData['officeId']      = officeId ?? null;
+    if (data.year     !== undefined) updateData['year']          = data.year;
+    if (period !== undefined || month !== undefined || quarter !== undefined) {
+      const p = this.normalizeBudgetPeriod(period ?? budget.periodType, month ?? budget.month, quarter ?? budget.quarter);
+      updateData['periodType'] = p.periodType; updateData['month'] = p.month; updateData['quarter'] = p.quarter;
     }
+
+    const next = {
+      accountNumber: (updateData['accountNumber'] as string | null) ?? budget.accountNumber,
+      categoryId:    (updateData['categoryId'] as string | null) ?? budget.categoryId,
+      officeId:      (updateData['officeId'] as string | null) ?? budget.officeId,
+      year:          (updateData['year'] as number) ?? budget.year,
+      periodType:    (updateData['periodType'] as string) ?? budget.periodType,
+      month:         ('month' in updateData) ? (updateData['month'] as number | null) : budget.month,
+      quarter:       ('quarter' in updateData) ? (updateData['quarter'] as number | null) : budget.quarter,
+    };
+    if (accountNumber !== undefined) await this.assertBudgetAccount(next.accountNumber);
+    if (categoryId) {
+      const cat = await this.prisma.expenseCategory.findUnique({ where: { id: next.categoryId! }, select: { id: true } });
+      if (!cat) throw AppError.badRequest('Catégorie de dépense introuvable.');
+    }
+    await this.assertBudgetUnique({ ...next, excludeId: id });
 
     return this.prisma.expenseBudget.update({ where: { id }, data: updateData as any });
   }

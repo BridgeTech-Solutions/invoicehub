@@ -58,6 +58,26 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-09-21 — Budgets v2 (Phase 1) : par compte comptable + engagé/réalisé/disponible
+Refonte du module budget en outil de pilotage :
+- Le budget cible désormais un **compte comptable** (classe 6 charge / 7 produit) avec
+  **dimensions optionnelles** (catégorie, bureau) et **périodicité** (annuel / trimestriel /
+  mensuel). Débloque le **budget de revenus** (classe 7), pas seulement les dépenses.
+- **Réalisé** calculé depuis le **grand-livre** (couvre 6 et 7) ; **engagé** = dépenses
+  approuvées/soumises non encore payées ; **disponible** = budget − engagé − réalisé.
+- Compte budgété validé (existant, actif, classe 6/7) ; unicité multi-dimensions ; UI
+  refondue (sélecteur de compte, dimensions, 4 métriques + jauge empilée réalisé/engagé).
+- Reprise des budgets par catégorie existants : rattachement au compte de la catégorie.
+
+```bash
+cd invoicehub-api
+npx prisma db execute --file prisma/add_budget_dimensions.sql --schema prisma/schema.prisma
+```
+> Aucune donnée perdue : les budgets par catégorie restent, avec `account_number` repris de
+> la catégorie quand disponible (sinon réalisé = 0 tant qu'un compte n'est pas fixé).
+> Phases suivantes (à venir) : contrôle a priori à l'approbation d'une dépense, seuils
+> configurables, écran budget/réalisé consolidé + export, révisions/report.
+
 ### 2026-09-21 — White-label : dé-câblage des éléments codés « BTS/Cameroun »
 Prérequis pour donner l'app à une autre entreprise (déploiement dédié) :
 - **Numérotation des documents** : le préfixe vient désormais de

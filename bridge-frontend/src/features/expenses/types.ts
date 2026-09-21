@@ -129,25 +129,39 @@ export interface ExpenseStats {
 }
 
 export interface ExpenseBudget {
-  id:          string
-  year:        number
-  categoryId:  string | null
-  category:    { id: string; name: string; color: string | null } | null
-  label:       string
-  amount:      number
-  spent:       number
-  remaining:   number
-  percentUsed: number
-  period:      'annual' | 'monthly'
-  createdAt:   string
+  id:            string
+  year:          number
+  accountNumber: string | null
+  accountName:   string | null
+  kind:          'charge' | 'revenue' | 'other'
+  categoryId:    string | null
+  category:      { id: string; name: string; color: string | null } | null
+  officeId:      string | null
+  officeName:    string | null
+  quarter:       number | null
+  month:         number | null
+  label:         string
+  amount:        number
+  realized:      number
+  engaged:       number
+  available:     number
+  consumed:      number
+  spent:         number   // = realized (rétro-compat)
+  remaining:     number   // = available
+  percentUsed:   number
+  period:        'annual' | 'quarterly' | 'monthly'
+  createdAt:     string
 }
 
 export interface CreateBudgetPayload {
-  year:        number
-  month?:      number
-  categoryId?: string
-  label?:      string
-  amount:      number
-  period?:     'annual' | 'monthly'
-  notes?:      string
+  year:          number
+  accountNumber?: string
+  categoryId?:   string
+  officeId?:     string
+  period?:       'annual' | 'quarterly' | 'monthly'
+  quarter?:      number
+  month?:        number
+  label?:        string
+  amount:        number
+  notes?:        string
 }

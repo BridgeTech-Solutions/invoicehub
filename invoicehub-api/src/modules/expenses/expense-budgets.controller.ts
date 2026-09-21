@@ -16,12 +16,16 @@ export class ExpenseBudgetsController {
   @Get()
   @Permission('expenses:read')
   async list(
-    @Query('year')       year?: string,
-    @Query('categoryId') categoryId?: string,
+    @Query('year')          year?: string,
+    @Query('categoryId')    categoryId?: string,
+    @Query('officeId')      officeId?: string,
+    @Query('accountNumber') accountNumber?: string,
   ) {
     return this.svc.listBudgets({
-      year:       year       ? parseInt(year, 10) : undefined,
-      categoryId: categoryId ?? undefined,
+      year:          year ? parseInt(year, 10) : undefined,
+      categoryId:    categoryId ?? undefined,
+      officeId:      officeId ?? undefined,
+      accountNumber: accountNumber ?? undefined,
     });
   }
 
