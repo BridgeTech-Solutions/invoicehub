@@ -165,13 +165,14 @@ export class ExpensesService {
    * réel de janvier jamais signalé.
    */
   /** Config du contrôle budgétaire (company_settings.budgetControl), avec défauts. */
-  private async budgetControlConfig(): Promise<{ warnThresholdPct: number; blockOnExceed: boolean; notifyRoles: string[] }> {
+  private async budgetControlConfig(): Promise<{ warnThresholdPct: number; blockOnExceed: boolean; notifyRoles: string[]; requireApproval: boolean }> {
     const s = await this.prisma.companySettings.findFirst({ select: { budgetControl: true } });
     const c = (s?.budgetControl ?? {}) as Record<string, unknown>;
     return {
       warnThresholdPct: typeof c['warnThresholdPct'] === 'number' ? (c['warnThresholdPct'] as number) : 80,
       blockOnExceed:    c['blockOnExceed'] === true,
       notifyRoles:      Array.isArray(c['notifyRoles']) && (c['notifyRoles'] as unknown[]).length ? (c['notifyRoles'] as string[]) : ['admin'],
+      requireApproval:  c['requireApproval'] === true,
     };
   }
 
@@ -211,7 +212,7 @@ export class ExpensesService {
     // Budgets de l'année dont le compte est un préfixe du compte de la dépense,
     // dimensions compatibles, et dont la période contient la date de la dépense.
     const yearBudgets = await this.prisma.expenseBudget.findMany({
-      where:   { year: y, accountNumber: { not: null } },
+      where:   { year: y, accountNumber: { not: null }, status: 'active' }, // seuls les budgets validés s'appliquent
       include: { category: { select: { name: true } } },
     });
     const matching = yearBudgets.filter((b) => {
@@ -901,13 +902,26 @@ export class ExpensesService {
     }
     await this.assertBudgetUnique({ accountNumber: accountNumber ?? null, categoryId: categoryId ?? null, officeId: officeId ?? null, year: data.year, ...p });
 
+    // Gouvernance : si l'approbation est requise, le budget naît « brouillon » et ne
+    // s'applique au contrôle qu'une fois activé ; sinon il est actif immédiatement.
+    const { requireApproval } = await this.budgetControlConfig();
+
     return this.prisma.expenseBudget.create({
       data: {
         accountNumber: accountNumber ?? null, categoryId: categoryId ?? null, officeId: officeId ?? null,
         year: data.year, periodType: p.periodType, month: p.month, quarter: p.quarter,
+        status: requireApproval ? 'draft' : 'active',
         budgetAmount: amount, notes, createdById: userId,
       },
     });
+  }
+
+  /** Active un budget en brouillon (workflow d'approbation). */
+  async activateBudget(id: string) {
+    const budget = await this.prisma.expenseBudget.findUnique({ where: { id }, select: { id: true, status: true } });
+    if (!budget) throw AppError.notFound('Budget introuvable');
+    if (budget.status === 'active') return budget; // idempotent
+    return this.prisma.expenseBudget.update({ where: { id }, data: { status: 'active' } });
   }
 
   async deleteBudget(id: string) {

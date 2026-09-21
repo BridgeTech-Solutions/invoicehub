@@ -221,6 +221,18 @@ export function useUpdateBudget(year: number) {
   })
 }
 
+export function useActivateBudget(year: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => expensesApi.activateBudget(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: EXPENSE_KEYS.budgets(year) })
+      toast.success('Budget activé')
+    },
+    onError: (e: unknown) => toast.error((e as Error)?.message ?? 'Activation impossible'),
+  })
+}
+
 export function useBudgetRevisions(budgetId: string | null) {
   return useQuery({
     queryKey: ['budget-revisions', budgetId],

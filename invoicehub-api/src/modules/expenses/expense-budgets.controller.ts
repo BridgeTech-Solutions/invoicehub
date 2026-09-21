@@ -122,6 +122,13 @@ export class ExpenseBudgetsController {
     return this.svc.getBudgetRevisions(id);
   }
 
+  @Post(':id/activate')
+  @Permission('expenses:approve')
+  @HttpCode(HttpStatus.OK)
+  async activate(@Param('id') id: string) {
+    return this.svc.activateBudget(id);
+  }
+
   @Delete(':id')
   @Permission('expenses:delete')
   @HttpCode(HttpStatus.OK)

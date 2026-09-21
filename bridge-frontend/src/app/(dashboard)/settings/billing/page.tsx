@@ -283,7 +283,7 @@ function AccountingSection() {
       advanceAccount:             settings.advanceAccount,
       withholdingAccount:         settings.withholdingAccount,
       withholdingRate:            settings.withholdingRate,
-      budgetControl:              settings.budgetControl ?? { warnThresholdPct: 80, blockOnExceed: false, notifyRoles: ['admin'] },
+      budgetControl:              settings.budgetControl ?? { warnThresholdPct: 80, blockOnExceed: false, notifyRoles: ['admin'], requireApproval: false },
     })
     setDirty(false)
   }, [settings])
@@ -292,6 +292,9 @@ function AccountingSection() {
     setForm((prev) => ({ ...prev, [key]: value }))
     setDirty(true)
   }
+
+  // Base par défaut pour fusionner les modifs du contrôle budgétaire sans perdre de champ.
+  const budgetControlBase = { warnThresholdPct: 80, blockOnExceed: false, notifyRoles: ['admin'] as string[], requireApproval: false }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -406,7 +409,7 @@ function AccountingSection() {
                   <input
                     type="number" min={1} max={100}
                     value={form.budgetControl?.warnThresholdPct ?? 80}
-                    onChange={(e) => set('budgetControl', { warnThresholdPct: Math.max(1, Math.min(100, Number(e.target.value) || 0)), blockOnExceed: form.budgetControl?.blockOnExceed ?? false, notifyRoles: form.budgetControl?.notifyRoles ?? ['admin'] })}
+                    onChange={(e) => set('budgetControl', { ...budgetControlBase, ...form.budgetControl, warnThresholdPct: Math.max(1, Math.min(100, Number(e.target.value) || 0)) })}
                     style={inputCss}
                   />
                   <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: '6px 0 0', lineHeight: 1.5 }}>
@@ -417,13 +420,27 @@ function AccountingSection() {
                   <input
                     type="checkbox"
                     checked={form.budgetControl?.blockOnExceed ?? false}
-                    onChange={(e) => set('budgetControl', { warnThresholdPct: form.budgetControl?.warnThresholdPct ?? 80, blockOnExceed: e.target.checked, notifyRoles: form.budgetControl?.notifyRoles ?? ['admin'] })}
+                    onChange={(e) => set('budgetControl', { ...budgetControlBase, ...form.budgetControl, blockOnExceed: e.target.checked })}
                     style={{ marginTop: 2, width: 16, height: 16, accentColor: 'var(--primary)', cursor: 'pointer' }}
                   />
                   <span style={{ fontSize: 13 }}>
                     <strong>Bloquer l&apos;approbation</strong> d&apos;une dépense qui dépasse son budget
                     <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-3)', marginTop: 3, lineHeight: 1.5 }}>
                       Désactivé : dépassement simplement signalé. Activé : l&apos;approbation est refusée tant que le budget n&apos;est pas ajusté (contrôle a priori).
+                    </span>
+                  </span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '2px 0' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.budgetControl?.requireApproval ?? false}
+                    onChange={(e) => set('budgetControl', { ...budgetControlBase, ...form.budgetControl, requireApproval: e.target.checked })}
+                    style={{ marginTop: 2, width: 16, height: 16, accentColor: 'var(--primary)', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: 13 }}>
+                    <strong>Approbation des budgets</strong> requise avant activation
+                    <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-3)', marginTop: 3, lineHeight: 1.5 }}>
+                      Activé : un budget créé naît en <strong>brouillon</strong> et ne s&apos;applique qu&apos;une fois activé (bouton « Activer », droit d&apos;approbation).
                     </span>
                   </span>
                 </label>
@@ -441,7 +458,7 @@ function AccountingSection() {
                             type="checkbox" checked={checked}
                             onChange={(e) => {
                               const next = e.target.checked ? [...new Set([...roles, role])] : roles.filter((r) => r !== role)
-                              set('budgetControl', { warnThresholdPct: form.budgetControl?.warnThresholdPct ?? 80, blockOnExceed: form.budgetControl?.blockOnExceed ?? false, notifyRoles: next.length ? next : ['admin'] })
+                              set('budgetControl', { ...budgetControlBase, ...form.budgetControl, notifyRoles: next.length ? next : ['admin'] })
                             }}
                             style={{ width: 15, height: 15, accentColor: 'var(--primary)', cursor: 'pointer' }}
                           />

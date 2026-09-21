@@ -55,6 +55,7 @@ export const updateSettingsSchema = z.object({
     warnThresholdPct: z.number().int().min(1).max(100),
     blockOnExceed:    z.boolean(),
     notifyRoles:      z.array(z.string().min(1)).max(10),
+    requireApproval:  z.boolean().optional(),
   }).optional(),
 
   // Comptes comptables SYSCOHADA

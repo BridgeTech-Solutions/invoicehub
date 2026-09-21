@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, Plus, Trash2, Loader2, AlertTriangle, X, TrendingUp, TrendingDown, LayoutGrid, Table2, FileSpreadsheet, FileText, Upload, CalendarPlus, Pencil } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Trash2, Loader2, AlertTriangle, X, TrendingUp, TrendingDown, LayoutGrid, Table2, FileSpreadsheet, FileText, Upload, CalendarPlus, Pencil, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { usePermission } from '@/hooks/usePermission'
 import { useConfirm } from '@/providers/ConfirmProvider'
@@ -12,7 +12,7 @@ import { OverlayPortal } from '@/components/ui/OverlayPortal'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
   useExpenseBudgets, useExpenseCategories, useBudgetSummary, useBudgetRevisions,
-  useCreateBudget, useUpdateBudget, useDeleteBudget,
+  useCreateBudget, useUpdateBudget, useDeleteBudget, useActivateBudget,
 } from '@/features/expenses/hooks'
 import { expensesApi } from '@/features/expenses/api'
 import { useOffices } from '@/features/offices/hooks'
@@ -188,9 +188,10 @@ function Metric({ label, value, color }: { label: string; value: string; color?:
   )
 }
 
-function BudgetCard({ b, format, canDelete, canEdit, onEdit, onDelete }: {
-  b: ExpenseBudget; format: (n: number) => string; canDelete: boolean; canEdit: boolean; onEdit: () => void; onDelete: () => void
+function BudgetCard({ b, format, canDelete, canEdit, canActivate, onEdit, onDelete, onActivate }: {
+  b: ExpenseBudget; format: (n: number) => string; canDelete: boolean; canEdit: boolean; canActivate: boolean; onEdit: () => void; onDelete: () => void; onActivate: () => void
 }) {
+  const isDraft   = b.status === 'draft'
   const isRevenue = b.kind === 'revenue'
   const over      = !isRevenue && b.consumed > b.amount
   const warn      = !isRevenue && !over && b.percentUsed >= 80
@@ -199,7 +200,7 @@ function BudgetCard({ b, format, canDelete, canEdit, onEdit, onDelete }: {
   const realizedColor = isRevenue ? 'var(--primary)' : over ? '#dc2626' : warn ? '#d97706' : '#16a34a'
 
   return (
-    <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14, ...(over ? { borderColor: '#fecaca' } : warn ? { borderColor: '#fde68a' } : {}) }}>
+    <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14, opacity: isDraft ? 0.72 : 1, ...(over ? { borderColor: '#fecaca' } : warn ? { borderColor: '#fde68a' } : isDraft ? { borderStyle: 'dashed' } : {}) }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
@@ -207,6 +208,7 @@ function BudgetCard({ b, format, canDelete, canEdit, onEdit, onDelete }: {
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10.5, fontWeight: 700, padding: '1px 7px', borderRadius: 99, background: isRevenue ? 'rgba(45,125,210,0.10)' : 'rgba(217,119,6,0.10)', color: isRevenue ? 'var(--primary)' : '#b45309' }}>
               {isRevenue ? <TrendingUp size={11} /> : <TrendingDown size={11} />}{isRevenue ? 'Produit' : 'Charge'}
             </span>
+            {isDraft && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '1px 7px', borderRadius: 99, background: 'var(--surface-2)', color: 'var(--text-3)' }}>Brouillon</span>}
           </div>
           <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-1)', fontFamily: 'var(--font-display)', margin: '4px 0 0' }}>{b.label}</p>
           <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
@@ -216,6 +218,12 @@ function BudgetCard({ b, format, canDelete, canEdit, onEdit, onDelete }: {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          {isDraft && canActivate && (
+            <button onClick={onActivate} title="Activer ce budget"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 28, padding: '0 10px', borderRadius: 6, border: '1px solid #16a34a', background: 'rgba(22,163,74,0.08)', cursor: 'pointer', color: '#16a34a', fontSize: 12, fontWeight: 600 }}>
+              <Check size={13} /> Activer
+            </button>
+          )}
           {canEdit && (
             <button onClick={onEdit} title="Modifier"
               style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--text-3)' }}
@@ -362,6 +370,7 @@ export default function ExpenseBudgetsPage() {
   const createMutation               = useCreateBudget(year)
   const updateMutation               = useUpdateBudget(year)
   const deleteMutation               = useDeleteBudget(year)
+  const activateMutation             = useActivateBudget(year)
 
   const alertBudgets = (budgets ?? []).filter(b => b.kind !== 'revenue' && b.percentUsed >= 80)
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set())
@@ -509,8 +518,9 @@ export default function ExpenseBudgetsPage() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
           {(budgets ?? []).map(b => (
-            <BudgetCard key={b.id} b={b} format={format} canDelete={can('expense', 'delete')} canEdit={can('expense', 'update')}
+            <BudgetCard key={b.id} b={b} format={format} canDelete={can('expense', 'delete')} canEdit={can('expense', 'update')} canActivate={can('expense', 'approve')}
               onEdit={() => setEditing(b)}
+              onActivate={() => activateMutation.mutate(b.id)}
               onDelete={async () => { if (await confirm({ title: `Supprimer le budget « ${b.label} » ?`, tone: 'danger', confirmLabel: 'Supprimer' })) deleteMutation.mutate(b.id) }} />
           ))}
         </div>
