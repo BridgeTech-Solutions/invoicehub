@@ -78,6 +78,9 @@ export const expensesApi = {
   activateBudget: (id: string) =>
     apiClient.post(`/expense-budgets/${id}/activate`).then(r => r.data as ExpenseBudget),
 
+  spreadBudget: (id: string) =>
+    apiClient.post(`/expense-budgets/${id}/spread`).then(r => r.data as { spread: number; monthlyAmount: number; year: number }),
+
   budgetRevisions: (id: string) =>
     apiClient.get(`/expense-budgets/${id}/revisions`).then(r => r.data as { id: string; previousAmount: number; newAmount: number; reason: string | null; createdAt: string; changedBy: { firstName: string; lastName: string } | null }[]),
 

@@ -58,6 +58,12 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-09-22 — Budgets v2 (Phase 4.4) : ventilation annuel → mensuel
+Action **« Ventiler sur 12 mois »** (modale d'édition d'un budget annuel) : remplace le
+budget annuel par **12 budgets mensuels** (répartition égale, résidu d'arrondi sur décembre),
+dimensions et statut conservés. `POST /expense-budgets/:id/spread`. Aucune migration SQL.
+Refuse si des budgets mensuels existent déjà pour le même compte/dimension/année.
+
 ### 2026-09-22 — Budgets v2 (Phase 4.6) : workflow d'approbation du budget (opt-in)
 - Nouvelle colonne `expense_budgets.status` (`draft`/`active`, défaut **`active`** → aucun
   changement pour les budgets existants).

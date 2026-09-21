@@ -12,7 +12,7 @@ import { OverlayPortal } from '@/components/ui/OverlayPortal'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
   useExpenseBudgets, useExpenseCategories, useBudgetSummary, useBudgetRevisions,
-  useCreateBudget, useUpdateBudget, useDeleteBudget, useActivateBudget,
+  useCreateBudget, useUpdateBudget, useDeleteBudget, useActivateBudget, useSpreadBudget,
 } from '@/features/expenses/hooks'
 import { expensesApi } from '@/features/expenses/api'
 import { useOffices } from '@/features/offices/hooks'
@@ -32,12 +32,13 @@ function periodLabel(b: Pick<ExpenseBudget, 'period' | 'quarter' | 'month' | 'ye
 }
 
 // ─── Modale de création ───────────────────────────────────────
-function BudgetModal({ year, onClose, isPending, onSave, onUpdate, editing, cats, offices }: {
+function BudgetModal({ year, onClose, isPending, onSave, onUpdate, onSpread, editing, cats, offices }: {
   year:      number
   onClose:   () => void
   isPending: boolean
   onSave:    (data: CreateBudgetPayload) => void
   onUpdate?: (id: string, data: Partial<CreateBudgetPayload> & { reason?: string }) => void
+  onSpread?: (id: string) => void
   editing?:  ExpenseBudget | null
   cats:      { id: string; name: string }[]
   offices:   { id: string; name: string; code: string }[]
@@ -164,6 +165,12 @@ function BudgetModal({ year, onClose, isPending, onSave, onUpdate, editing, cats
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 4 }}>
+              {isEdit && editing!.period === 'annual' && onSpread && (
+                <button type="button" onClick={() => onSpread(editing!.id)} title="Répartir ce budget annuel en 12 budgets mensuels"
+                  style={{ marginRight: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border-strong)', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', fontSize: 12.5, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+                  <CalendarPlus size={14} /> Ventiler sur 12 mois
+                </button>
+              )}
               <button type="button" onClick={onClose} style={{ padding: '8px 18px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>Annuler</button>
               <button type="submit" disabled={isPending || !canSubmit}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 20px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', cursor: isPending || !canSubmit ? 'default' : 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: isPending || !canSubmit ? 0.6 : 1 }}>
@@ -371,6 +378,7 @@ export default function ExpenseBudgetsPage() {
   const updateMutation               = useUpdateBudget(year)
   const deleteMutation               = useDeleteBudget(year)
   const activateMutation             = useActivateBudget(year)
+  const spreadMutation               = useSpreadBudget(year)
 
   const alertBudgets = (budgets ?? []).filter(b => b.kind !== 'revenue' && b.percentUsed >= 80)
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set())
@@ -385,6 +393,15 @@ export default function ExpenseBudgetsPage() {
   }
   function handleUpdate(id: string, data: Partial<CreateBudgetPayload> & { reason?: string }) {
     updateMutation.mutate({ id, data }, { onSuccess: () => setEditing(null) })
+  }
+  async function handleSpread(id: string) {
+    const ok = await confirm({
+      title: 'Ventiler ce budget sur 12 mois ?',
+      message: 'Le budget annuel est remplacé par 12 budgets mensuels (répartition égale). Action irréversible.',
+      confirmLabel: 'Ventiler',
+    })
+    if (!ok) return
+    spreadMutation.mutate(id, { onSuccess: () => setEditing(null) })
   }
 
   function refreshBudgets() { qc.invalidateQueries({ queryKey: ['expense-budgets'] }) }
@@ -424,7 +441,7 @@ export default function ExpenseBudgetsPage() {
         <BudgetModal year={year} editing={editing}
           isPending={createMutation.isPending || updateMutation.isPending}
           onClose={() => { setShowCreate(false); setEditing(null) }}
-          onSave={handleCreate} onUpdate={handleUpdate}
+          onSave={handleCreate} onUpdate={handleUpdate} onSpread={handleSpread}
           cats={(cats ?? []).map(c => ({ id: c.id, name: c.name }))}
           offices={(offices ?? []).map(o => ({ id: o.id, name: o.name, code: o.code }))} />
       )}

@@ -233,6 +233,18 @@ export function useActivateBudget(year: number) {
   })
 }
 
+export function useSpreadBudget(year: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => expensesApi.spreadBudget(id),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: EXPENSE_KEYS.budgets(year) })
+      toast.success(`Budget ventilé sur 12 mois (~${Math.round(r.monthlyAmount).toLocaleString('fr-FR')} XAF/mois)`)
+    },
+    onError: (e: unknown) => toast.error((e as Error)?.message ?? 'Ventilation impossible'),
+  })
+}
+
 export function useBudgetRevisions(budgetId: string | null) {
   return useQuery({
     queryKey: ['budget-revisions', budgetId],
