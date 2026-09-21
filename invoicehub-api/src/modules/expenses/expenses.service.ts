@@ -1053,6 +1053,87 @@ export class ExpensesService {
     const buffer = await generatePdf(html);
     return { buffer, filename: `Budgets_${year}.pdf` };
   }
+
+  // ── Report de reliquat (carry-over) : préparer l'année N+1 depuis N ─────────────
+  /**
+   * Recopie les budgets de `fromYear` vers `toYear`. basis='budget' reprend le
+   * montant budgété ; basis='remaining' reprend le disponible (budget − consommé).
+   * Les budgets déjà présents en `toYear` (même compte/dimensions/période) sont ignorés.
+   */
+  async carryOverBudgets(fromYear: number, toYear: number, basis: 'budget' | 'remaining', userId: string) {
+    if (toYear === fromYear) throw AppError.badRequest('L\'année cible doit être différente de l\'année source.');
+    const source = await this.getBudgetSummary({ year: fromYear });
+    let created = 0, skipped = 0;
+
+    for (const l of source.lines as any[]) {
+      if (!l.accountNumber) { skipped++; continue; }
+      const amount = basis === 'remaining' ? Math.max(0, Math.round(l.available)) : Math.round(l.amount);
+      if (amount <= 0) { skipped++; continue; }
+
+      const dup = await this.prisma.expenseBudget.findFirst({
+        where: { accountNumber: l.accountNumber, categoryId: l.categoryId ?? null, officeId: l.officeId ?? null, year: toYear, periodType: l.period, month: l.month ?? null, quarter: l.quarter ?? null },
+        select: { id: true },
+      });
+      if (dup) { skipped++; continue; }
+
+      await this.prisma.expenseBudget.create({
+        data: {
+          accountNumber: l.accountNumber, categoryId: l.categoryId ?? null, officeId: l.officeId ?? null,
+          year: toYear, periodType: l.period, month: l.month ?? null, quarter: l.quarter ?? null,
+          budgetAmount: amount, notes: l.notes ?? null, createdById: userId,
+        },
+      });
+      created++;
+    }
+    return { fromYear, toYear, basis, created, skipped };
+  }
+
+  // ── Import Excel en masse ──────────────────────────────────────────────────────
+  /**
+   * Importe des budgets depuis un .xlsx. Colonnes attendues (ligne 1 = en-têtes) :
+   * A Compte | B Année | C Période(annual|quarterly|monthly) | D Mois/Trimestre | E Montant | F Libellé
+   * Retourne le nombre de lignes créées + les erreurs par ligne (aucune n'interrompt le lot).
+   */
+  async importBudgets(buffer: Buffer, userId: string): Promise<{ created: number; errors: { row: number; message: string }[] }> {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer as any);
+    const ws = wb.worksheets[0];
+    if (!ws) throw AppError.badRequest('Fichier Excel vide ou illisible.');
+
+    const errors: { row: number; message: string }[] = [];
+    let created = 0;
+    const rowCount = ws.rowCount;
+
+    for (let r = 2; r <= rowCount; r++) {
+      const row = ws.getRow(r);
+      const cell = (c: number) => row.getCell(c).value;
+      const accountNumber = cell(1) != null ? String(cell(1)).trim() : '';
+      if (!accountNumber) continue; // ligne vide
+
+      try {
+        const year   = Number(cell(2));
+        const period = String(cell(3) ?? 'annual').trim().toLowerCase();
+        const pt     = ['monthly', 'quarterly', 'annual'].includes(period) ? period : 'annual';
+        const sub    = cell(4) != null ? Number(cell(4)) : undefined;
+        const amount = Number(cell(5));
+        const label  = cell(6) != null ? String(cell(6)).trim() : undefined;
+
+        if (!Number.isInteger(year) || year < 2020 || year > 2100) throw new Error('Année invalide (colonne B).');
+        if (!(amount > 0)) throw new Error('Montant invalide (colonne E).');
+
+        await this.createBudget({
+          accountNumber, year, amount, label,
+          period: pt as any,
+          month:   pt === 'monthly'   ? sub : undefined,
+          quarter: pt === 'quarterly' ? sub : undefined,
+        } as any, userId);
+        created++;
+      } catch (e: any) {
+        errors.push({ row: r, message: e?.message ?? 'Erreur inconnue' });
+      }
+    }
+    return { created, errors };
+  }
 }
 
 function escapeHtml(s: string): string {

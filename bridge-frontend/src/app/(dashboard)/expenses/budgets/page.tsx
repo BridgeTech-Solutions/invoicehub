@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, Plus, Trash2, Loader2, AlertTriangle, X, TrendingUp, TrendingDown, LayoutGrid, Table2, FileSpreadsheet, FileText } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Trash2, Loader2, AlertTriangle, X, TrendingUp, TrendingDown, LayoutGrid, Table2, FileSpreadsheet, FileText, Upload, CalendarPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { usePermission } from '@/hooks/usePermission'
 import { useConfirm } from '@/providers/ConfirmProvider'
@@ -324,8 +325,41 @@ export default function ExpenseBudgetsPage() {
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set())
   const visibleAlerts = alertBudgets.filter(b => !dismissedAlerts.has(b.id))
 
+  const qc      = useQueryClient()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState<null | 'import' | 'carry'>(null)
+
   function handleCreate(data: CreateBudgetPayload) {
     createMutation.mutate(data, { onSuccess: () => setShowCreate(false) })
+  }
+
+  function refreshBudgets() { qc.invalidateQueries({ queryKey: ['expense-budgets'] }) }
+
+  async function handleImport(file: File) {
+    setBusy('import')
+    try {
+      const res = await expensesApi.importBudgets(file)
+      refreshBudgets()
+      if (res.errors.length === 0) toast.success(`${res.created} budget(s) importé(s).`)
+      else toast.warning(`${res.created} importé(s), ${res.errors.length} ligne(s) en erreur (ex. ligne ${res.errors[0].row} : ${res.errors[0].message}).`)
+    } catch { toast.error("L'import a échoué. Vérifiez le format du fichier.") }
+    finally { setBusy(null); if (fileRef.current) fileRef.current.value = '' }
+  }
+
+  async function handleCarryOver() {
+    const ok = await confirm({
+      title: `Préparer le budget ${year + 1} ?`,
+      message: `Recopie les budgets ${year} vers ${year + 1} (montants budgétés). Les budgets déjà présents en ${year + 1} sont ignorés.`,
+      confirmLabel: `Reporter sur ${year + 1}`,
+    })
+    if (!ok) return
+    setBusy('carry')
+    try {
+      const res = await expensesApi.carryOverBudgets(year, year + 1, 'budget')
+      refreshBudgets()
+      toast.success(`${res.created} budget(s) reporté(s) sur ${year + 1}${res.skipped ? ` (${res.skipped} ignoré(s))` : ''}.`)
+    } catch { toast.error('Le report a échoué.') }
+    finally { setBusy(null) }
   }
 
   if (!can('expense', 'read')) return <AccessDenied message="Vous n'avez pas accès au module de dépenses." />
@@ -346,10 +380,22 @@ export default function ExpenseBudgetsPage() {
           title="Budgets"
           description="Enveloppes par compte comptable — suivi engagé, réalisé et disponible"
           actions={can('expense', 'create') ? (
-            <button onClick={() => setShowCreate(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 18px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, boxShadow: '0 4px 12px rgba(45,125,210,0.3)' }}>
-              <Plus size={15} /> Nouveau budget
-            </button>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <input ref={fileRef} type="file" accept=".xlsx" style={{ display: 'none' }}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f) }} />
+              <button onClick={() => fileRef.current?.click()} disabled={busy === 'import'} title="Importer des budgets depuis un fichier .xlsx (Compte, Année, Période, Mois/Trim, Montant, Libellé)"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, height: 38, padding: '0 14px', borderRadius: 'var(--radius-md)', background: 'transparent', color: 'var(--text-2)', border: '1.5px solid var(--border-strong)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+                {busy === 'import' ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Importer
+              </button>
+              <button onClick={handleCarryOver} disabled={busy === 'carry'} title={`Recopier les budgets ${year} vers ${year + 1}`}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, height: 38, padding: '0 14px', borderRadius: 'var(--radius-md)', background: 'transparent', color: 'var(--text-2)', border: '1.5px solid var(--border-strong)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+                {busy === 'carry' ? <Loader2 size={14} className="animate-spin" /> : <CalendarPlus size={14} />} Préparer {year + 1}
+              </button>
+              <button onClick={() => setShowCreate(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '0 18px', height: 38, borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, boxShadow: '0 4px 12px rgba(45,125,210,0.3)' }}>
+                <Plus size={15} /> Nouveau budget
+              </button>
+            </div>
           ) : undefined}
         />
       </div>
