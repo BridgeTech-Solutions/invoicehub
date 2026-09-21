@@ -58,6 +58,21 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-09-21 — Budgets de dépenses : correction des bugs bloquants
+- **RBAC réparé** : les routes budget exigeaient `expenses:write` (permission **inexistante**
+  au catalogue) → seul l'admin passait. Corrigé en `expenses:create` / `expenses:update` /
+  `expenses:delete` → le **comptable** peut de nouveau gérer les budgets. Front aligné.
+- **`categoryId` désormais requis** (schéma + formulaire) : la colonne étant NOT NULL, un
+  budget sans catégorie plantait en 500. La catégorie est validée (existence) à la création.
+- **Doublon** (catégorie, année, mois) renvoie un **409** clair au lieu d'un 500 (contrôle
+  applicatif car en Postgres deux `month=NULL` ne violent pas la contrainte unique).
+- **`spent` calculé en UTC** dans `listBudgets` (comme les alertes) — plus de décalage d'un
+  jour en bord de période au Cameroun (UTC+1).
+- **Traçabilité** : `createdById` renseigné à la création.
+
+> **Aucune migration SQL.** Changements de logique + permissions uniquement.
+> ⚠️ Rôles personnalisés gérant les budgets : s'assurer qu'ils ont `expenses:create/update/delete`.
+
 ### 2026-09-21 — Journaux comptables : protection & fiabilisation
 - **Journaux système** : nouvelle colonne `accounting_journals.is_system` (les 7 journaux
   seedés VTE/ACH/BQ/CAI/OD/AN/CL sont marqués système). Un journal système ne peut plus

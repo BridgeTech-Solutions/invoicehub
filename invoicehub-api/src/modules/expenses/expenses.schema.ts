@@ -61,7 +61,9 @@ export const payExpenseSchema = z.object({
 // ── Budgets ───────────────────────────────────────────────────────────────────
 
 export const createBudgetSchema = z.object({
-  categoryId:  z.string().uuid().optional().nullable(),
+  // La colonne category_id est NOT NULL : un budget cible toujours une catégorie
+  // (un budget "global" serait une évolution séparée, pas un category_id null).
+  categoryId:  z.string().uuid('Catégorie requise'),
   year:        z.number().int().min(2020).max(2100),
   month:       z.number().int().min(1).max(12).optional().nullable(),
   amount:      z.number().positive(),  // frontend field → DB budgetAmount
