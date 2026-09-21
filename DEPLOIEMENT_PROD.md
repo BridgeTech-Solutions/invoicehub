@@ -58,6 +58,20 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-09-21 — Budgets v2 (Phase 2) : Budget vs Réalisé consolidé + export Excel/PDF
+- Nouvel écran **Budget vs Réalisé** (bascule « Suivi » / « Budget vs Réalisé » sur la page
+  Budgets) : tableau consolidé par compte avec Budget / Engagé / Réalisé / Disponible / % +
+  **projection d'atterrissage** (run-rate linéaire) et totaux par nature (charges/produits).
+- **Export Excel** (`exceljs`) et **PDF** : `GET /expense-budgets/export?format=xlsx|pdf&year=`.
+- Endpoint consolidé : `GET /expense-budgets/summary?year=`.
+
+> **Nouvelle dépendance backend : `exceljs`.** Lancer `pnpm install` sur l'API avant de
+> (re)démarrer. Aucune migration SQL.
+
+```bash
+cd invoicehub-api && pnpm install
+```
+
 ### 2026-09-21 — Budgets v2 (Phase 1b) : contrôle a priori + alertes configurables
 - **Contrôle a priori** : à l'**approbation** d'une dépense, si son compte/période dépasse
   le budget → **blocage** (refus d'approbation) si `blockOnExceed`, sinon **alerte** au

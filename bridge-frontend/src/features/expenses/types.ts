@@ -153,6 +153,20 @@ export interface ExpenseBudget {
   createdAt:     string
 }
 
+export interface BudgetSummaryLine extends ExpenseBudget {
+  forecast:    number | null
+  forecastPct: number
+  variance:    number
+}
+export interface BudgetTotals {
+  count: number; budget: number; realized: number; engaged: number; available: number
+}
+export interface BudgetSummary {
+  year:   number
+  lines:  BudgetSummaryLine[]
+  totals: { charge: BudgetTotals; revenue: BudgetTotals }
+}
+
 export interface CreateBudgetPayload {
   year:          number
   accountNumber?: string
