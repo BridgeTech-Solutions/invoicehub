@@ -890,11 +890,11 @@ export class ExpensesService {
     await this.prisma.expenseBudget.delete({ where: { id } });
   }
 
-  async updateBudget(id: string, data: Partial<CreateBudgetInput>) {
+  async updateBudget(id: string, data: Partial<CreateBudgetInput> & { reason?: string }, userId?: string) {
     const budget = await this.prisma.expenseBudget.findUnique({ where: { id } });
     if (!budget) throw AppError.notFound('Budget introuvable');
 
-    const { amount, label, period, accountNumber, categoryId, officeId, month, quarter, notes: rawNotes } = data as any;
+    const { amount, label, period, accountNumber, categoryId, officeId, month, quarter, notes: rawNotes, reason } = data as any;
     const updateData: Record<string, unknown> = {};
     if (amount        !== undefined) updateData['budgetAmount']  = amount;
     if (label         !== undefined) updateData['notes']         = label;
@@ -924,7 +924,27 @@ export class ExpensesService {
     }
     await this.assertBudgetUnique({ ...next, excludeId: id });
 
-    return this.prisma.expenseBudget.update({ where: { id }, data: updateData as any });
+    // Journalise la révision quand le montant change (budget initial vs révisé).
+    const prevAmount = Number(budget.budgetAmount);
+    const amountChanged = amount !== undefined && Number(amount) !== prevAmount;
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.expenseBudget.update({ where: { id }, data: updateData as any });
+      if (amountChanged) {
+        await tx.budgetRevision.create({
+          data: { budgetId: id, previousAmount: prevAmount, newAmount: Number(amount), reason: reason ?? null, changedById: userId ?? null },
+        });
+      }
+      return updated;
+    });
+  }
+
+  async getBudgetRevisions(id: string) {
+    return this.prisma.budgetRevision.findMany({
+      where:   { budgetId: id },
+      orderBy: { createdAt: 'desc' },
+      include: { changedBy: { select: { firstName: true, lastName: true } } },
+    });
   }
 
   // ── Budget vs Réalisé : consolidation + projection (atterrissage) ──────────────

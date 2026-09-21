@@ -66,7 +66,7 @@ export const expensesApi = {
   createBudget: (data: CreateBudgetPayload) =>
     apiClient.post<ExpenseBudget>('/expense-budgets', data).then(r => r.data),
 
-  updateBudget: (id: string, data: Partial<CreateBudgetPayload>) =>
+  updateBudget: (id: string, data: Partial<CreateBudgetPayload> & { reason?: string }) =>
     apiClient.put<ExpenseBudget>(`/expense-budgets/${id}`, data).then(r => r.data),
 
   deleteBudget: (id: string) =>
@@ -74,6 +74,9 @@ export const expensesApi = {
 
   budgetSummary: (year: number) =>
     apiClient.get<BudgetSummary>('/expense-budgets/summary', { params: { year } }).then(r => r.data),
+
+  budgetRevisions: (id: string) =>
+    apiClient.get(`/expense-budgets/${id}/revisions`).then(r => r.data as { id: string; previousAmount: number; newAmount: number; reason: string | null; createdAt: string; changedBy: { firstName: string; lastName: string } | null }[]),
 
   carryOverBudgets: (fromYear: number, toYear: number, basis: 'budget' | 'remaining') =>
     apiClient.post('/expense-budgets/carry-over', { fromYear, toYear, basis }).then(r => r.data as { created: number; skipped: number }),

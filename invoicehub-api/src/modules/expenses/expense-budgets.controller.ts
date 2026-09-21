@@ -111,8 +111,15 @@ export class ExpenseBudgetsController {
   async update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateBudgetSchema)) body: any,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.svc.updateBudget(id, body);
+    return this.svc.updateBudget(id, body, user.sub);
+  }
+
+  @Get(':id/revisions')
+  @Permission('expenses:read')
+  async revisions(@Param('id') id: string) {
+    return this.svc.getBudgetRevisions(id);
   }
 
   @Delete(':id')

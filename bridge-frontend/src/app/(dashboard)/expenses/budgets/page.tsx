@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, Plus, Trash2, Loader2, AlertTriangle, X, TrendingUp, TrendingDown, LayoutGrid, Table2, FileSpreadsheet, FileText, Upload, CalendarPlus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Trash2, Loader2, AlertTriangle, X, TrendingUp, TrendingDown, LayoutGrid, Table2, FileSpreadsheet, FileText, Upload, CalendarPlus, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { usePermission } from '@/hooks/usePermission'
 import { useConfirm } from '@/providers/ConfirmProvider'
@@ -11,8 +11,8 @@ import { AccessDenied } from '@/components/ui/AccessDenied'
 import { OverlayPortal } from '@/components/ui/OverlayPortal'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
-  useExpenseBudgets, useExpenseCategories, useBudgetSummary,
-  useCreateBudget, useDeleteBudget,
+  useExpenseBudgets, useExpenseCategories, useBudgetSummary, useBudgetRevisions,
+  useCreateBudget, useUpdateBudget, useDeleteBudget,
 } from '@/features/expenses/hooks'
 import { expensesApi } from '@/features/expenses/api'
 import { useOffices } from '@/features/offices/hooks'
@@ -32,29 +32,35 @@ function periodLabel(b: Pick<ExpenseBudget, 'period' | 'quarter' | 'month' | 'ye
 }
 
 // ─── Modale de création ───────────────────────────────────────
-function BudgetModal({ year, onClose, isPending, onSave, cats, offices }: {
+function BudgetModal({ year, onClose, isPending, onSave, onUpdate, editing, cats, offices }: {
   year:      number
   onClose:   () => void
   isPending: boolean
   onSave:    (data: CreateBudgetPayload) => void
+  onUpdate?: (id: string, data: Partial<CreateBudgetPayload> & { reason?: string }) => void
+  editing?:  ExpenseBudget | null
   cats:      { id: string; name: string }[]
   offices:   { id: string; name: string; code: string }[]
 }) {
-  const [account,    setAccount]    = useState<{ id: string; name: string } | null>(null)
-  const [categoryId, setCategoryId] = useState('')
-  const [officeId,   setOfficeId]   = useState('')
-  const [period,     setPeriod]     = useState<'annual' | 'quarterly' | 'monthly'>('annual')
-  const [quarter,    setQuarter]    = useState(1)
-  const [month,      setMonth]      = useState(new Date().getMonth() + 1)
-  const [amount,     setAmount]     = useState<number>(0)
-  const [label,      setLabel]      = useState('')
+  const isEdit = !!editing
+  const [account,    setAccount]    = useState<{ id: string; name: string } | null>(editing?.accountNumber ? { id: editing.accountNumber, name: editing.accountName ?? editing.accountNumber } : null)
+  const [categoryId, setCategoryId] = useState(editing?.categoryId ?? '')
+  const [officeId,   setOfficeId]   = useState(editing?.officeId ?? '')
+  const [period,     setPeriod]     = useState<'annual' | 'quarterly' | 'monthly'>(editing?.period ?? 'annual')
+  const [quarter,    setQuarter]    = useState(editing?.quarter ?? 1)
+  const [month,      setMonth]      = useState(editing?.month ?? new Date().getMonth() + 1)
+  const [amount,     setAmount]     = useState<number>(editing?.amount ?? 0)
+  const [label,      setLabel]      = useState(editing?.label ?? '')
+  const [reason,     setReason]     = useState('')
+  const { data: revisions } = useBudgetRevisions(editing?.id ?? null)
 
+  const amountChanged = isEdit && amount !== editing!.amount
   const canSubmit = !!account && amount > 0
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
-    onSave({
+    const payload: CreateBudgetPayload = {
       year, amount, period,
       accountNumber: account!.id,
       categoryId: categoryId || undefined,
@@ -62,18 +68,21 @@ function BudgetModal({ year, onClose, isPending, onSave, cats, offices }: {
       quarter:    period === 'quarterly' ? quarter : undefined,
       month:      period === 'monthly'   ? month   : undefined,
       label:      label.trim() || undefined,
-    })
+    }
+    if (isEdit && onUpdate) onUpdate(editing!.id, { ...payload, reason: amountChanged && reason.trim() ? reason.trim() : undefined })
+    else onSave(payload)
   }
 
   const PERIODS: { key: typeof period; label: string }[] = [
     { key: 'annual', label: 'Annuel' }, { key: 'quarterly', label: 'Trimestriel' }, { key: 'monthly', label: 'Mensuel' },
   ]
+  const fmt0 = (n: number) => Math.round(n).toLocaleString('fr-FR')
 
   return (
     <OverlayPortal>
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
         <div className="card" style={{ padding: '26px 30px', width: 480, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--text-1)' }}>Nouveau budget {year}</h3>
+          <h3 style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--text-1)' }}>{isEdit ? 'Modifier le budget' : `Nouveau budget ${year}`}</h3>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
               <label style={lbl}>Compte comptable (charge 6 / produit 7) *</label>
@@ -133,12 +142,33 @@ function BudgetModal({ year, onClose, isPending, onSave, cats, offices }: {
               <input type="number" min={1} value={amount || ''} onChange={e => setAmount(Number(e.target.value))} placeholder="0" style={{ ...inp, fontFamily: 'var(--font-mono)' }} />
             </div>
 
+            {amountChanged && (
+              <div>
+                <label style={lbl}>Motif de la révision</label>
+                <input value={reason} onChange={e => setReason(e.target.value)} placeholder={`De ${fmt0(editing!.amount)} à ${fmt0(amount)} XAF — pourquoi ?`} style={inp} />
+              </div>
+            )}
+
+            {isEdit && (revisions ?? []).length > 0 && (
+              <div style={{ background: 'var(--surface-2)', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-2)', fontFamily: 'var(--font-display)', marginBottom: 6 }}>Historique des révisions</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 140, overflowY: 'auto' }}>
+                  {(revisions ?? []).map((rev) => (
+                    <div key={rev.id} style={{ fontSize: 11.5, color: 'var(--text-3)', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                      <span><span style={{ fontFamily: 'var(--font-mono)' }}>{fmt0(rev.previousAmount)} → {fmt0(rev.newAmount)}</span>{rev.reason ? ` · ${rev.reason}` : ''}</span>
+                      <span style={{ whiteSpace: 'nowrap' }}>{new Date(rev.createdAt).toLocaleDateString('fr-FR')}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 4 }}>
               <button type="button" onClick={onClose} style={{ padding: '8px 18px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>Annuler</button>
               <button type="submit" disabled={isPending || !canSubmit}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 20px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', cursor: isPending || !canSubmit ? 'default' : 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: isPending || !canSubmit ? 0.6 : 1 }}>
                 {isPending && <Loader2 size={13} className="animate-spin" />}
-                Créer le budget
+                {isEdit ? 'Enregistrer' : 'Créer le budget'}
               </button>
             </div>
           </form>
@@ -158,8 +188,8 @@ function Metric({ label, value, color }: { label: string; value: string; color?:
   )
 }
 
-function BudgetCard({ b, format, canDelete, onDelete }: {
-  b: ExpenseBudget; format: (n: number) => string; canDelete: boolean; onDelete: () => void
+function BudgetCard({ b, format, canDelete, canEdit, onEdit, onDelete }: {
+  b: ExpenseBudget; format: (n: number) => string; canDelete: boolean; canEdit: boolean; onEdit: () => void; onDelete: () => void
 }) {
   const isRevenue = b.kind === 'revenue'
   const over      = !isRevenue && b.consumed > b.amount
@@ -185,14 +215,24 @@ function BudgetCard({ b, format, canDelete, onDelete }: {
             {b.officeName && <span style={{ fontSize: 11, color: 'var(--text-3)', background: 'var(--surface-2)', padding: '2px 8px', borderRadius: 10 }}>{b.officeName}</span>}
           </div>
         </div>
-        {canDelete && (
-          <button onClick={onDelete} title="Supprimer"
-            style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--text-3)', flexShrink: 0 }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#fecaca' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.borderColor = 'var(--border)' }}>
-            <Trash2 size={13} />
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          {canEdit && (
+            <button onClick={onEdit} title="Modifier"
+              style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--text-3)' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--primary)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-3)' }}>
+              <Pencil size={13} />
+            </button>
+          )}
+          {canDelete && (
+            <button onClick={onDelete} title="Supprimer"
+              style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--text-3)' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#fecaca' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.borderColor = 'var(--border)' }}>
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Métriques */}
@@ -313,12 +353,14 @@ export default function ExpenseBudgetsPage() {
   const { format } = useCurrency()
   const [year,       setYear]       = useState(new Date().getFullYear())
   const [showCreate, setShowCreate] = useState(false)
+  const [editing, setEditing]       = useState<ExpenseBudget | null>(null)
   const [view, setView] = useState<'cards' | 'table'>('cards')
 
   const { data: budgets, isLoading } = useExpenseBudgets(year)
   const { data: cats }               = useExpenseCategories()
   const { data: offices }            = useOffices()
   const createMutation               = useCreateBudget(year)
+  const updateMutation               = useUpdateBudget(year)
   const deleteMutation               = useDeleteBudget(year)
 
   const alertBudgets = (budgets ?? []).filter(b => b.kind !== 'revenue' && b.percentUsed >= 80)
@@ -331,6 +373,9 @@ export default function ExpenseBudgetsPage() {
 
   function handleCreate(data: CreateBudgetPayload) {
     createMutation.mutate(data, { onSuccess: () => setShowCreate(false) })
+  }
+  function handleUpdate(id: string, data: Partial<CreateBudgetPayload> & { reason?: string }) {
+    updateMutation.mutate({ id, data }, { onSuccess: () => setEditing(null) })
   }
 
   function refreshBudgets() { qc.invalidateQueries({ queryKey: ['expense-budgets'] }) }
@@ -366,8 +411,11 @@ export default function ExpenseBudgetsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 1000, animation: 'page-in 0.2s ease' }}>
-      {showCreate && (
-        <BudgetModal year={year} isPending={createMutation.isPending} onClose={() => setShowCreate(false)} onSave={handleCreate}
+      {(showCreate || editing) && (
+        <BudgetModal year={year} editing={editing}
+          isPending={createMutation.isPending || updateMutation.isPending}
+          onClose={() => { setShowCreate(false); setEditing(null) }}
+          onSave={handleCreate} onUpdate={handleUpdate}
           cats={(cats ?? []).map(c => ({ id: c.id, name: c.name }))}
           offices={(offices ?? []).map(o => ({ id: o.id, name: o.name, code: o.code }))} />
       )}
@@ -461,7 +509,8 @@ export default function ExpenseBudgetsPage() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
           {(budgets ?? []).map(b => (
-            <BudgetCard key={b.id} b={b} format={format} canDelete={can('expense', 'delete')}
+            <BudgetCard key={b.id} b={b} format={format} canDelete={can('expense', 'delete')} canEdit={can('expense', 'update')}
+              onEdit={() => setEditing(b)}
               onDelete={async () => { if (await confirm({ title: `Supprimer le budget « ${b.label} » ?`, tone: 'danger', confirmLabel: 'Supprimer' })) deleteMutation.mutate(b.id) }} />
           ))}
         </div>

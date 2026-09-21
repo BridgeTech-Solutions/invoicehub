@@ -76,7 +76,9 @@ export const createBudgetSchema = z.object({
   notes:       z.string().optional().nullable(),
 });
 
-export const updateBudgetSchema = createBudgetSchema.partial();
+export const updateBudgetSchema = createBudgetSchema.partial().extend({
+  reason: z.string().max(500).optional(), // motif de la révision (montant)
+});
 
 export type PayExpenseInput            = z.infer<typeof payExpenseSchema>;
 export type CreateExpenseCategoryInput = z.infer<typeof createExpenseCategorySchema>;
