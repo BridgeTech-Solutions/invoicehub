@@ -7,6 +7,8 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ApprovalsService } from '../approvals/approvals.service';
 import { AppError } from '../../common/errors/app-error';
+import { generatePdf } from '../../lib/pdf';
+import * as ExcelJS from 'exceljs';
 import type { NotificationJobData } from '../../jobs/job-types';
 import * as accountingEngine from '../../lib/accountingEngine';
 import { recordAccountingEvent } from '../../lib/accounting-outbox';
@@ -924,4 +926,135 @@ export class ExpensesService {
 
     return this.prisma.expenseBudget.update({ where: { id }, data: updateData as any });
   }
+
+  // ── Budget vs Réalisé : consolidation + projection (atterrissage) ──────────────
+
+  /**
+   * Vue consolidée pour l'écran de pilotage et les exports : lignes enrichies d'une
+   * PROJECTION d'atterrissage (run-rate linéaire sur la fraction de période écoulée)
+   * et d'un écart, + totaux par nature (charge / produit).
+   */
+  async getBudgetSummary(params: { year?: number; categoryId?: string; officeId?: string; accountNumber?: string }) {
+    const lines = await this.listBudgets(params);
+    const now = Date.now();
+
+    const enriched = lines.map((l: any) => {
+      const win = ExpensesService.budgetWindow({ periodType: l.period, year: l.year, quarter: l.quarter, month: l.month });
+      const totalMs = win.lte.getTime() - win.gte.getTime();
+      const elapsed = Math.max(0, Math.min(totalMs, now - win.gte.getTime()));
+      const frac = totalMs > 0 ? elapsed / totalMs : 1;
+      // Projection = réalisé ramené à toute la période (au-delà de 2 % écoulé pour éviter les extrapolations absurdes).
+      const forecast = frac >= 0.02 ? Math.round(l.realized / frac) : null;
+      const variance = l.amount - l.consumed; // > 0 : marge ; < 0 : dépassement
+      return { ...l, forecast, forecastPct: frac < 1 ? Math.round(frac * 100) : 100, variance };
+    });
+
+    const sum = (arr: any[], k: string) => arr.reduce((s, x) => s + Number(x[k] ?? 0), 0);
+    const totalsFor = (kind: string) => {
+      const g = enriched.filter((l) => l.kind === kind);
+      return { count: g.length, budget: sum(g, 'amount'), realized: sum(g, 'realized'), engaged: sum(g, 'engaged'), available: sum(g, 'available') };
+    };
+
+    return {
+      year: params.year ?? new Date().getUTCFullYear(),
+      lines: enriched,
+      totals: { charge: totalsFor('charge'), revenue: totalsFor('revenue') },
+    };
+  }
+
+  private static readonly XAF = (n: number) => `${Math.round(n).toLocaleString('fr-FR')}`;
+
+  async exportBudgetsXlsx(year: number): Promise<{ buffer: Buffer; filename: string }> {
+    const { lines, totals } = await this.getBudgetSummary({ year });
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'InvoiceHub';
+    const ws = wb.addWorksheet(`Budgets ${year}`);
+    ws.columns = [
+      { header: 'Compte',      key: 'account',   width: 12 },
+      { header: 'Libellé',     key: 'label',     width: 34 },
+      { header: 'Type',        key: 'kind',      width: 10 },
+      { header: 'Période',     key: 'period',    width: 14 },
+      { header: 'Budget',      key: 'budget',    width: 16 },
+      { header: 'Engagé',      key: 'engaged',   width: 16 },
+      { header: 'Réalisé',     key: 'realized',  width: 16 },
+      { header: 'Disponible',  key: 'available', width: 16 },
+      { header: '% consommé',  key: 'pct',       width: 12 },
+      { header: 'Projection',  key: 'forecast',  width: 16 },
+    ];
+    ws.getRow(1).font = { bold: true };
+    ws.getRow(1).eachCell((c) => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F2D4A' } }; c.font = { bold: true, color: { argb: 'FFFFFFFF' } }; });
+    for (const l of lines as any[]) {
+      ws.addRow({
+        account: l.accountNumber ?? '', label: l.label, kind: l.kind === 'revenue' ? 'Produit' : 'Charge',
+        period: l.period === 'monthly' ? `Mois ${l.month}` : l.period === 'quarterly' ? `T${l.quarter}` : 'Année',
+        budget: Number(l.amount), engaged: Number(l.engaged), realized: Number(l.realized), available: Number(l.available),
+        pct: `${l.percentUsed}%`, forecast: l.forecast != null ? Number(l.forecast) : '',
+      });
+    }
+    (['budget', 'engaged', 'realized', 'available', 'forecast'] as const).forEach((k) => {
+      ws.getColumn(k).numFmt = '# ##0';
+    });
+    // Totaux
+    ws.addRow({});
+    for (const [kind, t] of [['Charges', totals.charge], ['Produits', totals.revenue]] as const) {
+      if (t.count === 0) continue;
+      const r = ws.addRow({ label: `TOTAL ${kind}`, budget: t.budget, engaged: t.engaged, realized: t.realized, available: t.available });
+      r.font = { bold: true };
+    }
+    const buffer = Buffer.from(await wb.xlsx.writeBuffer());
+    return { buffer, filename: `Budgets_${year}.xlsx` };
+  }
+
+  async exportBudgetsPdf(year: number): Promise<{ buffer: Buffer; filename: string }> {
+    const { lines, totals } = await this.getBudgetSummary({ year });
+    const f = ExpensesService.XAF;
+    const settings = await this.prisma.companySettings.findFirst({ select: { companyName: true, defaultCurrency: true } });
+    const cur = settings?.defaultCurrency ?? 'XAF';
+
+    const rows = (lines as any[]).map((l) => {
+      const over = l.kind !== 'revenue' && l.consumed > l.amount;
+      return `<tr>
+        <td class="mono">${l.accountNumber ?? ''}</td>
+        <td>${escapeHtml(l.label)}</td>
+        <td>${l.kind === 'revenue' ? 'Produit' : 'Charge'}</td>
+        <td class="num">${f(l.amount)}</td>
+        <td class="num">${f(l.engaged)}</td>
+        <td class="num">${f(l.realized)}</td>
+        <td class="num" style="color:${l.available < 0 ? '#dc2626' : '#0f2d4a'}">${f(l.available)}</td>
+        <td class="num" style="font-weight:700;color:${over ? '#dc2626' : '#0f2d4a'}">${l.percentUsed}%</td>
+      </tr>`;
+    }).join('');
+
+    const totalRow = (label: string, t: any) => t.count === 0 ? '' :
+      `<tr class="tot"><td colspan="3">${label}</td><td class="num">${f(t.budget)}</td><td class="num">${f(t.engaged)}</td><td class="num">${f(t.realized)}</td><td class="num">${f(t.available)}</td><td></td></tr>`;
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+      * { font-family: Arial, sans-serif; }
+      body { margin: 28px; color: #1f2937; }
+      h1 { font-size: 18px; color: #0f2d4a; margin: 0 0 2px; }
+      .sub { font-size: 11px; color: #6b7280; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+      th { background: #0f2d4a; color: #fff; text-align: left; padding: 6px 8px; }
+      td { padding: 5px 8px; border-bottom: 1px solid #e5e7eb; }
+      .num { text-align: right; font-family: 'Courier New', monospace; }
+      .mono { font-family: 'Courier New', monospace; font-weight: 700; }
+      .tot td { font-weight: 700; background: #f1f5f9; border-top: 2px solid #cbd5e1; }
+    </style></head><body>
+      <h1>Budget vs Réalisé — ${year}</h1>
+      <div class="sub">${escapeHtml(settings?.companyName ?? '')} · Montants en ${cur} · Édité le ${new Date().toLocaleDateString('fr-FR')}</div>
+      <table>
+        <thead><tr><th>Compte</th><th>Libellé</th><th>Type</th><th class="num">Budget</th><th class="num">Engagé</th><th class="num">Réalisé</th><th class="num">Disponible</th><th class="num">%</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="8" style="text-align:center;color:#9ca3af;padding:24px">Aucun budget</td></tr>'}
+          ${totalRow('TOTAL Charges', totals.charge)}
+          ${totalRow('TOTAL Produits', totals.revenue)}
+        </tbody>
+      </table>
+    </body></html>`;
+    const buffer = await generatePdf(html);
+    return { buffer, filename: `Budgets_${year}.pdf` };
+  }
+}
+
+function escapeHtml(s: string): string {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

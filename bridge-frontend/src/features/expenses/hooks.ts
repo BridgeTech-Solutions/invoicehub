@@ -57,6 +57,15 @@ export function useExpenseBudgets(year: number) {
   })
 }
 
+export function useBudgetSummary(year: number) {
+  return useQuery({
+    queryKey: [...EXPENSE_KEYS.budgets(year), 'summary'],
+    queryFn:  () => expensesApi.budgetSummary(year),
+    staleTime: 60_000,
+    enabled:  !!year,
+  })
+}
+
 export function useCreateExpense() {
   const qc     = useQueryClient()
   const router = useRouter()

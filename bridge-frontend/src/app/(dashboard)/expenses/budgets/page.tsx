@@ -2,21 +2,23 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, Plus, Trash2, Loader2, AlertTriangle, X, TrendingUp, TrendingDown } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Trash2, Loader2, AlertTriangle, X, TrendingUp, TrendingDown, LayoutGrid, Table2, FileSpreadsheet, FileText } from 'lucide-react'
+import { toast } from 'sonner'
 import { usePermission } from '@/hooks/usePermission'
 import { useConfirm } from '@/providers/ConfirmProvider'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { OverlayPortal } from '@/components/ui/OverlayPortal'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
-  useExpenseBudgets, useExpenseCategories,
+  useExpenseBudgets, useExpenseCategories, useBudgetSummary,
   useCreateBudget, useDeleteBudget,
 } from '@/features/expenses/hooks'
+import { expensesApi } from '@/features/expenses/api'
 import { useOffices } from '@/features/offices/hooks'
 import { AccountPicker } from '@/features/accounting/components/AccountPicker'
 import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
-import type { CreateBudgetPayload, ExpenseBudget } from '@/features/expenses/types'
+import type { CreateBudgetPayload, ExpenseBudget, BudgetTotals } from '@/features/expenses/types'
 
 const MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
 const inp: React.CSSProperties = { width: '100%', padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13.5, color: 'var(--text-1)', outline: 'none' }
@@ -219,12 +221,98 @@ function BudgetCard({ b, format, canDelete, onDelete }: {
   )
 }
 
+// ─── Vue consolidée (Budget vs Réalisé) ──────────────────────
+function ConsolidatedView({ year, format }: { year: number; format: (n: number) => string }) {
+  const { data, isLoading } = useBudgetSummary(year)
+  const [exporting, setExporting] = useState<'xlsx' | 'pdf' | null>(null)
+
+  async function doExport(fmt: 'xlsx' | 'pdf') {
+    setExporting(fmt)
+    try { await expensesApi.exportBudgets(year, fmt) }
+    catch { toast.error("L'export a échoué.") }
+    finally { setExporting(null) }
+  }
+
+  if (isLoading) return <div className="card animate-pulse" style={{ height: 240 }} />
+  if (!data || data.lines.length === 0) {
+    return <div className="card" style={{ padding: 48, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>Aucun budget pour {year}.</div>
+  }
+
+  const th: React.CSSProperties = { textAlign: 'right', padding: '8px 10px', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }
+  const td: React.CSSProperties = { textAlign: 'right', padding: '9px 10px', fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--text-1)', borderTop: '1px solid var(--border)' }
+
+  const TotalRow = ({ label, t }: { label: string; t: BudgetTotals }) => t.count === 0 ? null : (
+    <tr style={{ background: 'var(--surface-2)' }}>
+      <td style={{ ...td, textAlign: 'left', fontWeight: 700, fontFamily: 'var(--font-display)' }} colSpan={2}>{label}</td>
+      <td style={{ ...td, fontWeight: 700 }}>{format(t.budget)}</td>
+      <td style={{ ...td, fontWeight: 700, color: '#64748b' }}>{format(t.engaged)}</td>
+      <td style={{ ...td, fontWeight: 700 }}>{format(t.realized)}</td>
+      <td style={{ ...td, fontWeight: 700, color: t.available < 0 ? '#dc2626' : 'var(--text-1)' }}>{format(t.available)}</td>
+      <td style={td} colSpan={2} />
+    </tr>
+  )
+
+  return (
+    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+        <button onClick={() => doExport('xlsx')} disabled={!!exporting}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border-strong)', background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--text-2)' }}>
+          {exporting === 'xlsx' ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />} Excel
+        </button>
+        <button onClick={() => doExport('pdf')} disabled={!!exporting}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border-strong)', background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--text-2)' }}>
+          {exporting === 'pdf' ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />} PDF
+        </button>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th style={{ ...th, textAlign: 'left' }}>Compte / Libellé</th>
+              <th style={{ ...th, textAlign: 'left' }}>Type</th>
+              <th style={th}>Budget</th>
+              <th style={th}>Engagé</th>
+              <th style={th}>Réalisé</th>
+              <th style={th}>Disponible</th>
+              <th style={th}>%</th>
+              <th style={th}>Projection</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.lines.map((l) => {
+              const over = l.kind !== 'revenue' && l.consumed > l.amount
+              return (
+                <tr key={l.id}>
+                  <td style={{ ...td, textAlign: 'left', fontFamily: 'inherit' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-2)', marginRight: 8 }}>{l.accountNumber ?? '—'}</span>
+                    {l.label}
+                  </td>
+                  <td style={{ ...td, textAlign: 'left', fontFamily: 'inherit', color: l.kind === 'revenue' ? 'var(--primary)' : '#b45309', fontSize: 12 }}>{l.kind === 'revenue' ? 'Produit' : 'Charge'}</td>
+                  <td style={td}>{format(l.amount)}</td>
+                  <td style={{ ...td, color: '#64748b' }}>{format(l.engaged)}</td>
+                  <td style={td}>{format(l.realized)}</td>
+                  <td style={{ ...td, color: l.available < 0 ? '#dc2626' : 'var(--text-1)' }}>{format(l.available)}</td>
+                  <td style={{ ...td, fontWeight: 700, color: over ? '#dc2626' : 'var(--text-1)' }}>{l.percentUsed}%</td>
+                  <td style={{ ...td, color: 'var(--text-3)' }}>{l.forecast != null ? format(l.forecast) : '—'}</td>
+                </tr>
+              )
+            })}
+            <TotalRow label="Total charges" t={data.totals.charge} />
+            <TotalRow label="Total produits" t={data.totals.revenue} />
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 export default function ExpenseBudgetsPage() {
   const { can } = usePermission()
   const confirm = useConfirm()
   const { format } = useCurrency()
   const [year,       setYear]       = useState(new Date().getFullYear())
   const [showCreate, setShowCreate] = useState(false)
+  const [view, setView] = useState<'cards' | 'table'>('cards')
 
   const { data: budgets, isLoading } = useExpenseBudgets(year)
   const { data: cats }               = useExpenseCategories()
@@ -300,9 +388,22 @@ export default function ExpenseBudgetsPage() {
         <button onClick={() => setYear(y => y + 1)} style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: '1.5px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--text-2)' }}>
           <ChevronRight size={14} />
         </button>
+
+        {/* Bascule vue */}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, background: 'var(--surface-2)', padding: 3, borderRadius: 'var(--radius-md)' }}>
+          {([['cards', 'Suivi', LayoutGrid], ['table', 'Budget vs Réalisé', Table2]] as const).map(([key, lab, Icon]) => (
+            <button key={key} onClick={() => setView(key)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 12px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 600,
+                background: view === key ? 'var(--surface)' : 'transparent', color: view === key ? 'var(--text-1)' : 'var(--text-3)', boxShadow: view === key ? '0 1px 2px rgba(0,0,0,0.08)' : 'none' }}>
+              <Icon size={14} /> {lab}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {isLoading ? (
+      {view === 'table' ? (
+        <ConsolidatedView year={year} format={format} />
+      ) : isLoading ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
           {Array.from({ length: 4 }).map((_, i) => <div key={i} className="card animate-pulse" style={{ height: 170 }} />)}
         </div>

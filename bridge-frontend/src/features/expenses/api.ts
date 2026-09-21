@@ -3,7 +3,7 @@ import type {
   Expense, PaginatedExpenses, ExpenseStats,
   ExpenseCategory, ExpenseBudget,
   CreateExpensePayload, UpdateExpensePayload, ListExpensesParams,
-  CreateBudgetPayload,
+  CreateBudgetPayload, BudgetSummary,
 } from './types'
 
 export const expensesApi = {
@@ -71,4 +71,16 @@ export const expensesApi = {
 
   deleteBudget: (id: string) =>
     apiClient.delete(`/expense-budgets/${id}`),
+
+  budgetSummary: (year: number) =>
+    apiClient.get<BudgetSummary>('/expense-budgets/summary', { params: { year } }).then(r => r.data),
+
+  exportBudgets: async (year: number, format: 'xlsx' | 'pdf') => {
+    const res = await apiClient.get('/expense-budgets/export', { params: { year, format }, responseType: 'blob' })
+    const type = format === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/pdf'
+    const url  = URL.createObjectURL(new Blob([res.data], { type }))
+    const a    = document.createElement('a')
+    a.href = url; a.download = `Budgets_${year}.${format}`; a.click()
+    URL.revokeObjectURL(url)
+  },
 }
