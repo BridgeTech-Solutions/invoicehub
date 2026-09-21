@@ -1,7 +1,10 @@
 import {
   Controller, Get, Post, Put, Delete,
   Body, Param, Query, HttpCode, HttpStatus, Res, StreamableFile,
+  UseInterceptors, UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { Response } from 'express';
 import { ExpensesService } from './expenses.service';
 import { Permission } from '../../common/decorators/permission.decorator';
@@ -66,6 +69,31 @@ export class ExpenseBudgetsController {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return new StreamableFile(buffer);
+  }
+
+  @Post('carry-over')
+  @Permission('expenses:create')
+  @HttpCode(HttpStatus.OK)
+  async carryOver(
+    @Body() body: { fromYear: number; toYear: number; basis?: 'budget' | 'remaining' },
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.svc.carryOverBudgets(Number(body.fromYear), Number(body.toYear), body.basis === 'remaining' ? 'remaining' : 'budget', user.sub);
+  }
+
+  @Post('import')
+  @Permission('expenses:create')
+  @UseInterceptors(FileInterceptor('file', {
+    storage: memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const ok = /\.xlsx$/i.test(file.originalname) || file.mimetype.includes('spreadsheetml');
+      cb(ok ? null : new Error('Formats acceptés : .xlsx uniquement.'), ok);
+    },
+  }))
+  async import(@UploadedFile() file: Express.Multer.File, @CurrentUser() user: JwtPayload) {
+    if (!file) throw new Error('Aucun fichier fourni');
+    return this.svc.importBudgets(file.buffer, user.sub);
   }
 
   @Post()

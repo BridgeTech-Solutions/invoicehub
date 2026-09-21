@@ -58,6 +58,17 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-09-21 — Budgets v2 (Phase 3a) : report de reliquat + import Excel
+- **Report (carry-over)** : bouton « Préparer {N+1} » → recopie les budgets de l'année N
+  vers N+1 (`POST /expense-budgets/carry-over` — `basis` = `budget` ou `remaining`). Les
+  budgets déjà présents en N+1 sont ignorés.
+- **Import Excel** : bouton « Importer » → `.xlsx` (colonnes : Compte, Année, Période,
+  Mois/Trimestre, Montant, Libellé) → `POST /expense-budgets/import`. Chaque ligne est
+  validée indépendamment ; le rapport indique les créés et les erreurs par ligne.
+
+> Aucune migration SQL, aucune nouvelle dépendance (`exceljs` déjà ajouté en Phase 2).
+> Reste (Phase 3b) : révisions/versions de budget (nécessite l'écran d'édition).
+
 ### 2026-09-21 — Budgets v2 (Phase 2) : Budget vs Réalisé consolidé + export Excel/PDF
 - Nouvel écran **Budget vs Réalisé** (bascule « Suivi » / « Budget vs Réalisé » sur la page
   Budgets) : tableau consolidé par compte avec Budget / Engagé / Réalisé / Disponible / % +

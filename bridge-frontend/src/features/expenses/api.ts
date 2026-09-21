@@ -75,6 +75,15 @@ export const expensesApi = {
   budgetSummary: (year: number) =>
     apiClient.get<BudgetSummary>('/expense-budgets/summary', { params: { year } }).then(r => r.data),
 
+  carryOverBudgets: (fromYear: number, toYear: number, basis: 'budget' | 'remaining') =>
+    apiClient.post('/expense-budgets/carry-over', { fromYear, toYear, basis }).then(r => r.data as { created: number; skipped: number }),
+
+  importBudgets: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return apiClient.post('/expense-budgets/import', fd).then(r => r.data as { created: number; errors: { row: number; message: string }[] })
+  },
+
   exportBudgets: async (year: number, format: 'xlsx' | 'pdf') => {
     const res = await apiClient.get('/expense-budgets/export', { params: { year, format }, responseType: 'blob' })
     const type = format === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/pdf'
