@@ -2422,19 +2422,23 @@ COMMENT ON TABLE expense_status_history IS 'Historique des changements de statut
 -- ================================================================
 CREATE TABLE expense_budgets (
     id              UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
-    category_id     UUID        NOT NULL REFERENCES expense_categories(id) ON DELETE CASCADE,
+    account_number  VARCHAR(20),                    -- compte comptable budgété (classe 6/7), source du réalisé
+    category_id     UUID        REFERENCES expense_categories(id) ON DELETE CASCADE,  -- dimension optionnelle
+    office_id       UUID        REFERENCES agency_offices(id) ON DELETE SET NULL,     -- dimension optionnelle
+    period_type     VARCHAR(10) NOT NULL DEFAULT 'annual',  -- annual | quarterly | monthly
     year            SMALLINT    NOT NULL,
-    month           SMALLINT,        -- NULL = budget annuel
+    quarter         SMALLINT,        -- 1..4 si period_type = quarterly
+    month           SMALLINT,        -- 1..12 si period_type = monthly
     budget_amount   NUMERIC(15,2) NOT NULL,
     notes           TEXT,
     created_by      UUID        REFERENCES users(id) ON DELETE SET NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT uq_expense_budget UNIQUE (category_id, year, month),
-    CONSTRAINT chk_budget_month  CHECK (month IS NULL OR month BETWEEN 1 AND 12),
     CONSTRAINT chk_budget_amount CHECK (budget_amount > 0)
+    -- Unicité multi-dimensions (compte, catégorie, bureau, période) contrôlée en applicatif.
 );
+CREATE INDEX idx_expense_budgets_account_year ON expense_budgets (account_number, year);
 CREATE TRIGGER tg_expense_budgets_updated_at
     BEFORE UPDATE ON expense_budgets
     FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();

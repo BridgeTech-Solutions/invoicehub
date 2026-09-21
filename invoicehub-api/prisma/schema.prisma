@@ -582,6 +582,7 @@ model AgencyOffice {
   purchaseOrders             PurchaseOrder[]
   supplierInvoices           SupplierInvoice[]
   expenses                   Expense[]
+  expenseBudgets             ExpenseBudget[]  @relation("ExpenseBudgetOffice")
 
   @@map("agency_offices")
 }
@@ -1736,9 +1737,18 @@ model ExpenseStatusHistory {
 
 model ExpenseBudget {
   id            String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  categoryId    String          @map("category_id") @db.Uuid
-  category      ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  // QUOI : compte comptable budgété (classe 6 charge / 7 produit). Source du réalisé
+  // (grand-livre). Nullable pour compat. ascendante des anciens budgets par catégorie.
+  accountNumber String?         @map("account_number") @db.VarChar(20)
+  // Dimensions optionnelles.
+  categoryId    String?         @map("category_id") @db.Uuid
+  category      ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  officeId      String?         @map("office_id") @db.Uuid
+  office        AgencyOffice?   @relation("ExpenseBudgetOffice", fields: [officeId], references: [id], onDelete: SetNull)
+  // QUAND : périodicité + repères.
+  periodType    String          @default("annual") @map("period_type") @db.VarChar(10) // annual | quarterly | monthly
   year          Int             @db.SmallInt
+  quarter       Int?            @db.SmallInt
   month         Int?            @db.SmallInt
   budgetAmount  Decimal         @map("budget_amount") @db.Decimal(15, 2)
   notes         String?
@@ -1747,7 +1757,7 @@ model ExpenseBudget {
   createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt     DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
-  @@unique([categoryId, year, month])
+  @@index([accountNumber, year])
   @@map("expense_budgets")
 }
 
