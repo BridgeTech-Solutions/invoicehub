@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Plus, Trash2, Loader2, AlertTriangle, X } fr
 import { usePermission } from '@/hooks/usePermission'
 import { useConfirm } from '@/providers/ConfirmProvider'
 import { AccessDenied } from '@/components/ui/AccessDenied'
+import { OverlayPortal } from '@/components/ui/OverlayPortal'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
   useExpenseBudgets, useExpenseCategories,
@@ -28,15 +29,18 @@ function BudgetModal({ year, onClose, isPending, onSave, cats }: {
   const [period,     setPeriod]     = useState<'annual' | 'monthly'>('annual')
   const inp: React.CSSProperties = { width: '100%', padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13.5, color: 'var(--text-1)', outline: 'none' }
 
+  const canSubmit = !!label.trim() && amount > 0 && !!categoryId
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!label.trim() || amount <= 0) return
-    onSave({ year, label, categoryId: categoryId || undefined, amount, period })
+    if (!canSubmit) return
+    onSave({ year, label, categoryId, amount, period })
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div className="card" style={{ padding: '28px 32px', width: 440, display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <OverlayPortal>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+      <div className="card" style={{ padding: '28px 32px', width: 440, maxWidth: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--text-1)' }}>Nouveau budget {year}</h3>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
@@ -45,10 +49,10 @@ function BudgetModal({ year, onClose, isPending, onSave, cats }: {
               onFocus={e => (e.target.style.borderColor = 'var(--primary)')} onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--text-2)', marginBottom: 5, fontFamily: 'var(--font-display)' }}>Catégorie (facultatif)</label>
-            <select value={categoryId} onChange={e => setCategoryId(e.target.value)} style={{ ...inp, cursor: 'pointer' }}
+            <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--text-2)', marginBottom: 5, fontFamily: 'var(--font-display)' }}>Catégorie *</label>
+            <select value={categoryId} onChange={e => setCategoryId(e.target.value)} required style={{ ...inp, cursor: 'pointer' }}
               onFocus={e => (e.target.style.borderColor = 'var(--primary)')} onBlur={e => (e.target.style.borderColor = 'var(--border)')}>
-              <option value="">— Toutes catégories —</option>
+              <option value="" disabled>Choisir une catégorie…</option>
               {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
@@ -69,8 +73,8 @@ function BudgetModal({ year, onClose, isPending, onSave, cats }: {
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 4 }}>
             <button type="button" onClick={onClose} style={{ padding: '8px 18px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>Annuler</button>
-            <button type="submit" disabled={isPending || !label.trim() || amount <= 0}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 20px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: isPending || !label.trim() || amount <= 0 ? 0.7 : 1 }}>
+            <button type="submit" disabled={isPending || !canSubmit}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 20px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', cursor: isPending || !canSubmit ? 'default' : 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: isPending || !canSubmit ? 0.7 : 1 }}>
               {isPending && <Loader2 size={13} className="animate-spin" />}
               Créer le budget
             </button>
@@ -78,6 +82,7 @@ function BudgetModal({ year, onClose, isPending, onSave, cats }: {
         </form>
       </div>
     </div>
+    </OverlayPortal>
   )
 }
 
@@ -118,12 +123,12 @@ export default function ExpenseBudgetsPage() {
         <PageHeader
           title="Budgets de dépenses"
           description="Définissez et suivez vos enveloppes budgétaires"
-          actions={
+          actions={can('expense', 'create') ? (
             <button onClick={() => setShowCreate(true)}
               style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 18px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13.5, fontFamily: 'var(--font-display)', fontWeight: 600, boxShadow: '0 4px 12px rgba(45,125,210,0.3)' }}>
               <Plus size={15} /> Nouveau budget
             </button>
-          }
+          ) : undefined}
         />
       </div>
 
@@ -211,12 +216,14 @@ export default function ExpenseBudgetsPage() {
                       </span>
                     </div>
                   </div>
+                  {can('expense', 'delete') && (
                   <button onClick={async () => { if (await confirm({ title: `Supprimer le budget « ${b.label} » ?`, tone: 'danger', confirmLabel: 'Supprimer' })) deleteMutation.mutate(b.id) }}
                     style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--text-3)', flexShrink: 0 }}
                     onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#fecaca' }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.borderColor = 'var(--border)' }}>
                     <Trash2 size={13} />
                   </button>
+                  )}
                 </div>
 
                 <div>
