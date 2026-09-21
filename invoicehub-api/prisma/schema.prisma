@@ -2050,6 +2050,8 @@ model AccountingJournal {
   bankAccountId   String?     @map("bank_account_id") @db.Uuid
   bankAccount     BankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
   isDefault       Boolean     @default(false) @map("is_default")
+  /// Journal essentiel (seedé) : non supprimable, non désactivable, type figé.
+  isSystem        Boolean     @default(false) @map("is_system")
   isActive        Boolean     @default(true) @map("is_active")
   sequencePrefix  String?     @map("sequence_prefix") @db.VarChar(10)
   lastSequence    Int         @default(0) @map("last_sequence")

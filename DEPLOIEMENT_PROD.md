@@ -58,6 +58,30 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-09-21 — Journaux comptables : protection & fiabilisation
+- **Journaux système** : nouvelle colonne `accounting_journals.is_system` (les 7 journaux
+  seedés VTE/ACH/BQ/CAI/OD/AN/CL sont marqués système). Un journal système ne peut plus
+  être **supprimé, désactivé ni changer de type**. Un journal non système ne peut pas non
+  plus être **supprimé/désactivé s'il est le dernier actif de son type**, ni changer de
+  type **s'il porte déjà des écritures**.
+- **Sélection déterministe** : `getDefaultJournal` (et la clôture d'exercice) choisissent
+  le journal par `isDefault` puis `code` (fini le `findFirst` dépendant de l'ordre physique
+  quand plusieurs journaux partagent un type). `isDefault` est désormais réglable (un seul
+  par type).
+- **Validation** : le compte de contrepartie par défaut d'un journal est vérifié au plan
+  comptable (existant, imputable, actif).
+- **UI** : les journaux **inactifs** sont désormais listés (réactivables) ; badges
+  Système / Par défaut ; type verrouillé pour un journal système ou déjà mouvementé.
+- **Permissions** : routes journaux passées de `accounting:*` à **`fiscal:read`/`fiscal:write`**
+  (cohérent avec les périodes ; détenu par admin + comptable), front aligné.
+
+```bash
+cd invoicehub-api
+npx prisma db execute --file prisma/add_journal_is_system.sql --schema prisma/schema.prisma
+```
+> ⚠️ Si des **rôles personnalisés** géraient les journaux via `accounting:write`, leur
+> accorder `fiscal:write`. Les rôles système `admin`/`comptable` l'ont déjà.
+
 ### 2026-09-20 — Module paiement : fiabilisation (concurrence, période, rapprochement)
 Corrections des points critiques du module de paiement :
 - **Concurrence** : la création d'un paiement verrouille désormais la facture

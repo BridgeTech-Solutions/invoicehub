@@ -4533,6 +4533,7 @@ CREATE TABLE accounting_journals (
     type            journal_type NOT NULL,
     bank_account_id UUID         REFERENCES bank_accounts(id) ON DELETE SET NULL,
     is_default      BOOLEAN      NOT NULL DEFAULT FALSE,
+    is_system       BOOLEAN      NOT NULL DEFAULT FALSE,
     is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
     sequence_prefix VARCHAR(10),
     last_sequence   INTEGER      NOT NULL DEFAULT 0,
@@ -4545,14 +4546,14 @@ CREATE TRIGGER tg_accounting_journals_updated_at
 COMMENT ON TABLE accounting_journals IS 'Journaux comptables SYSCOHADA : Ventes, Achats, Banque, Caisse, OD, A-Nouveau, Cloture.';
 
 -- Journaux SYSCOHADA de base
-INSERT INTO accounting_journals (code, name, type, is_default, sequence_prefix) VALUES
-    ('VTE', 'Journal des Ventes',               'sales',     TRUE,  'VTE'),
-    ('ACH', 'Journal des Achats',               'purchases', FALSE, 'ACH'),
-    ('BQ',  'Journal de Banque',                'bank',      FALSE, 'BQ'),
-    ('CAI', 'Journal de Caisse',                'cash',      FALSE, 'CAI'),
-    ('OD',  'Journal des Operations Diverses',  'misc',      FALSE, 'OD'),
-    ('AN',  'Journal d''A Nouveau',             'opening',   FALSE, 'AN'),
-    ('CL',  'Journal de Cloture',               'closing',   FALSE, 'CL');
+INSERT INTO accounting_journals (code, name, type, is_default, is_system, sequence_prefix) VALUES
+    ('VTE', 'Journal des Ventes',               'sales',     TRUE,  TRUE, 'VTE'),
+    ('ACH', 'Journal des Achats',               'purchases', FALSE, TRUE, 'ACH'),
+    ('BQ',  'Journal de Banque',                'bank',      FALSE, TRUE, 'BQ'),
+    ('CAI', 'Journal de Caisse',                'cash',      FALSE, TRUE, 'CAI'),
+    ('OD',  'Journal des Operations Diverses',  'operations',FALSE, TRUE, 'OD'),
+    ('AN',  'Journal d''A Nouveau',             'opening',   FALSE, TRUE, 'AN'),
+    ('CL',  'Journal de Cloture',               'closing',   FALSE, TRUE, 'CL');
 
 -- ---------------------------------------------------------------
 -- 6.6 Table journal_entries — Ecritures comptables (en-têtes)

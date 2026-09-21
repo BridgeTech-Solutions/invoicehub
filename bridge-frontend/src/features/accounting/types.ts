@@ -111,6 +111,8 @@ export interface AccountingJournal {
   defaultAccountId?: string | null
   defaultAccount?:  { id: string; number: string; name: string } | null
   bankAccountId?:   string | null
+  isDefault?:       boolean
+  isSystem?:        boolean
   isActive:         boolean
   entriesCount:     number
   createdAt:        string
@@ -123,6 +125,7 @@ export interface CreateJournalPayload {
   description?:     string
   defaultAccountId?: string | null
   bankAccountId?:   string | null
+  isDefault?:       boolean
 }
 
 export interface UpdateJournalPayload {
@@ -132,6 +135,7 @@ export interface UpdateJournalPayload {
   isActive?:         boolean
   defaultAccountId?: string | null
   bankAccountId?:   string | null
+  isDefault?:       boolean
 }
 
 // ─── Entry ───────────────────────────────────────────────────

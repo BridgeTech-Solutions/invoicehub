@@ -54,6 +54,8 @@ function normalizeJournal(j: any): AccountingJournal {
     description:  j.description ?? null,
     defaultAccountId: j.defaultAccountId ?? null,
     bankAccountId: j.bankAccountId ?? null,
+    isDefault:    j.isDefault ?? false,
+    isSystem:     j.isSystem ?? false,
     isActive:     j.isActive,
     entriesCount: j._count?.journalEntries ?? 0,
     createdAt:    typeof j.createdAt === 'string' ? j.createdAt : new Date(j.createdAt).toISOString(),

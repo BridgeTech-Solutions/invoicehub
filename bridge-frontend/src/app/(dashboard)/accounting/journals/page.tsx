@@ -52,8 +52,14 @@ function JournalCard({ journal, onEdit }: { journal: AccountingJournal; onEdit: 
             <BookOpen size={18} style={{ color: cfg.color }} />
           </div>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 800, color: cfg.color, letterSpacing: '0.08em' }}>{journal.code}</span>
+              {journal.isDefault && (
+                <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 99, background: 'rgba(45,125,210,0.12)', color: 'var(--primary)' }}>PAR DÉFAUT</span>
+              )}
+              {journal.isSystem && (
+                <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 99, background: 'var(--surface-2)', color: 'var(--text-3)' }}>SYSTÈME</span>
+              )}
               {!journal.isActive && (
                 <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 99, background: 'var(--s-cancelled-bg)', color: 'var(--s-cancelled)' }}>INACTIF</span>
               )}
@@ -62,9 +68,10 @@ function JournalCard({ journal, onEdit }: { journal: AccountingJournal; onEdit: 
           </div>
         </div>
         <ActionMenu items={[
-          ...(can('accounting', 'update') ? [{ label: 'Modifier', icon: Pencil, onClick: onEdit }] : []),
-          ...(can('accounting', 'update') ? [{ label: journal.isActive ? 'Désactiver' : 'Activer', icon: journal.isActive ? PowerOff : Power, onClick: handleToggle }] : []),
-          ...(can('accounting', 'delete') ? [{ label: 'Supprimer', icon: Trash2, onClick: handleDelete, danger: true }] : []),
+          ...(can('fiscal', 'write') ? [{ label: 'Modifier', icon: Pencil, onClick: onEdit }] : []),
+          // Journaux système : ni désactivation ni suppression (requis par le moteur).
+          ...(can('fiscal', 'write') && !journal.isSystem ? [{ label: journal.isActive ? 'Désactiver' : 'Activer', icon: journal.isActive ? PowerOff : Power, onClick: handleToggle }] : []),
+          ...(can('fiscal', 'write') && !journal.isSystem ? [{ label: 'Supprimer', icon: Trash2, onClick: handleDelete, danger: true }] : []),
         ]} />
       </div>
 
@@ -107,7 +114,7 @@ export default function JournalsPage() {
   function openCreate() { setEditing(null); setDrawerOpen(true) }
   function openEdit(j: AccountingJournal) { setEditing(j); setDrawerOpen(true) }
 
-  if (!can('accounting', 'read')) return <AccessDenied message="Vous n'avez pas accès à la comptabilité." />
+  if (!can('fiscal', 'read')) return <AccessDenied message="Vous n'avez pas accès aux journaux comptables." />
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto' }}>
@@ -121,7 +128,7 @@ export default function JournalsPage() {
             <p style={{ fontSize: 12, color: 'var(--text-3)', margin: 0 }}>{journals.length} journal{journals.length > 1 ? 'aux' : ''}</p>
           </div>
         </div>
-        {can('accounting', 'create') && (
+        {can('fiscal', 'write') && (
           <button onClick={openCreate}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 38, padding: '0 16px', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: '#fff', fontSize: 13.5, fontWeight: 600, fontFamily: 'var(--font-display)', border: 'none', cursor: 'pointer' }}>
             <Plus size={15} /> Créer un journal
