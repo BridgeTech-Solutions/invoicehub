@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import {
   onInvoiceIssued, onPaymentReceived, onExpensePaid,
-  onSupplierInvoiceValidated, onSupplierPaymentMade, onInvoiceCancelled,
+  onSupplierInvoiceValidated, onSupplierPaymentMade, onInvoiceCancelled, onAvoirIssued,
 } from './accountingEngine';
 
 type Tx = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
@@ -15,6 +15,7 @@ export const OUTBOX_HOOKS: Record<string, (id: string, tx: Tx) => Promise<void>>
   onSupplierInvoiceValidated,
   onSupplierPaymentMade,
   onInvoiceCancelled,
+  onAvoirIssued,
 };
 
 // sourceType de l'écriture réellement créée par chaque hook — sert de signal de
@@ -27,6 +28,7 @@ const EXPECTED_SOURCE_TYPE: Record<string, string> = {
   onSupplierInvoiceValidated: 'supplier_invoice',
   onSupplierPaymentMade:      'supplier_payment',
   onInvoiceCancelled:         'invoice_reversal',
+  onAvoirIssued:              'invoice',
 };
 
 /**

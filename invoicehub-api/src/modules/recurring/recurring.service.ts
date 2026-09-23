@@ -262,4 +262,33 @@ export class RecurringService {
 
     return invoice;
   }
+
+  /**
+   * Génère les factures des gabarits dus (appelé par le cron quotidien). Chaque
+   * facture naît en BROUILLON (jamais auto-émise) : un humain la relit et l'émet.
+   * Imputée au créateur du gabarit. Les erreurs par gabarit n'interrompent pas le lot.
+   */
+  async generateDueTemplates(): Promise<{ generated: number; templates: number }> {
+    const now = new Date();
+    const due = await this.prisma.recurringInvoiceTemplate.findMany({
+      where: {
+        deletedAt: null,
+        isActive: true,
+        nextInvoiceDate: { lte: now },
+        OR: [{ endDate: null }, { endDate: { gte: now } }],
+      },
+      select: { id: true, createdById: true },
+    });
+
+    let generated = 0;
+    for (const t of due) {
+      try {
+        await this.generate(t.id, t.createdById);
+        generated++;
+      } catch {
+        // gabarit invalide/expiré entre-temps → ignoré (le lot continue)
+      }
+    }
+    return { generated, templates: due.length };
+  }
 }

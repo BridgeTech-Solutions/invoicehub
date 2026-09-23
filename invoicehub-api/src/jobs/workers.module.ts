@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '../prisma/prisma.module';
 import { GatewayModule } from '../gateway/gateway.module';
 import { ExpensesModule } from '../modules/expenses/expenses.module';
+import { RecurringModule } from '../modules/recurring/recurring.module';
 import { CronScheduler } from './schedulers/cron.scheduler';
 import { EmailProcessor } from './processors/email.processor';
 import { NotificationProcessor } from './processors/notification.processor';
@@ -23,6 +24,7 @@ import { ACCOUNTING_OUTBOX_QUEUE } from './constants';
     ConfigModule,
     GatewayModule,
     ExpensesModule,
+    RecurringModule,
     BullModule.registerQueue(
       { name: 'overdue' },
       { name: 'recurring' },
