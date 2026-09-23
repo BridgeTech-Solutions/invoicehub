@@ -58,6 +58,24 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-09-23 — Module Facture : récurrence auto + avoir partiel comptabilisé + duplicate
+- **Factures récurrentes auto-générées** : le cron `recurring` quotidien appelle désormais
+  `RecurringService.generateDueTemplates()` → crée les factures dues en **brouillon** (à
+  relire/émettre) au lieu de seulement notifier. Notification aux détenteurs de `invoices:read`.
+- **Avoir partiel comptabilisé (correctif compta)** : `createAvoir` ne produisait **aucune
+  écriture** (il appelait `onInvoiceCancelled(avoir.id)` qui ne trouvait rien, + l'outbox
+  échouait en boucle). Nouveau hook `onAvoirIssued` : **Dr 70x + Dr 443 / Cr 411** basé sur
+  les lignes de l'avoir (réduit CA + TVA + créance). L'annulation COMPLÈTE reste inchangée
+  (contre-passe l'originale). Vérifié équilibré (Dr=Cr).
+- **`duplicate`** recopie désormais l'escompte, les options d'affichage et le compte bancaire.
+
+> **Aucune migration SQL** (changements de logique + comptabilité uniquement).
+> ⚠️ Les avoirs partiels créés AVANT ce correctif restent **sans écriture** (leur événement
+> outbox `onInvoiceCancelled` est en échec définitif, sans impact fonctionnel). Rattrapage
+> possible si besoin : enregistrer un événement `onAvoirIssued` (sourceType `invoice`) pour
+> chaque avoir concerné et laisser l'outbox le rejouer — à faire seulement si des avoirs
+> partiels existent déjà en prod.
+
 ### 2026-09-23 — Module Stock : inventaire physique (comptage + recalage)
 Nouveau sous-module **Inventaire** (obligation SYSCOHADA art. 17) : on crée une session
 (fige le stock théorique), on saisit les quantités **réellement comptées**, la validation

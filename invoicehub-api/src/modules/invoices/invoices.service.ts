@@ -811,8 +811,8 @@ export class InvoicesService {
         }
       }
 
-      // Outbox : la contre-passation de l'avoir sera rejouée si besoin.
-      await recordAccountingEvent(tx as any, 'onInvoiceCancelled', 'invoice_reversal', created.id);
+      // Outbox : l'écriture de l'avoir (crédit CA/TVA/créance) sera rejouée si besoin.
+      await recordAccountingEvent(tx as any, 'onAvoirIssued', 'invoice', created.id);
       return created;
     });
 
@@ -823,8 +823,8 @@ export class InvoicesService {
       data:    { invoiceId: invoice.id, avoirId: avoir.id, avoirNumber: avoir.number, documentLink: `/invoices/${avoir.id}` },
     }, { permission: 'invoices:read' });
 
-    this.prisma.$transaction((tx) => accountingEngine.onInvoiceCancelled(avoir.id, tx)).catch(e =>
-      console.error('[accounting] onInvoiceCancelled avoir', avoir.id, e)
+    this.prisma.$transaction((tx) => accountingEngine.onAvoirIssued(avoir.id, tx)).catch(e =>
+      console.error('[accounting] onAvoirIssued avoir', avoir.id, e)
     );
     await this.cache.invalidate();
     return avoir;
@@ -1179,6 +1179,17 @@ export class InvoicesService {
         balanceDue: original.type === 'solde' ? original.amountDue : original.totalTtc,
         acomptePercentage: original.acomptePercentage,
         totalAcomptesDeducted: original.type === 'solde' ? original.totalAcomptesDeducted : 0,
+        // Recopie les préférences perdues jusqu'ici : compte bancaire, options d'affichage
+        // et escompte (recalculé sur le TTC dupliqué).
+        ...(original.bankAccountId ? { bankAccountId: original.bankAccountId } : {}),
+        ...((original as any).displayOptions !== undefined && (original as any).displayOptions !== null
+          ? { displayOptions: (original as any).displayOptions }
+          : {}),
+        escompteRate:     (original as any).escompteRate     ?? null,
+        escompteDeadline: (original as any).escompteDeadline ?? null,
+        escompteAmount:   (original as any).escompteRate
+          ? Number((Number(original.totalTtc) * Number((original as any).escompteRate) / 100).toFixed(2))
+          : 0,
         lines: {
           create: original.lines.map(l => ({
             sortOrder: l.sortOrder,

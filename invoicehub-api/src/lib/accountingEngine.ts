@@ -539,6 +539,88 @@ export async function onInvoiceIssued(invoiceId: string, tx: Tx): Promise<void> 
   } catch (e) { logErr('onInvoiceIssued', e, { sourceType: 'invoice', sourceId: invoiceId }); }
 }
 
+// ── onAvoirIssued : écriture d'un AVOIR (note de crédit) ───────────────────────
+
+/**
+ * Écriture comptable d'un avoir émis. Un avoir réduit le chiffre d'affaires, la TVA
+ * collectée et la créance client : c'est l'INVERSE exact d'une vente, calculé sur les
+ * lignes PROPRES de l'avoir (donc valable pour un avoir partiel). On réutilise la même
+ * ventilation que l'émission (`buildInvoiceIssuanceLines`) puis on échange débit/crédit :
+ *   Dr 70x (ventes) + Dr 443 (TVA collectée)  /  Cr 411xxx (client)
+ * Idempotent. Utilisé par createAvoir (l'annulation COMPLÈTE reste sur onInvoiceCancelled,
+ * qui contre-passe l'écriture de l'originale).
+ */
+export async function onAvoirIssued(avoirId: string, tx: Tx): Promise<void> {
+  try {
+    await lockSource(tx, 'invoice', avoirId);
+    const _dupe = await tx.journalEntry.findFirst({ where: { sourceType: 'invoice', sourceId: avoirId, status: { not: 'cancelled' } }, select: { id: true } });
+    if (_dupe) return;
+
+    const [avoir, accounts] = await Promise.all([
+      tx.invoice.findUnique({
+        where: { id: avoirId },
+        include: {
+          client: { select: { id: true, name: true, accountingAccount: true } },
+          lines: {
+            include: {
+              product: { select: { type: true, salesAccountingAccount: true, category: { select: { salesAccountingAccount: true } } } },
+            },
+          },
+        },
+      }),
+      getCompanyAccounts(tx),
+    ]);
+    if (!avoir) return;
+    if (avoir.type !== 'avoir') { logSkip('onAvoirIssued', `facture ${avoirId} n'est pas un avoir`, { sourceType: 'invoice', sourceId: avoirId }); return; }
+    if (!accounts) { logSkip('onAvoirIssued', 'paramètres comptables entreprise non configurés', { sourceType: 'invoice', sourceId: avoirId }); return; }
+
+    const clientAccount = (avoir.client as any)?.accountingAccount ?? accounts.defaultClientAccount;
+    const linesWithTax  = (avoir.lines as any).map((l: any) => ({ ...l, taxRateCollectedAccount: accounts.collectedTaxAccount }));
+    const breakdown = buildSalesBreakdown(
+      linesWithTax, accounts.collectedTaxAccount,
+      accounts.defaultSalesGoodsAccount, accounts.defaultSalesServiceAccount,
+      { tvaOnCollection: accounts.tvaOnCollection, pendingTaxAccount: accounts.pendingTvaAccount },
+    );
+
+    // Un avoir n'est ni acompte ni solde → ventilation pleine, puis inversion des sens.
+    const built = await buildInvoiceIssuanceLines(
+      avoir as any, clientAccount, accounts.advanceAccount, accounts.useAdvanceAccount, breakdown, tx,
+    );
+    if (!built) return;
+
+    const reversedLines = built.lines.map((l: any, i: number) => ({
+      sortOrder:     i,
+      accountNumber: l.accountNumber,
+      label:         `Avoir — ${l.label}`,
+      debit:         Number(l.credit),
+      credit:        Number(l.debit),
+    }));
+
+    const entryDate   = new Date(avoir.issueDate ?? new Date());
+    const journal     = await getDefaultJournal(tx, JournalType.sales);
+    const period      = await getOpenPeriod(tx, entryDate);
+    const entryNumber = await nextEntryNumber(tx, journal.code, entryDate);
+
+    await createBalancedEntry(tx, {
+      data: {
+        journalId:      journal.id,
+        fiscalPeriodId: period.id,
+        entryDate,
+        accountingDate: entryDate,
+        entryNumber,
+        label:       `AVOIR ${avoir.number} — ${avoir.client?.name ?? ''}`,
+        sourceType:  'invoice',
+        sourceId:    avoir.id,
+        entryKind:   'avoir',
+        totalDebit:  built.total,
+        totalCredit: built.total,
+        status:      'draft',
+        lines: { create: reversedLines },
+      },
+    });
+  } catch (e) { logErr('onAvoirIssued', e, { sourceType: 'invoice', sourceId: avoirId }); }
+}
+
 // ── Étape 2.3 — onPaymentReceived : banque dynamique + compte client dynamique ──
 
 /**
