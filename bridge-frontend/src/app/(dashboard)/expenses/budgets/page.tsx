@@ -15,7 +15,6 @@ import {
   useCreateBudget, useUpdateBudget, useDeleteBudget, useActivateBudget, useSpreadBudget,
 } from '@/features/expenses/hooks'
 import { expensesApi } from '@/features/expenses/api'
-import { useOffices } from '@/features/offices/hooks'
 import { AccountPicker } from '@/features/accounting/components/AccountPicker'
 import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
@@ -32,7 +31,7 @@ function periodLabel(b: Pick<ExpenseBudget, 'period' | 'quarter' | 'month' | 'ye
 }
 
 // ─── Modale de création ───────────────────────────────────────
-function BudgetModal({ year, onClose, isPending, onSave, onUpdate, onSpread, editing, cats, offices }: {
+function BudgetModal({ year, onClose, isPending, onSave, onUpdate, onSpread, editing, cats }: {
   year:      number
   onClose:   () => void
   isPending: boolean
@@ -41,12 +40,11 @@ function BudgetModal({ year, onClose, isPending, onSave, onUpdate, onSpread, edi
   onSpread?: (id: string) => void
   editing?:  ExpenseBudget | null
   cats:      { id: string; name: string }[]
-  offices:   { id: string; name: string; code: string }[]
 }) {
   const isEdit = !!editing
   const [account,    setAccount]    = useState<{ id: string; name: string } | null>(editing?.accountNumber ? { id: editing.accountNumber, name: editing.accountName ?? editing.accountNumber } : null)
   const [categoryId, setCategoryId] = useState(editing?.categoryId ?? '')
-  const [officeId,   setOfficeId]   = useState(editing?.officeId ?? '')
+  const [officeId]                  = useState(editing?.officeId ?? '') // conservé pour round-trip à l'édition (champ masqué)
   const [period,     setPeriod]     = useState<'annual' | 'quarterly' | 'monthly'>(editing?.period ?? 'annual')
   const [quarter,    setQuarter]    = useState(editing?.quarter ?? 1)
   const [month,      setMonth]      = useState(editing?.month ?? new Date().getMonth() + 1)
@@ -96,21 +94,16 @@ function BudgetModal({ year, onClose, isPending, onSave, onUpdate, onSpread, edi
               <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Ex : Services extérieurs 2026" style={inp} />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <div>
-                <label style={lbl}>Catégorie (option)</label>
-                <select value={categoryId} onChange={e => setCategoryId(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
-                  <option value="">— Toutes —</option>
-                  {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={lbl}>Bureau (option)</label>
-                <select value={officeId} onChange={e => setOfficeId(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
-                  <option value="">— Tous —</option>
-                  {offices.map(o => <option key={o.id} value={o.id}>{o.code} — {o.name}</option>)}
-                </select>
-              </div>
+            {/* Dimension « Bureau » masquée : tant que le réalisé n'est pas ventilé par
+                bureau (chantier analytique #3 non fait), un budget par bureau afficherait
+                le réalisé de TOUTE l'entreprise → trompeur. On conserve `officeId` en état
+                (initialisé depuis `editing`) pour ne pas écraser un budget legacy à l'édition. */}
+            <div>
+              <label style={lbl}>Catégorie (option)</label>
+              <select value={categoryId} onChange={e => setCategoryId(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
+                <option value="">— Toutes —</option>
+                {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
             </div>
 
             <div>
@@ -373,7 +366,6 @@ export default function ExpenseBudgetsPage() {
 
   const { data: budgets, isLoading } = useExpenseBudgets(year)
   const { data: cats }               = useExpenseCategories()
-  const { data: offices }            = useOffices()
   const createMutation               = useCreateBudget(year)
   const updateMutation               = useUpdateBudget(year)
   const deleteMutation               = useDeleteBudget(year)
@@ -442,8 +434,7 @@ export default function ExpenseBudgetsPage() {
           isPending={createMutation.isPending || updateMutation.isPending}
           onClose={() => { setShowCreate(false); setEditing(null) }}
           onSave={handleCreate} onUpdate={handleUpdate} onSpread={handleSpread}
-          cats={(cats ?? []).map(c => ({ id: c.id, name: c.name }))}
-          offices={(offices ?? []).map(o => ({ id: o.id, name: o.name, code: o.code }))} />
+          cats={(cats ?? []).map(c => ({ id: c.id, name: c.name }))} />
       )}
 
       <div>

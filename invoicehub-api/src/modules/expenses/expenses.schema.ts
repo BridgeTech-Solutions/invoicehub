@@ -30,7 +30,6 @@ export const createExpenseSchema = z.object({
   officeId:          z.string().uuid().optional().nullable(),
   supplierId:        z.string().uuid().optional().nullable(),
   supplierName:      z.string().max(255).optional().nullable(),
-  supplierInvoiceId: z.string().uuid().optional().nullable(),
   expenseDate:       z.coerce.date(),
   paymentMethod:     z.enum(['cash', 'bank_transfer', 'check', 'mobile_money', 'card', 'other']).optional().nullable(),
   amountHt:          z.number().positive(),
@@ -40,6 +39,8 @@ export const createExpenseSchema = z.object({
   accountingAccount: z.string().max(20).optional().nullable(),
   analyticalAxis:    z.string().max(255).optional().nullable(),
   isRecurring:       z.boolean().default(false),
+  frequency:         z.enum(['once', 'weekly', 'monthly', 'quarterly', 'annual']).optional().nullable(),
+  endDate:           z.coerce.date().optional().nullable(), // fin de récurrence (option)
   isEmployeeExpense: z.boolean().default(false),
   notes:             z.string().optional().nullable(),
 });
@@ -48,6 +49,11 @@ export const updateExpenseSchema = createExpenseSchema.partial();
 
 export const rejectExpenseSchema = z.object({
   reason: z.string().min(1),
+});
+
+// Remboursement d'une note de frais employé : référence de virement/opération (option).
+export const reimburseExpenseSchema = z.object({
+  reference: z.string().max(255).optional().nullable(),
 });
 
 // Paiement d'une dépense : on capture le compte de trésorerie réellement utilisé

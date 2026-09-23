@@ -18,14 +18,14 @@ export class ExpenseCategoriesController {
   }
 
   @Post()
-  @Permission('expenses:write')
+  @Permission('expenses:create')
   @HttpCode(HttpStatus.CREATED)
   async create(@Body(new ZodValidationPipe(createExpenseCategorySchema)) body: any) {
     return this.svc.createCategory(body);
   }
 
   @Put(':id')
-  @Permission('expenses:write')
+  @Permission('expenses:update')
   async update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateExpenseCategorySchema)) body: any,

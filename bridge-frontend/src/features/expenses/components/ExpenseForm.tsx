@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, Save, Loader2, Upload, RefreshCw, Landmark } from 'lucide-react'
+import { ChevronLeft, Save, Loader2, Upload, RefreshCw, Landmark, Users } from 'lucide-react'
 import { useCreateExpense, useUpdateExpense } from '../hooks'
 import { useExpenseCategories } from '../hooks'
 import { useBankAccounts } from '@/features/invoices/hooks'
@@ -86,6 +86,10 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
   const [accountingAccount, setAccountingAccount] = useState(expense?.accountingAccount ?? '')
   const [notes,             setNotes]             = useState(expense?.notes             ?? '')
   const [isRecurring,       setIsRecurring]       = useState(expense?.isRecurring       ?? false)
+  const [frequency,         setFrequency]         = useState<'weekly' | 'monthly' | 'quarterly' | 'annual'>(
+    (expense?.frequency && expense.frequency !== 'once' ? expense.frequency : 'monthly') as 'weekly' | 'monthly' | 'quarterly' | 'annual')
+  const [recurrenceEnd,     setRecurrenceEnd]     = useState(expense?.endDate?.slice(0, 10) ?? '')
+  const [isEmployeeExpense, setIsEmployeeExpense] = useState(expense?.isEmployeeExpense ?? false)
   const [errors,            setErrors]            = useState<Record<string, string>>({})
 
   // Pré-sélectionner le compte par défaut à l'ouverture
@@ -149,6 +153,9 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
       analyticalAxis:    analyticalAxis    || undefined,
       notes:             finalNotes        || undefined,
       isRecurring,
+      frequency:         isRecurring ? frequency : undefined,
+      endDate:           (isRecurring && recurrenceEnd) ? recurrenceEnd : undefined,
+      isEmployeeExpense,
     }
 
     if (isEdit) updateMutation.mutate(payload)
@@ -316,15 +323,56 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
                 </div>
               </label>
 
-              <div
-                style={{ padding: '12px 14px', borderRadius: 'var(--radius-md)', border: '1.5px dashed var(--border)', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', color: 'var(--text-3)', transition: 'border-color 0.15s, color 0.15s' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--primary)'; (e.currentTarget as HTMLElement).style.color = 'var(--primary)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-3)' }}
-              >
-                <Upload size={15} />
+              {isRecurring && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, paddingLeft: 4 }}>
+                  <div>
+                    <FL label="Fréquence" htmlFor="exp-freq" />
+                    <select id="exp-freq" value={frequency} onChange={e => setFrequency(e.target.value as typeof frequency)}
+                      style={{ ...inputCss, cursor: 'pointer' }} onFocus={focusOn} onBlur={focusOff}>
+                      <option value="weekly">Hebdomadaire</option>
+                      <option value="monthly">Mensuelle</option>
+                      <option value="quarterly">Trimestrielle</option>
+                      <option value="annual">Annuelle</option>
+                    </select>
+                  </div>
+                  <div>
+                    <FL label="Fin (facultatif)" htmlFor="exp-recur-end" />
+                    <input id="exp-recur-end" type="date" value={recurrenceEnd} min={expenseDate}
+                      onChange={e => setRecurrenceEnd(e.target.value)}
+                      style={inputCss} onFocus={focusOn} onBlur={focusOff} />
+                  </div>
+                </div>
+              )}
+              {isRecurring && (
+                <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: '-4px 0 0', paddingLeft: 4 }}>
+                  Chaque échéance crée un brouillon à relire — rien n'est soumis ni payé automatiquement.
+                </p>
+              )}
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: isEmployeeExpense ? 'rgba(45,125,210,0.04)' : 'transparent', transition: 'all 0.15s' }}>
+                <input type="checkbox" checked={isEmployeeExpense} onChange={e => setIsEmployeeExpense(e.target.checked)}
+                  style={{ width: 15, height: 15, accentColor: 'var(--primary)', cursor: 'pointer', flexShrink: 0 }} />
                 <div>
-                  <p style={{ fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 500, margin: 0 }}>Joindre un justificatif</p>
-                  <p style={{ fontSize: 11.5, margin: '2px 0 0', color: 'var(--text-3)' }}>PDF, JPG, PNG — max 5 Mo</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Users size={13} style={{ color: isEmployeeExpense ? 'var(--primary)' : 'var(--text-3)' }} />
+                    <span style={{ fontSize: 13.5, fontWeight: isEmployeeExpense ? 600 : 400, color: isEmployeeExpense ? 'var(--primary)' : 'var(--text-1)', fontFamily: 'var(--font-display)' }}>Note de frais employé</span>
+                  </div>
+                  <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: '2px 0 0' }}>Un salarié a avancé la dépense — à lui rembourser après approbation</p>
+                </div>
+              </label>
+
+              {/* La pièce justificative s'attache à une dépense existante (endpoint
+                  POST /expenses/:id/attachment). On dirige donc vers la page de la
+                  dépense — l'upload y est réel (AttachmentsCard). En création, l'id
+                  n'existe pas encore. */}
+              <div style={{ padding: '12px 14px', borderRadius: 'var(--radius-md)', border: '1.5px dashed var(--border)', display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-3)' }}>
+                <Upload size={15} style={{ flexShrink: 0 }} />
+                <div>
+                  <p style={{ fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 500, margin: 0, color: 'var(--text-2)' }}>Justificatif (facture, reçu)</p>
+                  <p style={{ fontSize: 11.5, margin: '2px 0 0' }}>
+                    {expense ? 'À joindre depuis la page de la dépense (PDF, JPG, PNG, WEBP — 5 Mo max).'
+                             : 'Enregistrez la dépense, puis joignez le justificatif depuis sa page.'}
+                  </p>
                 </div>
               </div>
             </div>

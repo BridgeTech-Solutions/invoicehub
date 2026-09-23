@@ -134,6 +134,19 @@ export function useRejectExpense() {
   })
 }
 
+export function useReimburseExpense() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, reference }: { id: string; reference?: string }) => expensesApi.reimburse(id, reference),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: EXPENSE_KEYS.detail(id) })
+      qc.invalidateQueries({ queryKey: EXPENSE_KEYS.all })
+      toast.success('Note de frais remboursée')
+    },
+    onError: (e: unknown) => toast.error((e as Error)?.message ?? 'Remboursement impossible'),
+  })
+}
+
 export function useMarkExpensePaid() {
   const qc = useQueryClient()
   return useMutation({
@@ -157,6 +170,30 @@ export function useDeleteExpense() {
       toast.success('Dépense supprimée')
     },
     onError: () => toast.error('Impossible de supprimer cette dépense'),
+  })
+}
+
+export function useUploadAttachment(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file: File) => expensesApi.uploadAttachment(id, file),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: EXPENSE_KEYS.detail(id) })
+      toast.success('Justificatif ajouté')
+    },
+    onError: (e: unknown) => toast.error((e as Error)?.message ?? 'Échec de l\'ajout du justificatif'),
+  })
+}
+
+export function useDeleteAttachment(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => expensesApi.deleteAttachment(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: EXPENSE_KEYS.detail(id) })
+      toast.success('Justificatif supprimé')
+    },
+    onError: () => toast.error('Impossible de supprimer le justificatif'),
   })
 }
 

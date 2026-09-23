@@ -2,6 +2,7 @@
 
 export type ExpenseStatus = 'draft' | 'submitted' | 'approved' | 'paid' | 'rejected' | 'cancelled'
 export type ExpensePaymentMethod = 'cash' | 'bank_transfer' | 'mobile_money' | 'card' | 'check' | 'other'
+export type ExpenseFrequency = 'once' | 'weekly' | 'monthly' | 'quarterly' | 'annual'
 
 export interface ExpenseCategory {
   id:                string
@@ -24,6 +25,12 @@ export interface ExpenseUser {
   lastName:  string
 }
 
+/** Justificatif : `path` est une route API relative à passer à l'apiClient authentifié. */
+export interface ExpenseAttachment {
+  filename: string
+  path:     string
+}
+
 export interface Expense {
   id:                string
   designation:       string
@@ -42,8 +49,15 @@ export interface Expense {
   accountingAccount: string | null
   analyticalAxis:    string | null
   attachmentPath:    string | null
+  attachments:       ExpenseAttachment[]
   notes:             string | null
   isRecurring:       boolean
+  frequency:         ExpenseFrequency | null
+  nextOccurrenceDate: string | null
+  endDate:           string | null
+  isEmployeeExpense: boolean
+  reimbursedAt:      string | null
+  reimbursementReference: string | null
   submittedById:     string
   submittedBy:       ExpenseUser
   approvedById:      string | null
@@ -116,6 +130,8 @@ export interface CreateExpensePayload {
   isEmployeeExpense?: boolean
   notes?:             string
   isRecurring?:       boolean
+  frequency?:         ExpenseFrequency
+  endDate?:           string
 }
 
 export type UpdateExpensePayload = Partial<CreateExpensePayload>

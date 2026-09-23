@@ -107,14 +107,21 @@ export class ExpensesService {
       paymentMethod,
       ...rest
     } = expense;
+    // Justificatifs : on renvoie des chemins d'API RELATIFS (à passer à l'apiClient
+    // authentifié — l'endpoint exige un jeton, un <img src> direct échouerait en 401).
+    const attachmentList = Array.isArray(attachmentPaths)
+      ? (attachmentPaths as string[]).map((p) => {
+          const filename = p.split('/').pop() ?? '';
+          return { filename, path: `/expenses/${expense.id}/attachments/${filename}` };
+        })
+      : [];
     return {
       ...rest,
       designation: title ?? '',
       supplierName: beneficiaryName ?? null,
       analyticalAxis: reference ?? null,
-      attachmentPath: Array.isArray(attachmentPaths)
-        ? (attachmentPaths[0] ?? null)
-        : null,
+      attachments: attachmentList,
+      attachmentPath: attachmentList[0]?.path ?? null,
       paymentMethod: paymentMethod
         ? (ExpensesService.PM_FROM_DB[String(paymentMethod)] ??
           String(paymentMethod))
@@ -125,9 +132,9 @@ export class ExpensesService {
 
   // Maps input frontend field names → DB field names for create/update
   private mapInputToDb(data: Record<string, unknown>): Record<string, unknown> {
-    // `currency`, `notes`, `supplierInvoiceId`, `parentId`, `period` sont acceptés
-    // par le schéma mais n'existent pas sur le modèle Expense -> on les retire pour
-    // ne pas casser Prisma. (NB : le commentaire libre va dans `description`, pas `notes`.)
+    // `currency`, `notes`, `parentId`, `period` sont acceptés par le schéma mais
+    // n'existent pas sur le modèle Expense -> on les retire pour ne pas casser Prisma.
+    // (NB : le commentaire libre va dans `description`, pas `notes`.)
     const {
       designation,
       supplierName,
@@ -137,12 +144,10 @@ export class ExpensesService {
       paymentMethod,
       currency,
       notes,
-      supplierInvoiceId,
       ...rest
     } = data as any;
     void currency;
     void notes;
-    void supplierInvoiceId;
     const mapped: Record<string, unknown> = { ...rest };
     if (designation !== undefined) mapped['title'] = designation;
     if (supplierName !== undefined) mapped['beneficiaryName'] = supplierName;
@@ -293,13 +298,15 @@ export class ExpensesService {
 
   async getExpenseStats() {
     const now = new Date();
-    const y = now.getFullYear();
-    const m = now.getMonth(); // 0-based
+    const y = now.getUTCFullYear();
+    const m = now.getUTCMonth(); // 0-based
 
-    const monthStart = new Date(y, m, 1);
-    const monthEnd = new Date(y, m + 1, 0, 23, 59, 59);
-    const quarterStart = new Date(y, Math.floor(m / 3) * 3, 1);
-    const quarterEnd = new Date(y, Math.floor(m / 3) * 3 + 3, 0, 23, 59, 59);
+    // Bornes en UTC : expenseDate est @db.Date (minuit UTC). Avec l'heure locale
+    // (UTC+1 au Cameroun) les bornes de mois/trimestre glissaient d'un jour.
+    const monthStart = new Date(Date.UTC(y, m, 1));
+    const monthEnd = new Date(Date.UTC(y, m + 1, 0, 23, 59, 59));
+    const quarterStart = new Date(Date.UTC(y, Math.floor(m / 3) * 3, 1));
+    const quarterEnd = new Date(Date.UTC(y, Math.floor(m / 3) * 3 + 3, 0, 23, 59, 59));
 
     const [currentMonth, currentQuarter, pending, recurring] =
       await Promise.all([
@@ -382,6 +389,8 @@ export class ExpensesService {
       where['OR'] = [
         { title: { contains: search, mode: 'insensitive' } },
         { number: { contains: search, mode: 'insensitive' } },
+        { beneficiaryName: { contains: search, mode: 'insensitive' } },
+        { reference: { contains: search, mode: 'insensitive' } },
       ];
     if (dateFrom || dateTo) {
       where['expenseDate'] = {
@@ -437,9 +446,40 @@ export class ExpensesService {
     return formatted;
   }
 
+  /**
+   * Valide le compte comptable saisi sur une dépense : existant, actif et imputable
+   * (compte de détail). Sans ce garde, un numéro erroné/non-postable filait jusqu'à
+   * l'écriture au grand-livre (onExpensePaid), où il échouait — dépense payée mais
+   * sans écriture, rejouée en boucle par l'outbox.
+   */
+  private async assertExpenseAccount(accountNumber?: string | null) {
+    if (!accountNumber) return;
+    const acc = await this.prisma.chartOfAccount.findUnique({
+      where:  { accountNumber },
+      select: { isDetailAccount: true, isActive: true },
+    });
+    if (!acc) throw AppError.badRequest(`Compte comptable inexistant au plan comptable : ${accountNumber}.`);
+    if (acc.isActive === false) throw AppError.badRequest(`Compte comptable désactivé : ${accountNumber}.`);
+    if (acc.isDetailAccount === false) throw AppError.badRequest(`Le compte ${accountNumber} n'est pas imputable (compte de regroupement). Choisissez un compte de détail.`);
+  }
+
   async createExpense(data: CreateExpenseInput, userId: string) {
+    await this.assertExpenseAccount((data as any).accountingAccount);
     const dbData = this.mapInputToDb(data as any);
-    const amountTtc = data.amountHt * (1 + (data.taxRate ?? 0) / 100);
+    const taxAmount = data.amountHt * ((data.taxRate ?? 0) / 100);
+    const amountTtc = data.amountHt + taxAmount;
+    dbData['taxAmount'] = taxAmount; // n'était jamais calculé → restait à 0
+
+    // Récurrence : si activée avec une fréquence réelle, calcule la 1re échéance.
+    // Sinon on neutralise les champs (pas de récurrence fantôme).
+    const freq = (data as any).frequency as string | null | undefined;
+    if (data.isRecurring && freq && ExpensesService.RECURRING_FREQ.has(freq)) {
+      dbData['nextOccurrenceDate'] = ExpensesService.addFrequency(new Date(data.expenseDate), freq);
+    } else {
+      dbData['isRecurring'] = false;
+      dbData['frequency'] = null;
+      dbData['nextOccurrenceDate'] = null;
+    }
 
     const officeIdResolved =
       (data as any).officeId ??
@@ -475,6 +515,100 @@ export class ExpensesService {
     });
   }
 
+  // ── Récurrence ────────────────────────────────────────────────────────────────
+
+  private static readonly RECURRING_FREQ = new Set(['weekly', 'monthly', 'quarterly', 'annual']);
+
+  /** Ajoute une période (UTC, jour calendaire) à une date selon la fréquence. */
+  private static addFrequency(date: Date, freq: string): Date {
+    const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+    switch (freq) {
+      case 'weekly':    d.setUTCDate(d.getUTCDate() + 7); break;
+      case 'monthly':   d.setUTCMonth(d.getUTCMonth() + 1); break;
+      case 'quarterly': d.setUTCMonth(d.getUTCMonth() + 3); break;
+      case 'annual':    d.setUTCFullYear(d.getUTCFullYear() + 1); break;
+    }
+    return d;
+  }
+
+  /** Génère un brouillon-occurrence à partir d'une dépense récurrente « origine ». */
+  private async createRecurringChild(origin: any, occurrenceDate: Date) {
+    const [result] = await this.prisma.$queryRaw<[{ fn_next_document_number: string }]>`
+      SELECT fn_next_document_number(${origin.officeId}::uuid, 'expense'::"document_type")
+    `;
+    await this.prisma.$transaction(async (tx) => {
+      const child = await tx.expense.create({
+        data: {
+          officeId:          origin.officeId,
+          categoryId:        origin.categoryId,
+          createdById:       origin.createdById,
+          beneficiaryName:   origin.beneficiaryName,
+          supplierId:        origin.supplierId,
+          title:             origin.title,
+          description:       origin.description,
+          amountHt:          origin.amountHt,
+          taxRate:           origin.taxRate,
+          taxAmount:         origin.taxAmount,
+          amountTtc:         origin.amountTtc,
+          paymentMethod:     origin.paymentMethod,
+          bankAccountId:     origin.bankAccountId,
+          accountingAccount: origin.accountingAccount,
+          reference:         origin.reference,
+          isEmployeeExpense: origin.isEmployeeExpense,
+          expenseDate:       occurrenceDate,
+          number:            result.fn_next_document_number,
+          status:            'draft',
+          isRecurring:       false, // l'enfant est une occurrence concrète, pas un gabarit
+          parentExpenseId:   origin.id,
+        } as any,
+      });
+      await this.recordHistory(tx, child.id, 'draft', origin.createdById, 'Généré automatiquement (récurrence)');
+    });
+  }
+
+  /**
+   * Génère les occurrences dues des dépenses récurrentes (appelé par le cron quotidien).
+   * Chaque occurrence est un BROUILLON (jamais auto-soumise/payée) : un humain la relit.
+   * Rattrapage borné (60 itérations) si le cron a sauté des jours ; s'arrête à endDate.
+   */
+  async generateDueRecurringExpenses(): Promise<{ generated: number }> {
+    const now = new Date();
+    const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59));
+
+    const origins = await this.prisma.expense.findMany({
+      where: {
+        deletedAt: null,
+        isRecurring: true,
+        parentExpenseId: null,
+        status: { not: 'cancelled' as any },
+        nextOccurrenceDate: { not: null, lte: todayUtc },
+      },
+    });
+
+    let generated = 0;
+    for (const origin of origins) {
+      const freq = String(origin.frequency ?? '');
+      if (!ExpensesService.RECURRING_FREQ.has(freq)) continue;
+
+      let next: Date | null = origin.nextOccurrenceDate ? new Date(origin.nextOccurrenceDate) : null;
+      const end = origin.endDate ? new Date(origin.endDate) : null;
+      let guard = 0;
+      while (next && next <= todayUtc && (!end || next <= end) && guard < 60) {
+        await this.createRecurringChild(origin, next);
+        generated++;
+        next = ExpensesService.addFrequency(next, freq);
+        guard++;
+      }
+      // Récurrence terminée si la prochaine échéance dépasse la date de fin.
+      const stop = !!(end && next && next > end);
+      await this.prisma.expense.update({
+        where: { id: origin.id },
+        data: { nextOccurrenceDate: stop ? null : next },
+      });
+    }
+    return { generated };
+  }
+
   async updateExpense(id: string, data: UpdateExpenseInput, _userId: string) {
     const expense = await this.prisma.expense.findFirst({
       where: { id, deletedAt: null },
@@ -483,14 +617,33 @@ export class ExpensesService {
     if (expense.status !== 'draft')
       throw AppError.badRequest('Seuls les brouillons peuvent être modifiés');
 
+    if ((data as any).accountingAccount) await this.assertExpenseAccount((data as any).accountingAccount);
     const dbData = this.mapInputToDb(data as any);
-    const amountTtc =
-      data.amountHt !== undefined
-        ? data.amountHt * (1 + (data.taxRate ?? Number(expense.taxRate)) / 100)
-        : undefined;
 
-    if (amountTtc !== undefined) dbData['amountTtc'] = amountTtc;
+    // Recalcule HT/TVA/TTC dès que le HT OU le taux change (avant, changer le seul
+    // taux laissait un TTC périmé ; taxAmount n'était jamais recalculé).
+    if (data.amountHt !== undefined || data.taxRate !== undefined) {
+      const ht   = data.amountHt ?? Number(expense.amountHt);
+      const rate = data.taxRate  ?? Number(expense.taxRate);
+      const taxAmount = ht * (rate / 100);
+      dbData['taxAmount'] = taxAmount;
+      dbData['amountTtc'] = ht + taxAmount;
+    }
     if ((data as any).officeId === null) dbData['officeId'] = null;
+
+    // Récurrence : recompute la prochaine échéance si l'un des paramètres change.
+    if (data.isRecurring !== undefined || (data as any).frequency !== undefined || (data as any).endDate !== undefined) {
+      const willRecur = data.isRecurring ?? expense.isRecurring;
+      const freq = String((data as any).frequency ?? expense.frequency ?? '');
+      if (willRecur && ExpensesService.RECURRING_FREQ.has(freq)) {
+        const base = new Date((dbData['expenseDate'] as Date) ?? expense.expenseDate);
+        dbData['nextOccurrenceDate'] = ExpensesService.addFrequency(base, freq);
+      } else {
+        dbData['isRecurring'] = false;
+        dbData['frequency'] = null;
+        dbData['nextOccurrenceDate'] = null;
+      }
+    }
 
     const updated = await this.prisma.expense.update({
       where: { id },
@@ -548,13 +701,19 @@ export class ExpensesService {
         requestedById: userId,
       });
       if (request) {
-        await this.prisma.expense.update({
+        const updated = await this.prisma.expense.update({
           where: { id },
           data: { requiresApproval: true },
         });
-        throw AppError.badRequest(
-          'Dépense soumise pour approbation. Elle sera traitée après validation.',
-        );
+        // Un workflow d'approbation s'applique : la dépense reste en brouillon avec
+        // une demande en attente. On le signale par un RETOUR normal (et non une
+        // exception) — le front affiche « soumise pour approbation » en succès et
+        // rafraîchit la bannière d'approbation.
+        return {
+          ...this.formatExpense(updated),
+          approvalPending: true,
+          message: 'Dépense soumise pour approbation. Elle sera traitée après validation.',
+        };
       }
     }
 
@@ -620,6 +779,11 @@ export class ExpensesService {
         ExpensesService.PM_TO_DB[input.paymentMethod] ?? input.paymentMethod;
     }
 
+    // Enregistre le montant réglé (paiement intégral). Sans cela `paidAmount` restait
+    // à 0 alors que la dépense passait « payée » — incohérent pour tout rapprochement.
+    const toPay = await this.prisma.expense.findFirst({ where: { id, deletedAt: null }, select: { amountTtc: true } });
+    if (toPay) extra['paidAmount'] = toPay.amountTtc;
+
     const result = await this.transition(id, 'approved', 'paid', userId, extra);
     // Outbox : l'écriture de dépense sera rejouée si la tentative immédiate échoue
     // (onExpensePaid avale son erreur → une dépense pouvait rester sans écriture).
@@ -642,8 +806,44 @@ export class ExpensesService {
     );
   }
 
+  /**
+   * Marque une note de frais employé comme remboursée (l'employé a avancé l'argent,
+   * l'entreprise le rembourse). Suivi opérationnel : pose `reimbursedAt` + la référence
+   * de l'opération, sans changer le statut métier ni générer d'écriture — le traitement
+   * comptable des avances au personnel (compte 425) reste à valider séparément.
+   */
+  async reimburseExpense(id: string, userId: string, reference?: string | null) {
+    const expense = await this.prisma.expense.findFirst({ where: { id, deletedAt: null } });
+    if (!expense) throw AppError.notFound('Dépense introuvable');
+    if (!expense.isEmployeeExpense)
+      throw AppError.badRequest('Seules les notes de frais employé peuvent être remboursées.');
+    if (!['approved', 'paid'].includes(String(expense.status)))
+      throw AppError.badRequest('La note de frais doit être approuvée avant remboursement.');
+    if (expense.reimbursedAt)
+      throw AppError.badRequest('Cette note de frais est déjà remboursée.');
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const u = await tx.expense.update({
+        where: { id },
+        data: { reimbursedAt: new Date(), reimbursementReference: reference ?? null },
+      });
+      await this.recordHistory(tx, id, String(u.status), userId, `Note de frais remboursée${reference ? ` (réf. ${reference})` : ''}`);
+      return u;
+    });
+    return this.formatExpense(updated);
+  }
+
+  private static readonly ATTACH_ALLOWED = new Set(['.pdf', '.jpg', '.jpeg', '.png', '.webp']);
+  private static readonly ATTACH_MAX_BYTES = 5 * 1024 * 1024; // 5 Mo (aligné sur ce que l'UI annonce)
+
   async uploadAttachment(id: string, file: Express.Multer.File) {
     if (!file) throw AppError.badRequest('Fichier manquant');
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!ExpensesService.ATTACH_ALLOWED.has(ext))
+      throw AppError.badRequest('Format de justificatif non supporté (PDF, JPG, PNG ou WEBP).');
+    if (file.size > ExpensesService.ATTACH_MAX_BYTES)
+      throw AppError.badRequest('Justificatif trop volumineux (5 Mo maximum).');
+
     const expense = await this.prisma.expense.findFirst({
       where: { id, deletedAt: null },
     });
@@ -652,7 +852,6 @@ export class ExpensesService {
     const uploadDir = path.join(process.cwd(), 'uploads', 'expenses');
     if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
-    const ext = path.extname(file.originalname).toLowerCase();
     const filename = `${id}_${Date.now()}${ext}`;
     const filePath = path.join(uploadDir, filename);
     fs.writeFileSync(filePath, file.buffer);
@@ -674,8 +873,22 @@ export class ExpensesService {
   async deleteAttachment(id: string) {
     const expense = await this.prisma.expense.findFirst({
       where: { id, deletedAt: null },
+      select: { id: true, attachmentPaths: true } as any,
     });
     if (!expense) throw AppError.notFound('Dépense introuvable');
+
+    // Purge les fichiers du disque (sinon ils restaient orphelins). Confiné à
+    // uploads/expenses ; toute erreur d'unlink est non bloquante.
+    const baseDir = path.resolve(process.cwd(), 'uploads', 'expenses');
+    const paths = ((expense as any).attachmentPaths as string[]) ?? [];
+    for (const rel of paths) {
+      const filename = rel.split('/').pop() ?? '';
+      const filePath = path.resolve(baseDir, filename);
+      if (filePath.startsWith(baseDir + path.sep) && fs.existsSync(filePath)) {
+        try { fs.unlinkSync(filePath); } catch { /* non bloquant */ }
+      }
+    }
+
     await this.prisma.expense.update({
       where: { id },
       data: { attachmentPaths: [] } as any,

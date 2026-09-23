@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Put, Delete,
+  Controller, Get, Post, Put, Delete, Res,
   Body, Param, Query, HttpCode, HttpStatus,
   UploadedFile, UseInterceptors,
 } from '@nestjs/common';
@@ -10,9 +10,11 @@ import { Permission } from '../../common/decorators/permission.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import {
   createExpenseSchema, updateExpenseSchema, rejectExpenseSchema, payExpenseSchema,
+  reimburseExpenseSchema,
 } from './expenses.schema';
 import type { PayExpenseInput } from './expenses.schema';
 import type { JwtPayload } from '../../common/types/jwt-payload.type';
+import type { Response } from 'express';
 
 @Controller('expenses')
 export class ExpensesController {
@@ -48,7 +50,7 @@ export class ExpensesController {
   }
 
   @Post()
-  @Permission('expenses:write')
+  @Permission('expenses:create')
   @HttpCode(HttpStatus.CREATED)
   async create(
     @Body(new ZodValidationPipe(createExpenseSchema)) body: any,
@@ -64,7 +66,7 @@ export class ExpensesController {
   }
 
   @Put(':id')
-  @Permission('expenses:write')
+  @Permission('expenses:update')
   async update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateExpenseSchema)) body: any,
@@ -81,7 +83,7 @@ export class ExpensesController {
   }
 
   @Post(':id/submit')
-  @Permission('expenses:write')
+  @Permission('expenses:update')
   async submit(
     @Param('id') id: string,
     @CurrentUser() user: JwtPayload,
@@ -109,7 +111,7 @@ export class ExpensesController {
   }
 
   @Post(':id/pay')
-  @Permission('expenses:pay')
+  @Permission('expenses:pay') // droit dédié : le paiement est une action de trésorerie sensible
   async pay(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(payExpenseSchema)) body: PayExpenseInput,
@@ -118,8 +120,18 @@ export class ExpensesController {
     return this.svc.payExpense(id, user.sub, body);
   }
 
+  @Post(':id/reimburse')
+  @Permission('expenses:pay') // remboursement = décaissement vers l'employé
+  async reimburse(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(reimburseExpenseSchema)) body: any,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.svc.reimburseExpense(id, user.sub, body.reference ?? null);
+  }
+
   @Post(':id/cancel')
-  @Permission('expenses:write')
+  @Permission('expenses:update')
   async cancel(
     @Param('id') id: string,
     @CurrentUser() user: JwtPayload,
@@ -128,7 +140,7 @@ export class ExpensesController {
   }
 
   @Post(':id/attachment')
-  @Permission('expenses:write')
+  @Permission('expenses:update')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(FileInterceptor('file'))
   async uploadAttachment(
@@ -139,9 +151,22 @@ export class ExpensesController {
   }
 
   @Delete(':id/attachment')
-  @Permission('expenses:write')
+  @Permission('expenses:update')
   @HttpCode(HttpStatus.OK)
   async deleteAttachment(@Param('id') id: string) {
     return this.svc.deleteAttachment(id);
+  }
+
+  // Téléchargement authentifié d'un justificatif (jamais servi en statique :
+  // document financier sensible). Vérifie que le fichier appartient bien à la
+  // dépense, et confine le chemin à uploads/expenses (pas de traversée).
+  @Get(':id/attachments/:filename')
+  @Permission('expenses:read')
+  async getAttachment(
+    @Param('id') id: string,
+    @Param('filename') filename: string,
+    @Res() res: Response,
+  ) {
+    return this.svc.streamAttachment(id, filename, res);
   }
 }
