@@ -24,6 +24,9 @@ export const proformasApi = {
   send: (id: string) =>
     apiClient.post<Proforma>(`/proformas/${id}/send`).then(r => r.data),
 
+  sendEmail: (id: string, payload: { mode?: 'send' | 'mark'; to?: string; cc?: string[]; subject?: string; message?: string }) =>
+    apiClient.post<{ sent: boolean; to?: string; marked?: boolean }>(`/proformas/${id}/send-email`, payload).then(r => r.data),
+
   accept: (id: string) =>
     apiClient.post<Proforma>(`/proformas/${id}/accept`).then(r => r.data),
 

@@ -58,6 +58,28 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-09-23 — Envoi des factures & devis par email (+ « marquer comme envoyé »)
+Depuis le menu d'actions d'une **facture** ou d'un **devis** : bouton « Envoyer par email »
+ouvrant un drawer (destinataire pré-rempli, CC, objet, message, PDF joint automatiquement),
+avec **deux actions** :
+- **Envoyer** → email réel au client (PDF joint), via la file `email` (Nodemailer/SMTP).
+- **Marquer comme envoyé** → aucun email ; trace la date (l'employé l'a transmis lui-même).
+  Pour un devis en brouillon, le passe aussi à « envoyé ».
+- **Reply-To configurable** (Paramètres → Facturation → « Envoi des documents par email ») :
+  l'employé qui envoie (défaut) ou une adresse centrale. Copie (BCC) à l'employé.
+- Expéditeur = **nom de l'entreprise** depuis `company_settings` (white-label ; l'ancienne
+  adresse `noreply@bts.cm` en dur a été retirée du mailer).
+
+> **Migration SQL requise** (`email_config` sur company_settings + `last_email_sent_at` sur
+> invoices/proformas) :
+> ```bash
+> npx prisma db execute --file prisma/add_document_email_sending.sql --schema prisma/schema.prisma
+> pnpm db:generate
+> ```
+> **Variables d'env pour l'envoi réel** (sinon « Envoyer » est bloqué, « Marquer comme envoyé »
+> reste dispo) : `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `SMTP_FROM`.
+> ⚠️ Délivrabilité : configurer **SPF/DKIM** sur le domaine d'envoi (sinon spam) — voir avec l'IT.
+
 ### 2026-09-23 — Module Facture : récurrence auto + avoir partiel comptabilisé + duplicate
 - **Factures récurrentes auto-générées** : le cron `recurring` quotidien appelle désormais
   `RecurringService.generateDueTemplates()` → crée les factures dues en **brouillon** (à

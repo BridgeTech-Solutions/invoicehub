@@ -20,6 +20,7 @@ import {
   rejectProformaSchema,
   convertProformaSchema,
   reorderLinesSchema,
+  sendProformaEmailSchema,
 } from './proformas.schema';
 
 // Documente le corps de requête Zod dans Swagger (validation faite dans le service).
@@ -92,6 +93,14 @@ export class ProformasController {
   @Audit('proforma', 'STATUS_CHANGE')
   send(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.svc.send(id, user.sub);
+  }
+
+  @Post(':id/send-email')
+  @Permission('proformas:update')
+  @Audit('proforma', 'EMAIL_SENT')
+  @ApiZodBody(sendProformaEmailSchema)
+  sendByEmail(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
+    return this.svc.sendByEmail(id, sendProformaEmailSchema.parse(body), user.sub);
   }
 
   @Post(':id/accept')

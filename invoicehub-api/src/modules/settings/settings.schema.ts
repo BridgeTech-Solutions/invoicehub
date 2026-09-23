@@ -58,6 +58,12 @@ export const updateSettingsSchema = z.object({
     requireApproval:  z.boolean().optional(),
   }).optional(),
 
+  // Envoi email des documents : adresse de réponse
+  emailConfig: z.object({
+    replyToMode:    z.enum(['sender', 'central']),
+    centralReplyTo: z.string().email().optional().nullable(),
+  }).optional(),
+
   // Comptes comptables SYSCOHADA
   initialStockAccount:         z.string().max(20).optional(),
   escompteAccountingAccount:   z.string().max(20).optional(),

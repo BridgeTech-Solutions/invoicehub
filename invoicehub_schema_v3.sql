@@ -225,6 +225,7 @@ CREATE TABLE company_settings (
     auto_reminder_days      SMALLINT[]           DEFAULT ARRAY[7, 14, 30],
     reminder_escalation     JSONB                NOT NULL DEFAULT '{}',
     budget_control          JSONB                NOT NULL DEFAULT '{"warnThresholdPct": 80, "blockOnExceed": false, "notifyRoles": ["admin"]}'::jsonb,
+    email_config            JSONB                NOT NULL DEFAULT '{}'::jsonb,  -- { replyToMode: 'sender'|'central', centralReplyTo? }
 
     -- Comptes comptables
     initial_stock_account         VARCHAR(20) NOT NULL DEFAULT '1042',
@@ -796,6 +797,7 @@ CREATE TABLE proformas (
     status                  proforma_status NOT NULL DEFAULT 'draft',
 
     last_sent_at                TIMESTAMPTZ,
+    last_email_sent_at          TIMESTAMPTZ,
     last_reminder_at            TIMESTAMPTZ,
     reminder_count              SMALLINT     NOT NULL DEFAULT 0,
     reminder_escalation_level   SMALLINT     NOT NULL DEFAULT 0,
@@ -936,6 +938,7 @@ CREATE TABLE invoices (
     status                  invoice_status NOT NULL DEFAULT 'draft',
 
     last_sent_at            TIMESTAMPTZ,
+    last_email_sent_at      TIMESTAMPTZ,
     last_reminder_at        TIMESTAMPTZ,
     reminder_count          SMALLINT      NOT NULL DEFAULT 0,
     reminder_escalation_level SMALLINT    NOT NULL DEFAULT 0,

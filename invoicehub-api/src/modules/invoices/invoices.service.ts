@@ -16,9 +16,10 @@ import { ApprovalsService } from '../approvals/approvals.service';
 import * as accountingEngine from '../../lib/accountingEngine';
 import { recordAccountingEvent } from '../../lib/accounting-outbox';
 import { broadcastNotification } from '../../lib/broadcast';
+import { clientEmailShell } from '../../lib/email-shell';
 import { StockService } from '../stock/stock.service';
 import type { EmailJobData, NotificationJobData } from '../../jobs/job-types';
-import type { CreateInvoiceInput, UpdateInvoiceInput, ListInvoicesInput, CreateAvoirInput, ComputeInvoiceInput } from './invoices.schema';
+import type { CreateInvoiceInput, UpdateInvoiceInput, ListInvoicesInput, CreateAvoirInput, ComputeInvoiceInput, SendInvoiceEmailInput } from './invoices.schema';
 
 @Injectable()
 export class InvoicesService {
@@ -951,6 +952,85 @@ export class InvoicesService {
     await this.prisma.invoice.update({ where: { id }, data: { pdfGeneratedAt: new Date() } });
 
     return { buffer: pdfBuffer, filename: `${invoice.number.replace(/\//g, '-')}.pdf` };
+  }
+
+  /**
+   * Envoie la facture au client par email (PDF joint), via la file `email`.
+   * Expéditeur = nom de l'entreprise (paramètres, jamais codé en dur → white-label).
+   * Reply-To configurable (company_settings.emailConfig) : mode 'sender' (l'employé qui
+   * envoie, défaut) ou 'central' (adresse commune). Copie (BCC) à l'employé.
+   */
+  async sendByEmail(id: string, input: SendInvoiceEmailInput, userId: string) {
+    const invoice = await this.findById(id);
+    if (invoice.status === 'draft')     throw AppError.badRequest("Émettez la facture avant de l'envoyer.");
+    if (invoice.status === 'cancelled') throw AppError.badRequest('Impossible d\'envoyer une facture annulée.');
+
+    // Mode « marquer comme envoyé » : l'employé l'a transmis lui-même (WhatsApp, sa
+    // messagerie…). Aucun email n'est expédié — on trace seulement la date d'envoi.
+    if (input.mode === 'mark') {
+      await this.prisma.invoice.update({ where: { id }, data: { lastEmailSentAt: new Date(), lastSentAt: new Date() } });
+      return { sent: false, marked: true };
+    }
+
+    if (!process.env.SMTP_HOST) {
+      throw AppError.badRequest("L'envoi d'email n'est pas configuré sur ce serveur (SMTP absent). Utilisez « Marquer comme envoyé ».");
+    }
+
+    const to = (input.to ?? invoice.client.email ?? '').trim();
+    if (!to) throw AppError.badRequest('Aucune adresse email : renseignez celle du client ou saisissez un destinataire.');
+
+    const [settings, sender] = await Promise.all([
+      this.prisma.companySettings.findFirst({ select: { companyName: true, email: true, emailConfig: true } }),
+      this.prisma.user.findUnique({ where: { id: userId }, select: { email: true, firstName: true, lastName: true } }),
+    ]);
+    const companyName = settings?.companyName ?? 'Notre société';
+
+    // Reply-To selon la config (défaut : l'employé qui envoie).
+    const cfg  = (settings?.emailConfig ?? {}) as { replyToMode?: string; centralReplyTo?: string };
+    const replyTo = cfg.replyToMode === 'central'
+      ? (cfg.centralReplyTo || settings?.email || undefined)
+      : (sender?.email || settings?.email || undefined);
+
+    // Adresse d'envoi (enveloppe) : celle authentifiée du déploiement ; le nom affiché
+    // est celui de l'entreprise (white-label). Aucune adresse en dur.
+    const envelope = process.env.SMTP_FROM ?? process.env.SMTP_USER;
+    const from = envelope ? `"${companyName}" <${envelope}>` : undefined;
+
+    const { buffer, filename } = await this.generatePdfResponse(id);
+
+    const subject = input.subject?.trim() || `Facture ${invoice.number} — ${companyName}`;
+    // Corps (par défaut ou personnalisé) enveloppé dans un shell sobre et professionnel.
+    const inner = input.message?.trim() || this.buildInvoiceEmailBody(invoice, companyName);
+    const html = clientEmailShell({ companyName, bodyHtml: inner });
+
+    // Copie à l'employé (sauf si c'est lui le destinataire).
+    const bcc = sender?.email && sender.email.toLowerCase() !== to.toLowerCase() ? [sender.email] : undefined;
+
+    await this.emailQueue.add('email', {
+      to, subject, html,
+      ...(replyTo ? { replyTo } : {}),
+      ...(from ? { from } : {}),
+      ...(input.cc?.length ? { cc: input.cc } : {}),
+      ...(bcc ? { bcc } : {}),
+      attachments: [{ filename, content: buffer.toString('base64'), contentType: 'application/pdf' }],
+    }, { attempts: 3, backoff: { type: 'exponential', delay: 5000 } });
+
+    await this.prisma.invoice.update({ where: { id }, data: { lastEmailSentAt: new Date(), lastSentAt: new Date() } });
+
+    return { sent: true, to };
+  }
+
+  private buildInvoiceEmailBody(invoice: any, companyName: string): string {
+    const clientName = invoice.client?.name ?? 'Madame, Monsieur';
+    const amount = new Intl.NumberFormat('fr-FR').format(Number(invoice.totalTtc));
+    const cur = invoice.currency ?? 'XAF';
+    const due = invoice.dueDate
+      ? new Date(invoice.dueDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+      : '';
+    return `<p style="margin:0 0 14px;">Bonjour ${clientName},</p>
+<p style="margin:0 0 14px;">Veuillez trouver ci-joint la facture <strong>${invoice.number}</strong> d'un montant de <strong>${amount} ${cur} TTC</strong>${due ? `, à régler avant le ${due}` : ''}.</p>
+<p style="margin:0 0 14px;">Nous restons à votre disposition pour toute question.</p>
+<p style="margin:0;">Cordialement,<br/>${companyName}</p>`;
   }
 
   async compute(input: ComputeInvoiceInput) {

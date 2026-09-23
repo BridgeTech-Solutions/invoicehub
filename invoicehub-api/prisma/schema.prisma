@@ -530,6 +530,8 @@ model CompanySettings {
   reminderEscalation           Json     @default("{}") @map("reminder_escalation")
   /// Contrôle budgétaire : { warnThresholdPct, blockOnExceed, notifyRoles[] }. Défauts en code.
   budgetControl                Json     @default("{}") @map("budget_control")
+  /// Envoi email des documents : { replyToMode: 'sender'|'central', centralReplyTo?: string }.
+  emailConfig                  Json     @default("{}") @map("email_config")
   initialStockAccount          String   @default("1042") @map("initial_stock_account") @db.VarChar(20)
   escompteAccountingAccount    String   @default("673") @map("escompte_accounting_account") @db.VarChar(20)
   collectedTaxAccount          String   @default("4431") @map("collected_tax_account") @db.VarChar(20)
@@ -940,6 +942,7 @@ model Proforma {
   totalTtc             Decimal        @default(0) @map("total_ttc") @db.Decimal(15, 2)
   status               ProformaStatus @default(draft)
   lastSentAt           DateTime?      @map("last_sent_at") @db.Timestamptz()
+  lastEmailSentAt      DateTime?      @map("last_email_sent_at") @db.Timestamptz()
   lastReminderAt       DateTime?      @map("last_reminder_at") @db.Timestamptz()
   reminderCount        Int            @default(0) @map("reminder_count") @db.SmallInt
   draftReminderLevel   Int            @default(0) @map("draft_reminder_level") @db.SmallInt
@@ -1047,6 +1050,7 @@ model Invoice {
   balanceDue            Decimal       @default(0) @map("balance_due") @db.Decimal(15, 2)
   status                InvoiceStatus @default(draft)
   lastSentAt            DateTime?     @map("last_sent_at") @db.Timestamptz()
+  lastEmailSentAt       DateTime?     @map("last_email_sent_at") @db.Timestamptz()
   lastReminderAt        DateTime?     @map("last_reminder_at") @db.Timestamptz()
   reminderCount         Int           @default(0) @map("reminder_count") @db.SmallInt
   reminderEscalationLevel Int         @default(0) @map("reminder_escalation_level") @db.SmallInt

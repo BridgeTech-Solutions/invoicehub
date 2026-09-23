@@ -74,6 +74,19 @@ export function useCreateInvoice() {
   })
 }
 
+export function useSendInvoiceEmail(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { mode?: 'send' | 'mark'; to?: string; cc?: string[]; subject?: string; message?: string }) => invoicesApi.sendEmail(id, payload),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: INVOICE_KEYS.detail(id) })
+      qc.invalidateQueries({ queryKey: INVOICE_KEYS.all })
+      toast.success(r.marked ? 'Facture marquée comme envoyée' : `Facture envoyée à ${r.to}`)
+    },
+    onError: (e: unknown) => toast.error((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Échec de l\'envoi'),
+  })
+}
+
 export function useUpdateInvoice(id: string) {
   const qc     = useQueryClient()
   const router = useRouter()

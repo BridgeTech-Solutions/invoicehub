@@ -61,6 +61,15 @@ export const convertProformaSchema = z.object({
 
 // Réordonnancement des lignes — présentation pure (champ sortOrder), autorisé
 // quel que soit le statut. lineIds = l'ordre voulu, liste complète.
+// Envoi de la proforma (devis) par email au client, PDF joint.
+export const sendProformaEmailSchema = z.object({
+  mode:    z.enum(['send', 'mark']).default('send'),
+  to:      z.string().email().optional(),
+  cc:      z.array(z.string().email()).max(10).default([]),
+  subject: z.string().max(500).optional(),
+  message: safeRichTextOptional(5000),
+});
+
 export const reorderLinesSchema = z.object({
   lineIds: z.array(z.string().uuid()).min(1, 'Au moins une ligne est requise'),
 });

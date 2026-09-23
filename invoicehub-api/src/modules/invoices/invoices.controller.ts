@@ -22,6 +22,7 @@ import {
   cancelInvoiceSchema,
   createAvoirSchema,
   reorderLinesSchema,
+  sendInvoiceEmailSchema,
 } from './invoices.schema';
 import { createPaymentSchema } from '../payments/payments.schema';
 
@@ -142,6 +143,14 @@ export class InvoicesController {
   @ApiZodBody(createAvoirSchema)
   createAvoir(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.svc.createAvoir(id, createAvoirSchema.parse(body), user.sub);
+  }
+
+  @Post(':id/send')
+  @Permission('invoices:update')
+  @Audit('invoice', 'EMAIL_SENT')
+  @ApiZodBody(sendInvoiceEmailSchema)
+  sendByEmail(@Param('id') id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
+    return this.svc.sendByEmail(id, sendInvoiceEmailSchema.parse(body), user.sub);
   }
 
   @Get(':id/pdf')

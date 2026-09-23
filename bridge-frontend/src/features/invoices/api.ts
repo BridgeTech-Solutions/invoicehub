@@ -36,6 +36,9 @@ export const invoicesApi = {
   issue: (id: string) =>
     apiClient.post<Invoice>(`/invoices/${id}/issue`).then(r => r.data),
 
+  sendEmail: (id: string, payload: { mode?: 'send' | 'mark'; to?: string; cc?: string[]; subject?: string; message?: string }) =>
+    apiClient.post<{ sent: boolean; to?: string; marked?: boolean }>(`/invoices/${id}/send`, payload).then(r => r.data),
+
   cancel: (id: string, data?: CancelInvoicePayload) =>
     apiClient.post<Invoice>(`/invoices/${id}/cancel`, data).then(r => r.data),
 

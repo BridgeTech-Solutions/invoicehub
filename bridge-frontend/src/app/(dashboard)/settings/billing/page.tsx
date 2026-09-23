@@ -257,7 +257,7 @@ function AccountingSection() {
     | 'defaultClientAccount' | 'defaultSupplierAccount' | 'defaultBankAccount'
     | 'defaultSalesGoodsAccount' | 'defaultSalesServiceAccount' | 'defaultPurchaseAccount'
     | 'defaultExpenseAccount' | 'useAdvanceAccount' | 'advanceAccount'
-    | 'withholdingAccount' | 'withholdingRate' | 'budgetControl'>>({})
+    | 'withholdingAccount' | 'withholdingRate' | 'budgetControl' | 'emailConfig'>>({})
   const [dirty, setDirty] = useState(false)
 
   useEffect(() => {
@@ -284,6 +284,7 @@ function AccountingSection() {
       withholdingAccount:         settings.withholdingAccount,
       withholdingRate:            settings.withholdingRate,
       budgetControl:              settings.budgetControl ?? { warnThresholdPct: 80, blockOnExceed: false, notifyRoles: ['admin'], requireApproval: false },
+      emailConfig:                settings.emailConfig ?? { replyToMode: 'sender', centralReplyTo: null },
     })
     setDirty(false)
   }, [settings])
@@ -468,6 +469,42 @@ function AccountingSection() {
                     })}
                   </div>
                 </div>
+              </AccountGroup>
+
+              <AccountGroup title="Envoi des documents par email">
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                    Adresse de réponse (Reply-To)
+                  </label>
+                  <select
+                    value={form.emailConfig?.replyToMode ?? 'sender'}
+                    onChange={(e) => set('emailConfig', { replyToMode: e.target.value as 'sender' | 'central', centralReplyTo: form.emailConfig?.centralReplyTo ?? null })}
+                    style={{ ...inputCss, cursor: 'pointer' }}
+                  >
+                    <option value="sender">L&apos;employé qui envoie</option>
+                    <option value="central">Une adresse centrale</option>
+                  </select>
+                  <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: '6px 0 0', lineHeight: 1.5 }}>
+                    Quand un client répond à une facture/devis, sa réponse arrive à cette adresse.
+                  </p>
+                </div>
+                {form.emailConfig?.replyToMode === 'central' && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                      Adresse centrale
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="facturation@entreprise.com"
+                      value={form.emailConfig?.centralReplyTo ?? ''}
+                      onChange={(e) => set('emailConfig', { replyToMode: 'central', centralReplyTo: e.target.value || null })}
+                      style={inputCss}
+                    />
+                    <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: '6px 0 0', lineHeight: 1.5 }}>
+                      Laissez vide pour utiliser l&apos;email de l&apos;entreprise (paramètres généraux).
+                    </p>
+                  </div>
+                )}
               </AccountGroup>
             </div>
             {dirty && can('settings', 'update') && (
