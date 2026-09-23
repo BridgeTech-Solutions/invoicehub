@@ -73,3 +73,18 @@ export function useAdjustStock() {
     },
   })
 }
+
+export function useReverseMovement() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) => stockApi.reverseMovement(id, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['stock'] })
+      toast.success('Mouvement contre-passé')
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+      toast.error(msg ?? 'Contre-passation impossible')
+    },
+  })
+}

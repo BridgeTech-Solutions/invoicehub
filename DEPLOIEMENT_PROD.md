@@ -58,6 +58,25 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-09-23 — Module Stock : fiabilité des mouvements + contre-passation
+- **Sorties/entrées de stock fiabilisées** : à l'émission d'une facture (sortie `sale`) et à
+  la réception d'un BC (entrée `purchase_receipt`), le mouvement était *fire-and-forget* avec
+  échec **silencieux** (`console.error`). Désormais **attendu** ; en cas d'échec (compte de
+  stock manquant, stock insuffisant), une **notification** est envoyée aux détenteurs de
+  `stock:adjust` pour régularisation. Plus de désync stock↔ventes muette.
+- **Bug pagination corrigé** : le filtre « stock bas / rupture » (`GET /stock/levels`) était
+  appliqué **après** la pagination (total faux, pages vides). Filtrage désormais sur l'ensemble
+  puis pagination en mémoire.
+- **Contre-passation d'un mouvement** (nouveau) : `POST /stock/movements/:id/reverse`
+  (droit `stock:adjust`) crée le mouvement inverse (restaure quantité + valeur) et **extourne
+  l'écriture comptable** d'origine (inversion exacte). Refuse si le stock deviendrait négatif
+  ou si le mouvement est déjà une contre-passation. Bouton « Contre-passer » dans le journal.
+- Correctifs : idempotence de l'écriture stock (`onStockMovement`), bornes de dates du journal
+  en **UTC**, champ mort `supplierId` retiré du schéma d'ajustement.
+
+> **Aucune migration SQL** (réutilise tables/enums existants ; `sourceType` = simples chaînes).
+> Aucune action prod supplémentaire.
+
 ### 2026-09-22 — Module Dépenses : RBAC réparé + justificatifs + récurrence + remboursement
 - **RBAC réparé (bloquant)** : les routes dépenses/catégories exigeaient `expenses:write` et
   `expenses:pay`, permissions **inexistantes** au catalogue → seul l'admin (`*`) pouvait créer/

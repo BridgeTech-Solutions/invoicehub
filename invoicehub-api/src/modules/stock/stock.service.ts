@@ -3,7 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppError } from '../../common/errors/app-error';
-import { onStockMovement } from '../../lib/accountingEngine';
+import { onStockMovement, onStockMovementReversed } from '../../lib/accountingEngine';
 import type { AdjustStockInput, ListMovementsInput, StockLevelsInput } from './stock.schema';
 
 type Tx = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
@@ -187,6 +187,76 @@ export class StockService {
     });
   }
 
+  // ── Contre-passation d'un mouvement ──────────────────────────────────────────
+
+  /**
+   * Contre-passe un mouvement erroné : crée le mouvement inverse (restaure la quantité
+   * et la valeur) et extourne l'écriture comptable d'origine. Refuse si le stock
+   * tomberait en négatif (unités déjà consommées) ou si le mouvement est lui-même une
+   * contre-passation / a déjà été contre-passé.
+   */
+  async reverseStockMovement(movementId: string, userId: string, reason?: string | null) {
+    return this.prisma.$transaction(async (tx) => {
+      const original = await tx.stockMovement.findUnique({ where: { id: movementId } });
+      if (!original) throw AppError.notFound('Mouvement de stock introuvable');
+      if (original.sourceType === 'stock_reversal')
+        throw AppError.badRequest('Ce mouvement est déjà une contre-passation.');
+
+      const already = await tx.stockMovement.findFirst({
+        where: { sourceType: 'stock_reversal', sourceId: movementId }, select: { id: true },
+      });
+      if (already) throw AppError.conflict('Ce mouvement a déjà été contre-passé.');
+
+      const product = await tx.product.findFirst({ where: { id: original.productId, deletedAt: null } });
+      if (!product) throw AppError.notFound('Produit introuvable');
+
+      const origSigned   = Number(original.quantity); // déjà signé (négatif = sortie)
+      const revSigned    = -origSigned;                // inverse exact
+      const currentQty   = Number(product.stockQuantity ?? 0);
+      const currentValue = Number(product.stockValue ?? 0);
+      const unitCost     = Number(original.unitCostHt ?? product.costPriceHt ?? 0);
+
+      const newQty = currentQty + revSigned;
+      if (newQty < 0) {
+        throw AppError.badRequest(
+          `Contre-passation impossible : le stock de « ${product.name} » deviendrait négatif (les unités ont déjà été consommées). Passez plutôt un ajustement.`,
+        );
+      }
+      const newValue = Math.max(0, currentValue + revSigned * unitCost);
+
+      const reversal = await tx.stockMovement.create({
+        data: {
+          productId:      original.productId,
+          type:           (revSigned < 0 ? 'adjustment_out' : 'adjustment_in') as any,
+          quantity:       revSigned,
+          quantityBefore: currentQty,
+          quantityAfter:  newQty,
+          unitCostHt:     unitCost || null,
+          totalCostHt:    unitCost ? Math.abs(revSigned) * unitCost : null,
+          sourceType:     'stock_reversal',
+          sourceId:       movementId,
+          sourceLabel:    `Contre-passation ${original.sourceLabel ?? original.type}`,
+          location:       original.location,
+          notes:          reason?.trim() || `Contre-passation du mouvement ${movementId}`,
+          createdById:    userId,
+        },
+      });
+
+      await tx.product.update({
+        where: { id: original.productId },
+        data:  { stockQuantity: newQty, stockValue: newValue },
+      });
+
+      // Extourne l'écriture comptable d'origine (exacte, par inversion des lignes).
+      await onStockMovementReversed(
+        { originalMovementId: movementId, productName: product.name, sourceLabel: original.sourceLabel ?? null },
+        tx as any,
+      );
+
+      return reversal;
+    });
+  }
+
   // ── Mouvements ───────────────────────────────────────────────────────────────
 
   async listMovements(input: ListMovementsInput) {
@@ -196,9 +266,11 @@ export class StockService {
     if (type)       where.type       = type as any;
     if (sourceType) where.sourceType = sourceType;
     if (dateFrom || dateTo) {
+      // Bornes en UTC : `new Date(dateTo + 'T23:59:59')` valait minuit LOCAL et
+      // décalait la fin de journée d'une heure au Cameroun (UTC+1).
       where.createdAt = {
-        ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
-        ...(dateTo   ? { lte: new Date(dateTo + 'T23:59:59') } : {}),
+        ...(dateFrom ? { gte: new Date(dateFrom + 'T00:00:00.000Z') } : {}),
+        ...(dateTo   ? { lte: new Date(dateTo   + 'T23:59:59.999Z') } : {}),
       };
     }
 
@@ -246,38 +318,46 @@ export class StockService {
       ];
     }
 
-    const [products, total] = await Promise.all([
-      this.prisma.product.findMany({
-        where,
-        skip:    (page - 1) * limit,
-        take:    limit,
-        orderBy: { name: 'asc' },
-        select: {
-          id: true, name: true, reference: true, barcode: true, imageUrl: true,
-          stockQuantity: true, stockMinLevel: true, stockMaxLevel: true,
-          stockUnit: true, costPriceHt: true, stockValue: true,
-          category: { select: { id: true, name: true, color: true } },
-        },
-      }),
-      this.prisma.product.count({ where }),
-    ]);
+    const select = {
+      id: true, name: true, reference: true, barcode: true, imageUrl: true,
+      stockQuantity: true, stockMinLevel: true, stockMaxLevel: true,
+      stockUnit: true, costPriceHt: true, stockValue: true,
+      category: { select: { id: true, name: true, color: true } },
+    } as const;
 
-    const enriched = products.map(p => {
+    const computeStatus = (p: { stockQuantity: unknown; stockMinLevel: unknown; stockMaxLevel: unknown }) => {
       const qty = Number(p.stockQuantity ?? 0);
       const min = Number(p.stockMinLevel ?? 0);
       const max = Number(p.stockMaxLevel ?? 0);
-      const stockStatus = qty <= 0       ? 'rupture'
-        : min > 0 && qty < min           ? 'bas'
-        : max > 0 && qty > max           ? 'surstock'
-        :                                  'normal';
-      return { ...p, stockStatus };
-    });
+      return qty <= 0        ? 'rupture'
+        : min > 0 && qty < min ? 'bas'
+        : max > 0 && qty > max  ? 'surstock'
+        :                        'normal';
+    };
 
-    const filtered = rupture ? enriched.filter(p => p.stockStatus === 'rupture')
-      : lowStock             ? enriched.filter(p => p.stockStatus === 'bas' || p.stockStatus === 'rupture')
-      : enriched;
+    // Filtre par statut (bas/rupture) : la comparaison qty<min croise deux colonnes,
+    // impossible dans un WHERE Prisma. On charge donc l'ensemble filtré puis on pagine
+    // EN MÉMOIRE — sinon le filtre s'appliquait après la pagination (total faux, pages
+    // vides). Échelle mono-entreprise : quelques centaines de produits, acceptable.
+    if (lowStock || rupture) {
+      const all = await this.prisma.product.findMany({ where, orderBy: { name: 'asc' }, select });
+      const matching = all
+        .map(p => ({ ...p, stockStatus: computeStatus(p) }))
+        .filter(p => rupture ? p.stockStatus === 'rupture' : (p.stockStatus === 'bas' || p.stockStatus === 'rupture'));
+      const total = matching.length;
+      const data  = matching.slice((page - 1) * limit, (page - 1) * limit + limit);
+      return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+    }
 
-    return { data: filtered, total, page, limit, totalPages: Math.ceil(total / limit) };
+    // Pas de filtre par statut → pagination base normale.
+    const [products, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where, skip: (page - 1) * limit, take: limit, orderBy: { name: 'asc' }, select,
+      }),
+      this.prisma.product.count({ where }),
+    ]);
+    const data = products.map(p => ({ ...p, stockStatus: computeStatus(p) }));
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async getProductStockHistory(productId: string, page: number, limit: number) {

@@ -368,7 +368,11 @@ export class PurchaseOrdersService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    // Mouvements de stock à créer APRÈS le commit de la réception (leur échec ne doit
+    // pas annuler la réception, mais ne doit plus être silencieux non plus).
+    const stockToCreate: { productId: string; quantity: number; unitCostHt: number; lineId: string }[] = [];
+
+    const updated = await this.prisma.$transaction(async (tx) => {
       for (const recv of input.lines) {
         // Recharge la ligne en lecture verouillée pour protéger contre les races.
         const fresh = await tx.purchaseOrderLine.findUniqueOrThrow({ where: { id: recv.lineId } });
@@ -385,23 +389,12 @@ export class PurchaseOrdersService {
         });
 
         const line = po.lines.find(l => l.id === recv.lineId);
-        if (line?.productId) {
-          // Mouvement de stock dans sa propre transaction — une erreur (service sans
-          // stock, compte comptable manquant) ne doit pas avorter la réception BC.
-          this.stockService.createStockMovement({
-            productId:   line.productId,
-            quantity:    recv.quantityReceived,
-            type:        'purchase_receipt',
-            unitCostHt:  Number(line.unitPriceHt),
-            sourceType:  'purchase_order',
-            sourceId:    id,
-            sourceLabel: `BC ${po.number}`,
-            notes:       input.notes ?? null,
-            createdById: userId,
-          }).catch(e => {
-            if (!e?.message?.includes('ne gère pas le stock')) {
-              console.error('[receive] stock movement failed for line', line.id, e?.message);
-            }
+        if (line?.productId && recv.quantityReceived > 0) {
+          stockToCreate.push({
+            productId:  line.productId,
+            quantity:   recv.quantityReceived,
+            unitCostHt: Number(line.unitPriceHt),
+            lineId:     line.id,
           });
         }
       }
@@ -425,15 +418,49 @@ export class PurchaseOrdersService {
         this.eventEmitter.emit('purchase_order.received', { purchaseOrderId: id });
       }
       return updated;
-    }).then(updated => {
-      void broadcastNotification(this.prisma as any, this.notifQueue, {
-        type: 'purchase_order_received' as any,
-        title: `BC réceptionné : ${updated.number}`,
-        message: `Le bon de commande ${updated.number} a été ${updated.status === 'received' ? 'entièrement' : 'partiellement'} réceptionné.`,
-        data: { purchaseOrderId: id, documentLink: `/purchase-orders/${id}` },
-      }, { excludeUserId: userId, permission: 'purchases:read' });
-      return updated;
     });
+
+    // Entrées de stock APRÈS commit : leur échec n'annule pas la réception, mais
+    // n'est plus silencieux (avant : console.error muet). On notifie les
+    // gestionnaires de stock pour régularisation.
+    let stockFailures = 0;
+    for (const s of stockToCreate) {
+      try {
+        await this.stockService.createStockMovement({
+          productId:   s.productId,
+          quantity:    s.quantity,
+          type:        'purchase_receipt',
+          unitCostHt:  s.unitCostHt,
+          sourceType:  'purchase_order',
+          sourceId:    id,
+          sourceLabel: `BC ${po.number}`,
+          notes:       input.notes ?? null,
+          createdById: userId,
+        });
+      } catch (e: any) {
+        // Un produit « qui ne gère pas le stock » n'est pas une erreur.
+        if (e?.message?.includes('ne gère pas le stock')) continue;
+        stockFailures++;
+        console.error('[receive] mouvement stock échoué, ligne', s.lineId, e?.message);
+      }
+    }
+    if (stockFailures > 0) {
+      await broadcastNotification(this.prisma as any, this.notifQueue, {
+        type:    'system',
+        title:   `Stock non mis à jour — ${updated.number}`,
+        message: `${stockFailures} ligne(s) réceptionnée(s) du BC ${updated.number} n'ont pas pu entrer en stock (compte de stock manquant ?). Régularisez via un ajustement.`,
+        data:    { purchaseOrderId: id, failures: stockFailures },
+      }, { permission: 'stock:adjust' });
+    }
+
+    void broadcastNotification(this.prisma as any, this.notifQueue, {
+      type: 'purchase_order_received' as any,
+      title: `BC réceptionné : ${updated.number}`,
+      message: `Le bon de commande ${updated.number} a été ${updated.status === 'received' ? 'entièrement' : 'partiellement'} réceptionné.`,
+      data: { purchaseOrderId: id, documentLink: `/purchase-orders/${id}` },
+    }, { excludeUserId: userId, permission: 'purchases:read' });
+
+    return updated;
   }
 
   async createSupplierInvoice(id: string, userId: string) {

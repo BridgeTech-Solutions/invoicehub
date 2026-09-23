@@ -45,3 +45,8 @@ export async function getProductHistory(productId: string, page = 1, limit = 20)
   const { data } = await apiClient.get(`/stock/levels/${productId}/history`, { params: { page, limit } })
   return data
 }
+
+export async function reverseMovement(id: string, reason?: string): Promise<StockMovement> {
+  const { data } = await apiClient.post(`/stock/movements/${id}/reverse`, { reason: reason || undefined })
+  return data
+}

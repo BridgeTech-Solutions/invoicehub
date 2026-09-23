@@ -18,7 +18,9 @@ export const adjustStockSchema = z.object({
   notes:      z.string().min(5, 'Une note est obligatoire (5 caractères min)'),
   location:   z.string().max(100).optional().nullable(),
   sourceLabel: z.string().max(255).optional().nullable(),
-  supplierId:  z.string().uuid().optional().nullable(),
+  // NB : pas de `supplierId` — il n'existe pas sur StockMovement et n'était pas
+  // transmis (champ mort). Le compte fournisseur de l'écriture est résolu depuis
+  // product.defaultSupplier dans onStockMovement.
 });
 
 export const listMovementsSchema = z.object({
@@ -31,6 +33,10 @@ export const listMovementsSchema = z.object({
   sourceType: z.string().optional(),
 });
 
+export const reverseMovementSchema = z.object({
+  reason: z.string().max(255).optional().nullable(),
+});
+
 export const stockLevelsSchema = z.object({
   page:       z.coerce.number().int().positive().default(1),
   limit:      z.coerce.number().int().positive().max(100).default(50),
@@ -40,6 +46,7 @@ export const stockLevelsSchema = z.object({
   categoryId: z.string().uuid().optional(),
 });
 
-export type AdjustStockInput   = z.infer<typeof adjustStockSchema>;
-export type ListMovementsInput = z.infer<typeof listMovementsSchema>;
-export type StockLevelsInput   = z.infer<typeof stockLevelsSchema>;
+export type AdjustStockInput     = z.infer<typeof adjustStockSchema>;
+export type ListMovementsInput   = z.infer<typeof listMovementsSchema>;
+export type StockLevelsInput     = z.infer<typeof stockLevelsSchema>;
+export type ReverseMovementInput = z.infer<typeof reverseMovementSchema>;

@@ -2,13 +2,14 @@
 
 import { useState, useMemo, useId, useCallback } from 'react'
 import Link from 'next/link'
-import { ArrowRightLeft, Search, ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight } from 'lucide-react'
+import { ArrowRightLeft, Search, ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight, Undo2, Loader2 } from 'lucide-react'
 import { usePermission } from '@/hooks/usePermission'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { RichEmptyState } from '@/components/ui/RichEmptyState'
 import { MovementTypeBadge } from '@/features/stock/components/MovementTypeBadge'
-import { useStockMovements } from '@/features/stock/hooks'
+import { useStockMovements, useReverseMovement } from '@/features/stock/hooks'
+import { useConfirm } from '@/providers/ConfirmProvider'
 import { formatDate } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
 import { ROUTES } from '@/lib/constants'
@@ -80,6 +81,20 @@ export default function StockMovementsPage() {
 
   const { data, isLoading } = useStockMovements(params)
   const movements = data?.data ?? []
+
+  const confirm = useConfirm()
+  const reverseMutation = useReverseMovement()
+  const canAdjust = can('stock', 'adjust')
+
+  const handleReverse = useCallback(async (m: { id: string; product: { name: string } }) => {
+    const ok = await confirm({
+      title: 'Contre-passer ce mouvement ?',
+      message: `Un mouvement inverse sera créé pour « ${m.product.name} », restaurant la quantité et extournant l'écriture comptable. Action tracée, irréversible.`,
+      confirmLabel: 'Contre-passer',
+    })
+    if (!ok) return
+    reverseMutation.mutate({ id: m.id })
+  }, [confirm, reverseMutation])
 
   if (!can('stock', 'read')) return <AccessDenied message="Vous n'avez pas accès au module de gestion des stocks." />
 
@@ -169,6 +184,7 @@ export default function StockMovementsPage() {
                   <th scope="col">Avant / Après</th>
                   <th scope="col">Coût total</th>
                   <th scope="col">Date / Source</th>
+                  {canAdjust && <th scope="col" style={{ textAlign: 'right' }}>Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -206,6 +222,28 @@ export default function StockMovementsPage() {
                         {m.sourceLabel && <p style={{ fontWeight: 500, color: 'var(--text-2)' }}>{m.sourceLabel}</p>}
                         {m.notes && <p style={{ fontSize: 11 }}>{m.notes}</p>}
                       </td>
+                      {canAdjust && (
+                        <td style={{ textAlign: 'right' }}>
+                          {m.sourceType === 'stock_reversal' ? (
+                            <span style={{ fontSize: 11.5, color: 'var(--text-3)', fontStyle: 'italic' }}>contre-passation</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleReverse(m)}
+                              disabled={reverseMutation.isPending}
+                              title="Contre-passer ce mouvement"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-display)' }}
+                              onMouseEnter={e => { e.currentTarget.style.borderColor = '#dc2626'; e.currentTarget.style.color = '#dc2626' }}
+                              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-2)' }}
+                            >
+                              {reverseMutation.isPending && reverseMutation.variables?.id === m.id
+                                ? <Loader2 size={12} className="animate-spin" />
+                                : <Undo2 size={12} />}
+                              Contre-passer
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   )
                 })}

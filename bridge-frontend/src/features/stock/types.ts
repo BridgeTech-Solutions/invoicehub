@@ -118,7 +118,6 @@ export interface AdjustStockPayload {
   notes:        string
   location?:    string | null
   sourceLabel?: string | null
-  supplierId?:  string | null
 }
 
 export interface ListMovementsParams {

@@ -1230,6 +1230,14 @@ export async function onStockMovement(params: {
   try {
     if (params.totalCostHt <= 0) return;
 
+    // Idempotence : une écriture pour CE mouvement (sourceId = movementId) existe déjà
+    // → no-op (protège contre tout rejeu/double appel, comme les autres hooks).
+    const dupe = await tx.journalEntry.findFirst({
+      where:  { sourceType: 'stock_movement', sourceId: params.movementId, status: { not: 'cancelled' } },
+      select: { id: true },
+    });
+    if (dupe) return;
+
     const {
       movementType, totalCostHt, stockAccount, cogsAccount,
       lossAccount, supplierAccount, initialStockAccount, productName, sourceLabel,
@@ -1316,6 +1324,66 @@ export async function onStockMovement(params: {
       },
     });
   } catch (e) { logErr('onStockMovement', e, { sourceType: 'stock_movement', sourceId: params.movementId }); }
+}
+
+// ── onStockMovementReversed — contre-passation d'un mouvement de stock ─────────
+
+/**
+ * Extourne l'écriture comptable d'un mouvement de stock : on INVERSE l'écriture
+ * d'origine STOCKÉE (source de vérité), au lieu de la reconstruire — même principe
+ * que onInvoiceCancelled / onPaymentDeleted. Idempotent (une extourne par mouvement).
+ */
+export async function onStockMovementReversed(params: {
+  originalMovementId: string;
+  productName:        string;
+  sourceLabel:        string | null;
+}, tx: Tx): Promise<void> {
+  try {
+    const { originalMovementId, productName, sourceLabel } = params;
+
+    const existingReversal = await tx.journalEntry.findFirst({
+      where:  { sourceType: 'stock_movement_reversal', sourceId: originalMovementId, status: { not: 'cancelled' } },
+      select: { id: true },
+    });
+    if (existingReversal) return;
+
+    const original = await tx.journalEntry.findFirst({
+      where:   { sourceType: 'stock_movement', sourceId: originalMovementId, status: { not: 'cancelled' } },
+      include: { lines: true },
+    });
+    if (!original) return; // mouvement sans écriture (compte manquant à l'époque) → rien à extourner
+
+    const entryDate   = new Date();
+    const journal     = await getDefaultJournal(tx, JournalType.operations);
+    const period      = await getOpenPeriod(tx, entryDate);
+    const entryNumber = await nextEntryNumber(tx, journal.code, entryDate);
+
+    const counterLines: JournalLineData[] = original.lines.map((l, i) => ({
+      sortOrder:     i,
+      accountNumber: l.accountNumber,
+      label:         `Contre-passation — ${l.label}`,
+      debit:         Number(l.credit),
+      credit:        Number(l.debit),
+    }));
+
+    await createBalancedEntry(tx, {
+      data: {
+        journalId:      journal.id,
+        fiscalPeriodId: period.id,
+        entryDate,
+        accountingDate: entryDate,
+        entryNumber,
+        label:       sourceLabel ? `Contre-passation stock — ${productName} (${sourceLabel})` : `Contre-passation stock — ${productName}`,
+        sourceType:  'stock_movement_reversal',
+        sourceId:    originalMovementId,
+        entryKind:   'reversal',
+        totalDebit:  Number(original.totalCredit),
+        totalCredit: Number(original.totalDebit),
+        status:      'draft',
+        lines: { create: counterLines },
+      },
+    });
+  } catch (e) { logErr('onStockMovementReversed', e, { sourceType: 'stock_movement_reversal', sourceId: params.originalMovementId }); }
 }
 
 // ── onEscompteAccorde — escompte de règlement accordé (compte 673) ─────────────
