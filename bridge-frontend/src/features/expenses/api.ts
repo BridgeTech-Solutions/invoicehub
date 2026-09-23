@@ -32,6 +32,9 @@ export const expensesApi = {
   reject: (id: string, reason: string) =>
     apiClient.post<Expense>(`/expenses/${id}/reject`, { reason }).then(r => r.data),
 
+  reimburse: (id: string, reference?: string) =>
+    apiClient.post<Expense>(`/expenses/${id}/reimburse`, { reference: reference || undefined }).then(r => r.data),
+
   markPaid: (id: string, payload?: { bankAccountId?: string | null; paymentMethod?: string | null }) =>
     apiClient.post<Expense>(`/expenses/${id}/pay`, payload ?? {}).then(r => r.data),
 
@@ -44,6 +47,16 @@ export const expensesApi = {
     return apiClient.post<{ attachmentPath: string }>(`/expenses/${id}/attachment`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then(r => r.data)
+  },
+
+  deleteAttachment: (id: string) =>
+    apiClient.delete(`/expenses/${id}/attachment`),
+
+  // Récupère un justificatif via l'endpoint AUTHENTIFIÉ (jeton porté par l'apiClient),
+  // puis renvoie une object-URL à ouvrir/prévisualiser. Un <img src> direct échouerait (401).
+  fetchAttachment: async (apiPath: string) => {
+    const res = await apiClient.get(apiPath, { responseType: 'blob' })
+    return URL.createObjectURL(res.data as Blob)
   },
 
   // ─── Categories ───────────────────────────────────────────────

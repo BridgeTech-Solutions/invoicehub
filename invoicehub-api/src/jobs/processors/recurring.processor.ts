@@ -2,6 +2,7 @@ import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ExpensesService } from '../../modules/expenses/expenses.service';
 import type { RecurringJobData, NotificationJobData } from '../job-types';
 
 @Processor('recurring')
@@ -10,6 +11,7 @@ export class RecurringProcessor extends WorkerHost {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly expensesService: ExpensesService,
     @InjectQueue('notification') private readonly notificationQueue: Queue<NotificationJobData>,
   ) {
     super();
@@ -18,6 +20,15 @@ export class RecurringProcessor extends WorkerHost {
   async process(_job: Job<RecurringJobData>): Promise<void> {
     const now = new Date();
 
+    // 1. Dépenses récurrentes : génère les occurrences dues (brouillons à relire).
+    try {
+      const { generated } = await this.expensesService.generateDueRecurringExpenses();
+      if (generated > 0) this.logger.log(`[Recurring] ${generated} dépense(s) récurrente(s) générée(s).`);
+    } catch (err) {
+      this.logger.error(`[Recurring] Echec génération dépenses récurrentes : ${(err as Error).message}`);
+    }
+
+    // 2. Factures récurrentes : notification (génération auto non encore implémentée).
     const dueTemplates = await this.prisma.recurringInvoiceTemplate.findMany({
       where: {
         deletedAt: null,
@@ -30,9 +41,7 @@ export class RecurringProcessor extends WorkerHost {
 
     for (const template of dueTemplates) {
       try {
-        // RecurringService sera injecté en Phase 4 — pour l'instant log uniquement
-        this.logger.log(`[Recurring] Template à traiter : ${template.id}`);
-
+        this.logger.log(`[Recurring] Template facture à traiter : ${template.id}`);
         await this.notificationQueue.add('notification', {
           userId:  template.createdById,
           type:    'system',

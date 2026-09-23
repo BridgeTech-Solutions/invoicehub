@@ -2,7 +2,7 @@ import { useAuthStore } from '@/features/auth/store'
 import type { Role } from '@/lib/constants'
 
 // ─── Types ────────────────────────────────────────────────────
-export type Action = 'create' | 'read' | 'update' | 'delete' | 'cancel' | 'issue' | 'export' | 'manage' | 'write' | 'approve' | '*'
+export type Action = 'create' | 'read' | 'update' | 'delete' | 'cancel' | 'issue' | 'export' | 'manage' | 'write' | 'approve' | 'pay' | '*'
 export type Resource =
   | 'invoice' | 'proforma' | 'payment' | 'client'
   | 'product' | 'user' | 'settings' | 'audit'

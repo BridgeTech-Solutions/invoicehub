@@ -13,7 +13,7 @@ export const ALL_PERMISSIONS = [
   'products:read', 'products:create', 'products:update', 'products:delete', 'products:*',
   'suppliers:read', 'suppliers:create', 'suppliers:update', 'suppliers:delete', 'suppliers:*',
   'purchases:read', 'purchases:create', 'purchases:update', 'purchases:approve', 'purchases:delete',
-  'expenses:read', 'expenses:create', 'expenses:update', 'expenses:approve', 'expenses:delete',
+  'expenses:read', 'expenses:create', 'expenses:update', 'expenses:approve', 'expenses:pay', 'expenses:delete', 'expenses:*',
   'stock:read', 'stock:create', 'stock:adjust',
   'bank:read', 'bank:create', 'bank:update', 'bank:reconcile', 'bank:manage',
   'bank:import-parse', 'bank:import-confirm', 'bank:auto-match', 'bank:rules',

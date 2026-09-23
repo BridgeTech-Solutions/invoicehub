@@ -58,6 +58,29 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-09-22 — Module Dépenses : RBAC réparé + justificatifs + récurrence + remboursement
+- **RBAC réparé (bloquant)** : les routes dépenses/catégories exigeaient `expenses:write` et
+  `expenses:pay`, permissions **inexistantes** au catalogue → seul l'admin (`*`) pouvait créer/
+  modifier/payer une dépense (le **comptable** ne pouvait que lire/approuver). Contrôleurs passés
+  à `expenses:create`/`update`/`pay`. Catalogue enrichi de `expenses:pay` et `expenses:*`.
+- **Justificatifs câblés** : l'upload était un faux bouton et le détail n'affichait rien. Upload
+  réel (validation type + 5 Mo), aperçu authentifié, suppression **avec purge disque**.
+- **Récurrence** effective : les dépenses `isRecurring` génèrent des **brouillons** à chaque
+  échéance (cron `recurring` quotidien, déjà planifié) — fréquence + date de fin au formulaire.
+- **Remboursement note de frais employé** : action « Rembourser l'employé » (`POST /expenses/:id/reimburse`).
+- Correctifs : `taxAmount` désormais calculé (restait à 0), `paidAmount` renseigné au paiement,
+  compte comptable validé au plan comptable, stats en UTC, recherche élargie (bénéficiaire/réf.),
+  champ fantôme `supplierInvoiceId` retiré.
+
+> **Aucune migration SQL** (tous les champs utilisés — `frequency`, `next_occurrence_date`,
+> `end_date`, `reimbursed_at`, `paid_amount`, `tax_amount`… — préexistaient au schéma).
+> **Action prod à lancer une fois** (accorde les nouvelles permissions au rôle comptable) :
+> ```bash
+> npx ts-node prisma/grant-expense-permissions.ts
+> ```
+> ⚠️ Rôles **personnalisés** gérant les dépenses : leur accorder `expenses:pay` (et
+> `expenses:delete` si suppression attendue) via Paramètres → Rôles.
+
 ### 2026-09-22 — Budgets v2 (Phase 4.4) : ventilation annuel → mensuel
 Action **« Ventiler sur 12 mois »** (modale d'édition d'un budget annuel) : remplace le
 budget annuel par **12 budgets mensuels** (répartition égale, résidu d'arrondi sur décembre),

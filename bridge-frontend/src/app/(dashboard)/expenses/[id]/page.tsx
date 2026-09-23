@@ -2,16 +2,17 @@
 
 import { use, useState } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, CheckCircle2, XCircle, Banknote, Send, Tag, Calendar, User, Loader2 } from 'lucide-react'
+import { ChevronLeft, CheckCircle2, XCircle, Banknote, Send, Tag, Calendar, User, Loader2, HandCoins, RefreshCw } from 'lucide-react'
 import { submitButtonState } from '@/features/approvals/effectiveStatus'
 import { usePermission } from '@/hooks/usePermission'
 import { AccessDenied } from '@/components/ui/AccessDenied'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
   useExpense, useSubmitExpense, useApproveExpense,
-  useRejectExpense,
+  useRejectExpense, useReimburseExpense,
 } from '@/features/expenses/hooks'
 import { PayExpenseDrawer } from '@/features/expenses/components/PayExpenseDrawer'
+import { AttachmentsCard } from '@/features/expenses/components/AttachmentsCard'
 import { ApprovalBanner } from '@/features/approvals/components/ApprovalBanner'
 import { formatDate } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
@@ -30,6 +31,33 @@ const STATUS_CONFIG: Record<ExpenseStatus, { label: string; color: string; bg: s
 const PM_LABELS: Record<string, string> = {
   cash: 'Espèces', bank_transfer: 'Virement', mobile_money: 'Mobile Money',
   card: 'Carte', check: 'Chèque', other: 'Autre',
+}
+
+const FREQ_LABELS: Record<string, string> = {
+  once: 'Ponctuelle', weekly: 'Hebdomadaire', monthly: 'Mensuelle', quarterly: 'Trimestrielle', annual: 'Annuelle',
+}
+
+function ReimburseModal({ onConfirm, onClose, isPending }: { onConfirm: (reference: string) => void; onClose: () => void; isPending: boolean }) {
+  const [reference, setReference] = useState('')
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div className="card" style={{ padding: '28px 32px', width: 420, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--text-1)' }}>Rembourser l'employé</h3>
+        <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0, lineHeight: 1.5 }}>Confirmez le remboursement de cette note de frais. Vous pouvez noter la référence du virement ou de l'opération.</p>
+        <input value={reference} onChange={e => setReference(e.target.value)} placeholder="Référence (facultatif) — ex. VIR-2026-0142"
+          style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'var(--bg)', fontSize: 13.5, outline: 'none' }}
+          onFocus={e => (e.target.style.borderColor = 'var(--primary)')} onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button onClick={onClose} style={{ padding: '8px 18px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>Annuler</button>
+          <button onClick={() => onConfirm(reference)} disabled={isPending}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 'var(--radius-md)', background: '#16a34a', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600, opacity: isPending ? 0.7 : 1 }}>
+            {isPending && <Loader2 size={13} className="animate-spin" />}
+            Confirmer le remboursement
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function RejectModal({ onConfirm, onClose, isPending }: { onConfirm: (reason: string) => void; onClose: () => void; isPending: boolean }) {
@@ -58,13 +86,15 @@ export default function ExpenseDetailPage({ params }: { params: Promise<{ id: st
   const { can } = usePermission()
   const { format } = useCurrency()
   const { id }       = use(params)
-  const [showReject, setShowReject] = useState(false)
-  const [showPay,    setShowPay]    = useState(false)
+  const [showReject,    setShowReject]    = useState(false)
+  const [showPay,       setShowPay]       = useState(false)
+  const [showReimburse, setShowReimburse] = useState(false)
 
   const { data: exp, isLoading } = useExpense(id)
-  const submitMutation   = useSubmitExpense()
-  const approveMutation  = useApproveExpense()
-  const rejectMutation   = useRejectExpense()
+  const submitMutation    = useSubmitExpense()
+  const approveMutation   = useApproveExpense()
+  const rejectMutation    = useRejectExpense()
+  const reimburseMutation = useReimburseExpense()
 
   if (isLoading) {
     return (
@@ -77,16 +107,19 @@ export default function ExpenseDetailPage({ params }: { params: Promise<{ id: st
   if (!exp) return null
 
   const cfg        = STATUS_CONFIG[exp.status]
-  const canSubmit  = exp.status === 'draft'
+  // Boutons gatés par statut ET par permission (l'API renverrait 403 sinon).
+  const canSubmit  = exp.status === 'draft'     && can('expense', 'update')
   const submitBtn  = submitButtonState({
     isPending:   exp.approvalRequest?.status === 'pending',
     wasRejected: exp.approvalRequest?.status === 'rejected',
     willSubmit:  !!exp.willRequireApproval,
     directLabel: 'Soumettre',
   })
-  const canApprove = exp.status === 'submitted'
-  const canReject  = exp.status === 'submitted'
-  const canMarkPaid = exp.status === 'approved'
+  const canApprove = exp.status === 'submitted' && can('expense', 'approve')
+  const canReject  = exp.status === 'submitted' && can('expense', 'approve')
+  const canMarkPaid = exp.status === 'approved' && can('expense', 'pay')
+  const canReimburse = exp.isEmployeeExpense && !exp.reimbursedAt
+    && (exp.status === 'approved' || exp.status === 'paid') && can('expense', 'pay')
 
   if (!can('expense', 'read')) return <AccessDenied message="Vous n'avez pas accès à cette dépense." />
 
@@ -102,6 +135,12 @@ export default function ExpenseDetailPage({ params }: { params: Promise<{ id: st
         <PayExpenseDrawer
           expense={{ id, designation: exp.designation, amountTtc: exp.amountTtc, bankAccountId: (exp as { bankAccountId?: string | null }).bankAccountId ?? null }}
           onClose={() => setShowPay(false)} />
+      )}
+
+      {showReimburse && (
+        <ReimburseModal isPending={reimburseMutation.isPending}
+          onClose={() => setShowReimburse(false)}
+          onConfirm={reference => reimburseMutation.mutate({ id, reference }, { onSuccess: () => setShowReimburse(false) })} />
       )}
 
       <div>
@@ -137,6 +176,12 @@ export default function ExpenseDetailPage({ params }: { params: Promise<{ id: st
                 <button onClick={() => setShowPay(true)}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius-md)', background: '#16a34a', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
                   <Banknote size={13} /> Marquer payée
+                </button>
+              )}
+              {canReimburse && (
+                <button onClick={() => setShowReimburse(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1.5px solid #16a34a', background: 'transparent', color: '#16a34a', cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+                  <HandCoins size={13} /> Rembourser l'employé
                 </button>
               )}
             </div>
@@ -177,6 +222,12 @@ export default function ExpenseDetailPage({ params }: { params: Promise<{ id: st
               { icon: User,     label: 'Soumis par',    value: `${exp.submittedBy.firstName} ${exp.submittedBy.lastName}` },
               ...(exp.approvedBy ? [{ icon: CheckCircle2, label: 'Approuvé par', value: `${exp.approvedBy.firstName} ${exp.approvedBy.lastName}` }] : []),
               ...(exp.analyticalAxis ? [{ icon: Tag, label: 'Axe analytique', value: exp.analyticalAxis }] : []),
+              ...(exp.isRecurring ? [{ icon: RefreshCw, label: 'Récurrence',
+                value: `${FREQ_LABELS[exp.frequency ?? 'monthly'] ?? 'Récurrente'}${exp.nextOccurrenceDate ? ` · prochaine le ${formatDate(exp.nextOccurrenceDate)}` : ''}` }] : []),
+              ...(exp.isEmployeeExpense ? [{ icon: HandCoins, label: 'Remboursement',
+                value: exp.reimbursedAt
+                  ? `Remboursée le ${formatDate(exp.reimbursedAt)}${exp.reimbursementReference ? ` · ${exp.reimbursementReference}` : ''}`
+                  : 'À rembourser à l\'employé' }] : []),
             ].map(({ icon: Icon, label, value }) => (
               <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Icon size={13} style={{ color: 'var(--text-3)', flexShrink: 0 }} />
@@ -211,6 +262,8 @@ export default function ExpenseDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       </div>
+
+      <AttachmentsCard expenseId={id} attachments={exp.attachments ?? []} canEdit={can('expense', 'update')} />
 
       {exp.rejectionReason && (
         <div style={{ padding: '14px 18px', borderRadius: 'var(--radius-md)', background: '#fef2f2', border: '1px solid #fecaca' }}>
