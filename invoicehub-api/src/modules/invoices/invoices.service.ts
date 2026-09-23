@@ -505,16 +505,31 @@ export class InvoicesService {
     // Mouvements de stock dans leur PROPRE transaction : une erreur (compte
     // comptable manquant, etc.) ne doit pas annuler l'émission de la facture.
     // Exécutés hors transaction → l'alerte « stock bas » se déclenche aussi.
-    for (const line of trackedLines) {
-      this.stockSvc.createStockMovement({
-        productId:   line.productId!,
-        quantity:    Number(line.quantity),
-        type:        'sale',
-        sourceType:  'invoice',
-        sourceId:    id,
-        sourceLabel: `FAC ${invoice.number}`,
-        createdById: userId,
-      }).catch((e) => console.error('[invoice.issue] mouvement stock échoué, ligne', line.id, e?.message));
+    // On ATTEND désormais leur résultat : un échec ne fait plus taire la désync
+    // stock↔ventes (avant : console.error muet) — on notifie les gestionnaires
+    // de stock pour régularisation manuelle.
+    const stockResults = await Promise.allSettled(
+      trackedLines.map((line) =>
+        this.stockSvc.createStockMovement({
+          productId:   line.productId!,
+          quantity:    Number(line.quantity),
+          type:        'sale',
+          sourceType:  'invoice',
+          sourceId:    id,
+          sourceLabel: `FAC ${invoice.number}`,
+          createdById: userId,
+        }).then(() => ({ ok: true as const }))
+         .catch((e) => { console.error('[invoice.issue] mouvement stock échoué, ligne', line.id, e?.message); throw e; }),
+      ),
+    );
+    const stockFailures = stockResults.filter((r) => r.status === 'rejected').length;
+    if (stockFailures > 0) {
+      await broadcastNotification(this.prisma as any, this.notifQueue, {
+        type:    'system',
+        title:   `Stock non décrémenté — ${invoice.number}`,
+        message: `${stockFailures} ligne(s) de la facture ${invoice.number} n'ont pas pu sortir du stock (compte de stock manquant ou stock insuffisant). Régularisez via un ajustement de stock.`,
+        data:    { invoiceId: invoice.id, invoiceNumber: invoice.number, failures: stockFailures },
+      }, { permission: 'stock:adjust' });
     }
 
     void broadcastNotification(this.prisma as any, this.notifQueue, {

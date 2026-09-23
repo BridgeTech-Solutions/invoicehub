@@ -12,8 +12,9 @@ import {
   adjustStockSchema,
   listMovementsSchema,
   stockLevelsSchema,
+  reverseMovementSchema,
 } from './stock.schema';
-import type { AdjustStockInput, ListMovementsInput, StockLevelsInput } from './stock.schema';
+import type { AdjustStockInput, ListMovementsInput, StockLevelsInput, ReverseMovementInput } from './stock.schema';
 import type { JwtPayload } from '../../common/types/jwt-payload.type';
 
 @ApiTags('Stock')
@@ -61,6 +62,18 @@ export class StockController {
   @Permission('stock:read')
   getMovement(@Param('id') id: string) {
     return this.svc.getMovementById(id);
+  }
+
+  @Post('movements/:id/reverse')
+  @Permission('stock:adjust')
+  @Audit('stock', 'CREATE')
+  @HttpCode(201)
+  reverse(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(reverseMovementSchema)) body: ReverseMovementInput,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.svc.reverseStockMovement(id, user.sub, body.reason ?? null);
   }
 
   @Get('levels/:productId/history')
