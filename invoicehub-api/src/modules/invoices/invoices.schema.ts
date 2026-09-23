@@ -100,6 +100,16 @@ export const reorderLinesSchema = z.object({
   lineIds: z.array(z.string().uuid()).min(1, 'Au moins une ligne est requise'),
 });
 
+// Envoi d'une facture par email au client (PDF joint). `to` par défaut = email du client.
+export const sendInvoiceEmailSchema = z.object({
+  mode:    z.enum(['send', 'mark']).default('send'), // 'mark' = marquer comme envoyé (hors app)
+  to:      z.string().email().optional(),
+  cc:      z.array(z.string().email()).max(10).default([]),
+  subject: z.string().max(500).optional(),
+  message: safeRichTextOptional(5000),
+});
+export type SendInvoiceEmailInput = z.infer<typeof sendInvoiceEmailSchema>;
+
 export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
 export type UpdateInvoiceInput = z.infer<typeof updateInvoiceSchema>;
 export type ListInvoicesInput = z.infer<typeof listInvoicesSchema>;

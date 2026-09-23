@@ -3,6 +3,11 @@ export interface EmailJobData {
   subject: string;
   html: string;
   replyTo?: string;
+  from?: string;
+  cc?: string[];
+  bcc?: string[];
+  // Pièces jointes transportées en base64 dans la file (ex. PDF de facture/proforma).
+  attachments?: Array<{ filename: string; content: string; contentType?: string }>;
 }
 
 export interface NotificationJobData {

@@ -6,7 +6,15 @@ import type { EmailJobData } from '../job-types';
 @Processor('email')
 export class EmailProcessor extends WorkerHost {
   async process(job: Job<EmailJobData>): Promise<void> {
-    const { to, subject, html } = job.data;
-    await sendMail({ to, subject, html });
+    const { to, subject, html, replyTo, from, cc, bcc, attachments } = job.data;
+    await sendMail({
+      to, subject, html, replyTo, from, cc, bcc,
+      attachments: attachments?.map((a) => ({
+        filename: a.filename,
+        content:  a.content,
+        encoding: 'base64',
+        ...(a.contentType ? { contentType: a.contentType } : {}),
+      })),
+    });
   }
 }

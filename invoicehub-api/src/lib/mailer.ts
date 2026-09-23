@@ -29,6 +29,10 @@ export interface SendMailOptions {
   subject: string;
   html: string;
   attachments?: nodemailer.SendMailOptions['attachments'];
+  from?: string;
+  replyTo?: string;
+  cc?: string | string[];
+  bcc?: string | string[];
 }
 
 export async function sendMail(options: SendMailOptions): Promise<void> {
@@ -39,8 +43,13 @@ export async function sendMail(options: SendMailOptions): Promise<void> {
 
   try {
     await getTransporter().sendMail({
-      from: process.env.SMTP_FROM ?? 'noreply@bts.cm',
+      // Expéditeur : fourni par l'appelant (depuis company_settings) > SMTP_FROM >
+      // SMTP_USER. Aucune adresse en dur (white-label : chaque déploiement a la sienne).
+      from: options.from ?? process.env.SMTP_FROM ?? process.env.SMTP_USER ?? 'no-reply@localhost',
       to:   Array.isArray(options.to) ? options.to.join(', ') : options.to,
+      ...(options.replyTo ? { replyTo: options.replyTo } : {}),
+      ...(options.cc  ? { cc:  Array.isArray(options.cc)  ? options.cc.join(', ')  : options.cc }  : {}),
+      ...(options.bcc ? { bcc: Array.isArray(options.bcc) ? options.bcc.join(', ') : options.bcc } : {}),
       subject: options.subject,
       html:    options.html,
       attachments: options.attachments,

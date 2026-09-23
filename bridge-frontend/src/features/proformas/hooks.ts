@@ -180,3 +180,17 @@ export function useDownloadProformaPdf() {
     onError:   (_e, _v, ctx) => toast.error('Erreur lors du téléchargement PDF', { id: ctx?.tid }),
   })
 }
+
+export function useSendProformaEmail(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { mode?: 'send' | 'mark'; to?: string; cc?: string[]; subject?: string; message?: string }) =>
+      proformasApi.sendEmail(id, payload),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: PROFORMA_KEYS.detail(id) })
+      qc.invalidateQueries({ queryKey: PROFORMA_KEYS.all })
+      toast.success(r.marked ? 'Devis marqué comme envoyé' : `Devis envoyé à ${r.to}`)
+    },
+    onError: (e: unknown) => toast.error((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Échec de l\'envoi'),
+  })
+}

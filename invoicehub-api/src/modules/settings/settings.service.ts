@@ -123,6 +123,7 @@ export class SettingsService {
           ...(input.footerSafeZonePx             !== undefined && { footerSafeZonePx:             input.footerSafeZonePx }),
           ...(input.reminderEscalation           !== undefined && { reminderEscalation:           input.reminderEscalation }),
           ...(input.budgetControl                !== undefined && { budgetControl:                input.budgetControl }),
+          ...(input.emailConfig                  !== undefined && { emailConfig:                  input.emailConfig }),
           ...(input.initialStockAccount          !== undefined && { initialStockAccount:          input.initialStockAccount }),
           ...(input.escompteAccountingAccount    !== undefined && { escompteAccountingAccount:    input.escompteAccountingAccount }),
           ...(input.collectedTaxAccount          !== undefined && { collectedTaxAccount:          input.collectedTaxAccount }),

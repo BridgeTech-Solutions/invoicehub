@@ -54,6 +54,11 @@ export interface CompanySettings {
     notifyRoles:      string[]
     requireApproval?: boolean
   } | null
+  // Envoi des documents par email : adresse de réponse
+  emailConfig:                  {
+    replyToMode:    'sender' | 'central'
+    centralReplyTo?: string | null
+  } | null
   // Comptes comptables SYSCOHADA
   initialStockAccount:          string
   escompteAccountingAccount:    string

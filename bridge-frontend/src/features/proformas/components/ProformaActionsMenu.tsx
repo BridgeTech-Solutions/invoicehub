@@ -4,13 +4,14 @@ import { useState, useRef, useEffect, useId } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Send, CheckCircle2, XCircle, ArrowRightLeft, Copy,
-  Trash2, FileDown, Loader2, Pencil, AlertTriangle, ListRestart,
+  Trash2, FileDown, Loader2, Pencil, AlertTriangle, ListRestart, Mail,
 } from 'lucide-react'
 import {
   useSendProforma, useAcceptProforma, useRejectProforma,
   useConvertProforma, useDuplicateProforma, useDeleteProforma,
-  useDownloadProformaPdf, useReorderProformaLines,
+  useDownloadProformaPdf, useReorderProformaLines, useSendProformaEmail,
 } from '../hooks'
+import { SendEmailDrawer } from '@/components/document/SendEmailDrawer'
 import { LineReorderModal } from '@/components/document/LineReorderModal'
 import type { Proforma } from '../types'
 import { submitButtonState } from '@/features/approvals/effectiveStatus'
@@ -256,7 +257,9 @@ export function ProformaActionsMenu({ proforma }: ProformaActionsMenuProps) {
   const [showConvert, setShowConvert] = useState(false)
   const [showDelete,  setShowDelete]  = useState(false)
   const [showReorder, setShowReorder] = useState(false)
+  const [showEmail,   setShowEmail]   = useState(false)
 
+  const emailMutation     = useSendProformaEmail(proforma.id)
   const sendMutation      = useSendProforma()
   const acceptMutation    = useAcceptProforma()
   const duplicateMutation = useDuplicateProforma()
@@ -313,6 +316,11 @@ export function ProformaActionsMenu({ proforma }: ProformaActionsMenuProps) {
         >
           {pdfMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />}
           Télécharger PDF
+        </button>
+
+        {/* Envoyer par email / marquer comme envoyé */}
+        <button style={btnSecondary} disabled={isLoading} onClick={() => setShowEmail(true)}>
+          <Mail size={14} /> Envoyer par email
         </button>
 
         {/* Duplicate — always */}
@@ -421,6 +429,18 @@ export function ProformaActionsMenu({ proforma }: ProformaActionsMenuProps) {
           isPending={deleteMutation.isPending}
           onConfirm={() => deleteMutation.mutate(id)}
           onCancel={() => setShowDelete(false)}
+        />
+      )}
+      {showEmail && (
+        <SendEmailDrawer
+          title="Envoyer le devis"
+          documentNumber={number}
+          attachmentName={`${number.replace(/\//g, '-')}.pdf`}
+          defaultTo={proforma.client?.email ?? ''}
+          defaultSubject={`Devis ${number}`}
+          isPending={emailMutation.isPending}
+          onSend={(payload) => emailMutation.mutate(payload, { onSuccess: () => setShowEmail(false) })}
+          onClose={() => setShowEmail(false)}
         />
       )}
     </>

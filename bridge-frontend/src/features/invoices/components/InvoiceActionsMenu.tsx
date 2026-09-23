@@ -4,13 +4,14 @@ import { useState, useRef, useEffect, useId } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Zap, XCircle, Copy, Trash2, FileDown, Loader2, Pencil,
-  CreditCard, FileX, AlertTriangle, ListRestart, BadgePercent, Send,
+  CreditCard, FileX, AlertTriangle, ListRestart, BadgePercent, Send, Mail,
 } from 'lucide-react'
 import {
   useIssueInvoice, useCancelInvoice, useDuplicateInvoice,
   useDownloadInvoicePdf, useCreateAvoir, useDeleteInvoice,
-  useReorderInvoiceLines,
+  useReorderInvoiceLines, useSendInvoiceEmail,
 } from '../hooks'
+import { SendEmailDrawer } from '@/components/document/SendEmailDrawer'
 import { PaymentDrawer } from './PaymentDrawer'
 import { CancelModal }   from './CancelModal'
 import { AvoirModal }    from './AvoirModal'
@@ -82,7 +83,9 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
   const [showDelete,  setShowDelete]  = useState(false)
   const [showReorder, setShowReorder] = useState(false)
   const [showDiscount, setShowDiscount] = useState(false)
+  const [showEmail,   setShowEmail]   = useState(false)
 
+  const emailMutation     = useSendInvoiceEmail(invoice.id)
   const issueMutation     = useIssueInvoice()
   const duplicateMutation = useDuplicateInvoice()
   const deleteMutation    = useDeleteInvoice()
@@ -157,6 +160,13 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
           {pdfMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />}
           Télécharger PDF
         </button>
+
+        {/* Envoyer par email — hors brouillon/annulée */}
+        {status !== 'draft' && status !== 'cancelled' && (
+          <button style={btnSecondary} disabled={isLoading} onClick={() => setShowEmail(true)}>
+            <Mail size={14} /> Envoyer par email
+          </button>
+        )}
 
         {/* Duplicate — always */}
         <button
@@ -288,6 +298,18 @@ export function InvoiceActionsMenu({ invoice }: InvoiceActionsMenuProps) {
           isPending={deleteMutation.isPending}
           onConfirm={() => deleteMutation.mutate(id)}
           onCancel={() => setShowDelete(false)}
+        />
+      )}
+      {showEmail && (
+        <SendEmailDrawer
+          title="Envoyer la facture"
+          documentNumber={number}
+          attachmentName={`${number.replace(/\//g, '-')}.pdf`}
+          defaultTo={invoice.client?.email ?? ''}
+          defaultSubject={`Facture ${number}`}
+          isPending={emailMutation.isPending}
+          onSend={(payload) => emailMutation.mutate(payload, { onSuccess: () => setShowEmail(false) })}
+          onClose={() => setShowEmail(false)}
         />
       )}
     </>

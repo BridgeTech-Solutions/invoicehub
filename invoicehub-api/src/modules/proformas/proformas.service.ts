@@ -4,6 +4,7 @@ import { Queue } from 'bullmq';
 import { OnEvent } from '@nestjs/event-emitter';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { clientEmailShell } from '../../lib/email-shell';
 import { ApprovalsService } from '../approvals/approvals.service';
 import { APPROVAL_COMPLETED, type ApprovalCompletedEvent, type AutoExecResult } from '../../common/events/approval.events';
 import { AppError } from '../../common/errors/app-error';
@@ -263,6 +264,80 @@ export class ProformasService {
     );
 
     return this.findById(id);
+  }
+
+  /**
+   * Envoie la proforma (devis) au client par email, PDF joint. Pur envoi email +
+   * `lastEmailSentAt` : le cycle de statut (draft→sent, avec workflow d'approbation)
+   * reste géré par `send()`. Expéditeur/Reply-To depuis les paramètres (white-label).
+   */
+  async sendByEmail(id: string, input: { mode?: 'send' | 'mark'; to?: string; cc?: string[]; subject?: string; message?: string }, userId: string) {
+    const proforma: any = await this.findById(id);
+    if (proforma.status === 'cancelled') throw AppError.badRequest('Impossible d\'envoyer une proforma annulée.');
+
+    // Mode « marquer comme envoyé » : aucun email expédié. On trace la date et, si la
+    // proforma est encore en brouillon/rejetée, on la fait passer à « envoyée ».
+    if (input.mode === 'mark') {
+      const toSent = ['draft', 'rejected'].includes(proforma.status);
+      await this.prisma.proforma.update({
+        where: { id },
+        data: {
+          lastEmailSentAt: new Date(), lastSentAt: new Date(),
+          ...(toSent ? {
+            status: 'sent',
+            statusHistory: { create: { changedById: userId, previousStatus: proforma.status, newStatus: 'sent' } },
+          } : {}),
+        },
+      });
+      return { sent: false, marked: true };
+    }
+
+    if (!process.env.SMTP_HOST) {
+      throw AppError.badRequest("L'envoi d'email n'est pas configuré sur ce serveur (SMTP absent). Utilisez « Marquer comme envoyé ».");
+    }
+
+    const to = (input.to ?? proforma.client?.email ?? '').trim();
+    if (!to) throw AppError.badRequest('Aucune adresse email : renseignez celle du client ou saisissez un destinataire.');
+
+    const [settings, sender] = await Promise.all([
+      this.prisma.companySettings.findFirst({ select: { companyName: true, email: true, emailConfig: true } }),
+      this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } }),
+    ]);
+    const companyName = settings?.companyName ?? 'Notre société';
+    const cfg = (settings?.emailConfig ?? {}) as { replyToMode?: string; centralReplyTo?: string };
+    const replyTo = cfg.replyToMode === 'central'
+      ? (cfg.centralReplyTo || settings?.email || undefined)
+      : (sender?.email || settings?.email || undefined);
+    const envelope = process.env.SMTP_FROM ?? process.env.SMTP_USER;
+    const from = envelope ? `"${companyName}" <${envelope}>` : undefined;
+
+    const { buffer, filename } = await this.generatePdfResponse(id);
+
+    const subject = input.subject?.trim() || `Devis ${proforma.number} — ${companyName}`;
+    const amount = new Intl.NumberFormat('fr-FR').format(Number(proforma.totalTtc));
+    const cur = proforma.currency ?? 'XAF';
+    const validUntil = proforma.validUntil
+      ? new Date(proforma.validUntil).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+      : '';
+    const inner = input.message?.trim() || `<p style="margin:0 0 14px;">Bonjour ${proforma.client?.name ?? 'Madame, Monsieur'},</p>
+<p style="margin:0 0 14px;">Veuillez trouver ci-joint le devis <strong>${proforma.number}</strong> d'un montant de <strong>${amount} ${cur} TTC</strong>${validUntil ? `, valable jusqu'au ${validUntil}` : ''}.</p>
+<p style="margin:0 0 14px;">Dans l'attente de votre retour, nous restons à votre disposition.</p>
+<p style="margin:0;">Cordialement,<br/>${companyName}</p>`;
+    const html = clientEmailShell({ companyName, bodyHtml: inner });
+
+    const bcc = sender?.email && sender.email.toLowerCase() !== to.toLowerCase() ? [sender.email] : undefined;
+
+    await this.emailQueue.add('email', {
+      to, subject, html,
+      ...(replyTo ? { replyTo } : {}),
+      ...(from ? { from } : {}),
+      ...(input.cc?.length ? { cc: input.cc } : {}),
+      ...(bcc ? { bcc } : {}),
+      attachments: [{ filename, content: buffer.toString('base64'), contentType: 'application/pdf' }],
+    }, { attempts: 3, backoff: { type: 'exponential', delay: 5000 } });
+
+    await this.prisma.proforma.update({ where: { id }, data: { lastEmailSentAt: new Date(), lastSentAt: new Date() } });
+    return { sent: true, to };
   }
 
   async send(id: string, userId: string) {
