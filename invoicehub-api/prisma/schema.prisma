@@ -859,6 +859,7 @@ model Product {
   purchaseOrderLines   PurchaseOrderLine[]  @relation("POLineProduct")
   supplierInvoiceLines SupplierInvoiceLine[] @relation("SILineProduct")
   stockMovements       StockMovement[]
+  inventoryLines       InventoryCountLine[]
 
   @@unique([name, categoryId])
   @@map("products")
@@ -1630,6 +1631,54 @@ model StockMovement {
   createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz()
 
   @@map("stock_movements")
+}
+
+// --- Inventaire physique (comptage + recalage) ---
+
+enum InventorySessionStatus {
+  draft        // créée, non encore ouverte au comptage
+  in_progress  // comptage en cours
+  validated    // clôturée, écarts recalés (mouvements + écritures générés)
+  cancelled
+
+  @@map("inventory_session_status")
+}
+
+/// Session d'inventaire physique : fige le stock théorique des produits à un instant,
+/// on saisit les quantités réellement comptées, puis la validation génère un mouvement
+/// d'ajustement par écart (recalage + écriture comptable). Obligation SYSCOHADA (art. 17).
+model InventorySession {
+  id            String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  reference     String                 @unique @db.VarChar(50)
+  status        InventorySessionStatus @default(draft)
+  notes         String?
+  categoryId    String?                @map("category_id") @db.Uuid // portée optionnelle
+  createdById   String                 @map("created_by") @db.Uuid
+  validatedById String?                @map("validated_by") @db.Uuid
+  validatedAt   DateTime?              @map("validated_at") @db.Timestamptz()
+  createdAt     DateTime               @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  lines InventoryCountLine[]
+
+  @@map("inventory_sessions")
+}
+
+model InventoryCountLine {
+  id             String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sessionId      String           @map("session_id") @db.Uuid
+  session        InventorySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  productId      String           @map("product_id") @db.Uuid
+  product        Product          @relation(fields: [productId], references: [id], onDelete: Restrict)
+  theoreticalQty Decimal          @map("theoretical_qty") @db.Decimal(10, 3) // stock théorique figé à la création
+  unitCostHt     Decimal?         @map("unit_cost_ht") @db.Decimal(15, 2)    // CMUP figé (valorise l'écart)
+  countedQty     Decimal?         @map("counted_qty") @db.Decimal(10, 3)     // quantité réellement comptée (null tant que non comptée)
+  movementId     String?          @map("movement_id") @db.Uuid              // mouvement d'ajustement généré à la validation
+  notes          String?
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@unique([sessionId, productId])
+  @@map("inventory_count_lines")
 }
 
 // ================================================================

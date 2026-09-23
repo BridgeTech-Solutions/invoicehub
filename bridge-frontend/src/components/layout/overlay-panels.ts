@@ -5,7 +5,7 @@ import {
   Shield, Key,
   Building2, Percent, Lock, BellRing, HardDrive,
   GitBranch, Settings2, Image as ImageIcon,
-  Warehouse, Package, Tag, BarChart2, AlertTriangle,
+  Warehouse, Package, Tag, BarChart2, AlertTriangle, ClipboardList,
   Wallet, ReceiptText, PieChart,
   KeyRound, Webhook, Sliders, Ruler,
 } from 'lucide-react'
@@ -65,10 +65,11 @@ export const OVERLAY_PANELS: Record<string, OverlayPanel> = {
       {
         title: 'STOCK',
         items: [
-          { label: 'Inventaire', href: ROUTES.STOCK,           icon: Warehouse, permission: { resource: 'stock', action: 'read' } },
-          { label: 'Mouvements', href: ROUTES.STOCK_MOVEMENTS, icon: ArrowLeftRight, permission: { resource: 'stock', action: 'read' } },
-          { label: 'Niveaux',    href: ROUTES.STOCK_LEVELS,    icon: BarChart2, permission: { resource: 'stock', action: 'read' } },
-          { label: 'Alertes',    href: ROUTES.STOCK_ALERTS,    icon: AlertTriangle, permission: { resource: 'stock', action: 'read' } },
+          { label: 'Vue d\'ensemble', href: ROUTES.STOCK,           icon: Warehouse, permission: { resource: 'stock', action: 'read' } },
+          { label: 'Mouvements',      href: ROUTES.STOCK_MOVEMENTS, icon: ArrowLeftRight, permission: { resource: 'stock', action: 'read' } },
+          { label: 'Niveaux',         href: ROUTES.STOCK_LEVELS,    icon: BarChart2, permission: { resource: 'stock', action: 'read' } },
+          { label: 'Inventaires',     href: ROUTES.STOCK_INVENTORY, icon: ClipboardList, permission: { resource: 'stock', action: 'read' } },
+          { label: 'Alertes',         href: ROUTES.STOCK_ALERTS,    icon: AlertTriangle, permission: { resource: 'stock', action: 'read' } },
         ],
       },
     ],

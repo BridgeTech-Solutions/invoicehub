@@ -46,7 +46,24 @@ export const stockLevelsSchema = z.object({
   categoryId: z.string().uuid().optional(),
 });
 
+// ── Inventaire physique ─────────────────────────────────────────────────────────
+
+export const createInventorySchema = z.object({
+  categoryId: z.string().uuid().optional().nullable(), // portée (option) : une catégorie
+  notes:      z.string().max(500).optional().nullable(),
+});
+
+export const saveCountsSchema = z.object({
+  lines: z.array(z.object({
+    lineId:     z.string().uuid(),
+    countedQty: z.number().min(0, 'La quantité comptée ne peut pas être négative'),
+    notes:      z.string().max(255).optional().nullable(),
+  })).min(1, 'Au moins une ligne à saisir'),
+});
+
 export type AdjustStockInput     = z.infer<typeof adjustStockSchema>;
 export type ListMovementsInput   = z.infer<typeof listMovementsSchema>;
 export type StockLevelsInput     = z.infer<typeof stockLevelsSchema>;
 export type ReverseMovementInput = z.infer<typeof reverseMovementSchema>;
+export type CreateInventoryInput = z.infer<typeof createInventorySchema>;
+export type SaveCountsInput      = z.infer<typeof saveCountsSchema>;
