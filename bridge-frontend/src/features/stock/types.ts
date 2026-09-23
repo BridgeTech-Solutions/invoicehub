@@ -138,3 +138,50 @@ export interface ListLevelsParams {
   rupture?:    boolean
   categoryId?: string
 }
+
+// ─── Inventaire physique ──────────────────────────────────────
+export type InventoryStatus = 'draft' | 'in_progress' | 'validated' | 'cancelled'
+
+export interface InventorySessionListItem {
+  id:          string
+  reference:   string
+  status:      InventoryStatus
+  notes:       string | null
+  categoryId:  string | null
+  lineCount:   number
+  validatedAt: string | null
+  createdAt:   string
+}
+
+export interface InventoryCountLineView {
+  id:               string
+  productId:        string
+  productName:      string
+  productReference: string | null
+  stockUnit:        string | null
+  theoreticalQty:   number
+  currentQty:       number
+  countedQty:       number | null
+  unitCostHt:       number | null
+  gap:              number | null
+  gapValue:         number | null
+  movementId:       string | null
+  notes:            string | null
+}
+
+export interface InventorySessionDetail {
+  id:          string
+  reference:   string
+  status:      InventoryStatus
+  notes:       string | null
+  categoryId:  string | null
+  createdBy:   string | null
+  validatedBy: string | null
+  validatedAt: string | null
+  createdAt:   string
+  lines:       InventoryCountLineView[]
+  summary:     { total: number; counted: number; pending: number; gaps: number; gapValue: number }
+}
+
+export interface CreateInventoryPayload { categoryId?: string; notes?: string }
+export interface SaveCountsPayload { lines: { lineId: string; countedQty: number; notes?: string }[] }

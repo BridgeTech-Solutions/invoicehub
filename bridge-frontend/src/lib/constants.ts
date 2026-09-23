@@ -40,6 +40,7 @@ export const ROUTES = {
   STOCK_MOVEMENTS:     '/stock/movements',
   STOCK_LEVELS:        '/stock/levels',
   STOCK_ALERTS:        '/stock/alerts',
+  STOCK_INVENTORY:     '/stock/inventory',
 
   // ── Finances — Banque ───────────────────────────────────────────
   BANK:                       '/bank',

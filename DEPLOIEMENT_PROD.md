@@ -58,6 +58,22 @@ pm2 restart bridge-frontend
 > Ces commandes sont **en plus** de la procédure standard, à ne lancer **qu'une seule fois** par
 > environnement (elles sont idempotentes sauf mention contraire).
 
+### 2026-09-23 — Module Stock : inventaire physique (comptage + recalage)
+Nouveau sous-module **Inventaire** (obligation SYSCOHADA art. 17) : on crée une session
+(fige le stock théorique), on saisit les quantités **réellement comptées**, la validation
+génère un **mouvement d'ajustement par écart** (recale le stock EXACTEMENT sur le compté +
+écriture comptable). Écran de comptage sous **Stock → Inventaires** (`/stock/inventory`).
+- API : `GET/POST /stock/inventory`, `GET /stock/inventory/:id`, `PUT :id/counts`,
+  `POST :id/validate`, `POST :id/cancel` (lecture `stock:read`, actions `stock:adjust`).
+
+> **Migration SQL requise** (nouvelles tables `inventory_sessions` + `inventory_count_lines`
+> et l'enum `inventory_session_status`) :
+> ```bash
+> npx prisma db execute --file prisma/add_inventory_sessions.sql --schema prisma/schema.prisma
+> pnpm db:generate
+> ```
+> (La procédure standard `pnpm db:generate` + `pnpm build` suffit ensuite.)
+
 ### 2026-09-23 — Module Stock : fiabilité des mouvements + contre-passation
 - **Sorties/entrées de stock fiabilisées** : à l'émission d'une facture (sortie `sale`) et à
   la réception d'un BC (entrée `purchase_receipt`), le mouvement était *fire-and-forget* avec

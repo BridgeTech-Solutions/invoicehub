@@ -2131,6 +2131,39 @@ COMMENT ON TABLE  stock_movements              IS 'Journal immuable des mouvemen
 COMMENT ON COLUMN stock_movements.quantity     IS 'Quantité du mouvement. Positif = entrée en stock. Négatif = sortie de stock.';
 COMMENT ON COLUMN stock_movements.unit_cost_ht IS 'Coût unitaire HT au moment du mouvement. Utilisé pour valorisation FIFO ou CMUP.';
 
+-- 3.10bis Inventaire physique (comptage + recalage) — obligation SYSCOHADA (art. 17)
+CREATE TYPE inventory_session_status AS ENUM ('draft', 'in_progress', 'validated', 'cancelled');
+
+CREATE TABLE inventory_sessions (
+  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  reference     VARCHAR(50) NOT NULL UNIQUE,
+  status        inventory_session_status NOT NULL DEFAULT 'draft',
+  notes         TEXT,
+  category_id   UUID,
+  created_by    UUID NOT NULL,
+  validated_by  UUID,
+  validated_at  TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE inventory_count_lines (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  session_id      UUID NOT NULL REFERENCES inventory_sessions(id) ON DELETE CASCADE,
+  product_id      UUID NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+  theoretical_qty NUMERIC(10,3) NOT NULL,
+  unit_cost_ht    NUMERIC(15,2),
+  counted_qty     NUMERIC(10,3),
+  movement_id     UUID,
+  notes           TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (session_id, product_id)
+);
+CREATE INDEX idx_inventory_count_lines_session ON inventory_count_lines(session_id);
+
+COMMENT ON TABLE inventory_sessions    IS 'Sessions d''inventaire physique : fige le stock théorique, saisie des comptés, recalage à la validation.';
+COMMENT ON TABLE inventory_count_lines IS 'Lignes de comptage : théorique figé, compté, écart recalé via un mouvement d''ajustement.';
+
 -- ================================================================
 -- 3.11 Mise à jour de fn_next_document_number — nouveaux types
 -- ================================================================
